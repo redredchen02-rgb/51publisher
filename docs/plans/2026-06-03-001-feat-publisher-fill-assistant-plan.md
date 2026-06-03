@@ -1,7 +1,7 @@
 ---
 title: "feat: 51publisher 发帖填充助手(Chrome 扩展)"
 type: feat
-status: active
+status: completed
 date: 2026-06-03
 origin: docs/brainstorms/2026-06-03-publisher-fill-assistant-requirements.md
 deepened: 2026-06-03
@@ -172,7 +172,7 @@ flowchart TB
 
 **Verification:** ✅ `docs/field-mapping-guide.md` 已记结论:Quill 2.0.2 vanilla + `window.Quill` 可用(走 tier ①)、分类=原生 select、标签=checkbox 多选、封面=file 上传、表单为 layui 弹层、域名 `dx-999-adm.ympxbys.xyz`。
 
-- [ ] **Unit 1: WXT 脚手架 + manifest 配置**
+- [x] **Unit 1: WXT 脚手架 + manifest 配置** — ✅
 
 **Goal:** 建立 WXT + TS + React 项目骨架,配好 MV3 manifest(side panel、background、content scripts、最小 host_permissions)。
 
@@ -195,7 +195,7 @@ flowchart TB
 
 **Verification:** `wxt build` 产出合法 MV3 manifest;扩展能加载,点图标能打开空 side panel。
 
-- [ ] **Unit 2: 共享类型 + storage 封装**
+- [x] **Unit 2: 共享类型 + storage 封装** — ✅
 
 **Goal:** 定义 `ContentDraft`、消息协议类型、设置(endpoint/key/prompt/字段映射)的 `chrome.storage.local` 读写封装。
 
@@ -223,7 +223,7 @@ flowchart TB
 
 **Verification:** 测试通过;类型在三层入口均可 import。
 
-- [ ] **Unit 3: Background — 大模型调用 + 消息路由**
+- [x] **Unit 3: Background — 大模型调用 + 消息路由** — ✅
 
 **Goal:** background 接收 side panel 的"生成草稿"指令,读 storage 取 key/endpoint,fetch 大模型,返回 `ContentDraft`(status=draft)。
 
@@ -255,7 +255,7 @@ flowchart TB
 
 **Verification:** mock fetch 下测试通过;手动配好 key 后 side panel 能拿到一条草稿;断网/超时有可重试提示。
 
-- [ ] **Unit 4: 字段映射 + 普通字段填充(隔离世界 content script)**
+- [x] **Unit 4: 字段映射 + 普通字段填充(隔离世界 content script)** — ✅
 
 **Goal:** 定义可配置字段映射;content script 接收填充指令,填 title/subtitle/分类/标签并触发事件、高亮已填字段,**绝不提交**。
 
@@ -298,7 +298,7 @@ flowchart TB
 
 **Verification:** jsdom 测试通过;零提交断言(submit 事件=0 + 无导航)绿灯;消毒测试绿灯。
 
-- [ ] **Unit 5: Quill 正文桥接填充(主世界脚本)**
+- [x] **Unit 5: Quill 正文桥接填充(主世界脚本)** — ✅
 
 **Goal:** 主世界脚本接收**已消毒**正文 HTML,按两档策略写入 Quill,结果回传隔离世界;带就绪握手与超时,正文写不进时明确降级为"手动粘贴"。
 
@@ -331,7 +331,7 @@ flowchart TB
 
 **Verification:** 单测覆盖上述实例可用/不可用/空三态;就绪握手与超时在真机验证;真实页填充后正文显示正常、可继续编辑,**且触发一次无关 re-render 后正文未被回写覆盖**。
 
-- [ ] **Unit 6: Side Panel UI + 设置页**
+- [x] **Unit 6: Side Panel UI + 设置页** — ✅
 
 **Goal:** React side panel:生成草稿 / 预览编辑 / 填充到当前页 / 下一条,顶部常驻"不会自动发布"提示;设置页配 endpoint/key/prompt/字段映射(key 存储带风险提示)。
 
@@ -373,7 +373,7 @@ flowchart TB
 
 **Verification:** 组件测试通过;真机走通"生成→编辑→填充→(完整/partial)→下一条"全流程;提示条与结果摘要始终可见;键盘可走通全流程。
 
-- [ ] **Unit 7: README + 字段映射填写指南**
+- [x] **Unit 7: README + 字段映射填写指南** — ✅
 
 **Goal:** 文档:安装、配置(endpoint/key/prompt)、使用流程、如何按自己后台页面填写字段映射、Quill 兜底路径的局限说明。
 

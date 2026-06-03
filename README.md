@@ -1,0 +1,83 @@
+# 51publisher 发帖填充助手
+
+一个 Chrome 扩展(Manifest V3),辅助内容运营:用大模型生成一条帖子草稿,**人工预览/编辑**后一键填进 51publisher 后台发帖表单,再由**人工审核并手动点发布**。
+
+> **硬约束:插件只「填充」,绝不自动提交、绝不自动点发布。最终发布动作必须由人工完成。**
+> 代码层面由 `lib/fillers.ts` 的零提交测试守护(填充流程后 `<form>` 的 submit 事件计数必须为 0、不点击任何提交/发布按钮、不派发回车)。
+
+## 工作流
+
+```
+输入选题 → 生成草稿(AI)→ 在 side panel 预览/编辑 → 填充到当前页 → 人工审核修改 → 人工点发布 → 下一条
+```
+
+- **正文**走 Quill 编辑器自身 API 写入(`Quill.find(#editor).clipboard.dangerouslyPasteHTML`),写入前按白名单消毒。
+- **分类**是原生下拉、**标签**是 checkbox 多选、**封面**为文件上传(MVP 不自动填,人工上传)。
+- 字段选择器集中在「设置 → 字段映射」一处,后台小改版只改这里。详见 [`docs/field-mapping-guide.md`](docs/field-mapping-guide.md)。
+
+## 环境要求
+
+- **仅支持 Chromium 内核浏览器**(Chrome/Edge 等)——正文写入依赖主世界 content script,Firefox 不支持。
+- Node ≥ 20、pnpm。
+
+## 安装(加载未打包扩展)
+
+```bash
+pnpm install
+pnpm build          # 产出 .output/chrome-mv3/
+```
+
+然后在 Chrome:
+
+1. 打开 `chrome://extensions`,右上角开启「开发者模式」。
+2. 点「加载已解压的扩展程序」,选择 `.output/chrome-mv3/` 目录。
+3. 点工具栏的扩展图标即可打开 side panel。
+
+开发时可用 `pnpm dev`(带热更新)。
+
+## 配置(设置页)
+
+点 side panel 右上角「⚙ 设置」:
+
+| 项 | 说明 |
+|---|---|
+| endpoint | 大模型地址,**仅支持 OpenAI 兼容 `chat/completions`**,必须 `https://`。 |
+| 模型 | 模型名,如 `gpt-4o-mini`。 |
+| API key | **明文存于本地浏览器(`chrome.storage.local`)**,并会随请求发往你配置的 endpoint。 |
+| Prompt 模板 | 用 `{{topic}}` 注入你输入的主题。要求模型以 JSON 返回 title/subtitle/category/body/tags/description。 |
+| 字段映射 | 默认值来自现场勘查,通常无需改;后台改版时按指南更新。带 JSON + schema 校验与「恢复默认」。 |
+
+## 使用
+
+1. 在 51publisher 后台发帖页打开「添加」表单(side panel 的填充作用于当前标签页)。
+2. side panel 输入主题 →「生成草稿」。
+3. 预览区核对/修改;非 AI 字段(状态/发布时间/作品 id)可在折叠区手填。
+4. 「填充到当前页」→ 看「填充结果」面板:绿=已填、黄=跳过(未找到)、红=需手动。
+5. 若正文显示「需手动」,点「复制正文」自行粘贴到编辑器。
+6. **人工在后台核对后手动点发布。**
+7. 「下一条」清空当前草稿,继续。
+
+> 当前在编草稿会临时存入 `chrome.storage.local`,side panel 重开/页面刷新时自动恢复,避免「编辑半天一刷新全没」。「下一条」时清除。
+
+## 安全与边界
+
+- 不自动提交/发布(硬约束)。
+- API key 明文存本地、只在 background 使用、绝不进入页面上下文,也不写入错误日志;但仍会发往你配置的 endpoint——**请只配置可信地址,建议用权限受限的专用 key**。
+- 正文 HTML 来自大模型(最不可信输入),写入 Quill 前在隔离世界按白名单消毒(剥除 `<script>`/事件处理器/`javascript:` 等),防 XSS。
+- `host_permissions` 仅声明 `*://*.ympxbys.xyz/*`(后台域名)。
+
+## 局限
+
+- 仅适配 51publisher 当前后台(Quill 2.0.2、layui 弹层表单)。后台若更换富文本编辑器或大改表单结构,需改代码而非仅改字段映射(见指南的 Tier 分级)。
+- 极端情况下若 `window.Quill` 不可用,正文走兜底写入(质量较差),此时建议人工粘贴。
+- 不做批量队列;一次一条。
+
+## 开发
+
+```bash
+pnpm test          # 单元测试(vitest)
+pnpm compile       # tsc 类型检查
+pnpm build         # 构建
+```
+
+三层结构:`entrypoints/background.ts`(调大模型)、`entrypoints/content.ts`(隔离世界填充)+ `entrypoints/quill-bridge.content.ts`(主世界写 Quill)、`entrypoints/sidepanel/`(React UI);共享逻辑在 `lib/`。

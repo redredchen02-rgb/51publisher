@@ -59,3 +59,42 @@
 - 表单经 layui 弹层动态插入,且响应有 `crypt:true`(请求/响应可能加密)——插件**只做前端填充**,不碰其提交通道,所以加密不影响填充。
 - 标签 label 与 checkbox 的精确 DOM 关联(相邻 `<label>` 还是 `label[for]`)实现时用 devtools 再确认一次(策略不变:按 label 文本匹配勾选)。
 - 填充前确保「添加」弹层已打开(可由操作员先点开,或插件检测 `.layui-layer-content` 存在)。
+
+## 如何按你的后台填写字段映射
+
+字段映射在「设置 → 字段映射(JSON)」编辑,形如:
+
+```json
+{
+  "title":    { "selector": "input[name=\"title\"]",        "fieldType": "text" },
+  "category": { "selector": "select[name=\"type\"]",         "fieldType": "native-select" },
+  "tags":     { "selector": "input[name=\"tags[]\"]",        "fieldType": "checkbox-multi" },
+  "body":     { "selector": "#editor",                       "fieldType": "quill" }
+}
+```
+
+找选择器的步骤:
+
+1. 打开发帖表单,在目标字段上右键 →「检查」。
+2. **优先用稳定属性**:`name` > `id` > `data-*` > `aria-label`;**避免**易变的 class 链。
+3. 把选择器填进对应字段,`fieldType` 选下表之一。
+
+| fieldType | 适用 | 填充方式 |
+|---|---|---|
+| `text` / `textarea` | 普通输入框 / 多行框 | set value + input/change |
+| `native-select` | 原生 `<select>` | 按 value 或选项文本匹配 |
+| `checkbox-multi` | 一组 checkbox(标签) | 按标签文本匹配勾选 |
+| `date` | 日期输入框 | set value + change |
+| `quill` | Quill 富文本 | 主世界 `Quill.find().dangerouslyPasteHTML` |
+
+> 改完点「保存」会做 JSON + schema 校验;填错会给出可读报错,可点「恢复默认」回到现场勘查的版本。
+
+## 后台改版时的可吸收范围(Tier 分级)
+
+字段映射不是万能的。改版能不能"只改一处"取决于改了什么:
+
+- **Tier-A —— 改 config 即可**:只是选择器变了(字段还在、形态没变,比如 `name` 改了)。在设置页改对应 selector,保存即可。
+- **Tier-B —— 需改 `lib/fillers.ts` + config**:交互形态变了。例如分类从原生 `<select>` 变成自定义 combobox、标签从 checkbox 变成「输入+回车」的 tag-input。需要为新形态加/改填充器分支。
+- **Tier-C —— 需改架构**:正文编辑器更换(Quill → TipTap/Slate 等)、字段进了 closed shadow DOM、字段动态/异步出现、表单变多步向导。这类要改 `quill-paste.ts` / `body-bridge.ts` 或填充时序,不是改配置能解决的。
+
+遇到填充失效,先看 side panel「填充结果」面板:**跳过(未找到)**通常是 Tier-A(选择器失效),**需手动/降级**可能是 Tier-B/C。
