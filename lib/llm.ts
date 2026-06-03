@@ -40,7 +40,8 @@ const str = (v: unknown): string => (typeof v === 'string' ? v : v == null ? '' 
 
 /** 从 OpenAI 兼容响应里抠出 content 文本。 */
 function extractContent(raw: unknown): string | null {
-  const choices = (raw as { choices?: Array<{ message?: { content?: unknown } }> })?.choices;
+  if (typeof raw !== 'object' || raw === null) return null;
+  const choices = (raw as { choices?: Array<{ message?: { content?: unknown } }> }).choices;
   const content = choices?.[0]?.message?.content;
   return typeof content === 'string' ? content : null;
 }
@@ -50,7 +51,8 @@ function parseContentJson(content: string): Record<string, unknown> | null {
   const stripped = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
   try {
     const obj = JSON.parse(stripped);
-    return obj && typeof obj === 'object' ? (obj as Record<string, unknown>) : null;
+    // 必须是普通对象:拒绝数组与标量(它们 JSON.parse 也成功但不是草稿结构)。
+    return obj && typeof obj === 'object' && !Array.isArray(obj) ? (obj as Record<string, unknown>) : null;
   } catch {
     return null;
   }

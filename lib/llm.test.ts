@@ -9,7 +9,10 @@ const settings: Settings = {
   model: 'gpt-4o-mini',
 };
 
-function mockFetch(payload: unknown, init?: { ok?: boolean; status?: number; statusText?: string; throwName?: string }) {
+function mockFetch(
+  payload: unknown,
+  init?: { ok?: boolean; status?: number; statusText?: string; throwName?: string; throwJson?: boolean },
+) {
   return vi.fn(async () => {
     if (init?.throwName) {
       const e = new Error('boom');
@@ -20,7 +23,10 @@ function mockFetch(payload: unknown, init?: { ok?: boolean; status?: number; sta
       ok: init?.ok ?? true,
       status: init?.status ?? 200,
       statusText: init?.statusText ?? 'OK',
-      json: async () => payload,
+      json: async () => {
+        if (init?.throwJson) throw new SyntaxError('invalid json');
+        return payload;
+      },
     } as Response;
   });
 }
@@ -107,6 +113,39 @@ describe('generateDraft', () => {
     const res = await generateDraft('主题', { settings, apiKey: 'k', fetchFn: mockFetch(oaiReply('就是一段普通文字,不是 JSON')), ...base });
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.kind).toBe('format');
+  });
+
+  it('res.json() 抛错 → format 错误(响应体非 JSON)', async () => {
+    const res = await generateDraft('主题', { settings, apiKey: 'k', fetchFn: mockFetch(null, { throwJson: true }), ...base });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.kind).toBe('format');
+  });
+
+  it('非 AbortError 的 fetch 异常 → 通用网络错误', async () => {
+    const res = await generateDraft('主题', { settings, apiKey: 'k', fetchFn: mockFetch({}, { throwName: 'TypeError' }), ...base });
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.kind).toBe('network');
+      expect(res.error).toMatch(/网络错误/);
+      expect(res.error).not.toMatch(/超时/);
+    }
+  });
+
+  it('content 是合法 JSON 但非对象(标量/数组)→ format 错误', async () => {
+    const scalar = await generateDraft('主题', { settings, apiKey: 'k', fetchFn: mockFetch(oaiReply('"只是字符串"')), ...base });
+    expect(scalar.ok).toBe(false);
+    if (!scalar.ok) expect(scalar.kind).toBe('format');
+    const arr = await generateDraft('主题', { settings, apiKey: 'k', fetchFn: mockFetch(oaiReply('[1,2,3]')), ...base });
+    expect(arr.ok).toBe(false);
+    if (!arr.ok) expect(arr.kind).toBe('format');
+  });
+
+  it('畸形 endpoint URL → network,且不发请求', async () => {
+    const f = mockFetch(oaiReply('{}'));
+    const res = await generateDraft('主题', { settings: { ...settings, endpoint: 'not a url' }, apiKey: 'k', fetchFn: f, ...base });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.kind).toBe('network');
+    expect(f).not.toHaveBeenCalled();
   });
 });
 

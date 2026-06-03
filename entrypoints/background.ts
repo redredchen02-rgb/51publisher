@@ -22,6 +22,12 @@ export default defineBackground(() => {
 });
 
 async function handleGenerate(prompt: string): Promise<GenerateDraftResponse> {
-  const [settings, apiKey] = await Promise.all([getSettings(), getApiKey()]);
-  return generateDraft(prompt, { settings, apiKey });
+  // storage 读取或生成异常都要降级成结构化错误,否则 side panel 会一直等不到响应而卡死。
+  try {
+    const [settings, apiKey] = await Promise.all([getSettings(), getApiKey()]);
+    return await generateDraft(prompt, { settings, apiKey });
+  } catch (err) {
+    console.error('[bg] 生成草稿失败', err);
+    return { ok: false, kind: 'network', error: '生成草稿时发生内部错误,请重试。' };
+  }
 }
