@@ -1,8 +1,27 @@
+import type { GenerateDraftResponse, RuntimeMessage } from '../lib/types';
+import { getApiKey, getSettings } from '../lib/storage';
+import { generateDraft } from '../lib/llm';
+
 // Background service worker:调度中心。
-// U1:仅开启"点扩展图标打开 side panel";LLM 路由在 U3 加。
+// - 点扩展图标打开 side panel
+// - 路由 GENERATE_DRAFT → 调大模型(鉴权 + CORS 集中在此)
 export default defineBackground(() => {
-  // 点工具栏图标即打开 side panel(Chromium)。
   browser.sidePanel
     ?.setPanelBehavior({ openPanelOnActionClick: true })
     .catch((err: unknown) => console.error('[bg] setPanelBehavior 失败', err));
+
+  // webextension-polyfill 语义:监听器返回 Promise 即把其结果作为响应回传,
+  // 天然避免 MV3 原生 chrome API "async 直接 return 丢响应" 的坑。
+  browser.runtime.onMessage.addListener((message: RuntimeMessage) => {
+    if (message?.type === 'GENERATE_DRAFT') {
+      return handleGenerate(message.prompt);
+    }
+    // 其余消息(如 FILL_PAGE)由 content script 处理,这里不认领。
+    return undefined;
+  });
 });
+
+async function handleGenerate(prompt: string): Promise<GenerateDraftResponse> {
+  const [settings, apiKey] = await Promise.all([getSettings(), getApiKey()]);
+  return generateDraft(prompt, { settings, apiKey });
+}
