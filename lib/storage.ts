@@ -1,8 +1,9 @@
 import { storage } from '#imports';
-import type { Settings } from './types';
+import type { ContentDraft, Settings } from './types';
 
 const SETTINGS_KEY = 'local:settings';
 const API_KEY = 'local:apiKey';
+const CURRENT_DRAFT_KEY = 'local:currentDraft';
 
 /** 默认字段映射:来自 U0 现场勘查(docs/field-mapping-guide.md)。 */
 export const DEFAULT_SETTINGS: Settings = {
@@ -45,4 +46,18 @@ export async function getApiKey(): Promise<string> {
 
 export async function saveApiKey(key: string): Promise<void> {
   await storage.setItem(API_KEY, key);
+}
+
+// 当前在编草稿的崩溃恢复(≠ 草稿库):side panel 重开/SW 回收/目标页刷新都可能丢失,
+// 故每次草稿变更写一份;"下一条"或发布完成时清除。
+export async function getCurrentDraft(): Promise<ContentDraft | null> {
+  return (await storage.getItem<ContentDraft>(CURRENT_DRAFT_KEY)) ?? null;
+}
+
+export async function saveCurrentDraft(draft: ContentDraft): Promise<void> {
+  await storage.setItem(CURRENT_DRAFT_KEY, draft);
+}
+
+export async function clearCurrentDraft(): Promise<void> {
+  await storage.removeItem(CURRENT_DRAFT_KEY);
 }
