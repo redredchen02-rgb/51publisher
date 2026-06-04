@@ -1,27 +1,18 @@
 import { storage } from '#imports';
 import type { ContentDraft, Settings } from './types';
+import { DEFAULT_FIELD_MAPPING } from './field-mapping';
 
 const SETTINGS_KEY = 'local:settings';
 const API_KEY = 'local:apiKey';
 const CURRENT_DRAFT_KEY = 'local:currentDraft';
 
-/** 默认字段映射:来自 U0 现场勘查(docs/field-mapping-guide.md)。 */
+/** 默认设置。字段映射拆到 lib/field-mapping.ts(不依赖 #imports,供 e2e/contract 复用)。 */
 export const DEFAULT_SETTINGS: Settings = {
   endpoint: '',
   model: 'gpt-4o-mini',
   promptTemplate:
     '你是内容编辑助手。根据主题生成一篇帖子草稿,以 JSON 返回,字段:title, subtitle, category, body(HTML), tags(数组), description。\n主题:{{topic}}',
-  fieldMapping: {
-    title: { selector: 'input[name="title"]', fieldType: 'text', label: '標題' },
-    subtitle: { selector: 'input[name="subtitle"]', fieldType: 'text', label: '副標題' },
-    category: { selector: 'select[name="type"]', fieldType: 'native-select', label: '類型' },
-    body: { selector: '#editor', fieldType: 'quill', label: '文章内容' },
-    tags: { selector: 'input[name="tags[]"]', fieldType: 'checkbox-multi', label: '標籤' },
-    description: { selector: 'textarea[name="description"]', fieldType: 'textarea', label: '描述' },
-    postStatus: { selector: 'select[name="status"]', fieldType: 'native-select', label: '狀態' },
-    publishedAt: { selector: 'input[name="published_at"]', fieldType: 'date', label: '發佈時間' },
-    mediaId: { selector: 'input[name="media_id"]', fieldType: 'text', label: '作品 id' },
-  },
+  fieldMapping: DEFAULT_FIELD_MAPPING,
 };
 
 /** 读取设置,缺失项回落默认值(storage 为空时返回完整默认对象)。 */
