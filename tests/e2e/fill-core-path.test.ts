@@ -6,6 +6,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { loadFixture } from './helpers/quill-fixture';
 import { installSubmitSpy } from './helpers/zero-submit';
+import { installFetchSubmitSpy } from './helpers/authorized-submit';
 import { fillDraft } from '../../lib/fillers';
 import { requestBodyFill } from '../../lib/body-bridge';
 import { installBodyResponder } from '../../lib/body-responder';
@@ -96,10 +97,17 @@ describe('U3 核心填充路径(真 Quill)', () => {
     expect(editor.innerHTML.toLowerCase()).not.toContain('<script');
   });
 
-  it('零提交(R5 核心):全流程后 submit=0、发布按钮 click=0', async () => {
-    const { spy } = await runFill(makeDraft());
-    expect(spy.submitCount()).toBe(0);
-    expect(spy.publishClickCount()).toBe(0);
+  it('off/dry-run 零提交:纯填充流程后 form submit=0、发布 click=0、save POST=0', async () => {
+    const fetchSpy = installFetchSubmitSpy();
+    try {
+      const { spy } = await runFill(makeDraft());
+      expect(spy.submitCount()).toBe(0);
+      expect(spy.publishClickCount()).toBe(0);
+      // 第 4 通道:填充流程绝不触发到 save 端点的 POST(真实提交路径)。
+      expect(fetchSpy.submitCount()).toBe(0);
+    } finally {
+      fetchSpy.restore();
+    }
   });
 });
 
