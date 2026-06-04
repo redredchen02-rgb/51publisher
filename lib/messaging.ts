@@ -52,6 +52,11 @@ export async function releaseQuarantine(itemId: string): Promise<BatchResponse> 
   return browser.runtime.sendMessage({ type: 'RELEASE_QUARANTINE', itemId });
 }
 
+/** 运营商显式重试单条 error/aborted 条目。 */
+export async function retryBatchItemMsg(itemId: string): Promise<BatchResponse> {
+  return browser.runtime.sendMessage({ type: 'RETRY_BATCH_ITEM', itemId });
+}
+
 /** 读当前批次(加载即崩溃恢复)。 */
 export async function getBatchState(): Promise<BatchResponse> {
   return browser.runtime.sendMessage({ type: 'GET_BATCH' });

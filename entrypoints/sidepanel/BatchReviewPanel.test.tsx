@@ -39,6 +39,7 @@ function defaultProps(batch: Batch, mode: SafetyMode = 'authorized') {
     onRelease: vi.fn(),
     onDriftCheck: vi.fn(),
     onResume: vi.fn(),
+    onRetryItem: vi.fn(),
   };
 }
 
@@ -184,6 +185,26 @@ describe('FillStatusTable via BatchReviewPanel', () => {
     render(<BatchReviewPanel {...defaultProps(awaitingBatch(['topic-x']))} />);
     fireEvent.click(screen.getByText('topic-x'));
     expect(screen.queryByLabelText('字段填充状态')).toBeNull();
+  });
+
+  it('重试此条 button visible for error item, triggers onRetryItem', () => {
+    const errorBatch: Batch = {
+      id: 'b1', tabId: 1, authorizedHost: 'dx-999-adm.ympxbys.xyz', createdAt: '',
+      items: [{ id: 'item_0', topic: 'error-topic', status: 'error' as const, error: 'net' }],
+    };
+    const props = defaultProps(errorBatch);
+    render(<BatchReviewPanel {...props} />);
+    fireEvent.click(screen.getByText('error-topic'));
+    expect(screen.getByText('重试此条')).toBeTruthy();
+    fireEvent.click(screen.getByText('重试此条'));
+    expect(props.onRetryItem).toHaveBeenCalledWith('item_0');
+  });
+
+  it('重试此条 button NOT shown for awaiting-approval item', () => {
+    const props = defaultProps(awaitingBatch(['awaiting-topic']));
+    render(<BatchReviewPanel {...props} />);
+    fireEvent.click(screen.getByText('awaiting-topic'));
+    expect(screen.queryByText('重试此条')).toBeNull();
   });
 
   it('1 degraded field: shows red badge in expanded view', () => {

@@ -87,6 +87,8 @@ interface Props {
   draftOverrides?: Map<string, ContentDraft>;
   /** 用户编辑某条草稿时回调(item id + 完整新草稿)。 */
   onDraftChange?: (itemId: string, draft: ContentDraft) => void;
+  /** 运营商显式重试单条 error/aborted 条目。 */
+  onRetryItem?: (itemId: string) => void;
   /** 标准批准(含漂移自检前置门)。 */
   onApprove: () => void;
   /** 跳过漂移自检直接批准(仅在自检失败后提供)。 */
@@ -120,7 +122,7 @@ const STATUS_LABEL: Record<BatchItem['status'], string> = {
 };
 
 export function BatchReviewPanel(props: Props) {
-  const { batch, safetyMode, authorizedHost, tabHealthy, busy, driftResult, trajectoryContext, draftOverrides, onDraftChange } = props;
+  const { batch, safetyMode, authorizedHost, tabHealthy, busy, driftResult, trajectoryContext, draftOverrides, onDraftChange, onRetryItem } = props;
   const summary = batchSummary(batch);
   const phase = batchPhase(batch);
   const modeStyle = MODE_STYLE[safetyMode];
@@ -239,6 +241,17 @@ export function BatchReviewPanel(props: Props) {
                   <span style={{ color: '#999' }}>无草稿内容{it.error ? `(${it.error})` : ''}</span>
                 )}
                 <FillStatusTable results={it.fillResults} />
+                {(it.status === 'error' || it.status === 'aborted') && onRetryItem && (
+                  <div style={{ marginTop: 6 }}>
+                    <button
+                      onClick={() => onRetryItem(it.id)}
+                      disabled={busy}
+                      style={{ ...btn, padding: '2px 8px', fontSize: 11, background: '#fff7e6', border: '1px solid #ffd591', color: '#874d00' }}
+                    >
+                      重试此条
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </li>

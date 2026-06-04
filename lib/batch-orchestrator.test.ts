@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { runBatch, approveBatch } from './batch-orchestrator';
-import type { RunBatchDeps, ApproveBatchDeps } from './batch-orchestrator';
+import { runBatch, approveBatch, retryItem } from './batch-orchestrator';
+import type { RunBatchDeps, ApproveBatchDeps, RetryItemDeps } from './batch-orchestrator';
 import type { Batch } from './batch';
 import type { ContentDraft } from './types';
 
@@ -334,5 +334,75 @@ describe('approveBatch dry-run report', () => {
       saveDryRunReportFn: vi.fn(async () => { throw new Error('storage-fail'); }),
     });
     await expect(approveBatch(deps)).resolves.not.toThrow();
+  });
+});
+
+// ================================================================
+// retryItem (U7)
+// ================================================================
+
+describe('retryItem', () => {
+  function makeRetryDeps(batch: Batch, overrides: Partial<RetryItemDeps> = {}): RetryItemDeps {
+    return {
+      getBatch: vi.fn(async () => batch),
+      save: vi.fn(async () => {}),
+      generateDraft: vi.fn(async () => ({ ok: true as const, draft: { ...DRAFT } })),
+      ...overrides,
+    };
+  }
+
+  function errorBatch(topic: string): Batch {
+    return {
+      id: 'batch_1', tabId: 1, authorizedHost: HOST, createdAt: '',
+      items: [{ id: 'item_0', topic, status: 'error' as const, error: 'prev-error' }],
+    };
+  }
+
+  it('happy path: error item retried → awaiting-approval, generateDraft called once', async () => {
+    const batch = errorBatch(TOPIC_A);
+    const deps = makeRetryDeps(batch);
+    const result = await retryItem(deps, 'item_0');
+    expect(result).not.toBeNull();
+    expect(result!.items[0]!.status).toBe('awaiting-approval');
+    expect(deps.generateDraft).toHaveBeenCalledOnce();
+    expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_A);
+  });
+
+  it('other items in batch not modified', async () => {
+    const batch: Batch = {
+      id: 'batch_1', tabId: 1, authorizedHost: HOST, createdAt: '',
+      items: [
+        { id: 'item_0', topic: TOPIC_A, status: 'error' as const },
+        { id: 'item_1', topic: TOPIC_B, status: 'publish-confirmed' as const },
+      ],
+    };
+    const deps = makeRetryDeps(batch);
+    const result = await retryItem(deps, 'item_0');
+    expect(result!.items[1]!.status).toBe('publish-confirmed');
+  });
+
+  it('generateDraft fails: item marked error again, no throw', async () => {
+    const batch = errorBatch(TOPIC_A);
+    const deps = makeRetryDeps(batch, {
+      generateDraft: vi.fn(async () => ({ ok: false as const, error: 'network', kind: 'network' as const })),
+    });
+    const result = await retryItem(deps, 'item_0');
+    expect(result).not.toBeNull();
+    expect(result!.items[0]!.status).toBe('error');
+    expect(result!.items[0]!.error).toBe('network');
+  });
+
+  it('no batch: returns null', async () => {
+    const deps = makeRetryDeps(errorBatch(TOPIC_A), { getBatch: vi.fn(async () => null) });
+    const result = await retryItem(deps, 'item_0');
+    expect(result).toBeNull();
+  });
+
+  it('save called at least twice: once after retryBatchItem, once after presentForApproval', async () => {
+    const batch = errorBatch(TOPIC_A);
+    const save = vi.fn(async () => {});
+    const deps = makeRetryDeps(batch, { save });
+    await retryItem(deps, 'item_0');
+    expect(save).toHaveBeenCalledTimes(3); // queued, generating, filled+approval
   });
 });

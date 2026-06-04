@@ -178,6 +178,16 @@ export function releaseQuarantine(batch: Batch, itemId: string): Batch {
   return transition(batch, itemId, 'needs-human-verification', { status: 'aborted', error: 'quarantine-released' });
 }
 
+/**
+ * 运营商强制重试单条 error/aborted 条目。
+ * 直接调用 patchItem 绕过 transition 守卫 — 这是显式的运营商操作路径,
+ * 只能经由 RETRY_BATCH_ITEM 消息触发。
+ * error 和 aborted 仍在 TERMINAL 中,对所有自动化路径保持不可变。
+ */
+export function retryBatchItem(batch: Batch, itemId: string): Batch {
+  return patchItem(batch, itemId, { status: 'queued', error: undefined, fillResults: undefined });
+}
+
 /** 已隔离项的选题集合(新批次须排除,防自动重入同选题)。 */
 export function quarantinedTopics(batch: Batch): string[] {
   return batch.items.filter((it) => it.status === 'needs-human-verification').map((it) => it.topic);

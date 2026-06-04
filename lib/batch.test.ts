@@ -15,6 +15,7 @@ import {
   filterReentrantTopics,
   batchPhase,
   batchSummary,
+  retryBatchItem,
   type Batch,
 } from './batch';
 import type { ContentDraft } from './types';
@@ -148,5 +149,50 @@ describe('batch 状态机', () => {
       expect(killed.items[1]!.status).toBe('publish-dispatched'); // 在飞不动
       expect(killed.items[2]!.status).toBe('aborted'); // 未发→停
     });
+  });
+});
+
+// ================================================================
+// retryBatchItem (U7 — operator override)
+// ================================================================
+
+describe('retryBatchItem', () => {
+  it('error item → queued, error cleared', () => {
+    let b = newBatch(['t']);
+    b = markGenerateFailed(b, 'item_0', 'network');
+    const result = retryBatchItem(b, 'item_0');
+    expect(result.items[0]!.status).toBe('queued');
+    expect(result.items[0]!.error).toBeUndefined();
+  });
+
+  it('aborted item → queued', () => {
+    let b = newBatch(['t']);
+    b = abortBatch(b);
+    const result = retryBatchItem(b, 'item_0');
+    expect(result.items[0]!.status).toBe('queued');
+  });
+
+  it('nonexistent itemId → batch unchanged', () => {
+    const b = newBatch(['t']);
+    const result = retryBatchItem(b, 'no-such-id');
+    expect(result.items[0]!.status).toBe('queued'); // original status
+    expect(result).toEqual(b); // identical
+  });
+
+  it('publish-confirmed item → still transitions to queued (operator override, no guard)', () => {
+    let b = newBatch(['t']);
+    b = fillAll(b);
+    b = markDispatched(b, 'item_0');
+    b = markConfirmed(b, 'item_0');
+    const result = retryBatchItem(b, 'item_0');
+    // Intentional: operator override bypasses guards
+    expect(result.items[0]!.status).toBe('queued');
+  });
+
+  it('other items unchanged', () => {
+    let b = newBatch(['a', 'b']);
+    b = markGenerateFailed(b, 'item_0', 'err');
+    const result = retryBatchItem(b, 'item_0');
+    expect(result.items[1]!.status).toBe('queued'); // item_1 untouched
   });
 });

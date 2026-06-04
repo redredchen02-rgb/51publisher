@@ -12,6 +12,7 @@ import {
   killBatch,
   releaseQuarantine,
   checkSelectors,
+  retryBatchItemMsg,
 } from '../../lib/messaging';
 import { BatchReviewPanel } from './BatchReviewPanel';
 import { DryRunReport } from './DryRunReport';
@@ -179,6 +180,7 @@ export function BatchView({ onBack }: { onBack: () => void }) {
           onDraftChange={(itemId, draft) => setDraftOverrides((prev) => new Map(prev).set(itemId, draft))}
           onKill={() => void withBusy(async () => { await killBatch(); setDraftOverrides(new Map()); await refresh(); })}
           onRelease={(itemId) => void withBusy(async () => { await releaseQuarantine(itemId); await refresh(); })}
+          onRetryItem={(itemId) => void withBusy(async () => { await retryBatchItemMsg(itemId); await refresh(); })}
           onDriftCheck={() => void withBusy(async () => { setDrift(await checkSelectors(batch.tabId)); })}
           onResume={() => void refresh()}
         />

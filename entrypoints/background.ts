@@ -16,7 +16,7 @@ import { canSubmit } from '../lib/safety-gate';
 import { orchestratePublish, type GateDecision } from '../lib/publish-orchestrator';
 import { abortBatch, releaseQuarantine, patchBatchDrafts, type Batch } from '../lib/batch';
 import { buildPrompt } from '../lib/messaging';
-import { runBatch, approveBatch } from '../lib/batch-orchestrator';
+import { runBatch, approveBatch, retryItem } from '../lib/batch-orchestrator';
 import {
   saveDryRunReport,
   writeFillTombstone,
@@ -239,6 +239,24 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
     return next;
   }
 
+  async function handleRetryBatchItem(itemId: string): Promise<Batch | null> {
+    try {
+      const [settings, apiKey] = await Promise.all([deps.getSettings(), deps.getApiKey()]);
+      return await retryItem(
+        {
+          getBatch: deps.getBatch,
+          save: deps.saveBatch,
+          generateDraft: (topic) =>
+            deps.generateDraftFn(buildPrompt(settings.promptTemplate, topic), { settings, apiKey }),
+        },
+        itemId,
+      );
+    } catch (err) {
+      console.error('[bg] 重试条目失败', err);
+      return deps.getBatch();
+    }
+  }
+
   return {
     handleGenerate,
     handlePublish,
@@ -246,6 +264,7 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
     handleApproveBatch,
     handleKillBatch,
     handleReleaseQuarantine,
+    handleRetryBatchItem,
     evaluateGate,
   };
 }
@@ -319,6 +338,7 @@ export default defineBackground(() => {
     if (message?.type === 'APPROVE_BATCH') return handlers.handleApproveBatch(message.tabId, message.draftOverrides);
     if (message?.type === 'KILL_BATCH') return handlers.handleKillBatch();
     if (message?.type === 'RELEASE_QUARANTINE') return handlers.handleReleaseQuarantine(message.itemId);
+    if (message?.type === 'RETRY_BATCH_ITEM') return handlers.handleRetryBatchItem(message.itemId);
     if (message?.type === 'GET_BATCH') return getBatch();
     return undefined;
   });

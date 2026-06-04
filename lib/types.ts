@@ -109,6 +109,7 @@ export type RuntimeMessage =
   | { type: 'APPROVE_BATCH'; tabId: number; draftOverrides?: Record<string, ContentDraft> }
   | { type: 'KILL_BATCH' }
   | { type: 'RELEASE_QUARANTINE'; itemId: string }
+  | { type: 'RETRY_BATCH_ITEM'; itemId: string }
   | { type: 'GET_BATCH' }
   // side panel → content:轻量选择器漂移自检(R6 轻量)。
   | { type: 'CHECK_SELECTORS' };

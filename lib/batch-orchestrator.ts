@@ -14,6 +14,7 @@ import {
   presentForApproval,
   quarantinedTopics,
   filterReentrantTopics,
+  retryBatchItem,
 } from './batch';
 import { orchestratePublish } from './publish-orchestrator';
 
@@ -198,4 +199,45 @@ export async function approveBatch(deps: ApproveBatchDeps): Promise<Batch | null
 
 function defaultSnapshotDropped(itemId: string): void {
   console.warn(`[batch-orchestrator] 轨迹快照含机密被丢弃(record 已落,无快照) itemId=${itemId}`);
+}
+
+// ---- RETRY ITEM ----
+
+/** retryItem 只需 RunBatchDeps 的子集。 */
+export interface RetryItemDeps {
+  getBatch: () => Promise<Batch | null>;
+  save: (batch: Batch) => Promise<void>;
+  generateDraft: (topic: string) => Promise<GenerateDraftResponse>;
+}
+
+/**
+ * 重试单条 error/aborted 条目:
+ * retryBatchItem → save → markGenerating → generateDraft → markFilled →
+ * presentForApproval → save → return batch。
+ * 其他条目不受影响。generateDraft 失败 → item 回 error,不抛。
+ */
+export async function retryItem(deps: RetryItemDeps, itemId: string): Promise<Batch | null> {
+  const loaded = await deps.getBatch();
+  if (!loaded) return null;
+
+  let batch = retryBatchItem(loaded, itemId);
+  await deps.save(batch); // flush queued status before any concurrent reader
+
+  const item = batch.items.find((it) => it.id === itemId);
+  if (!item) return batch;
+
+  batch = markGenerating(batch, itemId);
+  await deps.save(batch);
+
+  const gen = await deps.generateDraft(item.topic);
+  if (!gen.ok) {
+    batch = markGenerateFailed(batch, itemId, gen.error);
+    await deps.save(batch);
+    return batch;
+  }
+
+  batch = markFilled(batch, itemId, gen.draft);
+  batch = presentForApproval(batch);
+  await deps.save(batch); // flush approval-ready state
+  return batch;
 }
