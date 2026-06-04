@@ -1,7 +1,7 @@
 ---
 title: "feat: 迭代节奏与核心填充路径 e2e 测试"
 type: feat
-status: active
+status: completed
 date: 2026-06-04
 origin: docs/brainstorms/2026-06-04-iteration-and-e2e-testing-requirements.md
 ---
