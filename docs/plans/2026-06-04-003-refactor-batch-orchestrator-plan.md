@@ -1,7 +1,7 @@
 ---
 title: "refactor: Extract BatchOrchestrator to enable unit testing"
 type: refactor
-status: active
+status: completed
 date: 2026-06-04
 ---
 
