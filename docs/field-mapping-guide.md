@@ -98,3 +98,5 @@
 - **Tier-C —— 需改架构**:正文编辑器更换(Quill → TipTap/Slate 等)、字段进了 closed shadow DOM、字段动态/异步出现、表单变多步向导。这类要改 `quill-paste.ts` / `body-bridge.ts` 或填充时序,不是改配置能解决的。
 
 遇到填充失效,先看 side panel「填充结果」面板:**跳过(未找到)**通常是 Tier-A(选择器失效),**需手动/降级**可能是 Tier-B/C。
+
+> 改版修复闭环:改完字段映射(`lib/field-mapping.ts`,e2e 的 contract 会校验它)或填充器后,跑 `pnpm test:e2e` 看 contract 是否转绿,再按 [`docs/e2e-and-iteration-guide.md`](e2e-and-iteration-guide.md) 的「人工冒烟清单」在真后台核对一遍,最后回本指南更新选择器记录。

@@ -75,9 +75,14 @@ pnpm build          # 产出 .output/chrome-mv3/
 ## 开发
 
 ```bash
-pnpm test          # 单元测试(vitest)
+pnpm test          # 单元测试(vitest,jsdom + mock)
+pnpm test:e2e      # 端到端:本地 fixture + 真实 Quill,核心填充路径 + 降级 + contract
+pnpm check:fixtures # 脱敏闸门:扫 fixture 是否夹带机密(pre-commit 会自动跑)
 pnpm compile       # tsc 类型检查
 pnpm build         # 构建
 ```
 
-三层结构:`entrypoints/background.ts`(调大模型)、`entrypoints/content.ts`(隔离世界填充)+ `entrypoints/quill-bridge.content.ts`(主世界写 Quill)、`entrypoints/sidepanel/`(React UI);共享逻辑在 `lib/`。
+三层结构:`entrypoints/background.ts`(调大模型)、`entrypoints/content.ts`(隔离世界填充)+ `entrypoints/quill-bridge.content.ts`(主世界写 Quill,逻辑在 `lib/body-responder.ts`)、`entrypoints/sidepanel/`(React UI);共享逻辑在 `lib/`。
+
+e2e 测什么、不测什么、后台改版怎么修、漂移靠什么兜,见 [`docs/e2e-and-iteration-guide.md`](docs/e2e-and-iteration-guide.md)。
+首次克隆后启用脱敏 pre-commit hook:`git config core.hooksPath scripts/git-hooks`。

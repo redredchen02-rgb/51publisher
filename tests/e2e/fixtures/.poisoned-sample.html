@@ -1,0 +1,17 @@
+<!--
+  投毒样本 —— 故意含假机密,供 scripts/check-fixture-secrets.sh 自检。
+  这些都是编造的假值,不是真凭证;它们的存在就是要被闸门检出。
+  闸门若检不出本文件,说明闸门已 no-op,必须大声失败。
+  本文件不会被 e2e 加载(loadFixture 只读 webarticle-add.html),仅作闸门自检靶子。
+-->
+<!DOCTYPE html>
+<html>
+  <body>
+    <form>
+      <input type="hidden" name="_token" value="aB3xYz9KqLmN0pQrStUv1234567890ee" />
+      <input type="hidden" name="csrf_token" value="fakefakefakefakefakefakefake1234" />
+      <meta name="set-cookie" content="Set-Cookie: PHPSESSID=deadbeefdeadbeefdeadbeef" />
+      <span>Authorization: Bearer eyJhbGciOiJIUzI1NiIsfakefaketoken</span>
+    </form>
+  </body>
+</html>
