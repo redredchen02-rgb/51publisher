@@ -34,6 +34,7 @@ function defaultProps(batch: Batch, mode: SafetyMode = 'authorized') {
     authorizedHost: 'dx-999-adm.ympxbys.xyz',
     tabHealthy: true,
     onApprove: vi.fn(),
+    onApproveBypass: vi.fn(),
     onKill: vi.fn(),
     onRelease: vi.fn(),
     onDriftCheck: vi.fn(),

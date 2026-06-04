@@ -52,7 +52,7 @@ function makeDeps(overrides: Partial<BackgroundHandlerDeps> = {}): BackgroundHan
     appendTrajectory: vi.fn(async () => ({ snapshotDropped: false })),
     getSafetyMode: vi.fn(async () => 'authorized' as const),
     getAuthorizedHosts: vi.fn(async () => [HOST]),
-    tabsGet: vi.fn(async () => ({ url: `https://${HOST}/admin`, id: 1 } as chrome.tabs.Tab)),
+    tabsGet: vi.fn(async () => ({ url: `https://${HOST}/admin`, id: 1 } as { url?: string; id?: number })),
     tabsSendMessage: vi.fn(async () => ({ ok: true, dryRun: false, url: `https://${HOST}/post/1` })),
     storageGetItem: vi.fn(async () => null),
     storageSetItem: vi.fn(async () => {}),
@@ -94,7 +94,7 @@ describe('handleRunBatch', () => {
 
   it('tab url is null → resolveHost returns null → returns null', async () => {
     const deps = makeDeps({
-      tabsGet: vi.fn(async () => ({ url: undefined, id: 1 } as unknown as chrome.tabs.Tab)),
+      tabsGet: vi.fn(async () => ({ url: undefined, id: 1 } as unknown as { url?: string; id?: number })),
     });
     const h = createHandlers(deps);
     const result = await h.handleRunBatch(['topic-a'], 1);
@@ -220,7 +220,7 @@ describe('evaluateGate TOCTOU fix', () => {
     const deps = makeDeps({
       getSafetyMode: vi.fn(async () => 'authorized' as const),
       getAuthorizedHosts: vi.fn(async () => [HOST]),
-      tabsGet: vi.fn(async () => ({ url: `https://${HOST}/admin` } as chrome.tabs.Tab)),
+      tabsGet: vi.fn(async () => ({ url: `https://${HOST}/admin` } as { url?: string; id?: number })),
     });
     const h = createHandlers(deps);
     const decision = await h.evaluateGate(1);
@@ -233,7 +233,7 @@ describe('evaluateGate TOCTOU fix', () => {
       getSafetyMode: vi.fn(async () => 'authorized' as const),
       getAuthorizedHosts: vi.fn(async () => [HOST]),
       // Tab is on a different host than authorized
-      tabsGet: vi.fn(async () => ({ url: 'https://other-host.com/page' } as chrome.tabs.Tab)),
+      tabsGet: vi.fn(async () => ({ url: 'https://other-host.com/page' } as { url?: string; id?: number })),
     });
     const h = createHandlers(deps);
     const decision = await h.evaluateGate(1);

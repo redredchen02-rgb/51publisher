@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import { browser } from '#imports';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { browser, storage } from '#imports';
 import type { SafetyMode, ContentDraft } from '../../lib/types';
 import type { Batch } from '../../lib/batch';
 import { batchPhase } from '../../lib/batch';
@@ -50,8 +50,27 @@ export function BatchView({ onBack }: { onBack: () => void }) {
     }
   }, []);
 
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     void refresh();
+
+    // storage.watch: background 每次 save(batch) 后推送变更 → 实时更新 UI,无需轮询。
+    const unwatch = storage.watch<import('../../lib/batch').Batch | null>('local:batch', (newBatch) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        if (newBatch != null) {
+          setBatch(newBatch);
+        } else {
+          setBatch(null);
+        }
+      }, 100);
+    });
+
+    return () => {
+      unwatch();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [refresh]);
 
   async function withBusy(fn: () => Promise<void>) {

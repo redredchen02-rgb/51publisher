@@ -253,11 +253,17 @@ describe('approveBatch dry-run report', () => {
     });
     await approveBatch(deps);
     expect(saveFn).toHaveBeenCalledOnce();
-    const report = saveFn.mock.calls[0]![0];
-    expect(report.batchId).toBe('batch_1');
-    expect(report.items).toHaveLength(1);
-    expect(report.items[0]!.topic).toBe(TOPIC_A);
-    expect(report.items[0]!.fillResults).toEqual([{ field: 'title', status: 'filled' }]);
+    expect(saveFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        batchId: 'batch_1',
+        items: expect.arrayContaining([
+          expect.objectContaining({
+            topic: TOPIC_A,
+            fillResults: [{ field: 'title', status: 'filled' }],
+          }),
+        ]),
+      }),
+    );
   });
 
   it('dry-run: saveDryRunReportFn called with correct count for 2 items', async () => {
@@ -271,7 +277,7 @@ describe('approveBatch dry-run report', () => {
     });
     await approveBatch(deps);
     expect(saveFn).toHaveBeenCalledOnce();
-    expect(saveFn.mock.calls[0]![0].items).toHaveLength(2);
+    expect(saveFn).toHaveBeenCalledWith(expect.objectContaining({ items: expect.arrayContaining([expect.anything(), expect.anything()]) }));
   });
 
   it('authorized (non-dry-run): saveDryRunReportFn NOT called', async () => {

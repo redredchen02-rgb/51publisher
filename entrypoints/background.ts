@@ -35,7 +35,7 @@ export interface BackgroundHandlerDeps {
   appendTrajectory: typeof appendTrajectory;
   getSafetyMode: () => Promise<import('../lib/types').SafetyMode>;
   getAuthorizedHosts: () => Promise<string[]>;
-  tabsGet: (tabId: number) => Promise<chrome.tabs.Tab>;
+  tabsGet: (tabId: number) => Promise<{ url?: string; id?: number }>;
   tabsSendMessage: (tabId: number, msg: unknown) => Promise<unknown>;
   storageGetItem: <T>(key: `local:${string}`) => Promise<T | null>;
   storageSetItem: (key: `local:${string}`, value: unknown) => Promise<void>;
