@@ -17,79 +17,47 @@ import { orchestratePublish, type GateDecision } from '../lib/publish-orchestrat
 import { abortBatch, releaseQuarantine, patchBatchDrafts, type Batch } from '../lib/batch';
 import { buildPrompt } from '../lib/messaging';
 import { runBatch, approveBatch } from '../lib/batch-orchestrator';
+import type { ContentDraft } from '../lib/types';
 
 // Background service worker:调度中心 + 发布闸门。
 // - 点扩展图标打开 side panel
 // - 路由 GENERATE_DRAFT → 调大模型(鉴权 + CORS 集中在此;key 绝不进 content)
 // - 路由 PUBLISH_PAGE → 闸门求值(host 取自 chrome.tabs.get(tabId).url)→ 仅授权才发准许
-export default defineBackground(() => {
-  browser.sidePanel
-    ?.setPanelBehavior({ openPanelOnActionClick: true })
-    .catch((err: unknown) => console.error('[bg] setPanelBehavior 失败', err));
 
-  // webextension-polyfill 语义:监听器返回 Promise 即把其结果作为响应回传。
-  browser.runtime.onMessage.addListener((message: RuntimeMessage) => {
-    if (message?.type === 'GENERATE_DRAFT') {
-      return handleGenerate(message.prompt);
-    }
-    if (message?.type === 'PUBLISH_PAGE') {
-      return handlePublish(message.tabId);
-    }
-    if (message?.type === 'RUN_BATCH') {
-      return handleRunBatch(message.topics, message.tabId);
-    }
-    if (message?.type === 'APPROVE_BATCH') {
-      return handleApproveBatch(message.tabId, message.draftOverrides);
-    }
-    if (message?.type === 'KILL_BATCH') {
-      return handleKillBatch();
-    }
-    if (message?.type === 'RELEASE_QUARANTINE') {
-      return handleReleaseQuarantine(message.itemId);
-    }
-    if (message?.type === 'GET_BATCH') {
-      return getBatch();
-    }
-    // 其余消息(如 FILL_PAGE)由 content script 处理,这里不认领。
-    return undefined;
-  });
-});
-
-async function handleGenerate(prompt: string): Promise<GenerateDraftResponse> {
-  // storage 读取或生成异常都要降级成结构化错误,否则 side panel 会一直等不到响应而卡死。
-  try {
-    const [settings, apiKey] = await Promise.all([getSettings(), getApiKey()]);
-    return await generateDraft(prompt, { settings, apiKey });
-  } catch (err) {
-    console.error('[bg] 生成草稿失败', err);
-    return { ok: false, kind: 'network', error: '生成草稿时发生内部错误,请重试。' };
-  }
+export interface BackgroundHandlerDeps {
+  getBatch: () => Promise<Batch | null>;
+  saveBatch: (batch: Batch) => Promise<void>;
+  getSettings: () => Promise<import('../lib/types').Settings>;
+  getApiKey: () => Promise<string>;
+  getPublishedTopics: () => Promise<string[]>;
+  addPublishedTopics: (topics: string[]) => Promise<void>;
+  appendTrajectory: typeof appendTrajectory;
+  getSafetyMode: () => Promise<import('../lib/types').SafetyMode>;
+  getAuthorizedHosts: () => Promise<string[]>;
+  tabsGet: (tabId: number) => Promise<chrome.tabs.Tab>;
+  tabsSendMessage: (tabId: number, msg: unknown) => Promise<unknown>;
+  storageGetItem: <T>(key: `local:${string}`) => Promise<T | null>;
+  storageSetItem: (key: `local:${string}`, value: unknown) => Promise<void>;
+  generateDraftFn: (prompt: string, opts: { settings: import('../lib/types').Settings; apiKey: string }) => Promise<GenerateDraftResponse>;
+  buildBatchId: () => string;
+  buildItemId: (i: number) => string;
+  now: () => string;
 }
 
-/** 从 chrome.tabs.get(tabId).url 取 host;**绝不**接受消息携带的 host。tab 关/无 url → null。 */
-async function resolveTabHost(tabId: number): Promise<string | null> {
-  try {
-    const tab = await browser.tabs.get(tabId);
-    if (!tab?.url) return null;
-    return new URL(tab.url).hostname;
-  } catch {
-    return null;
-  }
+/** 从 chrome.tabs.get(tabId).url 取 host;tab 关/无 url → null。 */
+function makeResolveTabHost(deps: Pick<BackgroundHandlerDeps, 'tabsGet'>) {
+  return async (tabId: number): Promise<string | null> => {
+    try {
+      const tab = await deps.tabsGet(tabId);
+      if (!tab?.url) return null;
+      return new URL(tab.url).hostname;
+    } catch {
+      return null;
+    }
+  };
 }
 
-async function evaluateGate(tabId: number): Promise<GateDecision> {
-  const [mode, authorizedHosts] = await Promise.all([getSafetyMode(), getAuthorizedHosts()]);
-  const host = await resolveTabHost(tabId);
-  const allowed = host != null && canSubmit({ host, mode, authorizedHosts });
-  return { mode, allowed, host };
-}
-
-// U2 用最小 publish 标记落实"dispatched 前 await 写盘"的幂等顺序。
-function markerKey(tabId: number): `local:${string}` {
-  return `local:publishMarker:${tabId}`;
-}
-
-/** content 经消息边界回来的值是 unknown(polyfill Promise<any>)→ 校验形状,绝不盲信。 */
+/** content 经消息边界回来的值是 unknown → 校验形状。 */
 function asPublishResult(value: unknown): PublishResult {
   if (value && typeof value === 'object') {
     const o = value as Record<string, unknown>;
@@ -105,126 +73,205 @@ function asPublishResult(value: unknown): PublishResult {
   return { ok: false, dryRun: false, error: 'content-response-invalid' };
 }
 
-async function handlePublish(tabId: number): Promise<PublishResult> {
-  try {
-    return await orchestratePublish({
-      evaluateGate: () => evaluateGate(tabId),
-      isAlreadyDispatched: async () => (await storage.getItem(markerKey(tabId))) === 'publish-dispatched',
-      writeDispatched: () => storage.setItem(markerKey(tabId), 'publish-dispatched'),
-      sendGrant: async () => {
-        try {
-          const res = await browser.tabs.sendMessage(tabId, { type: 'PUBLISH_GRANT' });
-          return asPublishResult(res);
-        } catch {
-          return { ok: false, dryRun: false, error: 'content-unreachable' };
-        }
-      },
-      writeConfirmed: (r) =>
-        storage.setItem(markerKey(tabId), r.ok ? 'publish-confirmed' : `error:${r.error ?? 'unknown'}`),
-    });
-  } catch (err) {
-    console.error('[bg] 发布编排失败', err);
-    return { ok: false, dryRun: false, error: 'internal' };
+function markerKey(tabId: number): `local:${string}` {
+  return `local:publishMarker:${tabId}`;
+}
+
+export function createHandlers(deps: BackgroundHandlerDeps) {
+  const resolveTabHost = makeResolveTabHost(deps);
+
+  // TOCTOU fix: 三个异步读在同一个 Promise.all 里并发触发,消除两次 await 之间 tab 可导航的窗口。
+  async function evaluateGate(tabId: number): Promise<GateDecision> {
+    const [mode, authorizedHosts, host] = await Promise.all([
+      deps.getSafetyMode(),
+      deps.getAuthorizedHosts(),
+      resolveTabHost(tabId),
+    ]);
+    const allowed = host != null && canSubmit({ host, mode, authorizedHosts });
+    return { mode, allowed, host };
   }
-}
 
-// ---- 批量编排接线 ----
-// 生成/发布逻辑已移至 lib/batch-orchestrator.ts(可独立单测);
-// 此处只做 chrome API adapter 注入。
-
-let batchSeq = 0;
-
-/** 钉 tab 断言:当前 tab 的 host 仍等于批次创建时记录的 authorizedHost。 */
-function pinnedHostOk(batch: Batch): Promise<boolean> {
-  return resolveTabHost(batch.tabId).then((h) => h !== null && h === batch.authorizedHost);
-}
-
-async function handleRunBatch(topics: string[], tabId: number): Promise<Batch | null> {
-  try {
-    const [settings, apiKey, publishedTopics] = await Promise.all([getSettings(), getApiKey(), getPublishedTopics()]);
-    return await runBatch({
-      topics,
-      tabId,
-      resolveHost: () => resolveTabHost(tabId),
-      getExistingBatch: getBatch,
-      pinnedHostOk,
-      generateDraft: (topic) => generateDraft(buildPrompt(settings.promptTemplate, topic), { settings, apiKey }),
-      save: saveBatch,
-      genBatchId: () => { batchSeq += 1; return `batch_${Date.now()}_${batchSeq}`; },
-      genItemId: (i) => `item_${i}`,
-      now: () => new Date().toISOString(),
-      persistentBlockedTopics: publishedTopics,
-    });
-  } catch (err) {
-    console.error('[bg] 批量生成失败', err);
-    return getBatch();
+  function pinnedHostOk(batch: Batch): Promise<boolean> {
+    return resolveTabHost(batch.tabId).then((h) => h !== null && h === batch.authorizedHost);
   }
-}
 
-async function handleApproveBatch(
-  tabId: number,
-  draftOverrides?: Record<string, import('../lib/types').ContentDraft>,
-): Promise<Batch | null> {
-  try {
-    // 若有人工编辑覆盖,先写入 storage 再批准(保证 approveBatch 读到最新草稿)。
-    if (draftOverrides && Object.keys(draftOverrides).length > 0) {
-      const current = await getBatch();
-      if (current) {
-        await saveBatch(patchBatchDrafts(current, draftOverrides));
-      }
+  async function handleGenerate(prompt: string): Promise<GenerateDraftResponse> {
+    try {
+      const [settings, apiKey] = await Promise.all([deps.getSettings(), deps.getApiKey()]);
+      return await deps.generateDraftFn(prompt, { settings, apiKey });
+    } catch (err) {
+      console.error('[bg] 生成草稿失败', err);
+      return { ok: false, kind: 'network', error: '生成草稿时发生内部错误,请重试。' };
     }
-    const result = await approveBatch({
-      getBatch,
-      save: saveBatch,
-      pinnedHostOk,
-      sendFill: async (draft) => {
-        try {
-          return (await browser.tabs.sendMessage(tabId, { type: 'FILL_PAGE', draft })) as FillPageResponse;
-        } catch {
-          return { ok: false, error: 'fill-unreachable' };
-        }
-      },
-      evaluateGate: () => evaluateGate(tabId),
-      sendGrant: async () => {
-        try {
-          return asPublishResult(await browser.tabs.sendMessage(tabId, { type: 'PUBLISH_GRANT' }));
-        } catch {
-          return { ok: false, dryRun: false, error: 'content-unreachable' };
-        }
-      },
-      appendTrajectory,
-      onSnapshotDropped: (itemId) => console.warn(`[bg] 轨迹快照含机密被丢弃(record 已落,无快照) itemId=${itemId}`),
-    });
-    // 持久化已确认选题(fire-and-forget;best-effort,SW 重启时可能丢失当次写入,已文档化为可接受)。
-    if (result) {
-      const confirmedTopics = result.items
-        .filter((it) => it.status === 'publish-confirmed')
-        .map((it) => it.topic);
-      if (confirmedTopics.length > 0) {
-        addPublishedTopics(confirmedTopics).catch((e) =>
-          console.warn('[bg] addPublishedTopics 写入失败(best-effort)', e),
-        );
-      }
-    }
-    return result;
-  } catch (err) {
-    console.error('[bg] 批量发布失败', err);
-    return getBatch();
   }
+
+  async function handlePublish(tabId: number): Promise<PublishResult> {
+    try {
+      return await orchestratePublish({
+        evaluateGate: () => evaluateGate(tabId),
+        isAlreadyDispatched: async () => (await deps.storageGetItem(markerKey(tabId))) === 'publish-dispatched',
+        writeDispatched: () => deps.storageSetItem(markerKey(tabId), 'publish-dispatched'),
+        sendGrant: async () => {
+          try {
+            const res = await deps.tabsSendMessage(tabId, { type: 'PUBLISH_GRANT' });
+            return asPublishResult(res);
+          } catch {
+            return { ok: false, dryRun: false, error: 'content-unreachable' };
+          }
+        },
+        writeConfirmed: (r) =>
+          deps.storageSetItem(markerKey(tabId), r.ok ? 'publish-confirmed' : `error:${r.error ?? 'unknown'}`),
+      });
+    } catch (err) {
+      console.error('[bg] 发布编排失败', err);
+      return { ok: false, dryRun: false, error: 'internal' };
+    }
+  }
+
+  let batchSeq = 0;
+
+  async function handleRunBatch(topics: string[], tabId: number): Promise<Batch | null> {
+    try {
+      const [settings, apiKey, publishedTopics] = await Promise.all([
+        deps.getSettings(),
+        deps.getApiKey(),
+        deps.getPublishedTopics(),
+      ]);
+      return await runBatch({
+        topics,
+        tabId,
+        resolveHost: () => resolveTabHost(tabId),
+        getExistingBatch: deps.getBatch,
+        pinnedHostOk,
+        generateDraft: (topic) =>
+          deps.generateDraftFn(buildPrompt(settings.promptTemplate, topic), { settings, apiKey }),
+        save: deps.saveBatch,
+        genBatchId: () => { batchSeq += 1; return deps.buildBatchId(); },
+        genItemId: deps.buildItemId,
+        now: deps.now,
+        persistentBlockedTopics: publishedTopics,
+      });
+    } catch (err) {
+      console.error('[bg] 批量生成失败', err);
+      return deps.getBatch();
+    }
+  }
+
+  async function handleApproveBatch(
+    tabId: number,
+    draftOverrides?: Record<string, ContentDraft>,
+  ): Promise<Batch | null> {
+    try {
+      if (draftOverrides && Object.keys(draftOverrides).length > 0) {
+        const current = await deps.getBatch();
+        if (current) {
+          await deps.saveBatch(patchBatchDrafts(current, draftOverrides));
+        }
+      }
+      const result = await approveBatch({
+        getBatch: deps.getBatch,
+        save: deps.saveBatch,
+        pinnedHostOk,
+        sendFill: async (draft: ContentDraft) => {
+          try {
+            return (await deps.tabsSendMessage(tabId, { type: 'FILL_PAGE', draft })) as FillPageResponse;
+          } catch {
+            return { ok: false, error: 'fill-unreachable' };
+          }
+        },
+        evaluateGate: () => evaluateGate(tabId),
+        sendGrant: async () => {
+          try {
+            return asPublishResult(await deps.tabsSendMessage(tabId, { type: 'PUBLISH_GRANT' }));
+          } catch {
+            return { ok: false, dryRun: false, error: 'content-unreachable' };
+          }
+        },
+        appendTrajectory: deps.appendTrajectory,
+        onSnapshotDropped: (itemId) =>
+          console.warn(`[bg] 轨迹快照含机密被丢弃(record 已落,无快照) itemId=${itemId}`),
+      });
+      if (result) {
+        const confirmedTopics = result.items
+          .filter((it) => it.status === 'publish-confirmed')
+          .map((it) => it.topic);
+        if (confirmedTopics.length > 0) {
+          deps.addPublishedTopics(confirmedTopics).catch((e) =>
+            console.warn('[bg] addPublishedTopics 写入失败(best-effort)', e),
+          );
+        }
+      }
+      return result;
+    } catch (err) {
+      console.error('[bg] 批量发布失败', err);
+      return deps.getBatch();
+    }
+  }
+
+  async function handleKillBatch(): Promise<Batch | null> {
+    const batch = await deps.getBatch();
+    if (!batch) return null;
+    const next = abortBatch(batch);
+    await deps.saveBatch(next);
+    return next;
+  }
+
+  async function handleReleaseQuarantine(itemId: string): Promise<Batch | null> {
+    const batch = await deps.getBatch();
+    if (!batch) return null;
+    const next = releaseQuarantine(batch, itemId);
+    await deps.saveBatch(next);
+    return next;
+  }
+
+  return {
+    handleGenerate,
+    handlePublish,
+    handleRunBatch,
+    handleApproveBatch,
+    handleKillBatch,
+    handleReleaseQuarantine,
+    evaluateGate,
+  };
 }
 
-async function handleKillBatch(): Promise<Batch | null> {
-  const batch = await getBatch();
-  if (!batch) return null;
-  const next = abortBatch(batch);
-  await saveBatch(next);
-  return next;
-}
+export default defineBackground(() => {
+  browser.sidePanel
+    ?.setPanelBehavior({ openPanelOnActionClick: true })
+    .catch((err: unknown) => console.error('[bg] setPanelBehavior 失败', err));
 
-async function handleReleaseQuarantine(itemId: string): Promise<Batch | null> {
-  const batch = await getBatch();
-  if (!batch) return null;
-  const next = releaseQuarantine(batch, itemId);
-  await saveBatch(next);
-  return next;
-}
+  let batchSeq = 0;
+
+  const liveDeps: BackgroundHandlerDeps = {
+    getBatch,
+    saveBatch,
+    getSettings,
+    getApiKey,
+    getPublishedTopics,
+    addPublishedTopics,
+    appendTrajectory,
+    getSafetyMode,
+    getAuthorizedHosts,
+    tabsGet: (id) => browser.tabs.get(id),
+    tabsSendMessage: (id, msg) => browser.tabs.sendMessage(id, msg),
+    storageGetItem: (key) => storage.getItem(key),
+    storageSetItem: (key, val) => storage.setItem(key, val),
+    generateDraftFn: generateDraft,
+    buildBatchId: () => { batchSeq += 1; return `batch_${Date.now()}_${batchSeq}`; },
+    buildItemId: (i) => `item_${i}`,
+    now: () => new Date().toISOString(),
+  };
+
+  const handlers = createHandlers(liveDeps);
+
+  browser.runtime.onMessage.addListener((message: RuntimeMessage) => {
+    if (message?.type === 'GENERATE_DRAFT') return handlers.handleGenerate(message.prompt);
+    if (message?.type === 'PUBLISH_PAGE') return handlers.handlePublish(message.tabId);
+    if (message?.type === 'RUN_BATCH') return handlers.handleRunBatch(message.topics, message.tabId);
+    if (message?.type === 'APPROVE_BATCH') return handlers.handleApproveBatch(message.tabId, message.draftOverrides);
+    if (message?.type === 'KILL_BATCH') return handlers.handleKillBatch();
+    if (message?.type === 'RELEASE_QUARANTINE') return handlers.handleReleaseQuarantine(message.itemId);
+    if (message?.type === 'GET_BATCH') return getBatch();
+    return undefined;
+  });
+});
