@@ -24,11 +24,20 @@ async function handleFill(draft: ContentDraft): Promise<FillPageResponse> {
     // 普通字段(标题/副标题/分类/标签/描述/状态/时间/作品id)。
     const results = fillDraft(draft, fieldMapping, document);
 
-    // 正文:消毒后交主世界桥写入 Quill;桥不可用则降级"手动粘贴"。
+    // 正文:消毒后交主世界桥写入 Quill。三态:
+    //   写入成功且非兜底 → filled;
+    //   tier② 兜底写入(degraded 旗标)→ degraded,提示质量较差;
+    //   写入失败 → degraded,提示手动粘贴。
     const bodyDef = fieldMapping.body;
     if (bodyDef && bodyDef.fieldType === 'quill' && draft.body) {
       const outcome = await requestBodyFill(sanitizeBody(draft.body), bodyDef.selector);
-      results.push({ field: 'body', status: outcome.ok ? 'filled' : 'degraded', note: outcome.note });
+      if (outcome.ok && !outcome.degraded) {
+        results.push({ field: 'body', status: 'filled' });
+      } else if (outcome.ok && outcome.degraded) {
+        results.push({ field: 'body', status: 'degraded', note: outcome.note ?? '正文以兜底方式写入,质量较差,建议手动粘贴核对。' });
+      } else {
+        results.push({ field: 'body', status: 'degraded', note: outcome.note ?? '正文写入失败,请手动粘贴。' });
+      }
     }
 
     return { ok: true, results };

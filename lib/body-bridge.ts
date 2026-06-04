@@ -15,10 +15,14 @@ export interface BodyFilledDetail {
   reqId: string;
   ok: boolean;
   error?: string;
+  /** true 表示走了 tier② 兜底(写入成功但质量较差),供面板标记 degraded。 */
+  degraded?: boolean;
 }
 export interface BodyFillOutcome {
   ok: boolean;
   note?: string;
+  /** 透传自主世界:true = 兜底写入(非失败),面板应提示「质量较差,建议手动粘贴」。 */
+  degraded?: boolean;
 }
 
 let counter = 0;
@@ -44,7 +48,11 @@ export function requestBodyFill(
     const onFilled = (e: Event) => {
       const detail = (e as CustomEvent<BodyFilledDetail>).detail;
       if (!detail || detail.reqId !== reqId) return;
-      finish(detail.ok ? { ok: true } : { ok: false, note: detail.error ?? '正文写入失败,请手动粘贴。' });
+      finish(
+        detail.ok
+          ? { ok: true, degraded: detail.degraded }
+          : { ok: false, note: detail.error ?? '正文写入失败,请手动粘贴。' },
+      );
     };
 
     function finish(outcome: BodyFillOutcome) {

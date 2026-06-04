@@ -167,7 +167,7 @@ graph TB
 
 ---
 
-- [ ] **U2: 产码 — 透传 degraded 旗标 + 抽出可复用桥 responder**
+- [x] **U2: 产码 — 透传 degraded 旗标 + 抽出可复用桥 responder**
 
 **Goal:** 修掉「tier② 兜底写入被误标 `filled`」的真 bug,让 `degraded` 旗标从 `pasteIntoQuill` 一路传到 side panel 的 `status`;同时把 MAIN 端 responder 逻辑抽成可被 e2e 复用的纯安装函数。
 

@@ -9,11 +9,11 @@ import {
 } from './body-bridge';
 
 // 模拟主世界:收到 fill-body 后回 body-filled。
-function mockMainWorld(ok: boolean, error?: string) {
+function mockMainWorld(ok: boolean, error?: string, degraded?: boolean) {
   const handler = (e: Event) => {
     const detail = (e as CustomEvent<FillBodyDetail>).detail;
     document.dispatchEvent(
-      new CustomEvent<BodyFilledDetail>(EVT_BODY_FILLED, { detail: { reqId: detail.reqId, ok, error } }),
+      new CustomEvent<BodyFilledDetail>(EVT_BODY_FILLED, { detail: { reqId: detail.reqId, ok, error, degraded } }),
     );
   };
   document.addEventListener(EVT_FILL_BODY, handler);
@@ -33,6 +33,22 @@ describe('requestBodyFill', () => {
     const out = await requestBodyFill('<p>hi</p>', '#editor', 1000);
     expect(out.ok).toBe(false);
     expect(out.note).toBe('Quill 不可用');
+    cleanup();
+  });
+
+  it('主世界回 ok 但 degraded → outcome.degraded:true(透传旗标)', async () => {
+    const cleanup = mockMainWorld(true, undefined, true);
+    const out = await requestBodyFill('<p>hi</p>', '#editor', 1000);
+    expect(out.ok).toBe(true);
+    expect(out.degraded).toBe(true);
+    cleanup();
+  });
+
+  it('主世界回 ok 非 degraded → outcome.degraded 不为 true', async () => {
+    const cleanup = mockMainWorld(true);
+    const out = await requestBodyFill('<p>hi</p>', '#editor', 1000);
+    expect(out.ok).toBe(true);
+    expect(out.degraded).not.toBe(true);
     cleanup();
   });
 
