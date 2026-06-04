@@ -7,7 +7,8 @@ import { requestBodyFill, bodyResultFromOutcome } from '../lib/body-bridge';
 // 隔离世界 content script:接收 side panel 的 FILL_PAGE,填充表单字段。
 // 绝不提交:只 set value + input/change + checkbox 勾选;正文交主世界桥写入 Quill。
 export default defineContentScript({
-  matches: ['*://*.ympxbys.xyz/*'],
+  // 注入面=闸门面:收窄到授权 admin 子域 + https(与 quill-bridge / host_permissions 同步)。
+  matches: ['https://dx-999-adm.ympxbys.xyz/*'],
   main() {
     browser.runtime.onMessage.addListener((message: RuntimeMessage) => {
       if (message?.type === 'FILL_PAGE') {

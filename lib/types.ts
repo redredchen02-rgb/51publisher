@@ -57,6 +57,14 @@ export type FieldMapping = Partial<
   >
 >;
 
+/**
+ * 发布安全档位(自主发布器闸门)。
+ * - 'off':今天的行为——背景永不发"准许",无任何提交路径。
+ * - 'dry-run':跑完整流程但不发"准许",只产出"将发布什么"的报告。
+ * - 'authorized':仅当目标 tab 的 host 命中授权名单才发"准许"。
+ */
+export type SafetyMode = 'off' | 'dry-run' | 'authorized';
+
 /** 用户可配置的设置(API key 单独存取,不在此对象内)。 */
 export interface Settings {
   /** 大模型 endpoint(OpenAI 兼容 chat/completions),须为 https。 */
