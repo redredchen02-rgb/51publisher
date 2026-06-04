@@ -86,9 +86,24 @@ export interface FieldFillResult {
   note?: string;
 }
 
+/** 发布结果(content 执行后回传 background,再回 side panel)。绝不含 key/CSRF/登录态。 */
+export interface PublishResult {
+  ok: boolean;
+  /** 发布成功后的帖子 URL(若后台返回);回滚依据。 */
+  url?: string;
+  /** 结构化错误码,绝不带敏感串。 */
+  error?: string;
+  /** 是否 dry-run(走完流程但未真正提交)。 */
+  dryRun: boolean;
+}
+
 export type RuntimeMessage =
   | { type: 'GENERATE_DRAFT'; prompt: string }
-  | { type: 'FILL_PAGE'; draft: ContentDraft };
+  | { type: 'FILL_PAGE'; draft: ContentDraft }
+  // side panel → background:请求发布钉住的 tab(显式 tabId,绝不查 active)。
+  | { type: 'PUBLISH_PAGE'; tabId: number }
+  // background → content:一次性"准许"。content 只在收到此消息时才触发提交。
+  | { type: 'PUBLISH_GRANT' };
 
 export type GenerateDraftResponse =
   | { ok: true; draft: ContentDraft }
@@ -97,3 +112,5 @@ export type GenerateDraftResponse =
 export type FillPageResponse =
   | { ok: true; results: FieldFillResult[] }
   | { ok: false; error: string };
+
+export type PublishPageResponse = PublishResult;

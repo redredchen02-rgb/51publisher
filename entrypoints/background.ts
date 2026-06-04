@@ -1,20 +1,26 @@
-import type { GenerateDraftResponse, RuntimeMessage } from '../lib/types';
-import { getApiKey, getSettings } from '../lib/storage';
+import { storage } from '#imports';
+import type { GenerateDraftResponse, PublishResult, RuntimeMessage } from '../lib/types';
+import { getApiKey, getSettings, getSafetyMode, getAuthorizedHosts } from '../lib/storage';
 import { generateDraft } from '../lib/llm';
+import { canSubmit } from '../lib/safety-gate';
+import { orchestratePublish, type GateDecision } from '../lib/publish-orchestrator';
 
-// Background service worker:调度中心。
+// Background service worker:调度中心 + 发布闸门。
 // - 点扩展图标打开 side panel
-// - 路由 GENERATE_DRAFT → 调大模型(鉴权 + CORS 集中在此)
+// - 路由 GENERATE_DRAFT → 调大模型(鉴权 + CORS 集中在此;key 绝不进 content)
+// - 路由 PUBLISH_PAGE → 闸门求值(host 取自 chrome.tabs.get(tabId).url)→ 仅授权才发准许
 export default defineBackground(() => {
   browser.sidePanel
     ?.setPanelBehavior({ openPanelOnActionClick: true })
     .catch((err: unknown) => console.error('[bg] setPanelBehavior 失败', err));
 
-  // webextension-polyfill 语义:监听器返回 Promise 即把其结果作为响应回传,
-  // 天然避免 MV3 原生 chrome API "async 直接 return 丢响应" 的坑。
+  // webextension-polyfill 语义:监听器返回 Promise 即把其结果作为响应回传。
   browser.runtime.onMessage.addListener((message: RuntimeMessage) => {
     if (message?.type === 'GENERATE_DRAFT') {
       return handleGenerate(message.prompt);
+    }
+    if (message?.type === 'PUBLISH_PAGE') {
+      return handlePublish(message.tabId);
     }
     // 其余消息(如 FILL_PAGE)由 content script 处理,这里不认领。
     return undefined;
@@ -29,5 +35,52 @@ async function handleGenerate(prompt: string): Promise<GenerateDraftResponse> {
   } catch (err) {
     console.error('[bg] 生成草稿失败', err);
     return { ok: false, kind: 'network', error: '生成草稿时发生内部错误,请重试。' };
+  }
+}
+
+/** 从 chrome.tabs.get(tabId).url 取 host;**绝不**接受消息携带的 host。tab 关/无 url → null。 */
+async function resolveTabHost(tabId: number): Promise<string | null> {
+  try {
+    const tab = await browser.tabs.get(tabId);
+    if (!tab?.url) return null;
+    return new URL(tab.url).hostname;
+  } catch {
+    return null;
+  }
+}
+
+async function evaluateGate(tabId: number): Promise<GateDecision> {
+  const [mode, authorizedHosts] = await Promise.all([getSafetyMode(), getAuthorizedHosts()]);
+  const host = await resolveTabHost(tabId);
+  const allowed = host != null && canSubmit({ host, mode, authorizedHosts });
+  return { mode, allowed, host };
+}
+
+// U2 用最小 publish 标记落实"dispatched 前 await 写盘"的幂等顺序;
+// 完整批量状态机(needs-human-verification 等)在 U4。
+function markerKey(tabId: number): `local:${string}` {
+  return `local:publishMarker:${tabId}`;
+}
+
+async function handlePublish(tabId: number): Promise<PublishResult> {
+  try {
+    return await orchestratePublish({
+      evaluateGate: () => evaluateGate(tabId),
+      writeDispatched: () => storage.setItem(markerKey(tabId), 'publish-dispatched'),
+      sendGrant: async () => {
+        try {
+          const res = await browser.tabs.sendMessage(tabId, { type: 'PUBLISH_GRANT' });
+          return res as PublishResult;
+        } catch {
+          // content 不可达(脚本未注入 / 页面无监听):**未触发**提交。
+          return { ok: false, dryRun: false, error: 'content-unreachable' };
+        }
+      },
+      writeConfirmed: (r) =>
+        storage.setItem(markerKey(tabId), r.ok ? 'publish-confirmed' : `error:${r.error ?? 'unknown'}`),
+    });
+  } catch (err) {
+    console.error('[bg] 发布编排失败', err);
+    return { ok: false, dryRun: false, error: 'internal' };
   }
 }

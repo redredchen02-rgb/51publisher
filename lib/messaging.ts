@@ -1,5 +1,5 @@
 import { browser } from '#imports';
-import type { ContentDraft, FillPageResponse, GenerateDraftResponse } from './types';
+import type { ContentDraft, FillPageResponse, GenerateDraftResponse, PublishPageResponse } from './types';
 
 /** side panel → background:生成草稿。 */
 export async function requestGenerate(prompt: string): Promise<GenerateDraftResponse> {
@@ -15,6 +15,15 @@ export async function requestFill(draft: ContentDraft): Promise<FillPageResponse
   } catch {
     return { ok: false, error: '无法连接页面填充脚本——请确认当前停在 51publisher 发帖页并已打开「添加」表单。' };
   }
+}
+
+/**
+ * side panel → background:请求发布指定 tab。
+ * 发布**改道经 background**(不再 side panel 直连 content):闸门求值 + host 取自浏览器
+ * 都在 background;此处只传**显式 tabId**(绝不让 background 查 active tab)。
+ */
+export async function requestPublish(tabId: number): Promise<PublishPageResponse> {
+  return browser.runtime.sendMessage({ type: 'PUBLISH_PAGE', tabId });
 }
 
 /** 用 prompt 模板 + 主题组装最终 prompt。 */
