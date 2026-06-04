@@ -28,6 +28,8 @@ function makeRecord(id: string, topic: string, opts: Partial<TrajectoryRecord> =
     ts: '2026-06-04T10:00:00.000Z',
     publishedAsDraft: false,
     fields: [],
+    seq: 1,
+    hash: 'aabbccdd',
     ...opts,
   };
 }
