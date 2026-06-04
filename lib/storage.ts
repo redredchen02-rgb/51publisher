@@ -1,5 +1,7 @@
 import { storage } from '#imports';
 import type { ContentDraft, SafetyMode, Settings } from './types';
+import type { Batch } from './batch';
+import { recoverBatch } from './batch';
 import { DEFAULT_FIELD_MAPPING } from './field-mapping';
 
 const SETTINGS_KEY = 'local:settings';
@@ -7,6 +9,7 @@ const API_KEY = 'local:apiKey';
 const CURRENT_DRAFT_KEY = 'local:currentDraft';
 const SAFETY_MODE_KEY = 'local:safetyMode';
 const AUTHORIZED_HOSTS_KEY = 'local:authorizedHosts';
+const BATCH_KEY = 'local:batch';
 
 /** 默认档位:off == 今天的行为(永不发布)。fail-closed 的安全默认。 */
 const DEFAULT_SAFETY_MODE: SafetyMode = 'off';
@@ -87,4 +90,23 @@ export async function getAuthorizedHosts(): Promise<string[]> {
 
 export async function setAuthorizedHosts(hosts: string[]): Promise<void> {
   await storage.setItem(AUTHORIZED_HOSTS_KEY, hosts);
+}
+
+// ---- 批量队列持久化 + 崩溃恢复 ----
+// MV3 SW 随时被回收;每次状态推进都写盘。加载时跑 recoverBatch:
+// 任何 publish-dispatched(无回执)→ needs-human-verification 隔离,**绝不自动重发**。
+
+/** 读批次。读到即应用崩溃恢复(在途 dispatched → 隔离)。无批次 → null。 */
+export async function getBatch(): Promise<Batch | null> {
+  const stored = await storage.getItem<Batch>(BATCH_KEY);
+  if (!stored || !Array.isArray(stored.items)) return null;
+  return recoverBatch(stored);
+}
+
+export async function saveBatch(batch: Batch): Promise<void> {
+  await storage.setItem(BATCH_KEY, batch);
+}
+
+export async function clearBatch(): Promise<void> {
+  await storage.removeItem(BATCH_KEY);
 }

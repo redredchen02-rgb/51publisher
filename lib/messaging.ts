@@ -1,5 +1,6 @@
 import { browser } from '#imports';
 import type { ContentDraft, FillPageResponse, GenerateDraftResponse, PublishPageResponse } from './types';
+import type { Batch } from './batch';
 
 /** side panel → background:生成草稿。 */
 export async function requestGenerate(prompt: string): Promise<GenerateDraftResponse> {
@@ -24,6 +25,35 @@ export async function requestFill(draft: ContentDraft): Promise<FillPageResponse
  */
 export async function requestPublish(tabId: number): Promise<PublishPageResponse> {
   return browser.runtime.sendMessage({ type: 'PUBLISH_PAGE', tabId });
+}
+
+// ---- 批量编排(side panel → background)----
+
+export type BatchResponse = Batch | null;
+
+/** 启动批量:逐条生成+填充到钉住的 tab,完成后进入 awaiting-approval。 */
+export async function runBatch(topics: string[], tabId: number): Promise<BatchResponse> {
+  return browser.runtime.sendMessage({ type: 'RUN_BATCH', topics, tabId });
+}
+
+/** 批准整批:逐条门控发布(钉住的 tab)。 */
+export async function approveBatch(tabId: number): Promise<BatchResponse> {
+  return browser.runtime.sendMessage({ type: 'APPROVE_BATCH', tabId });
+}
+
+/** 急停:未发布项打到 aborted。 */
+export async function killBatch(): Promise<BatchResponse> {
+  return browser.runtime.sendMessage({ type: 'KILL_BATCH' });
+}
+
+/** 人工退出某隔离项(needs-human-verification → aborted)。 */
+export async function releaseQuarantine(itemId: string): Promise<BatchResponse> {
+  return browser.runtime.sendMessage({ type: 'RELEASE_QUARANTINE', itemId });
+}
+
+/** 读当前批次(加载即崩溃恢复)。 */
+export async function getBatchState(): Promise<BatchResponse> {
+  return browser.runtime.sendMessage({ type: 'GET_BATCH' });
 }
 
 /** 用 prompt 模板 + 主题组装最终 prompt。 */

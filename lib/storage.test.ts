@@ -11,7 +11,19 @@ import {
   setSafetyMode,
   getAuthorizedHosts,
   setAuthorizedHosts,
+  getBatch,
+  saveBatch,
+  clearBatch,
 } from './storage';
+import { createBatch, markDispatched, markFilled, markGenerating, presentForApproval } from './batch';
+import type { Batch } from './batch';
+import type { ContentDraft } from './types';
+
+const D: ContentDraft = {
+  id: 'd', title: 't', subtitle: '', category: '2', coverImageUrl: '', body: '<p>x</p>',
+  tags: [], description: '', postStatus: '0', publishedAt: '', mediaId: '1', status: 'draft',
+  createdAt: '2026-06-04T00:00:00.000Z',
+};
 
 describe('storage', () => {
   beforeEach(() => {
@@ -77,6 +89,46 @@ describe('storage', () => {
     it('坏名单值(非数组)→ 空(fail-closed)', async () => {
       await storage.setItem('local:authorizedHosts', 'dx-999-adm.ympxbys.xyz');
       expect(await getAuthorizedHosts()).toEqual([]);
+    });
+  });
+
+  describe('批量持久化 + 加载即恢复', () => {
+    function fillAll(b: Batch): Batch {
+      let x = b;
+      for (const it of b.items) x = markFilled(markGenerating(x, it.id), it.id, D);
+      return presentForApproval(x);
+    }
+
+    it('无批次 → null', async () => {
+      expect(await getBatch()).toBeNull();
+    });
+
+    it('save/get 往返', async () => {
+      const b = createBatch('b1', 7, 'dx-999-adm.ympxbys.xyz', ['x'], '2026-06-04T00:00:00.000Z', (i) => `i${i}`);
+      await saveBatch(b);
+      const got = await getBatch();
+      expect(got?.id).toBe('b1');
+      expect(got?.tabId).toBe(7);
+    });
+
+    it('加载即恢复:在途 dispatched → needs-human-verification(防自动重发)', async () => {
+      let b = createBatch('b1', 7, 'dx-999-adm.ympxbys.xyz', ['a'], '2026-06-04T00:00:00.000Z', (i) => `i${i}`);
+      b = markDispatched(fillAll(b), 'i0');
+      await saveBatch(b);
+      const got = await getBatch();
+      expect(got?.items[0]!.status).toBe('needs-human-verification');
+    });
+
+    it('坏批次值(items 非数组)→ null', async () => {
+      await storage.setItem('local:batch', { id: 'x' });
+      expect(await getBatch()).toBeNull();
+    });
+
+    it('clearBatch 后 → null', async () => {
+      const b = createBatch('b1', 7, 'h', ['x'], 't', (i) => `i${i}`);
+      await saveBatch(b);
+      await clearBatch();
+      expect(await getBatch()).toBeNull();
     });
   });
 });

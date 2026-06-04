@@ -103,7 +103,13 @@ export type RuntimeMessage =
   // side panel → background:请求发布钉住的 tab(显式 tabId,绝不查 active)。
   | { type: 'PUBLISH_PAGE'; tabId: number }
   // background → content:一次性"准许"。content 只在收到此消息时才触发提交。
-  | { type: 'PUBLISH_GRANT' };
+  | { type: 'PUBLISH_GRANT' }
+  // side panel → background:批量编排(均显式 tabId,绝不查 active)。
+  | { type: 'RUN_BATCH'; topics: string[]; tabId: number }
+  | { type: 'APPROVE_BATCH'; tabId: number }
+  | { type: 'KILL_BATCH' }
+  | { type: 'RELEASE_QUARANTINE'; itemId: string }
+  | { type: 'GET_BATCH' };
 
 export type GenerateDraftResponse =
   | { ok: true; draft: ContentDraft }
