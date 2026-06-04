@@ -201,7 +201,7 @@ graph TB
 
 ---
 
-- [ ] **U3: 核心填充路径 e2e(happy path)**
+- [x] **U3: 核心填充路径 e2e(happy path)**
 
 **Goal:** 一条 e2e:加载 fixture(真 Quill)→ 绕过 Side Panel 直接触发一次填充 → 断言每字段填对、正文进 Quill、零提交。
 
@@ -234,7 +234,7 @@ graph TB
 
 ---
 
-- [ ] **U4: 降级路径 e2e(window.Quill 不可用)**
+- [x] **U4: 降级路径 e2e(window.Quill 不可用)**
 
 **Goal:** 验证 `window.Quill` 不可用时,正文走 tier② 兜底、被标记 `degraded`,且**仍然零提交**。
 
