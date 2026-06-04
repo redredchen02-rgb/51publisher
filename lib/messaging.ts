@@ -1,6 +1,7 @@
 import { browser } from '#imports';
 import type { ContentDraft, FillPageResponse, GenerateDraftResponse, PublishPageResponse } from './types';
 import type { Batch } from './batch';
+import type { DriftReport } from './selectors';
 
 /** side panel → background:生成草稿。 */
 export async function requestGenerate(prompt: string): Promise<GenerateDraftResponse> {
@@ -54,6 +55,15 @@ export async function releaseQuarantine(itemId: string): Promise<BatchResponse> 
 /** 读当前批次(加载即崩溃恢复)。 */
 export async function getBatchState(): Promise<BatchResponse> {
   return browser.runtime.sendMessage({ type: 'GET_BATCH' });
+}
+
+/** 轻量漂移自检:让钉住 tab 的 content 查关键选择器是否缺失。 */
+export async function checkSelectors(tabId: number): Promise<DriftReport> {
+  try {
+    return await browser.tabs.sendMessage(tabId, { type: 'CHECK_SELECTORS' });
+  } catch {
+    return { ok: false, missing: ['(无法连接页面——请确认停在 admin 发帖页)'] };
+  }
 }
 
 /** 用 prompt 模板 + 主题组装最终 prompt。 */

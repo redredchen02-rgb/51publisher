@@ -4,6 +4,7 @@ import { fillDraft } from '../lib/fillers';
 import { sanitizeBody } from '../lib/sanitize';
 import { requestBodyFill, bodyResultFromOutcome } from '../lib/body-bridge';
 import { executePublish } from '../lib/publish';
+import { checkSelectorDrift, type DriftReport } from '../lib/selectors';
 
 // 隔离世界 content script:接收 side panel 的 FILL_PAGE 填充;接收 background 的
 // PUBLISH_GRANT 一次性"准许"才触发提交。**content 绝不自我授权**——无 grant 即从不提交。
@@ -18,6 +19,9 @@ export default defineContentScript({
       if (message?.type === 'PUBLISH_GRANT') {
         return handlePublishGrant();
       }
+      if (message?.type === 'CHECK_SELECTORS') {
+        return handleCheckSelectors();
+      }
       return undefined;
     });
   },
@@ -31,6 +35,11 @@ async function handlePublishGrant(): Promise<PublishResult> {
     console.error('[content] 发布触发失败', err);
     return { ok: false, dryRun: false, error: 'internal' };
   }
+}
+
+async function handleCheckSelectors(): Promise<DriftReport> {
+  const { fieldMapping } = await getSettings();
+  return checkSelectorDrift(document, fieldMapping);
 }
 
 async function handleFill(draft: ContentDraft): Promise<FillPageResponse> {

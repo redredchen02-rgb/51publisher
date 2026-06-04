@@ -5,6 +5,7 @@ import { buildPrompt, requestFill, requestGenerate } from '../../lib/messaging';
 import { DraftPreview } from './DraftPreview';
 import { FillResultPanel } from './FillResultPanel';
 import { Settings } from './Settings';
+import { BatchView } from './BatchView';
 
 type Mode = 'empty' | 'generating' | 'draft' | 'filling' | 'filled' | 'partial';
 
@@ -13,7 +14,7 @@ const primaryBtn: React.CSSProperties = { ...btn, background: '#1677ff', color: 
 const plainBtn: React.CSSProperties = { ...btn, background: '#f0f0f0', color: '#333' };
 
 export function App() {
-  const [view, setView] = useState<'main' | 'settings'>('main');
+  const [view, setView] = useState<'main' | 'settings' | 'batch'>('main');
   const [mode, setMode] = useState<Mode>('empty');
   const [topic, setTopic] = useState('');
   const [draft, setDraft] = useState<ContentDraft | null>(null);
@@ -99,6 +100,7 @@ export function App() {
   }
 
   if (view === 'settings') return <Wrap><Settings onClose={() => setView('main')} /></Wrap>;
+  if (view === 'batch') return <BatchView onBack={() => setView('main')} />;
 
   const busy = mode === 'generating' || mode === 'filling';
 
@@ -106,7 +108,10 @@ export function App() {
     <Wrap>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <h1 style={{ fontSize: 16, margin: 0 }}>51publisher 填充助手</h1>
-        <button onClick={() => setView('settings')} style={{ ...plainBtn, padding: '4px 10px' }} aria-label="设置">⚙ 设置</button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={() => setView('batch')} style={{ ...plainBtn, padding: '4px 10px' }} aria-label="批量">≣ 批量</button>
+          <button onClick={() => setView('settings')} style={{ ...plainBtn, padding: '4px 10px' }} aria-label="设置">⚙ 设置</button>
+        </div>
       </div>
 
       <div role="note" style={{ background: '#fff7e6', border: '1px solid #ffd591', borderRadius: 6, padding: '8px 10px', fontSize: 13, marginBottom: 12 }}>
