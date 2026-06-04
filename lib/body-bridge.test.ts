@@ -2,6 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   requestBodyFill,
+  bodyResultFromOutcome,
   EVT_FILL_BODY,
   EVT_BODY_FILLED,
   type FillBodyDetail,
@@ -68,5 +69,29 @@ describe('requestBodyFill', () => {
     const out = await requestBodyFill('<p>hi</p>', '#editor', 40);
     expect(out.ok).toBe(false); // 错误 reqId 不应误判成功
     document.removeEventListener(EVT_FILL_BODY, handler);
+  });
+});
+
+describe('bodyResultFromOutcome(三态映射)', () => {
+  it('ok 且非 degraded → filled,无 note', () => {
+    expect(bodyResultFromOutcome({ ok: true })).toEqual({ field: 'body', status: 'filled' });
+  });
+
+  it('ok 且 degraded → degraded,提示质量较差', () => {
+    const r = bodyResultFromOutcome({ ok: true, degraded: true });
+    expect(r.status).toBe('degraded');
+    expect(r.note).toMatch(/质量较差/);
+  });
+
+  it('ok 且 degraded 带自定义 note → 用透传的 note', () => {
+    const r = bodyResultFromOutcome({ ok: true, degraded: true, note: '自定义降级说明' });
+    expect(r.status).toBe('degraded');
+    expect(r.note).toBe('自定义降级说明');
+  });
+
+  it('写入失败(!ok)→ degraded,提示手动粘贴', () => {
+    const r = bodyResultFromOutcome({ ok: false, note: '正文桥未响应,请手动粘贴正文。' });
+    expect(r.status).toBe('degraded');
+    expect(r.note).toMatch(/手动粘贴/);
   });
 });

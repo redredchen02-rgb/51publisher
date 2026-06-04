@@ -38,7 +38,12 @@ export function installBodyResponder(
     } catch {
       result = { reqId: detail.reqId, ok: false, error: '正文写入异常,请手动粘贴。' };
     }
-    target.dispatchEvent(new CustomEvent<BodyFilledDetail>(EVT_BODY_FILLED, { detail: result }));
+    // 回执也包进 try/catch:派发若抛出,隔离端只会干等到 3s 超时,失去明确错误。
+    try {
+      target.dispatchEvent(new CustomEvent<BodyFilledDetail>(EVT_BODY_FILLED, { detail: result }));
+    } catch {
+      /* 派发失败无从回执,隔离端会按超时降级处理 */
+    }
   };
 
   target.addEventListener(EVT_FILL_BODY, onFill);

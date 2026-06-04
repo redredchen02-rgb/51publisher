@@ -48,7 +48,10 @@ export function installSubmitSpy(form: HTMLFormElement, publishButton: Element):
     publishClickCount: () => publishClicks,
     restore() {
       form.submit = origSubmit;
-      form.requestSubmit = origRequestSubmit;
+      // 仅当原本存在 requestSubmit 才还原(patch 时也只在存在时才 patch,保持对称)。
+      if (typeof origRequestSubmit === 'function') {
+        form.requestSubmit = origRequestSubmit;
+      }
       form.removeEventListener('submit', onSubmit);
       publishButton.removeEventListener('click', onPublishClick);
     },

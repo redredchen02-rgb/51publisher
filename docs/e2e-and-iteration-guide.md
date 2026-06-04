@@ -54,9 +54,9 @@
 
 ### 脱敏闸门(`pnpm check:fixtures`)
 
-- 主规则:`type="hidden"` 字段不得带非空 `value`。
+- 主规则:`type="hidden"` 字段不得带非空 `value`(检测与属性顺序无关,`value` 在前也拦)。
 - 次规则(tripwire):扫 token / cookie / JWT / 长 hex 等常见机密形态。
-- **自检**:闸门每次先验证投毒样本 `tests/e2e/fixtures/.poisoned-sample.html` 能被检出;检不出就判定闸门 no-op 并大声失败(防 fail-open)。
+- **自检**:闸门每次先用**运行时生成**的投毒样本验证自己能检出;检不出就判定闸门 no-op 并大声失败(防 fail-open)。投毒样本不落仓库,免得假机密触发外部 secret 扫描器。
 - **强制**:已配 git pre-commit hook(`scripts/git-hooks/pre-commit`),fixture 变更不过闸门则挡提交。
   - 一次性启用:`git config core.hooksPath scripts/git-hooks`
 - **诚实局限**:shell 闸门无法完整解析 HTML、挡不住所有未知字段名的机密。它是「合成 fixture + 人工脱敏 + 人工复核」之上的一道自动兜底,**不是唯一防线**。首次 commit 的 fixture 因合成而结构安全;此后每次真后台重抓都重新引入风险,全靠这道闸门 + 人工脱敏把守——这条不对称要记牢,别误读成「风险已彻底解决」。

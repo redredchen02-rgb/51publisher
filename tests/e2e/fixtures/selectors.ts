@@ -6,6 +6,10 @@ import { DEFAULT_FIELD_MAPPING } from '../../../lib/field-mapping';
 export const PUBLISH_BUTTON_SELECTOR = '#pfa-publish';
 
 export const KEY_SELECTORS: string[] = [
-  ...Object.values(DEFAULT_FIELD_MAPPING).map((def) => def!.selector),
+  // FieldMapping 是 Partial,显式过滤掉 undefined(而非 def! 非空断言),
+  // 这样若将来某键被移除,派生自动跟随、不会用断言掩盖。
+  ...Object.values(DEFAULT_FIELD_MAPPING)
+    .filter((def): def is NonNullable<typeof def> => def != null)
+    .map((def) => def.selector),
   PUBLISH_BUTTON_SELECTOR,
 ];

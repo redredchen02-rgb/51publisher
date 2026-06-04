@@ -45,8 +45,11 @@ export function loadFixture(opts: { withQuill?: boolean } = {}): LoadedFixture {
     delete (win as unknown as { Quill?: typeof Quill }).Quill;
   }
 
-  const form = document.querySelector<HTMLFormElement>('#webarticle-form')!;
-  const publishButton = document.querySelector<HTMLButtonElement>('#pfa-publish')!;
+  const form = document.querySelector<HTMLFormElement>('#webarticle-form');
+  const publishButton = document.querySelector<HTMLButtonElement>('#pfa-publish');
+  if (!form || !publishButton) {
+    throw new Error('fixture 缺少 #webarticle-form 或 #pfa-publish,fixture 可能损坏');
+  }
 
-  return { window: win, document, quill, form, publishButton };
+  return { window: win, document, quill: withQuill ? quill : null, form, publishButton };
 }

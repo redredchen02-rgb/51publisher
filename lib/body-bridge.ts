@@ -2,6 +2,8 @@
 // 隔离世界拿不到页面 window.Quill,故正文写入必须在主世界执行;
 // 两侧用 document 上的 CustomEvent 通信,并带 reqId + 超时降级。
 
+import type { FieldFillResult } from './types';
+
 export const EVT_FILL_BODY = 'pfa:fill-body';
 export const EVT_BODY_FILLED = 'pfa:body-filled';
 export const EVT_BRIDGE_READY = 'pfa:quill-bridge-ready';
@@ -23,6 +25,23 @@ export interface BodyFillOutcome {
   note?: string;
   /** 透传自主世界:true = 兜底写入(非失败),面板应提示「质量较差,建议手动粘贴」。 */
   degraded?: boolean;
+}
+
+/**
+ * 把正文写入结果映射成 side panel 的字段结果。三态:
+ *   写入成功且非兜底 → filled;
+ *   tier② 兜底写入(degraded)→ degraded,提示质量较差;
+ *   写入失败 → degraded,提示手动粘贴。
+ * 抽成纯函数以便直接单测(content.ts 是 entrypoint,难直接测)。
+ */
+export function bodyResultFromOutcome(outcome: BodyFillOutcome): FieldFillResult {
+  if (outcome.ok && !outcome.degraded) {
+    return { field: 'body', status: 'filled' };
+  }
+  if (outcome.ok && outcome.degraded) {
+    return { field: 'body', status: 'degraded', note: outcome.note ?? '正文以兜底方式写入,质量较差,建议手动粘贴核对。' };
+  }
+  return { field: 'body', status: 'degraded', note: outcome.note ?? '正文写入失败,请手动粘贴。' };
 }
 
 let counter = 0;
