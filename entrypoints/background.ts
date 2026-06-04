@@ -1,5 +1,5 @@
 import { storage } from '#imports';
-import type { ContentDraft, FillPageResponse, GenerateDraftResponse, PublishResult, RuntimeMessage } from '../lib/types';
+import type { FillPageResponse, GenerateDraftResponse, PublishResult, RuntimeMessage } from '../lib/types';
 import {
   getApiKey,
   getSettings,
@@ -12,22 +12,9 @@ import {
 import { generateDraft } from '../lib/llm';
 import { canSubmit } from '../lib/safety-gate';
 import { orchestratePublish, type GateDecision } from '../lib/publish-orchestrator';
-import {
-  type Batch,
-  createBatch,
-  markGenerating,
-  markFilled,
-  markGenerateFailed,
-  markDispatched,
-  markConfirmed,
-  markPublishFailed,
-  presentForApproval,
-  abortBatch,
-  releaseQuarantine,
-  quarantinedTopics,
-  filterReentrantTopics,
-} from '../lib/batch';
+import { abortBatch, releaseQuarantine, type Batch } from '../lib/batch';
 import { buildPrompt } from '../lib/messaging';
+import { runBatch, approveBatch } from '../lib/batch-orchestrator';
 
 // Background service worker:调度中心 + 发布闸门。
 // - 点扩展图标打开 side panel
@@ -95,8 +82,7 @@ async function evaluateGate(tabId: number): Promise<GateDecision> {
   return { mode, allowed, host };
 }
 
-// U2 用最小 publish 标记落实"dispatched 前 await 写盘"的幂等顺序;
-// 完整批量状态机(needs-human-verification 等)在 U4。
+// U2 用最小 publish 标记落实"dispatched 前 await 写盘"的幂等顺序。
 function markerKey(tabId: number): `local:${string}` {
   return `local:publishMarker:${tabId}`;
 }
@@ -121,7 +107,6 @@ async function handlePublish(tabId: number): Promise<PublishResult> {
   try {
     return await orchestratePublish({
       evaluateGate: () => evaluateGate(tabId),
-      // 在途守卫:标记仍为 publish-dispatched(无回执)→ 拒绝重入,绝不二次发准许。
       isAlreadyDispatched: async () => (await storage.getItem(markerKey(tabId))) === 'publish-dispatched',
       writeDispatched: () => storage.setItem(markerKey(tabId), 'publish-dispatched'),
       sendGrant: async () => {
@@ -129,7 +114,6 @@ async function handlePublish(tabId: number): Promise<PublishResult> {
           const res = await browser.tabs.sendMessage(tabId, { type: 'PUBLISH_GRANT' });
           return asPublishResult(res);
         } catch {
-          // content 不可达(脚本未注入 / 页面无监听):**未触发**提交。
           return { ok: false, dryRun: false, error: 'content-unreachable' };
         }
       },
@@ -142,56 +126,32 @@ async function handlePublish(tabId: number): Promise<PublishResult> {
   }
 }
 
-// ---- 批量编排(U4)----
-// 生成阶段:逐条生成草稿并**存进 batch item**(后台只有一个表单,不能同时填 N 条)。
-// 批准阶段:逐条把存的草稿填进表单 → 门控发布。每步前断言钉住的 tab 仍是同一授权 host。
+// ---- 批量编排接线 ----
+// 生成/发布逻辑已移至 lib/batch-orchestrator.ts(可独立单测);
+// 此处只做 chrome API adapter 注入。
 
 let batchSeq = 0;
-function genBatchId(): string {
-  batchSeq += 1;
-  return `batch_${Date.now()}_${batchSeq}`;
-}
 
-/** 钉 tab 断言:当前 tab 的 host 仍等于批次创建时记录的授权 host。 */
-async function pinnedHostOk(batch: Batch): Promise<boolean> {
-  const host = await resolveTabHost(batch.tabId);
-  return host !== null && host === batch.authorizedHost;
+/** 钉 tab 断言:当前 tab 的 host 仍等于批次创建时记录的 authorizedHost。 */
+function pinnedHostOk(batch: Batch): Promise<boolean> {
+  return resolveTabHost(batch.tabId).then((h) => h !== null && h === batch.authorizedHost);
 }
 
 async function handleRunBatch(topics: string[], tabId: number): Promise<Batch | null> {
   try {
-    const host = await resolveTabHost(tabId);
-    if (!host) return null; // tab 无 url / 已关:不开批
-
-    // 重入守卫:排除上一批仍被隔离的同选题(绝不自动重入)。
-    const existing = await getBatch();
-    const blocked = existing ? quarantinedTopics(existing) : [];
-    const fresh = filterReentrantTopics(topics, blocked);
-    if (fresh.length === 0) return existing;
-
-    const now = new Date().toISOString();
-    let batch = createBatch(genBatchId(), tabId, host, fresh, now, (i) => `item_${i}`);
-    await saveBatch(batch);
-
     const [settings, apiKey] = await Promise.all([getSettings(), getApiKey()]);
-    for (const item of batch.items) {
-      if (!(await pinnedHostOk(batch))) break; // tab 漂移 → 暂停,UI 提示切回
-      batch = markGenerating(batch, item.id);
-      await saveBatch(batch);
-
-      const gen = await generateDraft(buildPrompt(settings.promptTemplate, item.topic), { settings, apiKey });
-      if (!gen.ok) {
-        batch = markGenerateFailed(batch, item.id, gen.error);
-        await saveBatch(batch);
-        continue;
-      }
-      batch = markFilled(batch, item.id, gen.draft);
-      await saveBatch(batch);
-    }
-
-    batch = presentForApproval(batch);
-    await saveBatch(batch);
-    return batch;
+    return await runBatch({
+      topics,
+      tabId,
+      resolveHost: () => resolveTabHost(tabId),
+      getExistingBatch: getBatch,
+      pinnedHostOk,
+      generateDraft: (topic) => generateDraft(buildPrompt(settings.promptTemplate, topic), { settings, apiKey }),
+      save: saveBatch,
+      genBatchId: () => { batchSeq += 1; return `batch_${Date.now()}_${batchSeq}`; },
+      genItemId: (i) => `item_${i}`,
+      now: () => new Date().toISOString(),
+    });
   } catch (err) {
     console.error('[bg] 批量生成失败', err);
     return getBatch();
@@ -200,78 +160,31 @@ async function handleRunBatch(topics: string[], tabId: number): Promise<Batch | 
 
 async function handleApproveBatch(tabId: number): Promise<Batch | null> {
   try {
-    const loaded = await getBatch();
-    if (!loaded) return null;
-    let batch: Batch = loaded;
-
-    for (const snapshot of batch.items) {
-      // 每轮从最新 batch 取该项当前状态(前面的转移可能已变)。
-      const item = batch.items.find((it) => it.id === snapshot.id);
-      if (!item || item.status !== 'awaiting-approval' || !item.draft) continue;
-      if (!(await pinnedHostOk(batch))) break; // tab 漂移 → 暂停
-
-      // 先把这条草稿填进表单(填充不经闸门),再门控发布当前表单。
-      const fill = await sendFill(tabId, item.draft);
-      if (!fill.ok) {
-        batch = markGenerateFailed(batch, item.id, 'fill-failed');
-        await saveBatch(batch);
-        continue;
-      }
-
-      const result = await orchestratePublish({
-        evaluateGate: () => evaluateGate(tabId),
-        isAlreadyDispatched: async () => itemStatus(batch, item.id) === 'publish-dispatched',
-        writeDispatched: async () => {
-          batch = markDispatched(batch, item.id);
-          await saveBatch(batch);
-        },
-        sendGrant: async () => {
-          try {
-            return asPublishResult(await browser.tabs.sendMessage(tabId, { type: 'PUBLISH_GRANT' }));
-          } catch {
-            return { ok: false, dryRun: false, error: 'content-unreachable' };
-          }
-        },
-        writeConfirmed: async (r) => {
-          // dry-run 不改条目状态(无准许、未发);仅 authorized 真发才落 confirmed/error。
-          if (r.dryRun) return;
-          batch = r.ok ? markConfirmed(batch, item.id, r.url) : markPublishFailed(batch, item.id, r.error ?? 'unknown');
-          await saveBatch(batch);
-        },
-      });
-      // 轨迹:authorized 真发(非 dry-run)才落档,作回放/回滚依据。
-      if (!result.dryRun) {
-        const { snapshotDropped } = await appendTrajectory({
-          id: item.id,
-          topic: item.topic,
-          fields: fill.results,
-          publishUrl: result.url,
-          status: itemStatus(batch, item.id) ?? 'unknown',
-          ts: new Date().toISOString(),
-          publishedAsDraft: item.draft.postStatus === '0',
-        });
-        if (snapshotDropped) console.warn('[bg] 轨迹快照含机密被丢弃(record 已落,无快照)');
-      }
-      // dry-run / blocked:不推进条目(留在 awaiting-approval),让 UI 报告。
-      if (!result.ok && result.error === 'blocked') break;
-    }
-
-    return batch;
+    return await approveBatch({
+      getBatch,
+      save: saveBatch,
+      pinnedHostOk,
+      sendFill: async (draft) => {
+        try {
+          return (await browser.tabs.sendMessage(tabId, { type: 'FILL_PAGE', draft })) as FillPageResponse;
+        } catch {
+          return { ok: false, error: 'fill-unreachable' };
+        }
+      },
+      evaluateGate: () => evaluateGate(tabId),
+      sendGrant: async () => {
+        try {
+          return asPublishResult(await browser.tabs.sendMessage(tabId, { type: 'PUBLISH_GRANT' }));
+        } catch {
+          return { ok: false, dryRun: false, error: 'content-unreachable' };
+        }
+      },
+      appendTrajectory,
+      onSnapshotDropped: (itemId) => console.warn(`[bg] 轨迹快照含机密被丢弃(record 已落,无快照) itemId=${itemId}`),
+    });
   } catch (err) {
     console.error('[bg] 批量发布失败', err);
     return getBatch();
-  }
-}
-
-function itemStatus(batch: Batch, itemId: string): string | undefined {
-  return batch.items.find((it) => it.id === itemId)?.status;
-}
-
-async function sendFill(tabId: number, draft: ContentDraft): Promise<FillPageResponse> {
-  try {
-    return (await browser.tabs.sendMessage(tabId, { type: 'FILL_PAGE', draft })) as FillPageResponse;
-  } catch {
-    return { ok: false, error: 'fill-unreachable' };
   }
 }
 
