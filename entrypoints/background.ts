@@ -62,15 +62,33 @@ function markerKey(tabId: number): `local:${string}` {
   return `local:publishMarker:${tabId}`;
 }
 
+/** content 经消息边界回来的值是 unknown(polyfill Promise<any>)→ 校验形状,绝不盲信。 */
+function asPublishResult(value: unknown): PublishResult {
+  if (value && typeof value === 'object') {
+    const o = value as Record<string, unknown>;
+    if (typeof o.ok === 'boolean' && typeof o.dryRun === 'boolean') {
+      return {
+        ok: o.ok,
+        dryRun: o.dryRun,
+        ...(typeof o.url === 'string' ? { url: o.url } : {}),
+        ...(typeof o.error === 'string' ? { error: o.error } : {}),
+      };
+    }
+  }
+  return { ok: false, dryRun: false, error: 'content-response-invalid' };
+}
+
 async function handlePublish(tabId: number): Promise<PublishResult> {
   try {
     return await orchestratePublish({
       evaluateGate: () => evaluateGate(tabId),
+      // 在途守卫:标记仍为 publish-dispatched(无回执)→ 拒绝重入,绝不二次发准许。
+      isAlreadyDispatched: async () => (await storage.getItem(markerKey(tabId))) === 'publish-dispatched',
       writeDispatched: () => storage.setItem(markerKey(tabId), 'publish-dispatched'),
       sendGrant: async () => {
         try {
           const res = await browser.tabs.sendMessage(tabId, { type: 'PUBLISH_GRANT' });
-          return res as PublishResult;
+          return asPublishResult(res);
         } catch {
           // content 不可达(脚本未注入 / 页面无监听):**未触发**提交。
           return { ok: false, dryRun: false, error: 'content-unreachable' };

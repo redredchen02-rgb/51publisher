@@ -45,6 +45,8 @@ export function installFetchSubmitSpy(
   }) as typeof fetch;
 
   // 极简 XHR 替身:只关心 open(method,url)+send 是否打到 save 端点。
+  // 纵深防御(非死代码):当前 executePublish 走 fetch,但若日后误引入 XHR 提交路径,
+  // 此通道会立即把它计入 submitCount → 安全档位矩阵会抓到回归。
   class SpyXHR {
     private method = 'GET';
     private url = '';

@@ -3,9 +3,15 @@ import { orchestratePublish } from './publish-orchestrator';
 import type { GateDecision, OrchestratorDeps } from './publish-orchestrator';
 import type { PublishResult } from './types';
 
-function makeDeps(gate: GateDecision, grantResult: PublishResult, order: string[]): OrchestratorDeps {
+function makeDeps(
+  gate: GateDecision,
+  grantResult: PublishResult,
+  order: string[],
+  alreadyDispatched = false,
+): OrchestratorDeps {
   return {
     evaluateGate: vi.fn(async () => gate),
+    isAlreadyDispatched: vi.fn(async () => alreadyDispatched),
     writeDispatched: vi.fn(async () => {
       order.push('dispatched');
     }),
@@ -58,6 +64,16 @@ describe('orchestratePublish', () => {
     expect(res.ok).toBe(false);
     expect(order).toEqual([]);
     expect(deps.sendGrant).not.toHaveBeenCalled();
+  });
+
+  it('重入守卫:已有在途 dispatched → already-publishing,不发 grant、不重写 dispatched', async () => {
+    const order: string[] = [];
+    const deps = makeDeps({ mode: 'authorized', allowed: true, host: 'dx-999-adm.ympxbys.xyz' }, OK, order, true);
+    const res = await orchestratePublish(deps);
+    expect(res).toEqual({ ok: false, dryRun: false, error: 'already-publishing' });
+    expect(order).toEqual([]);
+    expect(deps.sendGrant).not.toHaveBeenCalled();
+    expect(deps.writeDispatched).not.toHaveBeenCalled();
   });
 
   it('content 触发失败(no-publish-target)如实回传,仍写 confirmed', async () => {

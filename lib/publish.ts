@@ -17,15 +17,31 @@ export interface PublishDeps {
   formSelector?: string;
   /** Quill 编辑器内容容器选择器(其 innerHTML 同步进 html_content)。 */
   editorSelector?: string;
+  /** 提交超时(ms),防后台挂起致发布状态悬空。默认 30s。 */
+  timeoutMs?: number;
 }
 
 const DEFAULT_SAVE_ENDPOINT = '/admin/webarticle/save';
+const DEFAULT_TIMEOUT_MS = 30_000;
+/** 后台 msg 截断上限:防超长 blob/潜在敏感串原样进 PublishResult/轨迹。 */
+const MAX_ERROR_MSG_LEN = 200;
 
-/** 把 Quill 渲染内容同步进隐藏的 html_content(layui 提交前由站点脚本做,直 POST 须自己做)。 */
-function syncQuillBody(form: HTMLFormElement, doc: Document, editorSelector: string): void {
-  const editor = doc.querySelector(`${editorSelector} .ql-editor`) ?? doc.querySelector(editorSelector);
+/**
+ * 把 Quill 渲染内容同步进隐藏的 html_content(layui 提交前由站点脚本做,直 POST 须自己做)。
+ * 返回失败原因:编辑器/隐藏域缺失或同步后正文为空 → 不可发(否则会 POST 空正文帖,伤 SEO)。
+ */
+function syncQuillBody(
+  form: HTMLFormElement,
+  doc: Document,
+  editorSelector: string,
+): { ok: true } | { ok: false; reason: 'no-body-field' | 'no-editor' | 'empty-body' } {
   const hidden = form.querySelector<HTMLInputElement>('[name="html_content"]');
-  if (editor && hidden) hidden.value = editor.innerHTML;
+  if (!hidden) return { ok: false, reason: 'no-body-field' };
+  const editor = doc.querySelector(`${editorSelector} .ql-editor`) ?? doc.querySelector(editorSelector);
+  if (!editor) return { ok: false, reason: 'no-editor' };
+  hidden.value = editor.innerHTML;
+  if (hidden.value.trim() === '') return { ok: false, reason: 'empty-body' };
+  return { ok: true };
 }
 
 /** 序列化表单为 urlencoded:checkbox/radio 仅取选中项,禁用项跳过。 */
@@ -60,8 +76,14 @@ export async function executePublish(deps: PublishDeps = {}): Promise<PublishRes
   const form = doc.querySelector<HTMLFormElement>(deps.formSelector ?? 'form[lay-filter], form');
   if (!form) return { ok: false, dryRun: false, error: 'no-publish-target' };
 
-  syncQuillBody(form, doc, editorSelector);
+  // 正文同步失败(编辑器漂移 / 空正文)→ 绝不 POST 空帖(评审 adversarial/reliability)。
+  const bodySync = syncQuillBody(form, doc, editorSelector);
+  if (!bodySync.ok) return { ok: false, dryRun: false, error: bodySync.reason };
   const body = serializeForm(form).toString();
+
+  // 超时控制:后台挂起时 abort,避免发布状态长期悬空(评审 reliability;同 lib/llm.ts 纪律)。
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), deps.timeoutMs ?? DEFAULT_TIMEOUT_MS);
 
   let res: Response;
   try {
@@ -73,9 +95,13 @@ export async function executePublish(deps: PublishDeps = {}): Promise<PublishRes
         'X-Requested-With': 'XMLHttpRequest',
       },
       body,
+      signal: controller.signal,
     });
-  } catch {
-    return { ok: false, dryRun: false, error: 'network' };
+  } catch (err) {
+    const aborted = err instanceof Error && err.name === 'AbortError';
+    return { ok: false, dryRun: false, error: aborted ? 'timeout' : 'network' };
+  } finally {
+    clearTimeout(timer);
   }
 
   if (!res.ok) {
@@ -89,10 +115,11 @@ export async function executePublish(deps: PublishDeps = {}): Promise<PublishRes
     return { ok: false, dryRun: false, error: 'bad-response' };
   }
 
-  const obj = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
+  // 数组 typeof 也是 'object' → 显式排除,避免误读为响应对象(评审 kieran-ts/correctness)。
+  const obj = (data && typeof data === 'object' && !Array.isArray(data) ? data : {}) as Record<string, unknown>;
   if (obj.code === 0) {
     return { ok: true, dryRun: false, url: extractUrl(obj) };
   }
-  const msg = typeof obj.msg === 'string' ? obj.msg : 'save-failed';
-  return { ok: false, dryRun: false, error: msg };
+  const rawMsg = typeof obj.msg === 'string' ? obj.msg : 'save-failed';
+  return { ok: false, dryRun: false, error: rawMsg.slice(0, MAX_ERROR_MSG_LEN) };
 }

@@ -34,6 +34,7 @@ async function runGate(mode: SafetyMode, host: string, hosts: string[] = AUTHORI
   try {
     await orchestratePublish({
       evaluateGate: async () => ({ mode, allowed: canSubmit({ host, mode, authorizedHosts: hosts }), host }),
+      isAlreadyDispatched: async () => false,
       writeDispatched: async () => {},
       // sendGrant == content 收到准许后执行(用 spy 的 fetch)。
       sendGrant: () => executePublish({ saveEndpoint: SAVE }),

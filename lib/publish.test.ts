@@ -86,4 +86,72 @@ describe('executePublish', () => {
     expect(res.ok).toBe(false);
     expect(res.error).toMatch(/403/);
   });
+
+  it('编辑器缺失 → no-editor,绝不 POST 空正文', async () => {
+    document.body.innerHTML = `
+      <form lay-filter="form-save">
+        <input name="title" value="t" />
+        <input type="hidden" name="html_content" value="" />
+        <button lay-submit lay-filter="save">保存</button>
+      </form>`; // 没有 #editor
+    const fetchFn = okFetch({ code: 0 });
+    const res = await executePublish({ fetchFn });
+    expect(res).toEqual({ ok: false, dryRun: false, error: 'no-editor' });
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it('同步后正文为空 → empty-body,不 POST', async () => {
+    document.body.innerHTML = `
+      <form lay-filter="form-save">
+        <input type="hidden" name="html_content" value="" />
+        <button lay-submit lay-filter="save">保存</button>
+      </form>
+      <div id="editor"><div class="ql-editor">   </div></div>`; // 仅空白
+    const fetchFn = okFetch({ code: 0 });
+    const res = await executePublish({ fetchFn });
+    expect(res.error).toBe('empty-body');
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it('缺 html_content 隐藏域 → no-body-field', async () => {
+    document.body.innerHTML = `
+      <form lay-filter="form-save"><input name="title" value="t" /></form>
+      <div id="editor"><div class="ql-editor"><p>正文</p></div></div>`;
+    const fetchFn = okFetch({ code: 0 });
+    const res = await executePublish({ fetchFn });
+    expect(res.error).toBe('no-body-field');
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it('提交超时(AbortError)→ error:timeout,与 network 区分', async () => {
+    mountForm();
+    const fetchFn = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      // 模拟超时:abort 触发后抛 AbortError。
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          const e = new Error('aborted');
+          e.name = 'AbortError';
+          reject(e);
+        });
+      });
+    }) as unknown as typeof fetch;
+    const res = await executePublish({ fetchFn, timeoutMs: 5 });
+    expect(res.error).toBe('timeout');
+  });
+
+  it('响应是数组 → 不误判为成功,按 save-failed 处理', async () => {
+    mountForm();
+    const fetchFn = okFetch([{ code: 0 }]);
+    const res = await executePublish({ fetchFn });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe('save-failed');
+  });
+
+  it('后台超长 msg 被截断(防 blob/敏感串原样入结果)', async () => {
+    mountForm();
+    const fetchFn = okFetch({ code: 1, msg: 'x'.repeat(500) });
+    const res = await executePublish({ fetchFn });
+    expect(res.ok).toBe(false);
+    expect((res.error ?? '').length).toBeLessThanOrEqual(200);
+  });
 });
