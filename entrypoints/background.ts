@@ -7,6 +7,7 @@ import {
   getAuthorizedHosts,
   getBatch,
   saveBatch,
+  appendTrajectory,
 } from '../lib/storage';
 import { generateDraft } from '../lib/llm';
 import { canSubmit } from '../lib/safety-gate';
@@ -238,6 +239,19 @@ async function handleApproveBatch(tabId: number): Promise<Batch | null> {
           await saveBatch(batch);
         },
       });
+      // 轨迹:authorized 真发(非 dry-run)才落档,作回放/回滚依据。
+      if (!result.dryRun) {
+        const { snapshotDropped } = await appendTrajectory({
+          id: item.id,
+          topic: item.topic,
+          fields: fill.results,
+          publishUrl: result.url,
+          status: itemStatus(batch, item.id) ?? 'unknown',
+          ts: new Date().toISOString(),
+          publishedAsDraft: item.draft.postStatus === '0',
+        });
+        if (snapshotDropped) console.warn('[bg] 轨迹快照含机密被丢弃(record 已落,无快照)');
+      }
       // dry-run / blocked:不推进条目(留在 awaiting-approval),让 UI 报告。
       if (!result.ok && result.error === 'blocked') break;
     }

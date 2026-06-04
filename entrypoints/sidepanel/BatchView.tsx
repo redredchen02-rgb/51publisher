@@ -4,7 +4,9 @@ import type { SafetyMode } from '../../lib/types';
 import type { Batch } from '../../lib/batch';
 import { batchPhase } from '../../lib/batch';
 import type { DriftReport } from '../../lib/selectors';
-import { getSafetyMode } from '../../lib/storage';
+import type { TrajectoryRecord } from '../../lib/trajectory';
+import { verifyTrajectory, rollbackTargets } from '../../lib/trajectory';
+import { getSafetyMode, getTrajectory } from '../../lib/storage';
 import {
   getBatchState,
   runBatch,
@@ -25,12 +27,14 @@ export function BatchView({ onBack }: { onBack: () => void }) {
   const [topics, setTopics] = useState('');
   const [busy, setBusy] = useState(false);
   const [drift, setDrift] = useState<DriftReport | null>(null);
+  const [trajectory, setTrajectory] = useState<TrajectoryRecord[]>([]);
   const [error, setError] = useState('');
 
   const refresh = useCallback(async () => {
-    const [b, mode] = await Promise.all([getBatchState(), getSafetyMode()]);
+    const [b, mode, traj] = await Promise.all([getBatchState(), getSafetyMode(), getTrajectory()]);
     setSafetyMode(mode);
     setBatch(b);
+    setTrajectory(traj);
     if (b) {
       // tab 健康:钉住的 tab 是否仍停在记录的授权 host。
       try {
@@ -104,6 +108,8 @@ export function BatchView({ onBack }: { onBack: () => void }) {
         />
       )}
 
+      {trajectory.length > 0 && <TrajectorySection records={trajectory} />}
+
       {showStarter && (
         <div style={{ marginTop: 12 }}>
           <div style={{ fontSize: 13, color: '#555', marginBottom: 4 }}>选题(每行一条):</div>
@@ -120,5 +126,36 @@ export function BatchView({ onBack }: { onBack: () => void }) {
         </div>
       )}
     </main>
+  );
+}
+
+// 轨迹 + 回滚:展示可审计记录 + 链完整性 + 撤下指引(R5/R10)。
+function TrajectorySection({ records }: { records: TrajectoryRecord[] }) {
+  const intact = verifyTrajectory(records);
+  const targets = rollbackTargets(records);
+  return (
+    <section style={{ marginTop: 14, borderTop: '1px solid #eee', paddingTop: 10 }}>
+      <h2 style={{ fontSize: 14, margin: '0 0 6px' }}>
+        发布轨迹（{records.length}）{' '}
+        <span style={{ fontSize: 12, color: intact ? '#389e0d' : '#cf1322' }}>
+          {intact ? '✓ 链完整' : '✗ 链异常(疑被篡改)'}
+        </span>
+      </h2>
+      {targets.length === 0 ? (
+        <p style={{ fontSize: 12, color: '#888', margin: 0 }}>暂无可撤下的已发布记录。</p>
+      ) : (
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 12 }}>
+          {targets.map((r) => (
+            <li key={r.id} style={{ marginBottom: 4 }}>
+              <span>「{r.topic}」</span>{' '}
+              <a href={r.publishUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#1677ff' }}>查看</a>{' '}
+              <span style={{ color: '#888' }}>
+                {r.publishedAsDraft ? '(隐藏态)' : '(显示态)'} · 撤下:后台把状态改回「隐藏」
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

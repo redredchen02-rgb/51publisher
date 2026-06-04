@@ -2,6 +2,8 @@ import { storage } from '#imports';
 import type { ContentDraft, SafetyMode, Settings } from './types';
 import type { Batch } from './batch';
 import { recoverBatch } from './batch';
+import type { TrajectoryRecord, TrajectoryInput } from './trajectory';
+import { appendRecord } from './trajectory';
 import { DEFAULT_FIELD_MAPPING } from './field-mapping';
 
 const SETTINGS_KEY = 'local:settings';
@@ -10,6 +12,7 @@ const CURRENT_DRAFT_KEY = 'local:currentDraft';
 const SAFETY_MODE_KEY = 'local:safetyMode';
 const AUTHORIZED_HOSTS_KEY = 'local:authorizedHosts';
 const BATCH_KEY = 'local:batch';
+const TRAJECTORY_KEY = 'local:trajectory';
 
 /** 默认档位:off == 今天的行为(永不发布)。fail-closed 的安全默认。 */
 const DEFAULT_SAFETY_MODE: SafetyMode = 'off';
@@ -109,4 +112,27 @@ export async function saveBatch(batch: Batch): Promise<void> {
 
 export async function clearBatch(): Promise<void> {
   await storage.removeItem(BATCH_KEY);
+}
+
+// ---- 轨迹存档(追加式 + 运行时脱敏闸门)----
+
+export async function getTrajectory(): Promise<TrajectoryRecord[]> {
+  const stored = await storage.getItem<TrajectoryRecord[]>(TRAJECTORY_KEY);
+  return Array.isArray(stored) ? stored : [];
+}
+
+/**
+ * 追加一条轨迹。脱敏闸门(scrubSnapshot)在 appendRecord 内部跑:
+ * rawSnapshot 清洗失败 → 不存快照(snapshotDropped=true),record 仍落。
+ * 返回 snapshotDropped 供调用方报警。
+ */
+export async function appendTrajectory(input: TrajectoryInput): Promise<{ snapshotDropped: boolean }> {
+  const current = await getTrajectory();
+  const { list, snapshotDropped } = appendRecord(current, input);
+  await storage.setItem(TRAJECTORY_KEY, list);
+  return { snapshotDropped };
+}
+
+export async function clearTrajectory(): Promise<void> {
+  await storage.removeItem(TRAJECTORY_KEY);
 }

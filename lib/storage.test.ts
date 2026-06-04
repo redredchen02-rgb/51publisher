@@ -14,6 +14,9 @@ import {
   getBatch,
   saveBatch,
   clearBatch,
+  getTrajectory,
+  appendTrajectory,
+  clearTrajectory,
 } from './storage';
 import { createBatch, markDispatched, markFilled, markGenerating, presentForApproval } from './batch';
 import type { Batch } from './batch';
@@ -129,6 +132,40 @@ describe('storage', () => {
       await saveBatch(b);
       await clearBatch();
       expect(await getBatch()).toBeNull();
+    });
+  });
+
+  describe('轨迹追加 + 脱敏', () => {
+    const rec = (id: string) => ({
+      id,
+      topic: 't',
+      fields: [{ field: 'title', status: 'filled' as const }],
+      status: 'publish-confirmed',
+      ts: '2026-06-04T00:00:00.000Z',
+    });
+
+    it('无轨迹 → 空数组', async () => {
+      expect(await getTrajectory()).toEqual([]);
+    });
+
+    it('追加多条 → seq 递增持久化', async () => {
+      await appendTrajectory(rec('a'));
+      await appendTrajectory(rec('b'));
+      const list = await getTrajectory();
+      expect(list.map((r) => r.seq)).toEqual([1, 2]);
+    });
+
+    it('含机密快照 → snapshotDropped=true,record 仍落但无快照', async () => {
+      const { snapshotDropped } = await appendTrajectory({ ...rec('a'), rawSnapshot: '<span>PHPSESSID=deadbeefdeadbeef</span>' });
+      expect(snapshotDropped).toBe(true);
+      const list = await getTrajectory();
+      expect(list[0]!.snapshot).toBeUndefined();
+    });
+
+    it('clearTrajectory 后 → 空', async () => {
+      await appendTrajectory(rec('a'));
+      await clearTrajectory();
+      expect(await getTrajectory()).toEqual([]);
     });
   });
 });
