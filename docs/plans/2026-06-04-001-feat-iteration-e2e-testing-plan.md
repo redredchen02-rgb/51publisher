@@ -263,7 +263,7 @@ graph TB
 
 ---
 
-- [ ] **U5: fixture 选择器清单 + contract 测试**
+- [x] **U5: fixture 选择器清单 + contract 测试**
 
 **Goal:** 在 fixture 顶部维护关键选择器清单,配 contract 测试断言这些选择器在当前 fixture 中都存在——重抓快照后若某选择器消失,contract 立即变红、点名是哪个。
 
