@@ -151,6 +151,52 @@ export async function getPublishedTopics(): Promise<string[]> {
   return v.filter((x): x is string => typeof x === 'string');
 }
 
+// ---- Fill tombstone 协议(崩溃恢复) ----
+// sendFill 前写盘;fill ACK 后清除。SW 重启时扫描残留 tombstone → 隔离未回执条目。
+
+const FILL_TOMBSTONES_KEY = 'local:fillTombstones';
+const QUARANTINE_ALERT_KEY = 'local:pendingQuarantineAlert';
+
+type TombstoneMap = Record<string, { tabId: number; ts: string }>;
+
+function isTombstoneMap(v: unknown): v is TombstoneMap {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
+export async function getFillTombstones(): Promise<TombstoneMap> {
+  const v = await storage.getItem<unknown>(FILL_TOMBSTONES_KEY);
+  return isTombstoneMap(v) ? v : {};
+}
+
+export async function writeFillTombstone(itemId: string, data: { tabId: number; ts: string }): Promise<void> {
+  const current = await getFillTombstones();
+  await storage.setItem(FILL_TOMBSTONES_KEY, { ...current, [itemId]: data });
+}
+
+export async function clearFillTombstone(itemId: string): Promise<void> {
+  const current = await getFillTombstones();
+  const { [itemId]: _removed, ...rest } = current;
+  await storage.setItem(FILL_TOMBSTONES_KEY, rest);
+}
+
+export async function clearAllFillTombstones(): Promise<void> {
+  await storage.setItem(FILL_TOMBSTONES_KEY, {});
+}
+
+/** 读取待确认隔离通知数量;非法/缺失 → 0。 */
+export async function getPendingQuarantineAlert(): Promise<number> {
+  const v = await storage.getItem<unknown>(QUARANTINE_ALERT_KEY);
+  return typeof v === 'number' && v > 0 ? v : 0;
+}
+
+export async function setPendingQuarantineAlert(count: number): Promise<void> {
+  await storage.setItem(QUARANTINE_ALERT_KEY, count);
+}
+
+export async function clearPendingQuarantineAlert(): Promise<void> {
+  await storage.removeItem(QUARANTINE_ALERT_KEY);
+}
+
 // ---- Dry-run 填充报告 ----
 // 每次 dry-run 批准后写入;下次覆盖;side panel 读出展示。fail-closed:非法值 → null。
 

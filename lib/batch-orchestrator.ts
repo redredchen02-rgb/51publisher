@@ -92,11 +92,14 @@ export interface ApproveBatchDeps {
   onSnapshotDropped?: (itemId: string) => void;
   /** dry-run 批准完成后持久化填充报告(fire-and-forget,可选)。 */
   saveDryRunReportFn?: (report: DryRunReport) => Promise<void>;
+  /** sendFill 前写 tombstone;fill ACK 后清除(可选,无 no-op)。 */
+  writeTombstone?: (itemId: string) => Promise<void>;
+  clearTombstone?: (itemId: string) => Promise<void>;
 }
 
 /** 批量发布循环。返回最终 Batch;无批次 → null。 */
 export async function approveBatch(deps: ApproveBatchDeps): Promise<Batch | null> {
-  const { getBatch, save, pinnedHostOk, sendFill, evaluateGate, sendGrant, appendTrajectory, onSnapshotDropped, saveDryRunReportFn } = deps;
+  const { getBatch, save, pinnedHostOk, sendFill, evaluateGate, sendGrant, appendTrajectory, onSnapshotDropped, saveDryRunReportFn, writeTombstone, clearTombstone } = deps;
 
   const loaded = await getBatch();
   if (!loaded) return null;
@@ -109,8 +112,19 @@ export async function approveBatch(deps: ApproveBatchDeps): Promise<Batch | null
     if (!item || item.status !== 'awaiting-approval' || !item.draft) continue;
     if (!(await pinnedHostOk(batch))) break;
 
+    // Tombstone 写在 sendFill 之前:若 SW 在 fill 飞行中被回收,重启时扫到 tombstone → 隔离。
+    if (writeTombstone) {
+      await writeTombstone(item.id).catch(() => {/* best-effort */});
+    }
+
     // 先填充表单,再门控发布。
     const fill = await sendFill(item.draft);
+
+    // 无论成功失败都清 tombstone:失败 → item 进 error 态,不是 dispatched-limbo。
+    if (clearTombstone) {
+      await clearTombstone(item.id).catch(() => {/* best-effort */});
+    }
+
     if (!fill.ok) {
       batch = markGenerateFailed(batch, item.id, 'fill-failed');
       await save(batch);

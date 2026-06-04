@@ -4,7 +4,7 @@ import type { SafetyMode, ContentDraft } from '../../lib/types';
 import type { Batch } from '../../lib/batch';
 import { batchPhase } from '../../lib/batch';
 import type { DriftReport } from '../../lib/selectors';
-import { getSafetyMode } from '../../lib/storage';
+import { getSafetyMode, getPendingQuarantineAlert, clearPendingQuarantineAlert } from '../../lib/storage';
 import {
   getBatchState,
   runBatch,
@@ -29,13 +29,15 @@ export function BatchView({ onBack }: { onBack: () => void }) {
   const [drift, setDrift] = useState<DriftReport | null>(null);
   const [error, setError] = useState('');
   const [view, setView] = useState<'batch' | 'history'>('batch');
+  const [quarantineAlert, setQuarantineAlert] = useState(0);
   // 人工编辑覆盖(transient;panel reload 后丢失,属已知可接受行为)。
   const [draftOverrides, setDraftOverrides] = useState<Map<string, ContentDraft>>(new Map());
 
   const refresh = useCallback(async () => {
-    const [b, mode] = await Promise.all([getBatchState(), getSafetyMode()]);
+    const [b, mode, alertCount] = await Promise.all([getBatchState(), getSafetyMode(), getPendingQuarantineAlert()]);
     setSafetyMode(mode);
     setBatch(b);
+    setQuarantineAlert(alertCount);
     if (b) {
       // tab 健康:钉住的 tab 是否仍停在记录的授权 host。
       try {
@@ -123,6 +125,26 @@ export function BatchView({ onBack }: { onBack: () => void }) {
       </div>
 
       {error && <p role="alert" style={{ color: '#cf1322', fontSize: 13 }}>{error}</p>}
+
+      {quarantineAlert > 0 && (
+        <div role="alert" style={{ background: '#fff7e6', border: '1px solid #ffd591', borderRadius: 6, padding: '8px 10px', marginBottom: 8, fontSize: 13 }}>
+          <div style={{ color: '#874d00', fontWeight: 600 }}>
+            ⚠ {quarantineAlert} 条帖子在上次关机时状态不确定
+          </div>
+          <div style={{ color: '#874d00', fontSize: 12, marginTop: 2 }}>
+            请前往「历史」面板核对后再继续。
+          </div>
+          <button
+            onClick={() => {
+              clearPendingQuarantineAlert().catch(() => {});
+              setQuarantineAlert(0);
+            }}
+            style={{ ...btn, marginTop: 6, padding: '2px 8px', fontSize: 12, background: '#fff', border: '1px solid #ffd591', color: '#874d00' }}
+          >
+            我知道了
+          </button>
+        </div>
+      )}
 
       {view === 'history' && <HistoryPanel />}
 

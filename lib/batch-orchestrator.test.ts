@@ -290,7 +290,41 @@ describe('approveBatch dry-run report', () => {
     await approveBatch(deps);
     expect(saveFn).not.toHaveBeenCalled();
   });
+});
 
+// ================================================================
+// approveBatch — tombstone protocol (U5)
+// ================================================================
+
+describe('approveBatch tombstone protocol', () => {
+  it('tombstone written before sendFill, cleared after successful fill', async () => {
+    const batch = makeAwaitingBatch([TOPIC_A]);
+    const callOrder: string[] = [];
+    const deps = makeApproveDeps({
+      getBatch: vi.fn(async () => batch),
+      sendFill: vi.fn(async () => { callOrder.push('sendFill'); return { ok: true as const, results: [] }; }),
+      writeTombstone: vi.fn(async () => { callOrder.push('write'); }),
+      clearTombstone: vi.fn(async () => { callOrder.push('clear'); }),
+    });
+    await approveBatch(deps);
+    expect(callOrder).toEqual(['write', 'sendFill', 'clear']);
+  });
+
+  it('sendFill fails: tombstone still cleared (item enters error, not limbo)', async () => {
+    const batch = makeAwaitingBatch([TOPIC_A]);
+    const clearTombstone = vi.fn(async () => {});
+    const deps = makeApproveDeps({
+      getBatch: vi.fn(async () => batch),
+      sendFill: vi.fn(async () => ({ ok: false as const, error: 'fill-fail' })),
+      writeTombstone: vi.fn(async () => {}),
+      clearTombstone,
+    });
+    await approveBatch(deps);
+    expect(clearTombstone).toHaveBeenCalledWith('item_0');
+  });
+});
+
+describe('approveBatch dry-run report', () => {
   it('saveDryRunReportFn throws: approveBatch does not rethrow', async () => {
     const batch = makeAwaitingBatch([TOPIC_A]);
     const deps = makeApproveDeps({

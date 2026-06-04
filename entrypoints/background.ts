@@ -17,7 +17,15 @@ import { orchestratePublish, type GateDecision } from '../lib/publish-orchestrat
 import { abortBatch, releaseQuarantine, patchBatchDrafts, type Batch } from '../lib/batch';
 import { buildPrompt } from '../lib/messaging';
 import { runBatch, approveBatch } from '../lib/batch-orchestrator';
-import { saveDryRunReport } from '../lib/storage';
+import {
+  saveDryRunReport,
+  writeFillTombstone,
+  clearFillTombstone,
+  getFillTombstones,
+  clearAllFillTombstones,
+  setPendingQuarantineAlert,
+  getBatch as getBatchRaw,
+} from '../lib/storage';
 import type { ContentDraft } from '../lib/types';
 
 // Background service worker:调度中心 + 发布闸门。
@@ -44,6 +52,8 @@ export interface BackgroundHandlerDeps {
   buildItemId: (i: number) => string;
   now: () => string;
   saveDryRunReportFn?: (report: import('../lib/types').DryRunReport) => Promise<void>;
+  writeTombstone?: (itemId: string) => Promise<void>;
+  clearTombstone?: (itemId: string) => Promise<void>;
 }
 
 /** 从 chrome.tabs.get(tabId).url 取 host;tab 关/无 url → null。 */
@@ -193,6 +203,8 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
         onSnapshotDropped: (itemId) =>
           console.warn(`[bg] 轨迹快照含机密被丢弃(record 已落,无快照) itemId=${itemId}`),
         saveDryRunReportFn: deps.saveDryRunReportFn,
+        writeTombstone: deps.writeTombstone,
+        clearTombstone: deps.clearTombstone,
       });
       if (result) {
         const confirmedTopics = result.items
@@ -238,10 +250,40 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
   };
 }
 
+async function runStartupTombstoneScan(): Promise<void> {
+  try {
+    const [batch, tombstones] = await Promise.all([getBatchRaw(), getFillTombstones()]);
+    const tombstoneIds = Object.keys(tombstones);
+    if (tombstoneIds.length === 0) return;
+
+    // 清理无对应 batch 条目的残留 tombstone(重置/新批次后的孤儿)。
+    if (batch) {
+      const batchItemIds = new Set(batch.items.map((it) => it.id));
+      const stale = tombstoneIds.filter((id) => !batchItemIds.has(id));
+      for (const id of stale) {
+        await clearFillTombstone(id).catch(() => {});
+      }
+    } else {
+      await clearAllFillTombstones().catch(() => {});
+    }
+
+    // 统计 needs-human-verification 条目;有则设通知计数。
+    const nhvCount = batch ? batch.items.filter((it) => it.status === 'needs-human-verification').length : 0;
+    if (nhvCount > 0) {
+      await setPendingQuarantineAlert(nhvCount);
+    }
+  } catch (e) {
+    console.warn('[bg] tombstone startup scan 失败', e);
+  }
+}
+
 export default defineBackground(() => {
   browser.sidePanel
     ?.setPanelBehavior({ openPanelOnActionClick: true })
     .catch((err: unknown) => console.error('[bg] setPanelBehavior 失败', err));
+
+  // SW 启动扫描:检测上次 fill 飞行中 SW 被回收的残留 tombstone → 设隔离通知。
+  void runStartupTombstoneScan();
 
   let batchSeq = 0;
 
@@ -264,6 +306,8 @@ export default defineBackground(() => {
     buildItemId: (i) => `item_${i}`,
     now: () => new Date().toISOString(),
     saveDryRunReportFn: saveDryRunReport,
+    writeTombstone: (itemId) => writeFillTombstone(itemId, { tabId: 0, ts: new Date().toISOString() }),
+    clearTombstone: clearFillTombstone,
   };
 
   const handlers = createHandlers(liveDeps);
