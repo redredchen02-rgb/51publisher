@@ -236,3 +236,63 @@ describe('approveBatch', () => {
     expect(onDropped).toHaveBeenCalledWith('item_0');
   });
 });
+
+// ================================================================
+// approveBatch — dry-run report (U6)
+// ================================================================
+
+describe('approveBatch dry-run report', () => {
+  it('dry-run: saveDryRunReportFn called with 1 item containing fillResults', async () => {
+    const batch = makeAwaitingBatch([TOPIC_A]);
+    const saveFn = vi.fn(async () => {});
+    const deps = makeApproveDeps({
+      getBatch: vi.fn(async () => batch),
+      evaluateGate: vi.fn(async () => ({ mode: 'dry-run' as const, allowed: false, host: HOST })),
+      sendFill: vi.fn(async () => ({ ok: true as const, results: [{ field: 'title', status: 'filled' as const }] })),
+      saveDryRunReportFn: saveFn,
+    });
+    await approveBatch(deps);
+    expect(saveFn).toHaveBeenCalledOnce();
+    const report = saveFn.mock.calls[0]![0];
+    expect(report.batchId).toBe('batch_1');
+    expect(report.items).toHaveLength(1);
+    expect(report.items[0]!.topic).toBe(TOPIC_A);
+    expect(report.items[0]!.fillResults).toEqual([{ field: 'title', status: 'filled' }]);
+  });
+
+  it('dry-run: saveDryRunReportFn called with correct count for 2 items', async () => {
+    const batch = makeAwaitingBatch([TOPIC_A, TOPIC_B]);
+    const saveFn = vi.fn(async () => {});
+    const deps = makeApproveDeps({
+      getBatch: vi.fn(async () => batch),
+      evaluateGate: vi.fn(async () => ({ mode: 'dry-run' as const, allowed: false, host: HOST })),
+      sendFill: vi.fn(async () => ({ ok: true as const, results: [] })),
+      saveDryRunReportFn: saveFn,
+    });
+    await approveBatch(deps);
+    expect(saveFn).toHaveBeenCalledOnce();
+    expect(saveFn.mock.calls[0]![0].items).toHaveLength(2);
+  });
+
+  it('authorized (non-dry-run): saveDryRunReportFn NOT called', async () => {
+    const batch = makeAwaitingBatch([TOPIC_A]);
+    const saveFn = vi.fn(async () => {});
+    const deps = makeApproveDeps({
+      getBatch: vi.fn(async () => batch),
+      saveDryRunReportFn: saveFn,
+    });
+    await approveBatch(deps);
+    expect(saveFn).not.toHaveBeenCalled();
+  });
+
+  it('saveDryRunReportFn throws: approveBatch does not rethrow', async () => {
+    const batch = makeAwaitingBatch([TOPIC_A]);
+    const deps = makeApproveDeps({
+      getBatch: vi.fn(async () => batch),
+      evaluateGate: vi.fn(async () => ({ mode: 'dry-run' as const, allowed: false, host: HOST })),
+      sendFill: vi.fn(async () => ({ ok: true as const, results: [] })),
+      saveDryRunReportFn: vi.fn(async () => { throw new Error('storage-fail'); }),
+    });
+    await expect(approveBatch(deps)).resolves.not.toThrow();
+  });
+});

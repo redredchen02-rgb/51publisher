@@ -16,6 +16,7 @@ import {
   checkSelectors,
 } from '../../lib/messaging';
 import { BatchReviewPanel } from './BatchReviewPanel';
+import { DryRunReport } from './DryRunReport';
 
 const btn: React.CSSProperties = { padding: '6px 12px', fontSize: 13, border: 'none', borderRadius: 4, cursor: 'pointer' };
 
@@ -132,6 +133,8 @@ export function BatchView({ onBack }: { onBack: () => void }) {
           onResume={() => void refresh()}
         />
       )}
+
+      {safetyMode === 'dry-run' && <DryRunReport />}
 
       {trajectory.length > 0 && <TrajectorySection records={trajectory} />}
 

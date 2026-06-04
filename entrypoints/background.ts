@@ -17,6 +17,7 @@ import { orchestratePublish, type GateDecision } from '../lib/publish-orchestrat
 import { abortBatch, releaseQuarantine, patchBatchDrafts, type Batch } from '../lib/batch';
 import { buildPrompt } from '../lib/messaging';
 import { runBatch, approveBatch } from '../lib/batch-orchestrator';
+import { saveDryRunReport } from '../lib/storage';
 import type { ContentDraft } from '../lib/types';
 
 // Background service worker:调度中心 + 发布闸门。
@@ -42,6 +43,7 @@ export interface BackgroundHandlerDeps {
   buildBatchId: () => string;
   buildItemId: (i: number) => string;
   now: () => string;
+  saveDryRunReportFn?: (report: import('../lib/types').DryRunReport) => Promise<void>;
 }
 
 /** 从 chrome.tabs.get(tabId).url 取 host;tab 关/无 url → null。 */
@@ -190,6 +192,7 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
         appendTrajectory: deps.appendTrajectory,
         onSnapshotDropped: (itemId) =>
           console.warn(`[bg] 轨迹快照含机密被丢弃(record 已落,无快照) itemId=${itemId}`),
+        saveDryRunReportFn: deps.saveDryRunReportFn,
       });
       if (result) {
         const confirmedTopics = result.items
@@ -260,6 +263,7 @@ export default defineBackground(() => {
     buildBatchId: () => { batchSeq += 1; return `batch_${Date.now()}_${batchSeq}`; },
     buildItemId: (i) => `item_${i}`,
     now: () => new Date().toISOString(),
+    saveDryRunReportFn: saveDryRunReport,
   };
 
   const handlers = createHandlers(liveDeps);

@@ -1,4 +1,4 @@
-import type { ContentDraft, FillPageResponse, GenerateDraftResponse, PublishResult } from './types';
+import type { ContentDraft, FillPageResponse, GenerateDraftResponse, PublishResult, DryRunReport, DryRunItemResult } from './types';
 import type { GateDecision } from './publish-orchestrator';
 import type { TrajectoryInput } from './trajectory';
 import type { Batch } from './batch';
@@ -90,15 +90,18 @@ export interface ApproveBatchDeps {
   appendTrajectory: (input: TrajectoryInput) => Promise<{ snapshotDropped: boolean }>;
   /** 轨迹快照丢弃时的告警回调(默认 console.warn)。 */
   onSnapshotDropped?: (itemId: string) => void;
+  /** dry-run 批准完成后持久化填充报告(fire-and-forget,可选)。 */
+  saveDryRunReportFn?: (report: DryRunReport) => Promise<void>;
 }
 
 /** 批量发布循环。返回最终 Batch;无批次 → null。 */
 export async function approveBatch(deps: ApproveBatchDeps): Promise<Batch | null> {
-  const { getBatch, save, pinnedHostOk, sendFill, evaluateGate, sendGrant, appendTrajectory, onSnapshotDropped } = deps;
+  const { getBatch, save, pinnedHostOk, sendFill, evaluateGate, sendGrant, appendTrajectory, onSnapshotDropped, saveDryRunReportFn } = deps;
 
   const loaded = await getBatch();
   if (!loaded) return null;
   let batch: Batch = loaded;
+  const dryRunItems: DryRunItemResult[] = [];
 
   for (const snapshot of batch.items) {
     // 每轮从最新 batch 取该项当前状态(前面的转移可能已变)。
@@ -138,6 +141,17 @@ export async function approveBatch(deps: ApproveBatchDeps): Promise<Batch | null
       },
     });
 
+    // dry-run:收集填充结果供报告展示。
+    if (result.dryRun) {
+      const cur = batch.items.find((it) => it.id === item.id);
+      dryRunItems.push({
+        itemId: item.id,
+        topic: item.topic,
+        fillResults: cur?.fillResults ?? fill.results,
+        draftTitle: item.draft?.title,
+      });
+    }
+
     // 轨迹:authorized 真发(非 dry-run)才落档。
     if (!result.dryRun) {
       const cur = batch.items.find((it) => it.id === item.id);
@@ -157,6 +171,12 @@ export async function approveBatch(deps: ApproveBatchDeps): Promise<Batch | null
 
     // blocked → 暂停,不继续后续条目。
     if (!result.ok && result.error === 'blocked') break;
+  }
+
+  // dry-run 结束:持久化填充报告(best-effort,失败不抛出)。
+  if (dryRunItems.length > 0 && saveDryRunReportFn) {
+    const report: DryRunReport = { batchId: batch.id, ts: new Date().toISOString(), items: dryRunItems };
+    saveDryRunReportFn(report).catch((e) => console.warn('[batch-orchestrator] saveDryRunReport 失败(best-effort)', e));
   }
 
   return batch;

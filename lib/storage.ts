@@ -151,6 +151,33 @@ export async function getPublishedTopics(): Promise<string[]> {
   return v.filter((x): x is string => typeof x === 'string');
 }
 
+// ---- Dry-run 填充报告 ----
+// 每次 dry-run 批准后写入;下次覆盖;side panel 读出展示。fail-closed:非法值 → null。
+
+const DRY_RUN_REPORT_KEY = 'local:dryRunReport';
+
+export async function saveDryRunReport(report: import('./types').DryRunReport): Promise<void> {
+  await storage.setItem(DRY_RUN_REPORT_KEY, report);
+}
+
+export async function getDryRunReport(): Promise<import('./types').DryRunReport | null> {
+  const v = await storage.getItem<unknown>(DRY_RUN_REPORT_KEY);
+  if (
+    v &&
+    typeof v === 'object' &&
+    'batchId' in v &&
+    'items' in v &&
+    Array.isArray((v as Record<string, unknown>).items)
+  ) {
+    return v as import('./types').DryRunReport;
+  }
+  return null;
+}
+
+export async function clearDryRunReport(): Promise<void> {
+  await storage.removeItem(DRY_RUN_REPORT_KEY);
+}
+
 /**
  * 追加新选题到持久化集合。
  * - Set 合并去重(相同选题不重复计入)。

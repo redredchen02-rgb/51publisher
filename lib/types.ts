@@ -113,6 +113,19 @@ export type RuntimeMessage =
   // side panel → content:轻量选择器漂移自检(R6 轻量)。
   | { type: 'CHECK_SELECTORS' };
 
+export interface DryRunItemResult {
+  itemId: string;
+  topic: string;
+  fillResults: FieldFillResult[];
+  draftTitle?: string;
+}
+
+export interface DryRunReport {
+  batchId: string;
+  ts: string;
+  items: DryRunItemResult[];
+}
+
 export type GenerateDraftResponse =
   | { ok: true; draft: ContentDraft }
   | { ok: false; error: string; kind?: 'no-key' | 'network' | 'format' };
