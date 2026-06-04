@@ -8,11 +8,13 @@ import {
   getBatch,
   saveBatch,
   appendTrajectory,
+  getPublishedTopics,
+  addPublishedTopics,
 } from '../lib/storage';
 import { generateDraft } from '../lib/llm';
 import { canSubmit } from '../lib/safety-gate';
 import { orchestratePublish, type GateDecision } from '../lib/publish-orchestrator';
-import { abortBatch, releaseQuarantine, type Batch } from '../lib/batch';
+import { abortBatch, releaseQuarantine, patchBatchDrafts, type Batch } from '../lib/batch';
 import { buildPrompt } from '../lib/messaging';
 import { runBatch, approveBatch } from '../lib/batch-orchestrator';
 
@@ -37,7 +39,7 @@ export default defineBackground(() => {
       return handleRunBatch(message.topics, message.tabId);
     }
     if (message?.type === 'APPROVE_BATCH') {
-      return handleApproveBatch(message.tabId);
+      return handleApproveBatch(message.tabId, message.draftOverrides);
     }
     if (message?.type === 'KILL_BATCH') {
       return handleKillBatch();
@@ -139,7 +141,7 @@ function pinnedHostOk(batch: Batch): Promise<boolean> {
 
 async function handleRunBatch(topics: string[], tabId: number): Promise<Batch | null> {
   try {
-    const [settings, apiKey] = await Promise.all([getSettings(), getApiKey()]);
+    const [settings, apiKey, publishedTopics] = await Promise.all([getSettings(), getApiKey(), getPublishedTopics()]);
     return await runBatch({
       topics,
       tabId,
@@ -151,6 +153,7 @@ async function handleRunBatch(topics: string[], tabId: number): Promise<Batch | 
       genBatchId: () => { batchSeq += 1; return `batch_${Date.now()}_${batchSeq}`; },
       genItemId: (i) => `item_${i}`,
       now: () => new Date().toISOString(),
+      persistentBlockedTopics: publishedTopics,
     });
   } catch (err) {
     console.error('[bg] 批量生成失败', err);
@@ -158,9 +161,19 @@ async function handleRunBatch(topics: string[], tabId: number): Promise<Batch | 
   }
 }
 
-async function handleApproveBatch(tabId: number): Promise<Batch | null> {
+async function handleApproveBatch(
+  tabId: number,
+  draftOverrides?: Record<string, import('../lib/types').ContentDraft>,
+): Promise<Batch | null> {
   try {
-    return await approveBatch({
+    // 若有人工编辑覆盖,先写入 storage 再批准(保证 approveBatch 读到最新草稿)。
+    if (draftOverrides && Object.keys(draftOverrides).length > 0) {
+      const current = await getBatch();
+      if (current) {
+        await saveBatch(patchBatchDrafts(current, draftOverrides));
+      }
+    }
+    const result = await approveBatch({
       getBatch,
       save: saveBatch,
       pinnedHostOk,
@@ -182,6 +195,18 @@ async function handleApproveBatch(tabId: number): Promise<Batch | null> {
       appendTrajectory,
       onSnapshotDropped: (itemId) => console.warn(`[bg] 轨迹快照含机密被丢弃(record 已落,无快照) itemId=${itemId}`),
     });
+    // 持久化已确认选题(fire-and-forget;best-effort,SW 重启时可能丢失当次写入,已文档化为可接受)。
+    if (result) {
+      const confirmedTopics = result.items
+        .filter((it) => it.status === 'publish-confirmed')
+        .map((it) => it.topic);
+      if (confirmedTopics.length > 0) {
+        addPublishedTopics(confirmedTopics).catch((e) =>
+          console.warn('[bg] addPublishedTopics 写入失败(best-effort)', e),
+        );
+      }
+    }
+    return result;
   } catch (err) {
     console.error('[bg] 批量发布失败', err);
     return getBatch();

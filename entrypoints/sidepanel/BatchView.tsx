@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { browser } from '#imports';
-import type { SafetyMode } from '../../lib/types';
+import type { SafetyMode, ContentDraft } from '../../lib/types';
 import type { Batch } from '../../lib/batch';
 import { batchPhase } from '../../lib/batch';
 import type { DriftReport } from '../../lib/selectors';
@@ -29,6 +29,8 @@ export function BatchView({ onBack }: { onBack: () => void }) {
   const [drift, setDrift] = useState<DriftReport | null>(null);
   const [trajectory, setTrajectory] = useState<TrajectoryRecord[]>([]);
   const [error, setError] = useState('');
+  // 人工编辑覆盖(transient;panel reload 后丢失,属已知可接受行为)。
+  const [draftOverrides, setDraftOverrides] = useState<Map<string, ContentDraft>>(new Map());
 
   const refresh = useCallback(async () => {
     const [b, mode, traj] = await Promise.all([getBatchState(), getSafetyMode(), getTrajectory()]);
@@ -64,7 +66,8 @@ export function BatchView({ onBack }: { onBack: () => void }) {
   }
 
   async function handleStart() {
-    const list = topics.split('\n').map((t) => t.trim()).filter(Boolean);
+    // 支持换行分隔的选题列表：拆分 → 去空格 → 去空行 → 去重(保序)。
+    const list = [...new Set(topics.split('\n').map((t) => t.trim()).filter(Boolean))];
     if (list.length === 0) {
       setError('请先输入选题(每行一条)。');
       return;
@@ -82,6 +85,7 @@ export function BatchView({ onBack }: { onBack: () => void }) {
   }
 
   const showStarter = !batch || batchPhase(batch) === 'done' || batchPhase(batch) === 'empty';
+  const trajectoryByItemId = useMemo(() => new Map(trajectory.map((r) => [r.id, r])), [trajectory]);
 
   return (
     <main style={{ fontFamily: 'system-ui, sans-serif', padding: 12, fontSize: 14 }}>
@@ -95,13 +99,34 @@ export function BatchView({ onBack }: { onBack: () => void }) {
       {batch && batchPhase(batch) !== 'empty' && (
         <BatchReviewPanel
           batch={batch}
+          trajectoryContext={trajectoryByItemId}
+          draftOverrides={draftOverrides}
           safetyMode={safetyMode}
           authorizedHost={batch.authorizedHost}
           tabHealthy={tabHealthy}
           busy={busy}
           driftResult={drift}
-          onApprove={() => void withBusy(async () => { await approveBatch(batch.tabId); await refresh(); })}
-          onKill={() => void withBusy(async () => { await killBatch(); await refresh(); })}
+          onApprove={() => void withBusy(async () => {
+            // 批准前先做选择器漂移自检(U2):任何关键选择器缺失 → 阻断并展示警告,等人工处理。
+            const report = await checkSelectors(batch.tabId);
+            setDrift(report);
+            if (!report.ok) {
+              setError(`选择器自检失败,缺失:${report.missing.join('、')}。请点"漂移自检"了解详情,或在目标页修复后重试。`);
+              return;
+            }
+            const overrides = draftOverrides.size > 0 ? Object.fromEntries(draftOverrides) : undefined;
+            await approveBatch(batch.tabId, overrides);
+            setDraftOverrides(new Map());
+            await refresh();
+          })}
+          onApproveBypass={() => void withBusy(async () => {
+            const overrides = draftOverrides.size > 0 ? Object.fromEntries(draftOverrides) : undefined;
+            await approveBatch(batch.tabId, overrides);
+            setDraftOverrides(new Map());
+            await refresh();
+          })}
+          onDraftChange={(itemId, draft) => setDraftOverrides((prev) => new Map(prev).set(itemId, draft))}
+          onKill={() => void withBusy(async () => { await killBatch(); setDraftOverrides(new Map()); await refresh(); })}
           onRelease={(itemId) => void withBusy(async () => { await releaseQuarantine(itemId); await refresh(); })}
           onDriftCheck={() => void withBusy(async () => { setDrift(await checkSelectors(batch.tabId)); })}
           onResume={() => void refresh()}

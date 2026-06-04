@@ -13,6 +13,8 @@ const SAFETY_MODE_KEY = 'local:safetyMode';
 const AUTHORIZED_HOSTS_KEY = 'local:authorizedHosts';
 const BATCH_KEY = 'local:batch';
 const TRAJECTORY_KEY = 'local:trajectory';
+const PUBLISHED_TOPICS_KEY = 'local:publishedTopics';
+const PUBLISHED_TOPICS_MAX = 1000;
 
 /** 默认档位:off == 今天的行为(永不发布)。fail-closed 的安全默认。 */
 const DEFAULT_SAFETY_MODE: SafetyMode = 'off';
@@ -135,4 +137,29 @@ export async function appendTrajectory(input: TrajectoryInput): Promise<{ snapsh
 
 export async function clearTrajectory(): Promise<void> {
   await storage.removeItem(TRAJECTORY_KEY);
+}
+
+// ---- 跨 session 选题去重 ----
+// SW 重启后 in-memory quarantinedTopics 会清零;此 store 持久化已发布选题,防跨批次重发。
+// 写入为 best-effort(fire-and-forget);fail-closed 读取:非法值 → 空数组,绝不抛出。
+// 上限 PUBLISHED_TOPICS_MAX 条,每次写入时修剪最旧条目。
+
+/** 读取已发布选题集合;非法/缺失 → []。 */
+export async function getPublishedTopics(): Promise<string[]> {
+  const v = await storage.getItem<unknown>(PUBLISHED_TOPICS_KEY);
+  if (!Array.isArray(v)) return [];
+  return v.filter((x): x is string => typeof x === 'string');
+}
+
+/**
+ * 追加新选题到持久化集合。
+ * - Set 合并去重(相同选题不重复计入)。
+ * - 超过 PUBLISHED_TOPICS_MAX 时保留最新的条目(截取尾部)。
+ */
+export async function addPublishedTopics(topics: string[]): Promise<void> {
+  if (topics.length === 0) return;
+  const existing = await getPublishedTopics();
+  const merged = [...new Set([...existing, ...topics])];
+  const pruned = merged.length > PUBLISHED_TOPICS_MAX ? merged.slice(merged.length - PUBLISHED_TOPICS_MAX) : merged;
+  await storage.setItem(PUBLISHED_TOPICS_KEY, pruned);
 }

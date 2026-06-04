@@ -1,4 +1,4 @@
-import type { ContentDraft } from './types';
+import type { ContentDraft, FieldFillResult } from './types';
 
 // 批量发布队列状态机(纯函数,无副作用/不碰 chrome)。
 // background 拿它做编排,把异步效果(生成/填充/发布)的结果喂进来推进状态。
@@ -32,6 +32,8 @@ export interface BatchItem {
   draft?: ContentDraft;
   publishUrl?: string;
   error?: string;
+  /** 表单填充结果(填充完成后写入);用于展示降级警告。 */
+  fillResults?: FieldFillResult[];
 }
 
 export interface Batch {
@@ -110,6 +112,27 @@ export function presentForApproval(batch: Batch): Batch {
   return {
     ...batch,
     items: batch.items.map((it) => (it.status === 'filled' ? { ...it, status: 'awaiting-approval' as const } : it)),
+  };
+}
+
+/** 填充完成后记录每字段结果(不改 status;不限制 from,任意非 terminal 状态均可更新)。 */
+export function markFillResultsRecorded(batch: Batch, itemId: string, fillResults: FieldFillResult[]): Batch {
+  return patchItem(batch, itemId, { fillResults });
+}
+
+/**
+ * 批量覆盖草稿(人工编辑路径,U7)。
+ * overrides 键为 itemId,值为人工编辑后的完整草稿;仅覆盖 awaiting-approval 状态的条目。
+ */
+export function patchBatchDrafts(batch: Batch, overrides: Record<string, ContentDraft>): Batch {
+  if (Object.keys(overrides).length === 0) return batch;
+  return {
+    ...batch,
+    items: batch.items.map((it) =>
+      it.status === 'awaiting-approval' && it.id in overrides
+        ? { ...it, draft: overrides[it.id] }
+        : it,
+    ),
   };
 }
 

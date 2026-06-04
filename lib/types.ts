@@ -106,7 +106,7 @@ export type RuntimeMessage =
   | { type: 'PUBLISH_GRANT' }
   // side panel → background:批量编排(均显式 tabId,绝不查 active)。
   | { type: 'RUN_BATCH'; topics: string[]; tabId: number }
-  | { type: 'APPROVE_BATCH'; tabId: number }
+  | { type: 'APPROVE_BATCH'; tabId: number; draftOverrides?: Record<string, ContentDraft> }
   | { type: 'KILL_BATCH' }
   | { type: 'RELEASE_QUARANTINE'; itemId: string }
   | { type: 'GET_BATCH' }

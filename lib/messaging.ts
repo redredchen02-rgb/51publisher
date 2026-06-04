@@ -37,9 +37,9 @@ export async function runBatch(topics: string[], tabId: number): Promise<BatchRe
   return browser.runtime.sendMessage({ type: 'RUN_BATCH', topics, tabId });
 }
 
-/** 批准整批:逐条门控发布(钉住的 tab)。 */
-export async function approveBatch(tabId: number): Promise<BatchResponse> {
-  return browser.runtime.sendMessage({ type: 'APPROVE_BATCH', tabId });
+/** 批准整批:逐条门控发布(钉住的 tab)。draftOverrides 为人工编辑的草稿覆盖(按 itemId)。 */
+export async function approveBatch(tabId: number, draftOverrides?: Record<string, import('./types').ContentDraft>): Promise<BatchResponse> {
+  return browser.runtime.sendMessage({ type: 'APPROVE_BATCH', tabId, ...(draftOverrides ? { draftOverrides } : {}) });
 }
 
 /** 急停:未发布项打到 aborted。 */

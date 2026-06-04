@@ -7,6 +7,7 @@ import {
   markGenerating,
   markFilled,
   markGenerateFailed,
+  markFillResultsRecorded,
   markDispatched,
   markConfirmed,
   markPublishFailed,
@@ -34,19 +35,23 @@ export interface RunBatchDeps {
   genBatchId: () => string;
   genItemId: (index: number) => string;
   now: () => string;
+  /** 持久化已发布选题(跨 session 去重);与 in-memory quarantinedTopics 合并后过滤。 */
+  persistentBlockedTopics?: string[];
 }
 
 /** 批量生成循环。返回最终 Batch 状态;host 解析失败或所有 topic 均被重入过滤 → null。 */
 export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
   const { topics, tabId, resolveHost, getExistingBatch, pinnedHostOk, generateDraft, save, genBatchId, genItemId, now } = deps;
+  // (persistentBlockedTopics 在重入守卫段从 deps 直接读取,不在此解构)
 
   const host = await resolveHost();
   if (!host) return null;
 
-  // 重入守卫:排除上一批仍被隔离的同选题。
+  // 重入守卫:排除上一批仍被隔离的同选题 + 持久化已发布选题(防跨 session 重发)。
   const existing = await getExistingBatch();
-  const blocked = existing ? quarantinedTopics(existing) : [];
-  const fresh = filterReentrantTopics(topics, blocked);
+  const inMemoryBlocked = existing ? quarantinedTopics(existing) : [];
+  const allBlocked = [...inMemoryBlocked, ...(deps.persistentBlockedTopics ?? [])];
+  const fresh = filterReentrantTopics(topics, allBlocked);
   if (fresh.length === 0) return existing;
 
   let batch = createBatch(genBatchId(), tabId, host, fresh, now(), genItemId);
@@ -108,6 +113,9 @@ export async function approveBatch(deps: ApproveBatchDeps): Promise<Batch | null
       await save(batch);
       continue;
     }
+    // 持久化填充结果(供批量审核 UI 展示降级警告)。
+    batch = markFillResultsRecorded(batch, item.id, fill.results);
+    await save(batch);
 
     // 为当前 item 动态构造 OrchestratorDeps,闭合可变 batch 引用。
     const result = await orchestratePublish({

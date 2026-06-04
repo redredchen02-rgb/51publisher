@@ -1,7 +1,44 @@
 import { useState } from 'react';
-import type { SafetyMode } from '../../lib/types';
+import type { SafetyMode, FieldFillResult, ContentDraft } from '../../lib/types';
 import { type Batch, type BatchItem, batchSummary, batchPhase } from '../../lib/batch';
 import type { DriftReport } from '../../lib/selectors';
+import type { TrajectoryRecord } from '../../lib/trajectory';
+import { DraftPreview } from './DraftPreview';
+
+/** 折叠式降级警告:collapsed = N 个字段降级;expanded = 逐字段 note。 */
+function DegradedBadge({ results }: { results: FieldFillResult[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ marginTop: 4 }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        style={{ background: '#fff7e6', border: '1px solid #ffd591', borderRadius: 3, padding: '2px 6px', fontSize: 11, cursor: 'pointer', color: '#874d00' }}
+        aria-expanded={open}
+      >
+        ⚠ {results.length} 个字段降级填充 {open ? '▲' : '▼'}
+      </button>
+      {open && (
+        <ul style={{ margin: '4px 0 0', padding: '0 0 0 12px', fontSize: 11, color: '#874d00' }}>
+          {results.map((r) => (
+            <li key={r.field}><strong>{r.field}</strong>{r.note ? `：${r.note}` : '（innerHTML 兜底,格式可能丢失）'}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** 隔离释放时展示轨迹上下文:三态(有 URL / 无 URL / 无记录)。 */
+function QuarantineContext({ record }: { record: TrajectoryRecord | undefined }) {
+  const s: React.CSSProperties = { fontSize: 11, marginTop: 2 };
+  if (!record) {
+    return <div style={{ ...s, color: '#888' }}>无发布记录 — 可安全重试</div>;
+  }
+  if (record.publishUrl) {
+    return <div style={{ ...s, color: '#874d00' }}>可能已发布(未核实) — 请先点「查看帖子」确认后再撤出隔离</div>;
+  }
+  return <div style={{ ...s, color: '#874d00' }}>未收到发布确认 — 帖子可能未成功发布</div>;
+}
 
 // 批量审核面板:专为"在窄面板里高效审 N 条"设计(评审 design-lens)。
 // 纯展示 + 受控:批次/档位/tab 健康由 props 传入,动作经回调上抛给 App(它接 messaging)。
@@ -15,7 +52,16 @@ interface Props {
   tabHealthy: boolean;
   busy?: boolean;
   driftResult?: DriftReport | null;
+  /** 轨迹上下文(item.id → TrajectoryRecord),用于隔离释放时展示发布结果。 */
+  trajectoryContext?: Map<string, TrajectoryRecord>;
+  /** 人工编辑覆盖(itemId → 编辑后草稿);awaiting-approval 条目显示可编辑字段。 */
+  draftOverrides?: Map<string, ContentDraft>;
+  /** 用户编辑某条草稿时回调(item id + 完整新草稿)。 */
+  onDraftChange?: (itemId: string, draft: ContentDraft) => void;
+  /** 标准批准(含漂移自检前置门)。 */
   onApprove: () => void;
+  /** 跳过漂移自检直接批准(仅在自检失败后提供)。 */
+  onApproveBypass: () => void;
   onKill: () => void;
   onRelease: (itemId: string) => void;
   onDriftCheck: () => void;
@@ -45,7 +91,7 @@ const STATUS_LABEL: Record<BatchItem['status'], string> = {
 };
 
 export function BatchReviewPanel(props: Props) {
-  const { batch, safetyMode, authorizedHost, tabHealthy, busy, driftResult } = props;
+  const { batch, safetyMode, authorizedHost, tabHealthy, busy, driftResult, trajectoryContext, draftOverrides, onDraftChange } = props;
   const summary = batchSummary(batch);
   const phase = batchPhase(batch);
   const modeStyle = MODE_STYLE[safetyMode];
@@ -110,14 +156,26 @@ export function BatchReviewPanel(props: Props) {
         <div role="alert" style={{ ...box, background: '#fff1f0', border: '2px solid #cf1322', color: '#cf1322' }}>
           <div style={{ fontWeight: 700 }}>⚠ {quarantined.length} 条需人工核对</div>
           <div style={{ fontSize: 12, margin: '4px 0' }}>这些条目发布中断且无回执,可能已发也可能没发——请去后台核对后再处置,系统绝不自动重发。</div>
-          {quarantined.map((it) => (
-            <div key={it.id} style={{ marginTop: 4 }}>
-              <span>「{it.topic}」</span>
-              <button onClick={() => props.onRelease(it.id)} style={{ ...btn, background: '#cf1322', color: '#fff', padding: '2px 8px', marginLeft: 6 }}>
-                我已核对,撤出隔离
-              </button>
-            </div>
-          ))}
+          {quarantined.map((it) => {
+            const traj = trajectoryContext?.get(it.id);
+            return (
+              <div key={it.id} style={{ marginTop: 8, paddingTop: 6, borderTop: '1px solid #ffa39e' }}>
+                <div style={{ fontWeight: 600 }}>「{it.topic}」</div>
+                <QuarantineContext record={traj} />
+                <div style={{ marginTop: 4, display: 'flex', gap: 6 }}>
+                  {traj?.publishUrl && (
+                    <a href={traj.publishUrl} target="_blank" rel="noopener noreferrer"
+                      style={{ ...btn, background: '#fff', border: '1px solid #ffa39e', color: '#cf1322', padding: '2px 8px', fontSize: 12, textDecoration: 'none' }}>
+                      查看帖子
+                    </a>
+                  )}
+                  <button onClick={() => props.onRelease(it.id)} style={{ ...btn, background: '#cf1322', color: '#fff', padding: '2px 8px', fontSize: 12 }}>
+                    我已核对,撤出隔离
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -137,13 +195,22 @@ export function BatchReviewPanel(props: Props) {
             </button>
             {expanded.has(it.id) && (
               <div style={{ padding: '6px 10px', fontSize: 12, borderTop: '1px solid #f5f5f5' }}>
-                {it.draft ? (
+                {it.status === 'awaiting-approval' && it.draft && onDraftChange ? (
+                  // 待审状态:显示可编辑字段(title/tags/category/description;body 唯读)。
+                  <DraftPreview
+                    draft={draftOverrides?.get(it.id) ?? it.draft}
+                    onChange={(d) => onDraftChange(it.id, d)}
+                  />
+                ) : it.draft ? (
                   <>
                     <div><strong>{it.draft.title || '(无标题)'}</strong></div>
                     <div style={{ color: '#666', maxHeight: 120, overflow: 'auto' }}>{it.draft.description || it.draft.body.replace(/<[^>]+>/g, ' ').slice(0, 200)}</div>
                   </>
                 ) : (
                   <span style={{ color: '#999' }}>无草稿内容{it.error ? `(${it.error})` : ''}</span>
+                )}
+                {it.fillResults && it.fillResults.some((r) => r.status === 'degraded') && (
+                  <DegradedBadge results={it.fillResults.filter((r) => r.status === 'degraded')} />
                 )}
               </div>
             )}
@@ -154,7 +221,24 @@ export function BatchReviewPanel(props: Props) {
       {/* 漂移自检结果 */}
       {driftResult && (
         <div style={{ ...box, marginTop: 8, background: driftResult.ok ? '#f6ffed' : '#fff7e6', border: `1px solid ${driftResult.ok ? '#b7eb8f' : '#ffd591'}` }}>
-          {driftResult.ok ? '✅ 选择器自检通过' : `⚠️ 缺失:${driftResult.missing.join('、')}`}
+          {driftResult.ok ? (
+            '✅ 选择器自检通过'
+          ) : (
+            <>
+              <div>⚠️ 缺失:{driftResult.missing.join('、')}</div>
+              <div style={{ fontSize: 12, color: '#874d00', marginTop: 2 }}>
+                请在目标页确认表单已载入,或刷新页面后操作。
+              </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                <button onClick={props.onDriftCheck} disabled={busy} style={{ ...btn, padding: '3px 8px', fontSize: 12, background: '#fa8c16', color: '#fff' }}>
+                  重新自检
+                </button>
+                <button onClick={props.onApproveBypass} disabled={busy} style={{ ...btn, padding: '3px 8px', fontSize: 12, background: '#f0f0f0', color: '#333' }}>
+                  跳过检查继续批准
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
