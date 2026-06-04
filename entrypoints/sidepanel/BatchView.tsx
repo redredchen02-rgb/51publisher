@@ -1,12 +1,10 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { browser, storage } from '#imports';
 import type { SafetyMode, ContentDraft } from '../../lib/types';
 import type { Batch } from '../../lib/batch';
 import { batchPhase } from '../../lib/batch';
 import type { DriftReport } from '../../lib/selectors';
-import type { TrajectoryRecord } from '../../lib/trajectory';
-import { verifyTrajectory, rollbackTargets } from '../../lib/trajectory';
-import { getSafetyMode, getTrajectory } from '../../lib/storage';
+import { getSafetyMode } from '../../lib/storage';
 import {
   getBatchState,
   runBatch,
@@ -17,6 +15,7 @@ import {
 } from '../../lib/messaging';
 import { BatchReviewPanel } from './BatchReviewPanel';
 import { DryRunReport } from './DryRunReport';
+import { HistoryPanel } from './HistoryPanel';
 
 const btn: React.CSSProperties = { padding: '6px 12px', fontSize: 13, border: 'none', borderRadius: 4, cursor: 'pointer' };
 
@@ -28,16 +27,15 @@ export function BatchView({ onBack }: { onBack: () => void }) {
   const [topics, setTopics] = useState('');
   const [busy, setBusy] = useState(false);
   const [drift, setDrift] = useState<DriftReport | null>(null);
-  const [trajectory, setTrajectory] = useState<TrajectoryRecord[]>([]);
   const [error, setError] = useState('');
+  const [view, setView] = useState<'batch' | 'history'>('batch');
   // 人工编辑覆盖(transient;panel reload 后丢失,属已知可接受行为)。
   const [draftOverrides, setDraftOverrides] = useState<Map<string, ContentDraft>>(new Map());
 
   const refresh = useCallback(async () => {
-    const [b, mode, traj] = await Promise.all([getBatchState(), getSafetyMode(), getTrajectory()]);
+    const [b, mode] = await Promise.all([getBatchState(), getSafetyMode()]);
     setSafetyMode(mode);
     setBatch(b);
-    setTrajectory(traj);
     if (b) {
       // tab 健康:钉住的 tab 是否仍停在记录的授权 host。
       try {
@@ -59,11 +57,7 @@ export function BatchView({ onBack }: { onBack: () => void }) {
     const unwatch = storage.watch<import('../../lib/batch').Batch | null>('local:batch', (newBatch) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
-        if (newBatch != null) {
-          setBatch(newBatch);
-        } else {
-          setBatch(null);
-        }
+        setBatch(newBatch ?? null);
       }, 100);
     });
 
@@ -104,22 +98,37 @@ export function BatchView({ onBack }: { onBack: () => void }) {
     });
   }
 
-  const showStarter = !batch || batchPhase(batch) === 'done' || batchPhase(batch) === 'empty';
-  const trajectoryByItemId = useMemo(() => new Map(trajectory.map((r) => [r.id, r])), [trajectory]);
+  const showStarter = view === 'batch' && (!batch || batchPhase(batch) === 'done' || batchPhase(batch) === 'empty');
+  const batchActive = batch && batchPhase(batch) !== 'done' && batchPhase(batch) !== 'empty';
 
   return (
     <main style={{ fontFamily: 'system-ui, sans-serif', padding: 12, fontSize: 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <h1 style={{ fontSize: 16, margin: 0 }}>批量发布</h1>
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          <h1 style={{ fontSize: 16, margin: 0 }}>批量发布</h1>
+          <button
+            onClick={() => setView('batch')}
+            style={{ ...btn, padding: '2px 8px', fontSize: 12, background: view === 'batch' ? '#1677ff' : '#f0f0f0', color: view === 'batch' ? '#fff' : '#333' }}
+          >
+            批次{batchActive ? ' •' : ''}
+          </button>
+          <button
+            onClick={() => setView('history')}
+            style={{ ...btn, padding: '2px 8px', fontSize: 12, background: view === 'history' ? '#1677ff' : '#f0f0f0', color: view === 'history' ? '#fff' : '#333' }}
+          >
+            历史
+          </button>
+        </div>
         <button onClick={onBack} style={{ ...btn, background: '#f0f0f0', color: '#333', padding: '4px 10px' }}>← 单条</button>
       </div>
 
       {error && <p role="alert" style={{ color: '#cf1322', fontSize: 13 }}>{error}</p>}
 
-      {batch && batchPhase(batch) !== 'empty' && (
+      {view === 'history' && <HistoryPanel />}
+
+      {view === 'batch' && batch && batchPhase(batch) !== 'empty' && (
         <BatchReviewPanel
           batch={batch}
-          trajectoryContext={trajectoryByItemId}
           draftOverrides={draftOverrides}
           safetyMode={safetyMode}
           authorizedHost={batch.authorizedHost}
@@ -153,9 +162,7 @@ export function BatchView({ onBack }: { onBack: () => void }) {
         />
       )}
 
-      {safetyMode === 'dry-run' && <DryRunReport />}
-
-      {trajectory.length > 0 && <TrajectorySection records={trajectory} />}
+      {view === 'batch' && safetyMode === 'dry-run' && <DryRunReport />}
 
       {showStarter && (
         <div style={{ marginTop: 12 }}>
@@ -173,36 +180,5 @@ export function BatchView({ onBack }: { onBack: () => void }) {
         </div>
       )}
     </main>
-  );
-}
-
-// 轨迹 + 回滚:展示可审计记录 + 链完整性 + 撤下指引(R5/R10)。
-function TrajectorySection({ records }: { records: TrajectoryRecord[] }) {
-  const intact = verifyTrajectory(records);
-  const targets = rollbackTargets(records);
-  return (
-    <section style={{ marginTop: 14, borderTop: '1px solid #eee', paddingTop: 10 }}>
-      <h2 style={{ fontSize: 14, margin: '0 0 6px' }}>
-        发布轨迹（{records.length}）{' '}
-        <span style={{ fontSize: 12, color: intact ? '#389e0d' : '#cf1322' }}>
-          {intact ? '✓ 链完整' : '✗ 链异常(疑被篡改)'}
-        </span>
-      </h2>
-      {targets.length === 0 ? (
-        <p style={{ fontSize: 12, color: '#888', margin: 0 }}>暂无可撤下的已发布记录。</p>
-      ) : (
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 12 }}>
-          {targets.map((r) => (
-            <li key={r.id} style={{ marginBottom: 4 }}>
-              <span>「{r.topic}」</span>{' '}
-              <a href={r.publishUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#1677ff' }}>查看</a>{' '}
-              <span style={{ color: '#888' }}>
-                {r.publishedAsDraft ? '(隐藏态)' : '(显示态)'} · 撤下:后台把状态改回「隐藏」
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
   );
 }
