@@ -1,7 +1,7 @@
 ---
 title: "feat: Batch reliability & UX hardening (7 improvements)"
 type: feat
-status: active
+status: completed
 date: 2026-06-04
 origin: docs/ideation/2026-06-04-open-ideation.md
 ---
