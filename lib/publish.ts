@@ -1,4 +1,5 @@
 import type { PublishResult } from './types';
+import { DEFAULT_RECIPE } from './recipe';
 
 // content 侧发布触发。**仅在收到 background 一次性"准许"后**由 content.ts 调用,
 // content 自身绝不自我授权(见 entrypoints/content.ts)。
@@ -21,7 +22,8 @@ export interface PublishDeps {
   timeoutMs?: number;
 }
 
-const DEFAULT_SAVE_ENDPOINT = '/admin/webarticle/save';
+// 发布配置单一来源 = SiteRecipe(lib/recipe.ts)。
+const DEFAULT_SAVE_ENDPOINT = DEFAULT_RECIPE.publish.saveEndpoint;
 const DEFAULT_TIMEOUT_MS = 30_000;
 /** 后台 msg 截断上限:防超长 blob/潜在敏感串原样进 PublishResult/轨迹。 */
 const MAX_ERROR_MSG_LEN = 200;
@@ -71,9 +73,9 @@ export async function executePublish(deps: PublishDeps = {}): Promise<PublishRes
   const doc = deps.doc ?? document;
   const fetchFn = deps.fetchFn ?? fetch;
   const saveEndpoint = deps.saveEndpoint ?? DEFAULT_SAVE_ENDPOINT;
-  const editorSelector = deps.editorSelector ?? '#editor';
+  const editorSelector = deps.editorSelector ?? DEFAULT_RECIPE.publish.editorSelector;
 
-  const form = doc.querySelector<HTMLFormElement>(deps.formSelector ?? 'form[lay-filter], form');
+  const form = doc.querySelector<HTMLFormElement>(deps.formSelector ?? DEFAULT_RECIPE.publish.formSelector);
   if (!form) return { ok: false, dryRun: false, error: 'no-publish-target' };
 
   // 正文同步失败(编辑器漂移 / 空正文)→ 绝不 POST 空帖(评审 adversarial/reliability)。

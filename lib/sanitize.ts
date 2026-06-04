@@ -1,4 +1,5 @@
 import DOMPurify from 'dompurify';
+import { DEFAULT_RECIPE } from './recipe';
 
 // 正文 HTML 在写入 Quill 前必须消毒:LLM 是最不可信输入,
 // dangerouslyPasteHTML 会在页面主世界(登录态后台 origin)执行任意脚本。
@@ -14,12 +15,9 @@ import DOMPurify from 'dompurify';
 /** 钉定版本:升级 DOMPurify 须同步复核白名单与 mXSS 语料后改此值。 */
 export const PINNED_DOMPURIFY_VERSION = '3.4.7';
 
-const ALLOWED_TAGS = [
-  'p', 'br', 'span', 'strong', 'b', 'em', 'i', 'u', 's', 'a',
-  'ul', 'ol', 'li', 'blockquote', 'pre', 'code',
-  'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'img',
-];
-const ALLOWED_ATTR = ['href', 'target', 'rel', 'src', 'alt'];
+// 白名单单一来源 = SiteRecipe(lib/recipe.ts)。
+const ALLOWED_TAGS = DEFAULT_RECIPE.sanitize.allowedTags;
+const ALLOWED_ATTR = DEFAULT_RECIPE.sanitize.allowedAttr;
 
 // 只允许 https / mailto / 锚点 / 真·相对路径;显式排除 data:、javascript:、
 // vbscript: 与协议相对(//host)。比放行 http: 更紧(登录态 origin 防降级/外泄)。
