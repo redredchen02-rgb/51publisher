@@ -221,7 +221,7 @@ flowchart TB
 
 ### Phase 1 — 让自主发布"可能且安全"
 
-- [ ] **U1: 授权站点安全闸门(background)+ manifest 收窄**
+- [x] **U1: 授权站点安全闸门(background)+ manifest 收窄**(纯闸门+配置+manifest 收窄已落;background 求值接线并入 U2)
 
 **Goal:** 纯函数 `canSubmit` + 配置管理,**在 background 求值**,host 取 `chrome.tabs.get(tabId).url`,通配用标签边界;**并把 manifest 注入面收窄到 https+admin**。
 
@@ -249,7 +249,7 @@ flowchart TB
 
 ---
 
-- [ ] **U2: 门控发布(改道 background + LLM key 移 bg + 按 U0 分支)**
+- [x] **U2: 门控发布(改道 background + LLM key 移 bg + 按 U0 分支)**(LLM key 现存代码已仅在 background,无需迁移)
 
 **Goal:** 发布消息改道 side panel→background→content;background 闸门通过且 await 写 dispatched 后才发一次性准许;content 据准许触发(U0 结论:button-click 或 XHR 现读 CSRF)。LLM key-bearing 调用一并移到 background。返回 `PublishResult{ok,url?,error?,dryRun}`。
 
@@ -280,7 +280,7 @@ flowchart TB
 
 ---
 
-- [ ] **U3: 安全档位测试(取代零提交 spy,按需加 XHR 通道)**
+- [x] **U3: 安全档位测试(取代零提交 spy,按需加 XHR 通道)**
 
 **Goal:** "零提交恒 0" 反转为授权矩阵;**显式区分三层验证边界**(纯函数 / e2e 无触发 / 防伪造只能人工冒烟)。
 
@@ -306,7 +306,7 @@ flowchart TB
 
 ---
 
-- [ ] **U9a: v1 基线消毒强化(完整威胁模型 U9b 随自主档延后)**
+- [x] **U9a: v1 基线消毒强化(完整威胁模型 U9b 随自主档延后)**
 
 **Goal:** v1 即便有人审,LLM HTML 仍进登录态后台 origin → 做**基线**硬化:剥/限远程 `src`/`href`、禁 `data:`/`javascript:`、禁事件属性、`<a target=_blank>` 加 `rel`、钉 DOMPurify 版本。**完整 mXSS round-trip + 远程资源外泄模型(U9b)随抽样/全自动档启用**。
 
@@ -330,7 +330,7 @@ flowchart TB
 
 ### Phase 2 — 批量流程 + 护栏(R2/R7/R8)
 
-- [ ] **U4: 批量队列状态机(幂等 + 钉 tab + 隔离退出 + 急停 + dry-run)**
+- [x] **U4: 批量队列状态机(幂等 + 钉 tab + 隔离退出 + 急停 + dry-run)**
 
 **Goal:** "单条"→"批次",带发布幂等、钉住目标 tab、隔离态人工退出、急停、dry-run。
 
@@ -363,7 +363,7 @@ flowchart TB
 
 ---
 
-- [ ] **U5: 批量审核 UI(交互态完整 + 轻量漂移按钮)**
+- [x] **U5: 批量审核 UI(交互态完整 + 轻量漂移按钮)**
 
 **Goal:** side panel 批量视图,**专为"在窄面板里高效审 N 条"设计**,覆盖全部交互态,醒目且不可混淆地展示发布模式/授权 host/钉住 tab。
 
