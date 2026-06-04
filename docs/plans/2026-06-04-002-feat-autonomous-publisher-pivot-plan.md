@@ -1,7 +1,7 @@
 ---
 title: "feat: 自主发布器转向 — 授权站点门控 + 批量审核 + 信任阶梯(Hybrid C, 瘦身版)"
 type: feat
-status: active
+status: completed
 date: 2026-06-04
 deepened: 2026-06-04
 origin: docs/brainstorms/2026-06-04-autonomous-publisher-pivot-requirements.md
@@ -400,7 +400,7 @@ flowchart TB
 
 ### Phase 3 — 轨迹耐久层(R5/R10/R9)
 
-- [ ] **U6: 轨迹存档 + 回滚(运行时内存脱敏 + 完整性说明)**
+- [x] **U6: 轨迹存档 + 回滚(运行时内存脱敏 + 完整性说明)**(快照捕获从 content 串回为可选,v1 默认存结构化字段+URL)
 
 **Goal:** 每条发布落盘可审计轨迹,作回放/回滚依据;脱敏是**运行时内存预写闸门**(非 git hook),含机密拒写;文档化完整性限制。
 
@@ -435,7 +435,7 @@ flowchart TB
 
 ### Phase 4 — Recipe 数据合并(R4,可并行;执行抽象/U8 延后)
 
-- [ ] **U7a: recipe 数据合并(单一事实源)**
+- [x] **U7a: recipe 数据合并(单一事实源)**
 
 **Goal:** 把选择器 + 脱敏白名单 + 发布配置 + 漂移选择器集合并成 `SiteRecipe` **数据**单一事实源,消除分散硬编码。**执行策略抽象(RecipeExecutor)延后到 B 端真出现**。
 
