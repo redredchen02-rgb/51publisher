@@ -5,22 +5,51 @@ import type { DriftReport } from '../../lib/selectors';
 import type { TrajectoryRecord } from '../../lib/trajectory';
 import { DraftPreview } from './DraftPreview';
 
-/** 折叠式降级警告:collapsed = N 个字段降级;expanded = 逐字段 note。 */
-function DegradedBadge({ results }: { results: FieldFillResult[] }) {
+/**
+ * 字段填充三态状态表。
+ * - 无数据(空数组 / undefined): 不渲染任何内容。
+ * - 全部已填且无降级/跳过: 显示内联绿色打勾。
+ * - 有跳过/降级: 显示可展开的三列计数 + 明细。
+ */
+function FillStatusTable({ results }: { results: FieldFillResult[] | undefined }) {
   const [open, setOpen] = useState(false);
+  if (!results || results.length === 0) return null;
+
+  const filled = results.filter((r) => r.status === 'filled');
+  const skipped = results.filter((r) => r.status === 'skipped');
+  const degraded = results.filter((r) => r.status === 'degraded');
+  const allFilled = skipped.length === 0 && degraded.length === 0;
+
+  if (allFilled) {
+    return <div style={{ marginTop: 4, fontSize: 11, color: '#389e0d' }}>✓ 全部字段已填</div>;
+  }
+
   return (
     <div style={{ marginTop: 4 }}>
       <button
         onClick={() => setOpen((v) => !v)}
-        style={{ background: '#fff7e6', border: '1px solid #ffd591', borderRadius: 3, padding: '2px 6px', fontSize: 11, cursor: 'pointer', color: '#874d00' }}
+        style={{ background: '#fafafa', border: '1px solid #d9d9d9', borderRadius: 3, padding: '2px 6px', fontSize: 11, cursor: 'pointer', color: '#555' }}
         aria-expanded={open}
+        aria-label="字段填充状态"
       >
-        ⚠ {results.length} 个字段降级填充 {open ? '▲' : '▼'}
+        <span style={{ color: '#389e0d' }}>✓{filled.length}</span>
+        {' '}
+        <span style={{ color: '#d46b08' }}>↷{skipped.length}</span>
+        {' '}
+        <span style={{ color: '#cf1322' }}>⚠{degraded.length}</span>
+        {' '}{open ? '▲' : '▼'}
       </button>
       {open && (
-        <ul style={{ margin: '4px 0 0', padding: '0 0 0 12px', fontSize: 11, color: '#874d00' }}>
-          {results.map((r) => (
-            <li key={r.field}><strong>{r.field}</strong>{r.note ? `：${r.note}` : '（innerHTML 兜底,格式可能丢失）'}</li>
+        <ul style={{ margin: '4px 0 0', padding: '0 0 0 12px', fontSize: 11 }}>
+          {skipped.map((r) => (
+            <li key={r.field} style={{ color: '#d46b08' }}>
+              <strong>{r.field}</strong> 已跳过{r.note ? `：${r.note}` : ''}
+            </li>
+          ))}
+          {degraded.map((r) => (
+            <li key={r.field} style={{ color: '#cf1322' }}>
+              <strong>{r.field}</strong> 降级{r.note ? `：${r.note}` : '（innerHTML 兜底,格式可能丢失）'}
+            </li>
           ))}
         </ul>
       )}
@@ -209,9 +238,7 @@ export function BatchReviewPanel(props: Props) {
                 ) : (
                   <span style={{ color: '#999' }}>无草稿内容{it.error ? `(${it.error})` : ''}</span>
                 )}
-                {it.fillResults && it.fillResults.some((r) => r.status === 'degraded') && (
-                  <DegradedBadge results={it.fillResults.filter((r) => r.status === 'degraded')} />
-                )}
+                <FillStatusTable results={it.fillResults} />
               </div>
             )}
           </li>

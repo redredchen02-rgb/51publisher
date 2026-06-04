@@ -122,3 +122,78 @@ describe('BatchReviewPanel', () => {
     expect(screen.getByText(/缺失:標題/)).toBeTruthy();
   });
 });
+
+// ================================================================
+// FillStatusTable (U3)
+// ================================================================
+
+describe('FillStatusTable via BatchReviewPanel', () => {
+  afterEach(() => cleanup());
+
+  function batchWithFillResults(results: import('../../lib/types').FieldFillResult[]): Batch {
+    let b = awaitingBatch(['topic-x']);
+    b = {
+      ...b,
+      items: b.items.map((it) => ({ ...it, fillResults: results })),
+    };
+    return b;
+  }
+
+  it('2 filled, 1 skipped: shows counts, no all-filled message', () => {
+    const results: import('../../lib/types').FieldFillResult[] = [
+      { field: 'title', status: 'filled' },
+      { field: 'body', status: 'filled' },
+      { field: 'category', status: 'skipped', note: '无匹配选项: 2' },
+    ];
+    render(<BatchReviewPanel {...defaultProps(batchWithFillResults(results))} />);
+    fireEvent.click(screen.getByText('topic-x'));
+    expect(screen.getByLabelText('字段填充状态')).toBeTruthy();
+    expect(screen.queryByText(/全部字段已填/)).toBeNull();
+  });
+
+  it('all filled: shows ✓ 全部字段已填, no table', () => {
+    const results: import('../../lib/types').FieldFillResult[] = [
+      { field: 'title', status: 'filled' },
+      { field: 'body', status: 'filled' },
+    ];
+    render(<BatchReviewPanel {...defaultProps(batchWithFillResults(results))} />);
+    fireEvent.click(screen.getByText('topic-x'));
+    expect(screen.getByText(/全部字段已填/)).toBeTruthy();
+    expect(screen.queryByLabelText('字段填充状态')).toBeNull();
+  });
+
+  it('expand skipped row: note text visible', () => {
+    const results: import('../../lib/types').FieldFillResult[] = [
+      { field: 'category', status: 'skipped', note: '无匹配选项: 2' },
+    ];
+    render(<BatchReviewPanel {...defaultProps(batchWithFillResults(results))} />);
+    fireEvent.click(screen.getByText('topic-x'));
+    fireEvent.click(screen.getByLabelText('字段填充状态'));
+    expect(screen.getByText(/无匹配选项: 2/)).toBeTruthy();
+  });
+
+  it('empty fillResults: no status table rendered', () => {
+    render(<BatchReviewPanel {...defaultProps(batchWithFillResults([]))} />);
+    fireEvent.click(screen.getByText('topic-x'));
+    expect(screen.queryByLabelText('字段填充状态')).toBeNull();
+    expect(screen.queryByText(/全部字段已填/)).toBeNull();
+  });
+
+  it('undefined fillResults: no table rendered (regression: plan-004 DegradedBadge behavior)', () => {
+    render(<BatchReviewPanel {...defaultProps(awaitingBatch(['topic-x']))} />);
+    fireEvent.click(screen.getByText('topic-x'));
+    expect(screen.queryByLabelText('字段填充状态')).toBeNull();
+  });
+
+  it('1 degraded field: shows red badge in expanded view', () => {
+    const results: import('../../lib/types').FieldFillResult[] = [
+      { field: 'body', status: 'degraded', note: 'innerHTML fallback' },
+    ];
+    render(<BatchReviewPanel {...defaultProps(batchWithFillResults(results))} />);
+    fireEvent.click(screen.getByText('topic-x'));
+    const btn = screen.getByLabelText('字段填充状态');
+    expect(btn.textContent).toContain('⚠1');
+    fireEvent.click(btn);
+    expect(screen.getByText(/innerHTML fallback/)).toBeTruthy();
+  });
+});
