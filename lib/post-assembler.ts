@@ -63,29 +63,25 @@ function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-/** 渲染一条连结块的值:有 URL → verbatim <a>;有文本无 URL → 原样转义(不成链);空 → 【待补】。 */
-function renderLink(field: string | undefined): string {
+/** 渲染一条已提供的连结:有 URL → `标签:<a>`;有文本无 URL → `标签:文本`;空 → null(整行省略)。 */
+function renderLink(label: string, field: string | undefined): string | null {
   const v = field?.trim();
-  if (!v) return PLACEHOLDER;
+  if (!v) return null;
   const url = firstUrl(v);
-  if (!url) return esc(v);
+  if (!url) return `${label}:${esc(v)}`;
   const safe = esc(url);
-  return `<a href="${safe}">${safe}</a>`;
-}
-
-/** 一个事实文本位:有值 → verbatim 转义;空 → 【待补】。 */
-function fact(v: string | undefined): string {
-  const t = v?.trim();
-  return t ? esc(t) : PLACEHOLDER;
+  return `${label}:<a href="${safe}">${safe}</a>`;
 }
 
 /**
  * 组装草稿:模型槽位 + facts → title/subtitle/body/description。
- * body 结构(固定骨架):
- *   抬头块(作品名/集数/制作,facts verbatim)
+ * 只渲染**已提供**的事实(缺的整行省略,不污染正文);唯一硬标记 = 缺作品名时 title=【待补】。
+ * 缺失字段的可见性交由审核区(U6)呈现,而非塞进正文。
+ * body 结构:
+ *   抬头块(已提供的 作品名/集数/制作,facts verbatim)
  *   引子散文(模型,消毒+转义)
  *   看点散文(模型,消毒+转义)
- *   连结块(漢化/無修,facts URL verbatim)
+ *   连结块(已提供的 漢化/無修,facts URL verbatim)
  *   结尾(模型,可选)
  */
 export function assembleDraft(slots: DraftSlots, facts: FactsBlock): AssembledDraft {
@@ -96,10 +92,12 @@ export function assembleDraft(slots: DraftSlots, facts: FactsBlock): AssembledDr
 
   const parts: string[] = [];
 
-  // 抬头块(事实 verbatim)
-  parts.push(
-    `<p>作品名:${fact(facts.作品名)}<br>集数:${fact(facts.集数)}<br>制作:${fact(facts.制作)}</p>`,
-  );
+  // 抬头块(只含已提供字段,verbatim)
+  const headerBits: string[] = [];
+  if (name) headerBits.push(`作品名:${esc(name)}`);
+  if (facts.集数?.trim()) headerBits.push(`集数:${esc(facts.集数.trim())}`);
+  if (facts.制作?.trim()) headerBits.push(`制作:${esc(facts.制作.trim())}`);
+  if (headerBits.length) parts.push(`<p>${headerBits.join('<br>')}</p>`);
 
   // 散文(模型,消毒+转义)
   const intro = sanitizeToPlainText(slots.intro);
@@ -107,8 +105,11 @@ export function assembleDraft(slots: DraftSlots, facts: FactsBlock): AssembledDr
   const highlights = sanitizeToPlainText(slots.highlights);
   if (highlights) parts.push(`<p>${esc(highlights)}</p>`);
 
-  // 连结块(facts URL verbatim;模型碰不到)
-  parts.push(`<p>漢化連結:${renderLink(facts.漢化)}<br>無修連結:${renderLink(facts.無修)}</p>`);
+  // 连结块(只含已提供连结,facts URL verbatim;模型碰不到)
+  const linkBits = [renderLink('漢化連結', facts.漢化), renderLink('無修連結', facts.無修)].filter(
+    (x): x is string => x !== null,
+  );
+  if (linkBits.length) parts.push(`<p>${linkBits.join('<br>')}</p>`);
 
   // 结尾(可选)
   const outro = sanitizeToPlainText(slots.outro);

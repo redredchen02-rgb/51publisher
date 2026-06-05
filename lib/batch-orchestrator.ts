@@ -18,6 +18,7 @@ import {
   retryBatchItem,
 } from './batch';
 import { orchestratePublish } from './publish-orchestrator';
+import type { GroundingVerdict } from './grounding-gate';
 
 // 批量编排逻辑(效果全注入,无 chrome/browser/* 直接依赖)。
 // 参照 lib/publish-orchestrator.ts 模式:background.ts 只做接线,逻辑在此可单测。
@@ -112,11 +113,13 @@ export interface ApproveBatchDeps {
   /** sendFill 前写 tombstone;fill ACK 后清除(可选,无 no-op)。 */
   writeTombstone?: (itemId: string) => Promise<void>;
   clearTombstone?: (itemId: string) => Promise<void>;
+  /** 发布前 grounding 硬闸(U4):仅 authorized 档拦截。返回 verdict;省略=不检查。 */
+  checkGrounding?: (draft: ContentDraft, facts?: FactsBlock) => GroundingVerdict;
 }
 
 /** 批量发布循环。返回最终 Batch;无批次 → null。 */
 export async function approveBatch(deps: ApproveBatchDeps): Promise<Batch | null> {
-  const { getBatch, save, pinnedHostOk, sendFill, evaluateGate, sendGrant, appendTrajectory, onSnapshotDropped, saveDryRunReportFn, writeTombstone, clearTombstone } = deps;
+  const { getBatch, save, pinnedHostOk, sendFill, evaluateGate, sendGrant, appendTrajectory, onSnapshotDropped, saveDryRunReportFn, writeTombstone, clearTombstone, checkGrounding } = deps;
 
   const loaded = await getBatch();
   if (!loaded) return null;
@@ -128,6 +131,19 @@ export async function approveBatch(deps: ApproveBatchDeps): Promise<Batch | null
     const item = batch.items.find((it) => it.id === snapshot.id);
     if (!item || item.status !== 'awaiting-approval' || !item.draft) continue;
     if (!(await pinnedHostOk(batch))) break;
+
+    // 发布前 grounding 硬闸:仅 authorized 档拦截(残留【待补】/无来源连结 → 该条转 error,不 dispatch)。
+    if (checkGrounding) {
+      const gate = await evaluateGate();
+      if (gate.mode === 'authorized') {
+        const verdict = checkGrounding(item.draft, item.facts);
+        if (!verdict.ok) {
+          batch = markGenerateFailed(batch, item.id, `grounding-blocked: ${verdict.reasons.join(' ')}`);
+          await save(batch);
+          continue;
+        }
+      }
+    }
 
     // Tombstone 写在 sendFill 之前:若 SW 在 fill 飞行中被回收,重启时扫到 tombstone → 隔离。
     if (writeTombstone) {

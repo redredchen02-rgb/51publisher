@@ -85,24 +85,24 @@ describe('assembleDraft — 散文夹连结/HTML(防注入)', () => {
   });
 });
 
-describe('assembleDraft — 缺事实 → 【待补】', () => {
-  it('缺漢化/缺作品名:对应位置【待补】、title【待补】', () => {
+describe('assembleDraft — 缺事实 → 整行省略(不污染正文)', () => {
+  it('缺漢化/缺作品名:省略对应行,title【待补】,已提供字段照常', () => {
     const out = assembleDraft(slots({ titleSuffix: '介紹' }), { 集数: '12话', 無修: 'https://ok.com/u' });
     expect(out.title).toBe(PLACEHOLDER);
-    expect(out.body).toContain(`作品名:${PLACEHOLDER}`);
-    expect(out.body).toContain(`漢化連結:${PLACEHOLDER}`);
-    expect(out.body).toContain('<a href="https://ok.com/u">');
+    expect(out.body).not.toContain('作品名'); // 缺 → 不渲染该行
+    expect(out.body).not.toContain('漢化連結'); // 缺 → 不渲染该行
+    expect(out.body).toContain('無修連結:<a href="https://ok.com/u">');
     expect(out.body).toContain('集数:12话');
   });
 
-  it('零事实:全骨架【待补】,仅散文有内容', () => {
+  it('零事实:无抬头/无连结,仅散文,title【待补】', () => {
     const out = assembleDraft(slots(), {});
     expect(out.title).toBe(PLACEHOLDER);
-    expect(out.body).toContain(`作品名:${PLACEHOLDER}`);
-    expect(out.body).toContain(`漢化連結:${PLACEHOLDER}`);
-    expect(out.body).toContain(`無修連結:${PLACEHOLDER}`);
+    expect(out.body).not.toContain('作品名');
+    expect(out.body).not.toContain('漢化連結');
+    expect(out.body).not.toContain('無修連結');
+    expect(out.body).not.toContain(PLACEHOLDER); // 正文零【待补】
     expect(out.body).toContain('<p>嗨嗨~大家好我是51娘</p>');
-    // 零事实 → 无任何连结
     expect(verifyLinks(out.body, factUrls({})).length).toBe(0);
   });
 });

@@ -17,6 +17,7 @@ import { orchestratePublish, type GateDecision } from '../lib/publish-orchestrat
 import { abortBatch, releaseQuarantine, patchBatchDrafts, type Batch } from '../lib/batch';
 import { buildPrompt } from '../lib/messaging';
 import { runBatch, approveBatch, retryItem } from '../lib/batch-orchestrator';
+import { evaluateGrounding } from '../lib/grounding-gate';
 import {
   saveDryRunReport,
   writeFillTombstone,
@@ -213,6 +214,7 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
         saveDryRunReportFn: deps.saveDryRunReportFn,
         writeTombstone: deps.writeTombstone,
         clearTombstone: deps.clearTombstone,
+        checkGrounding: evaluateGrounding,
       });
       if (result) {
         const confirmedTopics = result.items
