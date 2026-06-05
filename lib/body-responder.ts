@@ -1,4 +1,5 @@
 import { pasteIntoQuill } from './quill-paste';
+import { resolveFrameForSelector } from './frame-resolve';
 import {
   EVT_FILL_BODY,
   EVT_BODY_FILLED,
@@ -33,7 +34,10 @@ export function installBodyResponder(
     if (!detail || typeof detail.html !== 'string' || typeof detail.selector !== 'string') return;
     let result: BodyFilledDetail;
     try {
-      const res = paste(detail.html, detail.selector, win as WinWithQuill, doc);
+      // 编辑器可能在同源子 iframe(layuiAdmin):顶层找不到 #editor 时下钻一层,
+      // 用该 frame 的 window(取其 window.Quill)与 document 写入。主世界 + 同源 → 可访问 iframe.contentWindow.Quill。
+      const frame = resolveFrameForSelector(doc, detail.selector, win);
+      const res = paste(detail.html, detail.selector, frame.win as WinWithQuill, frame.doc);
       result = { reqId: detail.reqId, ok: res.ok, error: res.error, degraded: res.degraded };
     } catch {
       result = { reqId: detail.reqId, ok: false, error: '正文写入异常,请手动粘贴。' };
