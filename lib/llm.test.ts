@@ -103,7 +103,8 @@ describe('generateDraft (结构化组装)', () => {
       expect(res.draft.body).toContain('<a href="https://h.com/a">');
       expect(res.draft.body).toContain('<p>引子</p>');
       expect(res.draft.tags).toEqual(['奇幻', '冒險']);
-      expect(res.draft.category).toBe('2');
+      // 分类经 normalizeCategory:模型给后台 value '2' → 归一化为后台真实 label(fillNativeSelect 按文本命中)。
+      expect(res.draft.category).toBe('漫畫文章');
       expect(res.draft.status).toBe('draft');
       expect(res.draft.postStatus).toBe('1'); // 非 AI 默认值
       expect(res.draft.createdAt).toBe('2026-06-03T00:00:00.000Z');

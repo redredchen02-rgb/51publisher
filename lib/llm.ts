@@ -1,6 +1,7 @@
 import type { ContentDraft, GenerateDraftResponse, Settings } from './types';
 import type { FactsBlock } from './facts';
 import { assembleDraft, type AssembledDraft, type DraftSlots } from './post-assembler';
+import { normalizeCategory } from './vocab';
 
 // 窄 provider adapter:首版只实现 OpenAI 兼容 chat/completions。
 // 换厂商 = 加一个 buildRequest/parseResponse,而非改 background。
@@ -270,5 +271,7 @@ export async function generateDraft(prompt: string, deps: LlmDeps): Promise<Gene
   // 程序化组装:facts verbatim 注入正文,模型只贡献口吻槽位。
   const assembled = assembleDraft(slotsFromParsed(parsed), facts);
   const tags = Array.isArray(parsed.tags) ? parsed.tags.map(str).filter(Boolean) : [];
-  return { ok: true, draft: toDraft(assembled, str(parsed.category), tags, id, now) };
+  // 分类归一化:模型自由文字(「同人」「成人動畫」)→ 后台真实 label,避免填充 degrade。
+  const category = normalizeCategory(str(parsed.category));
+  return { ok: true, draft: toDraft(assembled, category, tags, id, now) };
 }
