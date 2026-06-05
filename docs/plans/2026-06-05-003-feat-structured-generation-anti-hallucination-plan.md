@@ -2,7 +2,7 @@
 date: 2026-06-05
 plan_id: 2026-06-05-003
 type: feat
-status: active
+status: completed
 topic: structured-generation-anti-hallucination
 origin: docs/brainstorms/2026-06-05-content-quality-and-first-flight-requirements.md
 depth: deep
