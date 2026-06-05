@@ -1,4 +1,5 @@
 // 三层(side panel / background / content script)共享的类型定义。
+import type { FactsBlock } from './facts';
 
 /** 草稿在本插件内的生命周期状态(注意与后台表单的"显示/隐藏"状态 postStatus 区分)。 */
 export type DraftStatus = 'draft' | 'filled' | 'published';
@@ -71,8 +72,10 @@ export interface Settings {
   endpoint: string;
   /** 模型名。 */
   model: string;
-  /** prompt 模板,用户主题会注入其中。 */
+  /** prompt 模板,用户主题会注入其中。支持占位符 {{topic}} {{facts}} {{fewshot}}。 */
   promptTemplate: string;
+  /** 51娘 few-shot 范例(源接地,R7);与 promptTemplate 分开存以便单独调。缺失时回落默认。 */
+  fewShotExamples?: string;
   /** 字段映射(可在设置页编辑)。 */
   fieldMapping: FieldMapping;
 }
@@ -105,7 +108,8 @@ export type RuntimeMessage =
   // background → content:一次性"准许"。content 只在收到此消息时才触发提交。
   | { type: 'PUBLISH_GRANT' }
   // side panel → background:批量编排(均显式 tabId,绝不查 active)。
-  | { type: 'RUN_BATCH'; topics: string[]; tabId: number }
+  // facts 与 topics 同序平行(源接地);iterate=true 走"只生成不发"迭代通道(R8,绕重入闸)。
+  | { type: 'RUN_BATCH'; topics: string[]; tabId: number; facts?: FactsBlock[]; iterate?: boolean }
   | { type: 'APPROVE_BATCH'; tabId: number; draftOverrides?: Record<string, ContentDraft> }
   | { type: 'KILL_BATCH' }
   | { type: 'RELEASE_QUARANTINE'; itemId: string }

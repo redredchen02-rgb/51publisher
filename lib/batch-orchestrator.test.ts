@@ -84,8 +84,33 @@ describe('runBatch', () => {
     expect(result!.items.every((it) => it.status === 'awaiting-approval')).toBe(true);
     // generateDraft 被调用 2 次
     expect(deps.generateDraft).toHaveBeenCalledTimes(2);
-    expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_A);
-    expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_B);
+    // 签名改为 (topic, facts);无事实时 facts=undefined。
+    expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_A, undefined);
+    expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_B, undefined);
+  });
+
+  it('源接地:facts 与 topics 同序平行,透传给 generateDraft 并落到 item.facts', async () => {
+    const factsA = { 作品名: 'A作', 漢化: 'https://h/a' };
+    const factsB = { 作品名: 'B作' };
+    const deps = makeRunDeps({ facts: [factsA, factsB] });
+    const result = await runBatch(deps);
+    expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_A, factsA);
+    expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_B, factsB);
+    expect(result!.items[0]!.facts).toEqual(factsA);
+    expect(result!.items[1]!.facts).toEqual(factsB);
+  });
+
+  it('重入闸:默认过滤已发布选题(persistentBlockedTopics)', async () => {
+    const deps = makeRunDeps({ persistentBlockedTopics: [TOPIC_A] });
+    const result = await runBatch(deps);
+    expect(result!.items.map((it) => it.topic)).toEqual([TOPIC_B]);
+  });
+
+  it('R8 迭代通道:bypassReentry=true 时不过滤已发布选题(可重跑对比)', async () => {
+    const deps = makeRunDeps({ persistentBlockedTopics: [TOPIC_A], bypassReentry: true });
+    const result = await runBatch(deps);
+    expect(result!.items.map((it) => it.topic)).toEqual([TOPIC_A, TOPIC_B]);
+    expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_A, undefined);
   });
 
   it('tab 漂移中断: pinnedHostOk 第 2 次返回 false → 只生成第 1 条', async () => {
@@ -365,7 +390,7 @@ describe('retryItem', () => {
     expect(result).not.toBeNull();
     expect(result!.items[0]!.status).toBe('awaiting-approval');
     expect(deps.generateDraft).toHaveBeenCalledOnce();
-    expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_A);
+    expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_A, undefined);
   });
 
   it('other items in batch not modified', async () => {

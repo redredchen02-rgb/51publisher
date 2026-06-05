@@ -2,6 +2,7 @@ import { browser } from '#imports';
 import type { ContentDraft, FillPageResponse, GenerateDraftResponse, PublishPageResponse } from './types';
 import type { Batch } from './batch';
 import type { DriftReport } from './selectors';
+import { applyPromptTemplate, type FactsBlock } from './facts';
 
 /** side panel → background:生成草稿。 */
 export async function requestGenerate(prompt: string): Promise<GenerateDraftResponse> {
@@ -33,8 +34,13 @@ export async function requestPublish(tabId: number): Promise<PublishPageResponse
 export type BatchResponse = Batch | null;
 
 /** 启动批量:逐条生成+填充到钉住的 tab,完成后进入 awaiting-approval。 */
-export async function runBatch(topics: string[], tabId: number): Promise<BatchResponse> {
-  return browser.runtime.sendMessage({ type: 'RUN_BATCH', topics, tabId });
+export async function runBatch(
+  topics: string[],
+  tabId: number,
+  facts?: FactsBlock[],
+  iterate?: boolean,
+): Promise<BatchResponse> {
+  return browser.runtime.sendMessage({ type: 'RUN_BATCH', topics, tabId, facts, iterate });
 }
 
 /** 批准整批:逐条门控发布(钉住的 tab)。draftOverrides 为人工编辑的草稿覆盖(按 itemId)。 */
@@ -71,7 +77,10 @@ export async function checkSelectors(tabId: number): Promise<DriftReport> {
   }
 }
 
-/** 用 prompt 模板 + 主题组装最终 prompt。 */
-export function buildPrompt(template: string, topic: string): string {
-  return template.includes('{{topic}}') ? template.replaceAll('{{topic}}', topic) : `${template}\n主题:${topic}`;
+/**
+ * 用 prompt 模板 + 主题 + (可选)事实 + (可选)few-shot 组装最终 prompt。
+ * 委托 lib/facts 的纯函数;facts/fewShot 省略时行为等同旧两参版(向后兼容)。
+ */
+export function buildPrompt(template: string, topic: string, facts?: FactsBlock, fewShot?: string): string {
+  return applyPromptTemplate(template, topic, facts, fewShot);
 }

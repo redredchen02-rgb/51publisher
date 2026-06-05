@@ -3,6 +3,7 @@ import { browser, storage } from '#imports';
 import type { SafetyMode, ContentDraft } from '../../lib/types';
 import type { Batch } from '../../lib/batch';
 import { batchPhase } from '../../lib/batch';
+import { parseTopicLine, type FactsBlock } from '../../lib/facts';
 import type { DriftReport } from '../../lib/selectors';
 import { getSafetyMode, getPendingQuarantineAlert, clearPendingQuarantineAlert } from '../../lib/storage';
 import {
@@ -83,8 +84,14 @@ export function BatchView({ onBack }: { onBack: () => void }) {
   }
 
   async function handleStart() {
-    // 支持换行分隔的选题列表：拆分 → 去空格 → 去空行 → 去重(保序)。
-    const list = [...new Set(topics.split('\n').map((t) => t.trim()).filter(Boolean))];
+    // 每行解析"选题 || 事实块"(源接地);按 topic 去重保序,facts 与 topics 同序平行。
+    const byTopic = new Map<string, FactsBlock>();
+    for (const line of topics.split('\n')) {
+      const p = parseTopicLine(line);
+      if (p && !byTopic.has(p.topic)) byTopic.set(p.topic, p.facts);
+    }
+    const list = [...byTopic.keys()];
+    const factsList = [...byTopic.values()];
     if (list.length === 0) {
       setError('请先输入选题(每行一条)。');
       return;
@@ -95,8 +102,19 @@ export function BatchView({ onBack }: { onBack: () => void }) {
         setError('未找到当前标签页——请停在 admin 发帖页。');
         return;
       }
-      await runBatch(list, tab.id);
+      await runBatch(list, tab.id, factsList);
       setTopics('');
+      await refresh();
+    });
+  }
+
+  // R8 迭代:改 prompt/few-shot 后,用当前批次的题目+事实"只生成不发"重跑(绕重入闸)。
+  async function handleIterate() {
+    if (!batch) return;
+    await withBusy(async () => {
+      const list = batch.items.map((it) => it.topic);
+      const factsList = batch.items.map((it) => it.facts ?? {});
+      await runBatch(list, batch.tabId, factsList, true);
       await refresh();
     });
   }
@@ -186,14 +204,29 @@ export function BatchView({ onBack }: { onBack: () => void }) {
         />
       )}
 
+      {view === 'batch' && batch && batchPhase(batch) === 'awaiting-approval' && (
+        <div style={{ marginTop: 8 }}>
+          <button
+            onClick={() => void handleIterate()}
+            disabled={busy}
+            title="改了 Settings 的 prompt/few-shot 后,用同批题目重跑生成(只生成不发,可对比效果)"
+            style={{ ...btn, background: '#f0f0f0', color: '#333', fontSize: 12, padding: '4px 10px' }}
+          >
+            {busy ? '重跑中…' : '↻ 重跑生成(改 prompt 后对比)'}
+          </button>
+        </div>
+      )}
+
       {view === 'batch' && safetyMode === 'dry-run' && <DryRunReport />}
 
       {showStarter && (
         <div style={{ marginTop: 12 }}>
-          <div style={{ fontSize: 13, color: '#555', marginBottom: 4 }}>选题(每行一条):</div>
+          <div style={{ fontSize: 13, color: '#555', marginBottom: 4 }}>
+            选题(每行一条);可附事实防幻觉:<code>选题 || 作品名=… | 集数=… | 漢化=… | 無修=…</code>
+          </div>
           <textarea
             style={{ width: '100%', boxSizing: 'border-box', minHeight: 80, padding: 6, fontSize: 13, border: '1px solid #d9d9d9', borderRadius: 4 }}
-            placeholder={'某新番看点\n某里番作品介绍\n…'}
+            placeholder={'某里番作品介绍 || 作品名=◯◯◯ | 集数=6 | 漢化=https://… | 無修=https://…\n某新番看点(纯选题也行,缺的会标【待补】)'}
             value={topics}
             disabled={busy}
             onChange={(e) => setTopics(e.target.value)}

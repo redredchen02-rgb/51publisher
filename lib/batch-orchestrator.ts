@@ -1,4 +1,5 @@
 import type { ContentDraft, FillPageResponse, GenerateDraftResponse, PublishResult, DryRunReport, DryRunItemResult } from './types';
+import type { FactsBlock } from './facts';
 import type { GateDecision } from './publish-orchestrator';
 import type { TrajectoryInput } from './trajectory';
 import type { Batch } from './batch';
@@ -25,19 +26,23 @@ import { orchestratePublish } from './publish-orchestrator';
 
 export interface RunBatchDeps {
   topics: string[];
+  /** 与 topics 同序平行的结构化事实(源接地 R4);可省略(纯选题=零事实)。 */
+  facts?: (FactsBlock | undefined)[];
   tabId: number;
   /** chrome.tabs.get(tabId).hostname;tab 无 url/已关 → null。 */
   resolveHost: () => Promise<string | null>;
   getExistingBatch: () => Promise<Batch | null>;
   /** 当前 tab 的 host 是否仍等于批次创建时记录的 authorizedHost。 */
   pinnedHostOk: (batch: Batch) => Promise<boolean>;
-  generateDraft: (topic: string) => Promise<GenerateDraftResponse>;
+  generateDraft: (topic: string, facts?: FactsBlock) => Promise<GenerateDraftResponse>;
   save: (batch: Batch) => Promise<void>;
   genBatchId: () => string;
   genItemId: (index: number) => string;
   now: () => string;
   /** 持久化已发布选题(跨 session 去重);与 in-memory quarantinedTopics 合并后过滤。 */
   persistentBlockedTopics?: string[];
+  /** R8 迭代通道:true 时跳过重入闸(不查 publishedTopics/隔离),允许重跑已发题目对比效果。 */
+  bypassReentry?: boolean;
 }
 
 /** 批量生成循环。返回最终 Batch 状态;host 解析失败或所有 topic 均被重入过滤 → null。 */
@@ -48,14 +53,25 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
   const host = await resolveHost();
   if (!host) return null;
 
-  // 重入守卫:排除上一批仍被隔离的同选题 + 持久化已发布选题(防跨 session 重发)。
-  const existing = await getExistingBatch();
-  const inMemoryBlocked = existing ? quarantinedTopics(existing) : [];
-  const allBlocked = [...inMemoryBlocked, ...(deps.persistentBlockedTopics ?? [])];
-  const fresh = filterReentrantTopics(topics, allBlocked);
-  if (fresh.length === 0) return existing;
+  // topic → facts 映射(过滤后用 fresh 题目回查对齐;重复题目后者覆盖)。
+  const factsByTopic = new Map<string, FactsBlock | undefined>();
+  topics.forEach((t, i) => factsByTopic.set(t, deps.facts?.[i]));
 
-  let batch = createBatch(genBatchId(), tabId, host, fresh, now(), genItemId);
+  // 重入守卫:排除上一批仍被隔离的同选题 + 持久化已发布选题(防跨 session 重发)。
+  // R8 迭代通道(bypassReentry)跳过此守卫,允许重跑已发题目对比 prompt/few-shot 效果。
+  const existing = await getExistingBatch();
+  let fresh: string[];
+  if (deps.bypassReentry) {
+    fresh = topics;
+  } else {
+    const inMemoryBlocked = existing ? quarantinedTopics(existing) : [];
+    const allBlocked = [...inMemoryBlocked, ...(deps.persistentBlockedTopics ?? [])];
+    fresh = filterReentrantTopics(topics, allBlocked);
+    if (fresh.length === 0) return existing;
+  }
+
+  const freshFacts = fresh.map((t) => factsByTopic.get(t));
+  let batch = createBatch(genBatchId(), tabId, host, fresh, now(), genItemId, freshFacts);
   await save(batch);
 
   for (const item of batch.items) {
@@ -63,7 +79,7 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
     batch = markGenerating(batch, item.id);
     await save(batch);
 
-    const gen = await generateDraft(item.topic);
+    const gen = await generateDraft(item.topic, item.facts);
     if (!gen.ok) {
       batch = markGenerateFailed(batch, item.id, gen.error);
       await save(batch);
@@ -207,7 +223,7 @@ function defaultSnapshotDropped(itemId: string): void {
 export interface RetryItemDeps {
   getBatch: () => Promise<Batch | null>;
   save: (batch: Batch) => Promise<void>;
-  generateDraft: (topic: string) => Promise<GenerateDraftResponse>;
+  generateDraft: (topic: string, facts?: FactsBlock) => Promise<GenerateDraftResponse>;
 }
 
 /**
@@ -229,7 +245,7 @@ export async function retryItem(deps: RetryItemDeps, itemId: string): Promise<Ba
   batch = markGenerating(batch, itemId);
   await deps.save(batch);
 
-  const gen = await deps.generateDraft(item.topic);
+  const gen = await deps.generateDraft(item.topic, item.facts);
   if (!gen.ok) {
     batch = markGenerateFailed(batch, itemId, gen.error);
     await deps.save(batch);

@@ -31,6 +31,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
   const [model, setModel] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [promptTemplate, setPromptTemplate] = useState('');
+  const [fewShotExamples, setFewShotExamples] = useState('');
   const [mappingText, setMappingText] = useState('');
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
@@ -41,6 +42,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
       setEndpoint(s.endpoint);
       setModel(s.model);
       setPromptTemplate(s.promptTemplate);
+      setFewShotExamples(s.fewShotExamples ?? '');
       setMappingText(JSON.stringify(s.fieldMapping, null, 2));
       setApiKey(key);
     })();
@@ -58,7 +60,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
       return;
     }
     setError('');
-    await saveSettings({ endpoint, model, promptTemplate, fieldMapping: JSON.parse(mappingText) as FieldMapping });
+    await saveSettings({ endpoint, model, promptTemplate, fewShotExamples, fieldMapping: JSON.parse(mappingText) as FieldMapping });
     await saveApiKey(apiKey);
     setSaved(true);
   }
@@ -80,8 +82,27 @@ export function Settings({ onClose }: { onClose: () => void }) {
         ⚠️ key 以明文存储于本地浏览器(chrome.storage.local),并会随请求发往上面配置的 endpoint。请只配置可信地址,建议使用权限受限的专用 key。
       </p>
 
-      <label style={labelStyle}>Prompt 模板(用 {'{{topic}}'} 注入主题)</label>
-      <textarea style={{ ...inputStyle, minHeight: 80 }} value={promptTemplate} onChange={(e) => setPromptTemplate(e.target.value)} />
+      <label style={labelStyle}>
+        Prompt 模板(占位符:{'{{topic}}'} 选题 / {'{{facts}}'} 事实块 / {'{{fewshot}}'} 范例)
+        <button style={{ marginLeft: 8, fontSize: 11 }} onClick={() => setPromptTemplate(DEFAULT_SETTINGS.promptTemplate)}>
+          恢复默认
+        </button>
+      </label>
+      <textarea style={{ ...inputStyle, minHeight: 120 }} value={promptTemplate} onChange={(e) => setPromptTemplate(e.target.value)} />
+      <p style={{ color: '#888', fontSize: 11, margin: '2px 0 0' }}>
+        源接地:AI 只用 {'{{facts}}'} 里给的事实润色,缺的标【待补】,连结只用给定 URL——防止编造作品事实/连结。
+      </p>
+
+      <label style={labelStyle}>
+        Few-shot 范例(51娘 口吻/结构示例,与 prompt 分开调)
+        <button style={{ marginLeft: 8, fontSize: 11 }} onClick={() => setFewShotExamples(DEFAULT_SETTINGS.fewShotExamples ?? '')}>
+          恢复默认
+        </button>
+      </label>
+      <textarea style={{ ...inputStyle, minHeight: 100 }} value={fewShotExamples} onChange={(e) => setFewShotExamples(e.target.value)} />
+      <p style={{ color: '#888', fontSize: 11, margin: '2px 0 0' }}>
+        ⚠️ 范例里别写真实漢化/無修连结(会随每次请求发往 endpoint);用占位即可。
+      </p>
 
       <label style={labelStyle}>
         字段映射(JSON)

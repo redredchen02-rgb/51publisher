@@ -1,4 +1,5 @@
 import type { ContentDraft, FieldFillResult } from './types';
+import type { FactsBlock } from './facts';
 
 // 批量发布队列状态机(纯函数,无副作用/不碰 chrome)。
 // background 拿它做编排,把异步效果(生成/填充/发布)的结果喂进来推进状态。
@@ -27,6 +28,8 @@ export type BatchItemStatus =
 export interface BatchItem {
   id: string;
   topic: string;
+  /** 源接地结构化事实(R4);生成时喂给 buildPrompt,AI 只用这些事实不得编造。 */
+  facts?: FactsBlock;
   status: BatchItemStatus;
   /** 生成阶段存下的草稿;批准时填进表单 + 发布。 */
   draft?: ContentDraft;
@@ -66,13 +69,17 @@ export function createBatch(
   topics: string[],
   now: string,
   genItemId: (index: number) => string,
+  facts?: (FactsBlock | undefined)[],
 ): Batch {
   return {
     id,
     tabId,
     authorizedHost,
     createdAt: now,
-    items: topics.map((topic, i) => ({ id: genItemId(i), topic, status: 'queued' as const })),
+    items: topics.map((topic, i) => {
+      const f = facts?.[i];
+      return { id: genItemId(i), topic, status: 'queued' as const, ...(f ? { facts: f } : {}) };
+    }),
   };
 }
 

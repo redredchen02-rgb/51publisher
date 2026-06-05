@@ -27,6 +27,7 @@ import {
   getBatch as getBatchRaw,
 } from '../lib/storage';
 import type { ContentDraft } from '../lib/types';
+import type { FactsBlock } from '../lib/facts';
 
 // Background service worker:调度中心 + 发布闸门。
 // - 点扩展图标打开 side panel
@@ -142,7 +143,12 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 
   let batchSeq = 0;
 
-  async function handleRunBatch(topics: string[], tabId: number): Promise<Batch | null> {
+  async function handleRunBatch(
+    topics: string[],
+    tabId: number,
+    facts?: FactsBlock[],
+    iterate?: boolean,
+  ): Promise<Batch | null> {
     try {
       const [settings, apiKey, publishedTopics] = await Promise.all([
         deps.getSettings(),
@@ -151,17 +157,19 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
       ]);
       return await runBatch({
         topics,
+        facts,
         tabId,
         resolveHost: () => resolveTabHost(tabId),
         getExistingBatch: deps.getBatch,
         pinnedHostOk,
-        generateDraft: (topic) =>
-          deps.generateDraftFn(buildPrompt(settings.promptTemplate, topic), { settings, apiKey }),
+        generateDraft: (topic, itemFacts) =>
+          deps.generateDraftFn(buildPrompt(settings.promptTemplate, topic, itemFacts, settings.fewShotExamples), { settings, apiKey }),
         save: deps.saveBatch,
         genBatchId: () => { batchSeq += 1; return deps.buildBatchId(); },
         genItemId: deps.buildItemId,
         now: deps.now,
         persistentBlockedTopics: publishedTopics,
+        bypassReentry: iterate,
       });
     } catch (err) {
       console.error('[bg] 批量生成失败', err);
@@ -246,8 +254,8 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
         {
           getBatch: deps.getBatch,
           save: deps.saveBatch,
-          generateDraft: (topic) =>
-            deps.generateDraftFn(buildPrompt(settings.promptTemplate, topic), { settings, apiKey }),
+          generateDraft: (topic, itemFacts) =>
+            deps.generateDraftFn(buildPrompt(settings.promptTemplate, topic, itemFacts, settings.fewShotExamples), { settings, apiKey }),
         },
         itemId,
       );
@@ -334,7 +342,7 @@ export default defineBackground(() => {
   browser.runtime.onMessage.addListener((message: RuntimeMessage) => {
     if (message?.type === 'GENERATE_DRAFT') return handlers.handleGenerate(message.prompt);
     if (message?.type === 'PUBLISH_PAGE') return handlers.handlePublish(message.tabId);
-    if (message?.type === 'RUN_BATCH') return handlers.handleRunBatch(message.topics, message.tabId);
+    if (message?.type === 'RUN_BATCH') return handlers.handleRunBatch(message.topics, message.tabId, message.facts, message.iterate);
     if (message?.type === 'APPROVE_BATCH') return handlers.handleApproveBatch(message.tabId, message.draftOverrides);
     if (message?.type === 'KILL_BATCH') return handlers.handleKillBatch();
     if (message?.type === 'RELEASE_QUARANTINE') return handlers.handleReleaseQuarantine(message.itemId);

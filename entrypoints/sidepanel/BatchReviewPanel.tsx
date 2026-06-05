@@ -4,6 +4,50 @@ import { type Batch, type BatchItem, batchSummary, batchPhase } from '../../lib/
 import type { DriftReport } from '../../lib/selectors';
 import type { TrajectoryRecord } from '../../lib/trajectory';
 import { DraftPreview } from './DraftPreview';
+import { verifyLinks } from '../../lib/link-source';
+import { factUrls, type FactsBlock } from '../../lib/facts';
+
+/**
+ * 源接地审核摘要(R6):发布前一眼看到缺口与可疑连结。
+ * - 【待补】计数:草稿里未补全的事实占位。
+ * - 连结来源校验:正文每条 URL 是否来自输入事实(✗=疑似 AI 编造)。
+ */
+function GroundingStrip({ draft, facts }: { draft: ContentDraft; facts?: FactsBlock }) {
+  const text = `${draft.title} ${draft.subtitle} ${draft.body} ${draft.description}`;
+  const todoCount = (text.match(/【待补】/g) ?? []).length;
+  let links: { url: string; sourced: boolean }[] = [];
+  try {
+    links = verifyLinks(draft.body, factUrls(facts ?? {}));
+  } catch {
+    links = [];
+  }
+  const unsourced = links.filter((l) => !l.sourced).length;
+
+  if (todoCount === 0 && links.length === 0) {
+    return <div style={{ marginTop: 4, fontSize: 11, color: '#389e0d' }}>✓ 无待补、无可疑连结</div>;
+  }
+  return (
+    <div style={{ marginTop: 4, fontSize: 11 }}>
+      <span style={{ color: todoCount > 0 ? '#d46b08' : '#389e0d', fontWeight: 600 }}>
+        {todoCount > 0 ? `⚠ ${todoCount} 处【待补】(发布前请补全)` : '0 待补'}
+      </span>
+      {links.length > 0 && (
+        <ul style={{ margin: '4px 0 0', padding: '0 0 0 12px' }}>
+          {links.map((l, i) => (
+            <li key={i} style={{ color: l.sourced ? '#389e0d' : '#cf1322' }}>
+              {l.sourced ? '✓' : '✗ 非来源(疑似编造)'} <code style={{ wordBreak: 'break-all' }}>{l.url}</code>
+            </li>
+          ))}
+        </ul>
+      )}
+      {unsourced > 0 && (
+        <div style={{ color: '#cf1322', fontWeight: 600, marginTop: 2 }}>
+          ⚠ {unsourced} 条连结不在输入事实中,发布前务必核实
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * 字段填充三态状态表。
@@ -240,6 +284,7 @@ export function BatchReviewPanel(props: Props) {
                 ) : (
                   <span style={{ color: '#999' }}>无草稿内容{it.error ? `(${it.error})` : ''}</span>
                 )}
+                {it.draft && <GroundingStrip draft={draftOverrides?.get(it.id) ?? it.draft} facts={it.facts} />}
                 <FillStatusTable results={it.fillResults} />
                 {(it.status === 'error' || it.status === 'aborted') && onRetryItem && (
                   <div style={{ marginTop: 6 }}>
