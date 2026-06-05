@@ -3,20 +3,47 @@ import type { ContentDraft, FillPageResponse, GenerateDraftResponse, PublishPage
 import type { Batch } from './batch';
 import type { DriftReport } from './selectors';
 import { applyPromptTemplate, type FactsBlock } from './facts';
+import { DEFAULT_RECIPE } from './recipe';
 
 /** side panel → background:生成草稿。 */
 export async function requestGenerate(prompt: string): Promise<GenerateDraftResponse> {
   return browser.runtime.sendMessage({ type: 'GENERATE_DRAFT', prompt });
 }
 
-/** side panel → 当前标签页 content script:填充。 */
+/**
+ * 纯函数:从 tab 列表挑出后台发帖页 tab id。
+ * 优先当前活动 tab(若它就是后台页);否则取任一 host 匹配的后台页 tab。
+ * 解决「填充到当前页」对活动 tab 的脆依赖——发帖页不在最前面(切了别的分页)时也能填。
+ */
+export function pickAdminTabId(
+  activeTab: { id?: number; url?: string } | undefined,
+  hostMatchedTabs: ReadonlyArray<{ id?: number }>,
+  host: string,
+): number | null {
+  if (activeTab?.id != null && activeTab.url?.includes(host)) return activeTab.id;
+  const withId = hostMatchedTabs.find((t) => typeof t.id === 'number');
+  return withId?.id ?? null;
+}
+
+/** 解析后台发帖页所在 tab id(优先活动 tab,否则按 host 在所有窗口里找)。 */
+async function resolveAdminTabId(): Promise<number | null> {
+  const host = DEFAULT_RECIPE.host;
+  const [active] = await browser.tabs.query({ active: true, currentWindow: true });
+  // host 权限已覆盖该域 → 无需 'tabs' 权限即可按 url 查询。
+  const matched = await browser.tabs.query({ url: `https://${host}/*` });
+  return pickAdminTabId(active, matched, host);
+}
+
+/** side panel → 后台发帖页 content script:填充。自动定位发帖页 tab,不依赖它是否在最前面。 */
 export async function requestFill(draft: ContentDraft): Promise<FillPageResponse> {
-  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id) return { ok: false, error: '未找到当前标签页。' };
+  const tabId = await resolveAdminTabId();
+  if (tabId == null) {
+    return { ok: false, error: '未找到 51publisher 发帖页标签——请先在浏览器打开后台发帖页。' };
+  }
   try {
-    return await browser.tabs.sendMessage(tab.id, { type: 'FILL_PAGE', draft });
+    return await browser.tabs.sendMessage(tabId, { type: 'FILL_PAGE', draft });
   } catch {
-    return { ok: false, error: '无法连接页面填充脚本——请确认当前停在 51publisher 发帖页并已打开「添加」表单。' };
+    return { ok: false, error: '无法连接页面填充脚本——请在发帖页打开「添加」表单;若刚重载过扩展,请按 F5 刷新该页。' };
   }
 }
 
