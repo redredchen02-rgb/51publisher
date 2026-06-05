@@ -46,7 +46,7 @@ pnpm build          # 产出 .output/chrome-mv3/
 | endpoint | 大模型地址,**仅支持 OpenAI 兼容 `chat/completions`**,必须 `https://`。 |
 | 模型 | 模型名,如 `gpt-4o-mini`。 |
 | API key | **明文存于本地浏览器(`chrome.storage.local`)**,并会随请求发往你配置的 endpoint。 |
-| Prompt 模板 | 用 `{{topic}}` 注入你输入的主题。要求模型以 JSON 返回 title/subtitle/category/body/tags/description。 |
+| Prompt 模板 | 注入 `{{topic}}`/`{{facts}}`/`{{fewshot}}`。模型只回口吻散文槽位(intro/highlights…);**正文由系统用你的事实组装**,模型不写连结/作品名(防幻觉,见下)。 |
 | 字段映射 | 默认值来自现场勘查,通常无需改;后台改版时按指南更新。带 JSON + schema 校验与「恢复默认」。 |
 
 ## 使用
@@ -76,6 +76,7 @@ pnpm build          # 产出 .output/chrome-mv3/
 
 ## 安全与边界
 
+- **防幻觉(程序化结构化生成)**:模型只写口吻散文,作品名/集数/连结由程式从操作者事实 verbatim 注入正文,模型碰不到——连结/作品事实编造面归零;authorized 发布前有硬闸(残留【待补】/无来源连结即拦)。见 `lib/post-assembler.ts`、`lib/grounding-gate.ts`。
 - 不自动提交/发布(硬约束)。
 - API key 明文存本地、只在 background 使用、绝不进入页面上下文,也不写入错误日志;但仍会发往你配置的 endpoint——**请只配置可信地址,建议用权限受限的专用 key**。
 - 正文 HTML 来自大模型(最不可信输入),写入 Quill 前在隔离世界按白名单消毒(剥除 `<script>`/事件处理器/`javascript:` 等),防 XSS。
