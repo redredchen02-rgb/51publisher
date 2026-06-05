@@ -50,6 +50,8 @@ function firstUrl(s: string): string | null {
  *  - 去 HTML 标签(防注入);
  *  - 裸 URL → 【待补】(模型试图自造连结的信号,真连结只走程式注入);
  *  - 折叠空白。
+ * 注意:正则去标签不是安全边界(可被未闭合标签绕过)—— 真正的边界是其后的 esc() 转义
+ * 与下游 sanitizeBody(DOMPurify)。此处只为产出可读纯文本。
  */
 export function sanitizeToPlainText(s: string | undefined): string {
   if (!s) return '';

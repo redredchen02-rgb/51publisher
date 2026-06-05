@@ -126,6 +126,20 @@ describe('assembleDraft — XSS 注入散文', () => {
     expect(out.body).toContain('作品名:A&lt;b&gt;&amp;&quot;C');
     expect(out.body).not.toContain('作品名:A<b>');
   });
+
+  it('未闭合标签绕过 strip 后仍被 esc 中和(< 成 &lt;,不成活标签)', () => {
+    const out = assembleDraft(slots({ intro: '<img src=x onerror=alert(1)' }), { 作品名: 'A' });
+    expect(out.body).not.toContain('<img'); // 无存活标签(onerror 残留为惰性文字,无害)
+    expect(out.body).toContain('&lt;img');
+  });
+
+  it('facts 连结值含引号/markup → href 不被属性突破', () => {
+    const facts = { 作品名: 'A', 漢化: 'https://e.com/"><script>x' };
+    const out = assembleDraft(slots(), facts);
+    expect(out.body).not.toContain('<script>');
+    expect(out.body).not.toContain('"><'); // 引号被转义,无法突破 href 属性
+    expect(hasUnsourcedLink(verifyLinks(out.body, factUrls(facts)))).toBe(false);
+  });
 });
 
 describe('assembleDraft — 连结字段含额外文本', () => {
