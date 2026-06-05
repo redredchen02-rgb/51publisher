@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { DEFAULT_SETTINGS, getApiKey, getSettings, saveApiKey, saveSettings } from '../../lib/storage';
+import { listModels } from '../../lib/llm';
 import type { FieldMapping, FieldType } from '../../lib/types';
 
 const FIELD_TYPES: FieldType[] = ['text', 'textarea', 'quill', 'native-select', 'checkbox-multi', 'date', 'custom-dropdown', 'tag-input'];
@@ -35,6 +36,33 @@ export function Settings({ onClose }: { onClose: () => void }) {
   const [mappingText, setMappingText] = useState('');
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [models, setModels] = useState<string[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [modelsMsg, setModelsMsg] = useState('');
+
+  async function handleFetchModels() {
+    setModelsMsg('');
+    setModels([]);
+    if (!endpoint || !apiKey) {
+      setModelsMsg('请先填 endpoint(base URL 即可)与 API key。');
+      return;
+    }
+    setLoadingModels(true);
+    try {
+      const r = await listModels(endpoint, apiKey);
+      if (r.ok) {
+        setModels(r.models);
+        if (!r.models.includes(model)) setModel(r.models[0] ?? model);
+        setModelsMsg(`拉到 ${r.models.length} 个模型,请在下拉里选择。`);
+      } else {
+        setModelsMsg(r.error);
+      }
+    } catch {
+      setModelsMsg('拉取失败,请重试。');
+    } finally {
+      setLoadingModels(false);
+    }
+  }
 
   useEffect(() => {
     void (async () => {
@@ -70,17 +98,39 @@ export function Settings({ onClose }: { onClose: () => void }) {
       <button onClick={onClose} style={{ fontSize: 13, marginBottom: 8 }}>← 返回</button>
       <h2 style={{ fontSize: 15, margin: '0 0 4px' }}>设置</h2>
 
-      <label style={labelStyle}>大模型 endpoint(仅支持 OpenAI 兼容 chat/completions)</label>
-      <input style={inputStyle} value={endpoint} placeholder="https://api.openai.com/v1/chat/completions" onChange={(e) => setEndpoint(e.target.value)} />
-
-      <label style={labelStyle}>模型</label>
-      <input style={inputStyle} value={model} onChange={(e) => setModel(e.target.value)} />
+      <label style={labelStyle}>大模型 endpoint(OpenAI 兼容;填 base URL 或完整地址均可)</label>
+      <input style={inputStyle} value={endpoint} placeholder="https://la-sealion.inaiai.com/v1" onChange={(e) => setEndpoint(e.target.value)} />
+      <p style={{ color: '#888', fontSize: 11, margin: '2px 0 0' }}>
+        只填到 <code>/v1</code> 即可,会自动补 <code>/chat/completions</code> 与 <code>/models</code>。
+      </p>
 
       <label style={labelStyle}>API key</label>
-      <input style={inputStyle} type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+      <input style={inputStyle} type="password" value={apiKey} placeholder="sk-..." onChange={(e) => setApiKey(e.target.value)} />
       <p style={{ color: '#cf1322', fontSize: 11, margin: '2px 0 0' }}>
         ⚠️ key 以明文存储于本地浏览器(chrome.storage.local),并会随请求发往上面配置的 endpoint。请只配置可信地址,建议使用权限受限的专用 key。
       </p>
+
+      <label style={labelStyle}>
+        模型
+        <button
+          style={{ marginLeft: 8, fontSize: 11 }}
+          onClick={() => void handleFetchModels()}
+          disabled={loadingModels}
+        >
+          {loadingModels ? '拉取中…' : '↻ 拉取模型列表'}
+        </button>
+      </label>
+      {models.length > 0 ? (
+        <select style={inputStyle} value={model} onChange={(e) => setModel(e.target.value)} aria-label="选择模型">
+          {!models.includes(model) && model && <option value={model}>{model}(手填)</option>}
+          {models.map((m) => (
+            <option key={m} value={m}>{m}</option>
+          ))}
+        </select>
+      ) : (
+        <input style={inputStyle} value={model} placeholder="拉取列表选择,或手填模型名" onChange={(e) => setModel(e.target.value)} />
+      )}
+      {modelsMsg && <p style={{ color: models.length > 0 ? '#389e0d' : '#cf1322', fontSize: 11, margin: '2px 0 0' }}>{modelsMsg}</p>}
 
       <label style={labelStyle}>
         Prompt 模板(占位符:{'{{topic}}'} 选题 / {'{{facts}}'} 事实块 / {'{{fewshot}}'} 范例)

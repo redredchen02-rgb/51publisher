@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { generateDraft, toDraft, buildRequest } from './llm';
+import { generateDraft, toDraft, buildRequest, chatCompletionsUrl, modelsUrl, listModels } from './llm';
 import { DEFAULT_SETTINGS } from './storage';
 import type { Settings } from './types';
 
@@ -33,6 +33,59 @@ function mockFetch(
 
 const oaiReply = (content: string) => ({ choices: [{ message: { content } }] });
 const base = { now: () => '2026-06-03T00:00:00.000Z', genId: () => 'draft_1' };
+
+describe('chatCompletionsUrl / modelsUrl', () => {
+  it('base URL → 补全 chat/completions 与 models', () => {
+    expect(chatCompletionsUrl('https://h.com/v1')).toBe('https://h.com/v1/chat/completions');
+    expect(modelsUrl('https://h.com/v1')).toBe('https://h.com/v1/models');
+  });
+  it('完整地址 → chat 原样、models 剥换', () => {
+    expect(chatCompletionsUrl('https://h.com/v1/chat/completions')).toBe('https://h.com/v1/chat/completions');
+    expect(modelsUrl('https://h.com/v1/chat/completions')).toBe('https://h.com/v1/models');
+  });
+  it('容忍尾斜杠', () => {
+    expect(chatCompletionsUrl('https://h.com/v1/')).toBe('https://h.com/v1/chat/completions');
+    expect(modelsUrl('https://h.com/v1/')).toBe('https://h.com/v1/models');
+  });
+});
+
+describe('buildRequest', () => {
+  it('用派生的 chat/completions 地址(支持 base URL)', () => {
+    const r = buildRequest('p', { ...settings, endpoint: 'https://h.com/v1' }, 'k');
+    expect(r.url).toBe('https://h.com/v1/chat/completions');
+  });
+});
+
+describe('listModels', () => {
+  it('happy path:解析 data[].id 并排序', async () => {
+    const f = mockFetch({ data: [{ id: 'gpt-4o' }, { id: 'claude-3' }, { id: 'gpt-4o-mini' }] });
+    const r = await listModels('https://h.com/v1', 'k', f);
+    expect(r).toEqual({ ok: true, models: ['claude-3', 'gpt-4o', 'gpt-4o-mini'] });
+    // 打到 /models
+    expect(f).toHaveBeenCalledWith('https://h.com/v1/models', expect.objectContaining({ headers: { Authorization: 'Bearer k' } }));
+  });
+  it('缺 key/endpoint → 结构化错误,不发请求', async () => {
+    const f = mockFetch({});
+    expect(await listModels('', 'k', f)).toEqual({ ok: false, error: expect.stringContaining('endpoint') });
+    expect(f).not.toHaveBeenCalled();
+  });
+  it('非 https → 拒绝', async () => {
+    const r = await listModels('http://h.com/v1', 'k', mockFetch({}));
+    expect(r.ok).toBe(false);
+  });
+  it('HTTP 错误 → 结构化错误', async () => {
+    const r = await listModels('https://h.com/v1', 'k', mockFetch({}, { ok: false, status: 401, statusText: 'Unauthorized' }));
+    expect(r).toEqual({ ok: false, error: expect.stringContaining('401') });
+  });
+  it('无 data 数组 → 错误', async () => {
+    const r = await listModels('https://h.com/v1', 'k', mockFetch({ nope: true }));
+    expect(r.ok).toBe(false);
+  });
+  it('超时 → 提示重试', async () => {
+    const r = await listModels('https://h.com/v1', 'k', mockFetch({}, { throwName: 'AbortError' }));
+    expect(r).toEqual({ ok: false, error: expect.stringContaining('超时') });
+  });
+});
 
 describe('generateDraft', () => {
   it('happy path:解析出完整 ContentDraft,status=draft', async () => {
