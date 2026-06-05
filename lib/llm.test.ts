@@ -133,7 +133,7 @@ describe('generateDraft (结构化组装)', () => {
     expect(res.ok).toBe(true);
     if (res.ok) {
       expect(res.draft.title).toBe('【待补】');
-      expect(res.draft.body).toContain('作品名:【待补】');
+      expect(res.draft.body).not.toContain('作品名'); // 缺事实 → 不渲染抬头行
       expect(res.draft.tags).toEqual([]);
     }
   });
