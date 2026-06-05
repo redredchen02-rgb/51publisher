@@ -108,7 +108,7 @@ U2/U5 →(真模型比对口吻)→ U3/U4 →(真模型零编造抽查)。
   ③ 缺漢化/缺作品名 → 对应位置【待补】、title【待补】;④ 零事实 → 全骨架【待补】、仅散文有内容;
   ⑤ 输出 body 经 `verifyLinks(body, factUrls(facts))` **恒无 unsourced**;⑥ XSS 注入散文(`<script>`/`onerror`)→ 不进 body。
 
-### [ ] U2. 结构化 LLM 契约 + schema + 优雅降级
+### [x] U2. 结构化 LLM 契约 + schema + 优雅降级
 **改** `lib/llm.ts` · 测试 `lib/llm.test.ts`(预期较大改测)
 - 新增 `DRAFT_SLOTS_SCHEMA`(JSON Schema,strict):字段 `intro/highlights` 必填字符串,
   `titleSuffix/subtitle/outro/category/tags` 选填;**无 body 字段**。

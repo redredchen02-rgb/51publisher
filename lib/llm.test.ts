@@ -1,7 +1,10 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
-import { generateDraft, toDraft, buildRequest, chatCompletionsUrl, modelsUrl, listModels } from './llm';
+import { generateDraft, toDraft, buildRequest, chatCompletionsUrl, modelsUrl, listModels, slotsFromParsed } from './llm';
+import { assembleDraft } from './post-assembler';
 import { DEFAULT_SETTINGS } from './storage';
 import type { Settings } from './types';
+import type { FactsBlock } from './facts';
 
 const settings: Settings = {
   ...DEFAULT_SETTINGS,
@@ -32,7 +35,9 @@ function mockFetch(
 }
 
 const oaiReply = (content: string) => ({ choices: [{ message: { content } }] });
+const slotsReply = (slots: Record<string, unknown>) => oaiReply(JSON.stringify(slots));
 const base = { now: () => '2026-06-03T00:00:00.000Z', genId: () => 'draft_1' };
+const FACTS: FactsBlock = { 作品名: '作品X', 集数: '2期', 漢化: 'https://h.com/a', 無修: 'https://u.com/b', 简介: '梗概' };
 
 describe('chatCompletionsUrl / modelsUrl', () => {
   it('base URL → 补全 chat/completions 与 models', () => {
@@ -87,18 +92,18 @@ describe('listModels', () => {
   });
 });
 
-describe('generateDraft', () => {
-  it('happy path:解析出完整 ContentDraft,status=draft', async () => {
-    const content = JSON.stringify({
-      title: '标题', subtitle: '副标题', category: '2', body: '<p>正文</p>',
-      tags: ['奇幻', '冒險'], description: '摘要',
-    });
-    const res = await generateDraft('主题', { settings, apiKey: 'k', fetchFn: mockFetch(oaiReply(content)), ...base });
+describe('generateDraft (结构化组装)', () => {
+  it('happy path:模型只回槽位,程式把 facts verbatim 组装进 ContentDraft', async () => {
+    const slots = { titleSuffix: '介紹', subtitle: '副标题', intro: '引子', highlights: '看点', category: '2', tags: ['奇幻', '冒險'] };
+    const res = await generateDraft('主题', { settings, apiKey: 'k', facts: FACTS, fetchFn: mockFetch(slotsReply(slots)), ...base });
     expect(res.ok).toBe(true);
     if (res.ok) {
-      expect(res.draft.title).toBe('标题');
-      expect(res.draft.body).toBe('<p>正文</p>');
+      expect(res.draft.title).toBe('作品X介紹');
+      expect(res.draft.body).toContain('作品名:作品X');
+      expect(res.draft.body).toContain('<a href="https://h.com/a">');
+      expect(res.draft.body).toContain('<p>引子</p>');
       expect(res.draft.tags).toEqual(['奇幻', '冒險']);
+      expect(res.draft.category).toBe('2');
       expect(res.draft.status).toBe('draft');
       expect(res.draft.postStatus).toBe('1'); // 非 AI 默认值
       expect(res.draft.createdAt).toBe('2026-06-03T00:00:00.000Z');
@@ -106,20 +111,52 @@ describe('generateDraft', () => {
   });
 
   it('content 带 ```json 围栏也能解析', async () => {
-    const content = '```json\n{"title":"T","body":"B"}\n```';
-    const res = await generateDraft('主题', { settings, apiKey: 'k', fetchFn: mockFetch(oaiReply(content)), ...base });
+    const content = '```json\n{"intro":"I","highlights":"H"}\n```';
+    const res = await generateDraft('主题', { settings, apiKey: 'k', facts: FACTS, fetchFn: mockFetch(oaiReply(content)), ...base });
     expect(res.ok).toBe(true);
-    if (res.ok) expect(res.draft.title).toBe('T');
+    if (res.ok) expect(res.draft.body).toContain('<p>I</p>');
   });
 
-  it('缺字段降级填空串,不崩溃', async () => {
-    const res = await generateDraft('主题', { settings, apiKey: 'k', fetchFn: mockFetch(oaiReply('{"title":"只有标题"}')), ...base });
+  it('模型返回旧式 body 字段 → 忽略,只取槽位组装(向后容错 + 防注入)', async () => {
+    const content = JSON.stringify({ body: '<script>x</script>编造正文', intro: '真引子', highlights: 'h' });
+    const res = await generateDraft('主题', { settings, apiKey: 'k', facts: FACTS, fetchFn: mockFetch(oaiReply(content)), ...base });
     expect(res.ok).toBe(true);
     if (res.ok) {
-      expect(res.draft.title).toBe('只有标题');
-      expect(res.draft.body).toBe('');
+      expect(res.draft.body).not.toContain('编造正文');
+      expect(res.draft.body).not.toContain('<script>');
+      expect(res.draft.body).toContain('<p>真引子</p>');
+    }
+  });
+
+  it('零事实 → 全骨架【待补】,仍 ok(不崩溃)', async () => {
+    const res = await generateDraft('主题', { settings, apiKey: 'k', fetchFn: mockFetch(slotsReply({ intro: 'i', highlights: 'h' })), ...base });
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.draft.title).toBe('【待补】');
+      expect(res.draft.body).toContain('作品名:【待补】');
       expect(res.draft.tags).toEqual([]);
     }
+  });
+
+  it('端点不支持 json_schema(首请求 400)→ 回落 json_object 重试成功', async () => {
+    const f = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 400, statusText: 'Bad Request', json: async () => ({}) } as Response)
+      .mockResolvedValueOnce({ ok: true, status: 200, statusText: 'OK', json: async () => slotsReply({ intro: 'i', highlights: 'h' }) } as Response);
+    const res = await generateDraft('主题', { settings, apiKey: 'k', facts: FACTS, fetchFn: f as unknown as typeof fetch, ...base });
+    expect(res.ok).toBe(true);
+    expect(f).toHaveBeenCalledTimes(2);
+    const firstBody = JSON.parse((f.mock.calls[0]![1] as RequestInit).body as string);
+    const secondBody = JSON.parse((f.mock.calls[1]![1] as RequestInit).body as string);
+    expect(firstBody.response_format.type).toBe('json_schema');
+    expect(secondBody.response_format.type).toBe('json_object');
+  });
+
+  it('回落后仍 400 → network 错误', async () => {
+    const f = mockFetch({}, { ok: false, status: 400, statusText: 'Bad Request' });
+    const res = await generateDraft('主题', { settings, apiKey: 'k', fetchFn: f, ...base });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.kind).toBe('network');
+    expect(f).toHaveBeenCalledTimes(2);
   });
 
   it('未配置 key/endpoint → no-key,不发请求', async () => {
@@ -211,10 +248,29 @@ describe('buildRequest', () => {
   });
 });
 
+describe('slotsFromParsed', () => {
+  it('抽叙事槽位、忽略 body 字段', () => {
+    const s = slotsFromParsed({ intro: 'I', highlights: 'H', titleSuffix: '介紹', body: '应被忽略' });
+    expect(s).toEqual({ intro: 'I', highlights: 'H', titleSuffix: '介紹', subtitle: undefined, outro: undefined });
+  });
+  it('null/缺失 → 安全降级', () => {
+    const s = slotsFromParsed({ intro: null, subtitle: '' });
+    expect(s.intro).toBe('');
+    expect(s.subtitle).toBeUndefined();
+  });
+});
+
 describe('toDraft', () => {
-  it('tags 非数组时安全降级为空数组', () => {
-    const d = toDraft({ title: 'x', tags: 'notarray' }, 'id1', '2026-06-03T00:00:00.000Z');
-    expect(d.tags).toEqual([]);
+  it('组合 assembled + category/tags + 非 AI 默认值', () => {
+    const assembled = assembleDraft({ intro: 'B', highlights: '' }, { 作品名: 'T' });
+    const d = toDraft(assembled, '3', ['a'], 'id1', '2026-06-03T00:00:00.000Z');
+    expect(d.title).toBe('T');
+    expect(d.body).toContain('<p>B</p>');
+    expect(d.category).toBe('3');
+    expect(d.tags).toEqual(['a']);
+    expect(d.postStatus).toBe('1');
+    expect(d.status).toBe('draft');
     expect(d.id).toBe('id1');
+    expect(d.createdAt).toBe('2026-06-03T00:00:00.000Z');
   });
 });

@@ -48,7 +48,7 @@ export interface BackgroundHandlerDeps {
   tabsSendMessage: (tabId: number, msg: unknown) => Promise<unknown>;
   storageGetItem: <T>(key: `local:${string}`) => Promise<T | null>;
   storageSetItem: (key: `local:${string}`, value: unknown) => Promise<void>;
-  generateDraftFn: (prompt: string, opts: { settings: import('../lib/types').Settings; apiKey: string }) => Promise<GenerateDraftResponse>;
+  generateDraftFn: (prompt: string, opts: { settings: import('../lib/types').Settings; apiKey: string; facts?: FactsBlock }) => Promise<GenerateDraftResponse>;
   buildBatchId: () => string;
   buildItemId: (i: number) => string;
   now: () => string;
@@ -163,7 +163,7 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
         getExistingBatch: deps.getBatch,
         pinnedHostOk,
         generateDraft: (topic, itemFacts) =>
-          deps.generateDraftFn(buildPrompt(settings.promptTemplate, topic, itemFacts, settings.fewShotExamples), { settings, apiKey }),
+          deps.generateDraftFn(buildPrompt(settings.promptTemplate, topic, itemFacts, settings.fewShotExamples), { settings, apiKey, facts: itemFacts }),
         save: deps.saveBatch,
         genBatchId: () => { batchSeq += 1; return deps.buildBatchId(); },
         genItemId: deps.buildItemId,
@@ -255,7 +255,7 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
           getBatch: deps.getBatch,
           save: deps.saveBatch,
           generateDraft: (topic, itemFacts) =>
-            deps.generateDraftFn(buildPrompt(settings.promptTemplate, topic, itemFacts, settings.fewShotExamples), { settings, apiKey }),
+            deps.generateDraftFn(buildPrompt(settings.promptTemplate, topic, itemFacts, settings.fewShotExamples), { settings, apiKey, facts: itemFacts }),
         },
         itemId,
       );

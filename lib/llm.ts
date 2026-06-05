@@ -1,17 +1,45 @@
 import type { ContentDraft, GenerateDraftResponse, Settings } from './types';
+import type { FactsBlock } from './facts';
+import { assembleDraft, type AssembledDraft, type DraftSlots } from './post-assembler';
 
 // 窄 provider adapter:首版只实现 OpenAI 兼容 chat/completions。
 // 换厂商 = 加一个 buildRequest/parseResponse,而非改 background。
+//
+// 程序化结构化生成(U2):模型只回「叙事槽位」(intro/highlights/套话),不回 body;
+// 程式用 assembleDraft 把 facts verbatim 注入正文。response_format 优先 json_schema strict,
+// 端点不支持(400)则回落 json_object —— 真正的安全网是 assembleDraft,strict 只是锦上添花。
 
 export interface LlmDeps {
   settings: Settings;
   apiKey: string;
+  /** 源接地事实块:供 assembleDraft 把作品名/集数/连结 verbatim 注入正文。省略=零事实(全骨架【待补】)。 */
+  facts?: FactsBlock;
   /** 注入点,便于测试。 */
   fetchFn?: typeof fetch;
   now?: () => string;
   genId?: () => string;
   timeoutMs?: number;
 }
+
+/** 模型叙事槽位的 JSON Schema(strict)。无 body 字段 —— 正文由程式组装。 */
+export const DRAFT_SLOTS_SCHEMA = {
+  name: 'draft_slots',
+  strict: true,
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      titleSuffix: { type: ['string', 'null'] },
+      subtitle: { type: ['string', 'null'] },
+      intro: { type: 'string' },
+      highlights: { type: 'string' },
+      outro: { type: ['string', 'null'] },
+      category: { type: ['string', 'null'] },
+      tags: { type: ['array', 'null'], items: { type: 'string' } },
+    },
+    required: ['titleSuffix', 'subtitle', 'intro', 'highlights', 'outro', 'category', 'tags'],
+  },
+} as const;
 
 interface BuiltRequest {
   url: string;
@@ -34,12 +62,19 @@ export function modelsUrl(endpoint: string): string {
 }
 
 /** 组装 OpenAI 兼容请求。鉴权头在此注入(绝不硬编码、绝不进日志)。 */
-export function buildRequest(prompt: string, settings: Settings, apiKey: string): BuiltRequest {
+export function buildRequest(
+  prompt: string,
+  settings: Settings,
+  apiKey: string,
+  opts: { jsonSchema?: boolean } = {},
+): BuiltRequest {
+  const response_format = opts.jsonSchema
+    ? ({ type: 'json_schema' as const, json_schema: DRAFT_SLOTS_SCHEMA })
+    : ({ type: 'json_object' as const });
   const body = {
     model: settings.model,
     messages: [{ role: 'user', content: prompt }],
-    // 鼓励模型返回 JSON 对象。
-    response_format: { type: 'json_object' as const },
+    response_format,
   };
   return {
     url: chatCompletionsUrl(settings.endpoint),
@@ -122,18 +157,40 @@ function parseContentJson(content: string): Record<string, unknown> | null {
   }
 }
 
-/** 把解析出的对象映射为 ContentDraft;缺字段降级填空串,不崩溃。 */
-export function toDraft(parsed: Record<string, unknown>, id: string, now: string): ContentDraft {
-  const tags = Array.isArray(parsed.tags) ? parsed.tags.map(str).filter(Boolean) : [];
+/** 非空字符串 → 该值;否则 undefined(供 DraftSlots 可选字段)。 */
+const optStr = (v: unknown): string | undefined => {
+  const s = str(v);
+  return s === '' ? undefined : s;
+};
+
+/** 从模型 JSON 抠出叙事槽位;忽略任何 body 字段(正文由程式组装,旧式返回向后容错)。 */
+export function slotsFromParsed(parsed: Record<string, unknown>): DraftSlots {
+  return {
+    titleSuffix: optStr(parsed.titleSuffix),
+    subtitle: optStr(parsed.subtitle),
+    intro: str(parsed.intro),
+    highlights: str(parsed.highlights),
+    outro: optStr(parsed.outro),
+  };
+}
+
+/** 组装好的 title/subtitle/body/description + 模型给的 category/tags → ContentDraft。 */
+export function toDraft(
+  assembled: AssembledDraft,
+  category: string,
+  tags: string[],
+  id: string,
+  now: string,
+): ContentDraft {
   return {
     id,
-    title: str(parsed.title),
-    subtitle: str(parsed.subtitle),
-    category: str(parsed.category),
-    coverImageUrl: str(parsed.coverImageUrl),
-    body: str(parsed.body),
+    title: assembled.title,
+    subtitle: assembled.subtitle,
+    category,
+    coverImageUrl: '',
+    body: assembled.body,
     tags,
-    description: str(parsed.description),
+    description: assembled.description,
     // 非 AI 字段:取默认,由 side panel 人工调整。
     postStatus: '1',
     publishedAt: '',
@@ -161,6 +218,7 @@ export async function generateDraft(prompt: string, deps: LlmDeps): Promise<Gene
   const now = deps.now ? deps.now() : new Date().toISOString();
   const id = deps.genId ? deps.genId() : `draft_${Date.now()}`;
   const timeoutMs = deps.timeoutMs ?? 60_000;
+  const facts = deps.facts ?? {};
 
   if (!apiKey || !settings.endpoint) {
     return { ok: false, kind: 'no-key', error: '请先在设置页配置 API key 与 endpoint。' };
@@ -169,23 +227,28 @@ export async function generateDraft(prompt: string, deps: LlmDeps): Promise<Gene
     return { ok: false, kind: 'network', error: 'endpoint 必须是 https:// 地址。' };
   }
 
-  const { url, init } = buildRequest(prompt, settings, apiKey);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-  let res: Response;
-  try {
-    res = await fetchFn(url, { ...init, signal: controller.signal });
-  } catch (err) {
-    const aborted = err instanceof Error && err.name === 'AbortError';
-    return { ok: false, kind: 'network', error: aborted ? '请求超时,请重试。' : '网络错误,请检查 endpoint 或网络后重试。' };
-  } finally {
-    clearTimeout(timer);
-  }
-
-  if (!res.ok) {
+  // 先试 json_schema strict;端点不支持(400)→ 回落 json_object 重试一次。
+  let res: Response | undefined;
+  for (const useSchema of [true, false]) {
+    const { url, init } = buildRequest(prompt, settings, apiKey, { jsonSchema: useSchema });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      res = await fetchFn(url, { ...init, signal: controller.signal });
+    } catch (err) {
+      const aborted = err instanceof Error && err.name === 'AbortError';
+      return { ok: false, kind: 'network', error: aborted ? '请求超时,请重试。' : '网络错误,请检查 endpoint 或网络后重试。' };
+    } finally {
+      clearTimeout(timer);
+    }
+    if (res.ok) break;
+    // schema 尝试遇 400(多为端点不支持 response_format)→ 回落 json_object 再试一次。
+    if (useSchema && res.status === 400) continue;
     // 只用状态码/文本,绝不回传响应头或请求头。
     return { ok: false, kind: 'network', error: `服务返回错误(${res.status} ${res.statusText})。` };
+  }
+  if (!res || !res.ok) {
+    return { ok: false, kind: 'network', error: '服务返回错误,请重试。' };
   }
 
   let raw: unknown;
@@ -204,5 +267,8 @@ export async function generateDraft(prompt: string, deps: LlmDeps): Promise<Gene
     return { ok: false, kind: 'format', error: '模型未返回合法 JSON 草稿,请调整 prompt 或重试。' };
   }
 
-  return { ok: true, draft: toDraft(parsed, id, now) };
+  // 程序化组装:facts verbatim 注入正文,模型只贡献口吻槽位。
+  const assembled = assembleDraft(slotsFromParsed(parsed), facts);
+  const tags = Array.isArray(parsed.tags) ? parsed.tags.map(str).filter(Boolean) : [];
+  return { ok: true, draft: toDraft(assembled, str(parsed.category), tags, id, now) };
 }
