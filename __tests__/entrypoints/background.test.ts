@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fakeBrowser } from 'wxt/testing';
-import { createHandlers, type BackgroundHandlerDeps } from './background';
-import type { Batch } from '../lib/batch';
-import type { ContentDraft, Settings } from '../lib/types';
+import { createHandlers, type BackgroundHandlerDeps } from '../../entrypoints/background';
+import type { Batch } from '../../lib/batch';
+import type { ContentDraft, Settings } from '../../lib/types';
 
 // ---- helpers ----
 
