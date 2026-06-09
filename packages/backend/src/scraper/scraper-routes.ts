@@ -32,20 +32,29 @@ export async function registerScraperRoutes(app: FastifyInstance): Promise<void>
       return reply.status(400).send({ ok: false, error: 'No URL provided and no default URL in config' });
     }
 
-    // SSRF allowlist: caller-supplied url must share hostname with the registered site config.
+    // SSRF allowlist: caller-supplied url must share hostname and protocol with the registered site config.
+    // Also reject URLs with credentials (userinfo) to prevent bypass via http://evil@allowed.com/.
     if (url) {
-      let targetHost: string;
-      let configHost: string;
+      let parsed: URL;
+      let configParsed: URL;
       try {
-        targetHost = new URL(url).hostname;
-        configHost = new URL(config.url).hostname;
+        parsed = new URL(url);
+        configParsed = new URL(config.url);
       } catch {
         return reply.status(400).send({ ok: false, error: 'Invalid URL format' });
       }
-      if (targetHost !== configHost) {
+      if (parsed.username || parsed.password) {
+        return reply.status(400).send({ ok: false, error: 'URL credentials not allowed' });
+      }
+      if (parsed.hostname !== configParsed.hostname) {
         return reply
           .status(400)
-          .send({ ok: false, error: `URL hostname not allowed for site ${siteName}: ${targetHost}` });
+          .send({ ok: false, error: `URL hostname not allowed for site ${siteName}: ${parsed.hostname}` });
+      }
+      if (parsed.protocol !== configParsed.protocol) {
+        return reply
+          .status(400)
+          .send({ ok: false, error: `URL protocol not allowed for site ${siteName}: ${parsed.protocol}` });
       }
     }
 
@@ -80,6 +89,7 @@ export async function registerScraperRoutes(app: FastifyInstance): Promise<void>
         rawContent,
         facts,
         confidence,
+        ...(coverImageUrl ? { coverImageUrl } : {}),
         status: 'pending',
         createdAt: now,
         updatedAt: now,

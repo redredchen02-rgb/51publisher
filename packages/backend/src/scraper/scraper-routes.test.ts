@@ -155,6 +155,32 @@ describe('POST /api/v1/scraper/trigger — SSRF allowlist', () => {
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toMatch(/Invalid URL/i);
   });
+
+  it('url 含 credentials（http://evil@host/）→ 400 (SSRF credentials blocked)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/scraper/trigger',
+      payload: {
+        siteName: siteName(),
+        url: 'https://evil.com@test-site.example.com/path',
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/credentials not allowed/i);
+  });
+
+  it('url 协议与配置不同（http vs https）→ 400', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/scraper/trigger',
+      payload: {
+        siteName: siteName(),
+        url: 'http://test-site.example.com/article/1',
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/protocol not allowed/i);
+  });
 });
 
 // ================================================================

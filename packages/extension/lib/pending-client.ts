@@ -149,9 +149,13 @@ export async function fetchAdapters(fetchFn: typeof fetch = fetch, timeoutMs = 1
       headers,
       signal: controller.signal,
     });
+    if (res.status === 401) {
+      await clearToken();
+      return [];
+    }
     if (!res.ok) return [];
-    const data = (await res.json()) as { ok: boolean; adapters?: string[] };
-    return data.ok && data.adapters ? data.adapters : [];
+    const data = (await res.json()) as { ok: boolean; adapters?: { name: string }[] };
+    return data.ok && data.adapters ? data.adapters.map((a) => a.name) : [];
   } catch {
     return [];
   } finally {
