@@ -1,6 +1,6 @@
 {
   "name": "publisher-backend",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@51publisher/shared": "workspace:*",
     "@fastify/cors": "^10.0.2",
     "better-sqlite3": "^12.10.0",
     "dotenv": "^16.4.7",
