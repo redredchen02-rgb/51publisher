@@ -5,3 +5,6 @@ stats.html
 *.log
 .DS_Store
 .context
+dist
+packages/backend/data
+packages/backend/.env
