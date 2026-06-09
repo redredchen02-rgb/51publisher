@@ -220,3 +220,39 @@ describe('G4: fillCheckboxMulti substring fallback', () => {
     expect(checkedLabels()).not.toContain('冒险');
   });
 });
+
+// ---- Unit 8 — fillCheckboxMulti degrade messages ----
+
+describe('U8: fillCheckboxMulti degrade detail messages', () => {
+  const tagsDefn: FieldDefinition = { selector: 'input[name="tags[]"]', fieldType: 'checkbox-multi' };
+
+  function makeCheckboxes(...labels: string[]) {
+    document.body.innerHTML = labels
+      .map((l, i) => `<input type="checkbox" name="tags[]" id="utag${i}" /><label for="utag${i}">${l}</label>`)
+      .join('');
+  }
+
+  it('部分命中 → degrade note 列出未命中词并指引设置', () => {
+    makeCheckboxes('漢化');
+    const res = fillField('tags', tagsDefn, { ...draft, tags: ['漢化', '未知词'] }, document);
+    expect(res?.status).toBe('degraded');
+    expect(res?.note).toContain('未知词');
+    expect(res?.note).toContain('设置→推荐标签清单');
+  });
+
+  it('全部未命中 → degrade note 列出所有未命中词', () => {
+    makeCheckboxes('漢化');
+    const res = fillField('tags', tagsDefn, { ...draft, tags: ['未知A', '未知B'] }, document);
+    expect(res?.status).toBe('degraded');
+    expect(res?.note).toContain('未知A');
+    expect(res?.note).toContain('未知B');
+    expect(res?.note).toContain('推荐列表中缺失');
+  });
+
+  it('全部命中 → filled（无 degrade），不含 note', () => {
+    makeCheckboxes('漢化');
+    const res = fillField('tags', tagsDefn, { ...draft, tags: ['漢化'] }, document);
+    expect(res?.status).toBe('filled');
+    expect(res?.note).toBeUndefined();
+  });
+});

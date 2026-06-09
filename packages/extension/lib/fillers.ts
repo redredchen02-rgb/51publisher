@@ -86,8 +86,16 @@ function fillCheckboxMulti(field: string, def: FieldDefinition, values: string[]
       missing.push(tag);
     }
   }
-  if (checked === 0 && values.length > 0) return degrade(field, `无匹配标签:${values.join('、')}`);
-  if (missing.length > 0) return degrade(field, `部分标签未匹配:${missing.join('、')}`);
+  if (checked === 0 && values.length > 0)
+    return degrade(
+      field,
+      `无匹配标签:${values.join('、')} (推荐列表中缺失: ${values.join('、')}; 请在「设置→推荐标签清单」中补充)`,
+    );
+  if (missing.length > 0)
+    return degrade(
+      field,
+      `部分标签未匹配:${missing.join('、')} (推荐列表中缺失: ${missing.join('、')}; 请在「设置→推荐标签清单」中补充)`,
+    );
   return ok(field);
 }
 
