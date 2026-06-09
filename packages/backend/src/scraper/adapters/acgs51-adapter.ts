@@ -114,9 +114,12 @@ export const acgs51Adapter: SiteAdapter = {
     const ogImage = extractOgImage(html);
     const structuredMeta = extractMetadata(html);
 
-    const metadata: Record<string, string> = { ...structuredMeta };
-    if (ogImage) metadata.cover_url = ogImage;
-
-    return { title, body, url, metadata };
+    return {
+      title,
+      body,
+      url,
+      metadata: Object.keys(structuredMeta).length > 0 ? structuredMeta : undefined,
+      coverImageUrl: ogImage || undefined,
+    };
   },
 };
