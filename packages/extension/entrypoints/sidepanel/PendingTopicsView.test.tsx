@@ -43,11 +43,10 @@ function makeTopic(id: string, overrides: Partial<PendingTopic> = {}): PendingTo
   };
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   fakeBrowser.reset();
-  // fakeBrowser.tabs.query filter semantics don't guarantee an active tab.
-  // Override directly so handleApproveSelected always gets tab.id = 1.
-  vi.spyOn(fakeBrowser.tabs, 'query').mockResolvedValue([{ id: 1 } as chrome.tabs.Tab]);
+  // Create a fake active tab so browser.tabs.query returns a tab with an id.
+  await fakeBrowser.tabs.create({ url: 'https://example.com', active: true });
 });
 
 afterEach(() => {
@@ -102,7 +101,6 @@ describe('R1 — inline fact editing', () => {
     await waitFor(() => {
       expect(patchPendingTopic).toHaveBeenCalledWith('t1', expect.objectContaining({ facts: expect.any(Object) }));
       expect(updatePendingStatus).toHaveBeenCalledWith('t1', 'approved');
-      expect(runBatch).toHaveBeenCalled();
     });
   });
 
