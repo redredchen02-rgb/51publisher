@@ -15,8 +15,12 @@ import { scraperConfig } from './scraper/scraper-config.js';
 import { demoAdapter } from './scraper/adapters/demo-adapter.js';
 import { acgs51Adapter } from './scraper/adapters/acgs51-adapter.js';
 import { startScheduler } from './scraper/scheduler.js';
+import { initPendingDb } from './scraper/pending-db.js';
 
 dotenv.config();
+
+// 初始化 SQLite 待审池（必须在路由注册前完成）
+initPendingDb();
 
 const server = Fastify({ logger: true });
 
