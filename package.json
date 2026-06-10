@@ -9,9 +9,16 @@
     "build:extension": "pnpm --filter publisher-fill-assistant build",
     "build:backend": "pnpm --filter publisher-backend build",
     "test": "pnpm -r test",
-    "format": "prettier --write \"**/*.{ts,tsx,css,json,md}\" --ignore-path .gitignore"
+    "coverage": "pnpm -r --parallel coverage",
+    "compile": "pnpm -r compile",
+    "lint": "biome check --write",
+    "lint:ci": "biome ci .",
+    "format": "biome format --write",
+    "check": "biome check"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.16",
+    "@vitest/coverage-v8": "^4.1.8",
     "prettier": "^3.8.3"
   },
   "pnpm": {

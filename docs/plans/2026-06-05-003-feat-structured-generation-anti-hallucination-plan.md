@@ -21,6 +21,7 @@ depth: deep
 这是 brainstorm 拍板「源接地·提前掉死」哲学的更彻底落地。
 
 **已选定架构(混合方案,2026-06-05 用户拍板):**
+
 - **程式掌事实骨架**:连结、作品名、集数、制作、分类、标签 —— 由程式从 `FactsBlock`/枚举
   **原样(verbatim)注入** body,模型物理上打不出这些值;缺的程式插「【待补】」。
 - **模型只写口吻散文**:引子/看点等叙事槽位(51娘 口吻),且散文里**禁止出现 URL 与具体事实值**。
@@ -96,7 +97,9 @@ U2/U5 →(真模型比对口吻)→ U3/U4 →(真模型零编造抽查)。
 ## Implementation Units
 
 ### [x] U1. 正文组装器(纯函数,核心,可先行)
+
 **新增** `lib/post-assembler.ts` · 测试 `lib/post-assembler.test.ts`
+
 - `interface DraftSlots { titleSuffix?: string; subtitle?: string; intro: string; highlights: string; outro?: string }`
 - `assembleDraft(slots: DraftSlots, facts: FactsBlock, vocab?: Vocab): { title; subtitle; body; description }`
   - **抬头块**:由 `facts.作品名/集数/制作` verbatim 组装(缺→【待补】);作品名缺则 title 标【待补】。
@@ -109,7 +112,9 @@ U2/U5 →(真模型比对口吻)→ U3/U4 →(真模型零编造抽查)。
   ⑤ 输出 body 经 `verifyLinks(body, factUrls(facts))` **恒无 unsourced**;⑥ XSS 注入散文(`<script>`/`onerror`)→ 不进 body。
 
 ### [x] U2. 结构化 LLM 契约 + schema + 优雅降级
+
 **改** `lib/llm.ts` · 测试 `lib/llm.test.ts`(预期较大改测)
+
 - 新增 `DRAFT_SLOTS_SCHEMA`(JSON Schema,strict):字段 `intro/highlights` 必填字符串,
   `titleSuffix/subtitle/outro/category/tags` 选填;**无 body 字段**。
 - `buildRequest`:`response_format` 改为 `{ type:'json_schema', json_schema:{ name, schema, strict:true } }`;
@@ -123,12 +128,14 @@ U2/U5 →(真模型比对口吻)→ U3/U4 →(真模型零编造抽查)。
 - ⚠️ **旧 `llm.test.ts` 中假设模型回 `body` 的用例需改写**为 slots+组装契约;这是预期 churn,非回归。
 
 ### [~] U3. 分类枚举 + 标签词表约束 — **DEFERRED**(2026-06-05,执行时决定)
+
 **延后理由**:① 真实 category 选项值 / tag 词表(后台约 3912)**不在仓库**,且 brainstorm 明确
 「不做源数据自动抓取」——没有 vocab 数据,coerce/filter 只能空表 pass-through = 死代码(YAGNI)。
 ② category/tags 的幻觉风险**已被 fill 时兜住**:native-select 跳过未知 option、checkbox-multi 跳过
 未知标签,三态表(FillStatusTable)会标黄让操作者手填。→ 边际价值低、又卡在数据上,故延后。
 **重启条件**:操作者提供真实分类/标签清单后,再建 `lib/vocab.ts`(coerceCategory/filterTags)+ 接入 toDraft。
 **新增** `lib/vocab.ts` · 测试 `lib/vocab.test.ts`(或并入 post-assembler)
+
 - `coerceCategory(raw, allowed): string` —— 命中后台 category value 枚举则用,否则回落默认/【待补】。
 - `filterTags(raw: string[], vocab: Set<string>): string[]` —— 只留已知 tag,未知丢弃,去重保序。
 - 词表来源:后台勘查(category select options + tag 列表),存为常量或 Settings 可覆盖字段。
@@ -136,7 +143,9 @@ U2/U5 →(真模型比对口吻)→ U3/U4 →(真模型零编造抽查)。
 - **测试场景**:① 未知 category → 回落;② 已知子集 tags 保留、未知剔除;③ 空输入安全。
 
 ### [x] U4. 发布前 grounding 硬闸(fail-closed)
+
 **新增** `lib/grounding-gate.ts` · 测试 `lib/grounding-gate.test.ts`;接线 `lib/publish-orchestrator.ts` / `lib/batch-orchestrator.ts`(approveBatch)
+
 - `evaluateGrounding(draft, facts): { ok: boolean; reasons: string[] }` ——
   规则:① body/title 中残留**必填**位的【待补】(作品名/至少一条连结,阈值可配)→ block;
   ② `hasUnsourcedLink(verifyLinks(...))` → block(组装后应恒不触发,作 defense-in-depth)。
@@ -147,20 +156,26 @@ U2/U5 →(真模型比对口吻)→ U3/U4 →(真模型零编造抽查)。
   ③ 干净草稿 → 放行;④ 注入无来源连结 → 拦。
 
 ### [x] U5. Prompt / few-shot 改造(只要槽位、禁 URL/事实)
+
 **改** `lib/storage.ts`(`DEFAULT_SETTINGS.promptTemplate` + `fewShotExamples`)· 复用 `lib/facts.ts` 渲染
+
 - promptTemplate:删掉「以 JSON 返回 body(HTML)」,改为**要求只回叙事槽位**(intro/highlights/套话),
   明确「**正文里绝不写任何 URL、绝不写具体作品名/集数/连结 —— 这些由系统填入**」。
 - fewShotExamples:示范**槽位级**口吻(纯散文,无连结),与新 schema 对齐。
 - **真模型验证**(execution-time,沿用 R8 重跑通道):改完跑 3–5 条肉眼比对口吻是否仍自然。
 
 ### [x] U6. 审核区呈现升级
+
 **改** `entrypoints/sidepanel/BatchReviewPanel.tsx`(`GroundingStrip`)
+
 - 展示**组装预览**:哪些骨架位来自 facts(✓ verbatim)、哪些是【待补】;连结块标「程式注入(不可编造)」。
 - 显示 U4 gate 判定(此条若 authorized 会否被拦 + 原因)。
 - 连结来源校验保留作 defense-in-depth(组装后应恒 ✓)。
 
 ### [x] U7. 类型与接线收尾(随 U2 完成:facts 已穿到 generateDraft;DraftSlots 留在 llm/post-assembler 层,无需进 types.ts)
+
 **改** `lib/types.ts`(若 `DraftSlots` 需跨层)· `entrypoints/background.ts`(generateDraft 回调传 `facts` 进 `LlmDeps`)
+
 - `background.ts`:`generateDraftFn` 调用处把 `itemFacts` 传入 `generateDraft` 的 `deps.facts`(供组装)。
 - 确认 `RUN_BATCH`/`BatchItem.facts` 链路(阶段1已建)端到端把 facts 送到组装点。
 

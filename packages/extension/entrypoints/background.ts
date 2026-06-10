@@ -1,5 +1,5 @@
 import { storage } from '#imports';
-import type { FillPageResponse, GenerateDraftResponse, PublishResult, RuntimeMessage } from '../lib/types';
+import type { FillPageResponse, GenerateDraftResponse, PublishResult, RuntimeMessage } from '@51publisher/shared';
 import {
   getApiKey,
   getSettings,
@@ -29,8 +29,8 @@ import {
   setPendingQuarantineAlert,
   getBatch as getBatchRaw,
 } from '../lib/storage';
-import type { ContentDraft } from '../lib/types';
-import type { FactsBlock } from '../lib/facts';
+import type { ContentDraft } from '@51publisher/shared';
+import type { FactsBlock } from '@51publisher/shared';
 
 // Background service worker:调度中心 + 发布闸门。
 // - 点扩展图标打开 side panel
@@ -40,12 +40,12 @@ import type { FactsBlock } from '../lib/facts';
 export interface BackgroundHandlerDeps {
   getBatch: () => Promise<Batch | null>;
   saveBatch: (batch: Batch) => Promise<void>;
-  getSettings: () => Promise<import('../lib/types').Settings>;
+  getSettings: () => Promise<import('@51publisher/shared').Settings>;
   getApiKey: () => Promise<string>;
   getPublishedTopics: () => Promise<string[]>;
   addPublishedTopics: (topics: string[]) => Promise<void>;
   appendTrajectory: typeof appendTrajectory;
-  getSafetyMode: () => Promise<import('../lib/types').SafetyMode>;
+  getSafetyMode: () => Promise<import('@51publisher/shared').SafetyMode>;
   getAuthorizedHosts: () => Promise<string[]>;
   tabsGet: (tabId: number) => Promise<{ url?: string; id?: number }>;
   tabsSendMessage: (tabId: number, msg: unknown) => Promise<unknown>;
@@ -53,12 +53,12 @@ export interface BackgroundHandlerDeps {
   storageSetItem: (key: `local:${string}`, value: unknown) => Promise<void>;
   generateDraftFn: (
     prompt: string,
-    opts: { settings: import('../lib/types').Settings; apiKey: string; facts?: FactsBlock },
+    opts: { settings: import('@51publisher/shared').Settings; apiKey: string; facts?: FactsBlock },
   ) => Promise<GenerateDraftResponse>;
   buildBatchId: () => string;
   buildItemId: (i: number) => string;
   now: () => string;
-  saveDryRunReportFn?: (report: import('../lib/types').DryRunReport) => Promise<void>;
+  saveDryRunReportFn?: (report: import('@51publisher/shared').DryRunReport) => Promise<void>;
   writeTombstone?: (itemId: string) => Promise<void>;
   clearTombstone?: (itemId: string) => Promise<void>;
 }

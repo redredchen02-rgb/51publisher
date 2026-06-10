@@ -6,5 +6,7 @@ stats.html
 .DS_Store
 .context
 dist
+coverage
 packages/backend/data
+packages/backend/logs
 packages/backend/.env

@@ -1,9 +1,12 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import rateLimit from '@fastify/rate-limit';
 import dotenv from 'dotenv';
+import { err } from './error-response.js';
+import { GenerateDraftBody, GenerateDraftResponse } from './schemas.js';
 import { generateDraft, listModels } from './llm.js';
-import type { Settings } from './shared/types.js';
-import type { FactsBlock } from './shared/facts.js';
+import type { Settings } from '@51publisher/shared';
+import type { FactsBlock } from '@51publisher/shared';
 import { registerConfigRoutes } from './config-routes.js';
 import { registerBatchRoutes } from './batch-routes.js';
 import { registerScraperRoutes } from './scraper/scraper-routes.js';
@@ -16,17 +19,26 @@ import { demoAdapter } from './scraper/adapters/demo-adapter.js';
 import { acgs51Adapter } from './scraper/adapters/acgs51-adapter.js';
 import { startScheduler } from './scraper/scheduler.js';
 import { initPendingDb } from './scraper/pending-db.js';
+import { initAppDb } from './scraper/migrations/db.js';
 
 dotenv.config();
 
-// 初始化 SQLite 待审池（必须在路由注册前完成）
+// 初始化 SQLite 持久层（必须在路由注册前完成）
 initPendingDb();
+initAppDb();
 
 const server = Fastify({ logger: true });
 
 // Enable CORS for Chrome Extension origins
+const corsOrigin = process.env.CORS_ORIGIN || '*';
 await server.register(cors, {
-  origin: '*', // In production, restrict this to chrome-extension://<id> if known, or keep wildcard for extension clients
+  origin: corsOrigin === '*' ? true : corsOrigin.split(',').map((s) => s.trim()),
+});
+
+// Apply rate limiting: 100 requests per minute per IP
+await server.register(rateLimit, {
+  max: 100,
+  timeWindow: '1 minute',
 });
 
 await registerAuthRoutes(server);
@@ -77,70 +89,67 @@ server.get('/api/v1/models', async (request, reply) => {
   const endpoint = process.env.LLM_ENDPOINT || '';
 
   if (!apiKey || !endpoint) {
-    return reply.status(500).send({
-      ok: false,
-      error: 'Backend is not fully configured (missing LLM_API_KEY or LLM_ENDPOINT in env).',
-    });
+    return err(reply, 500, 'Backend is not fully configured (missing LLM_API_KEY or LLM_ENDPOINT in env).');
   }
 
   try {
     const result = await listModels(endpoint, apiKey);
     return result;
-  } catch (err) {
-    request.log.error(err, 'Failed to fetch models list');
-    return reply.status(500).send({
-      ok: false,
-      error: 'Failed to fetch models from the LLM service.',
-    });
+  } catch (e) {
+    request.log.error(e, 'Failed to fetch models list');
+    return err(reply, 500, 'Failed to fetch models from the LLM service.');
   }
 });
 
-server.post<{ Body: GenerateDraftBody }>('/api/v1/drafts/generate', async (request, reply) => {
-  const { prompt, settings, facts } = request.body;
+server.post<{ Body: GenerateDraftBody }>(
+  '/api/v1/drafts/generate',
+  {
+    schema: {
+      body: GenerateDraftBody,
+      response: {
+        200: GenerateDraftResponse,
+      },
+    },
+  },
+  async (request, reply) => {
+    const { prompt, settings, facts } = request.body;
 
-  // Use API key from server environment (never expose or store on client)
-  const apiKey = process.env.LLM_API_KEY || '';
-  if (!apiKey) {
-    return reply.status(500).send({
-      ok: false,
-      kind: 'no-key',
-      error: 'Backend is not configured with an LLM_API_KEY. Please check .env file.',
-    });
-  }
+    // Use API key from server environment (never expose or store on client)
+    const apiKey = process.env.LLM_API_KEY || '';
+    if (!apiKey) {
+      return err(reply, 500, 'Backend is not configured with an LLM_API_KEY. Please check .env file.', 'no-key');
+    }
 
-  // Override or fallback settings endpoint/model if configured on backend
-  const backendEndpoint = process.env.LLM_ENDPOINT || settings.endpoint;
-  const backendModel = process.env.LLM_MODEL || settings.model;
+    // Override or fallback settings endpoint/model if configured on backend
+    const backendEndpoint = process.env.LLM_ENDPOINT || settings.endpoint;
+    const backendModel = process.env.LLM_MODEL || settings.model;
 
-  const resolvedSettings = {
-    ...settings,
-    endpoint: backendEndpoint,
-    model: backendModel,
-  };
+    const resolvedSettings = {
+      ...settings,
+      endpoint: backendEndpoint,
+      model: backendModel,
+    };
 
-  try {
-    const result = await generateDraft(prompt, {
-      settings: resolvedSettings,
-      apiKey,
-      facts,
-    });
-    return result;
-  } catch (err) {
-    request.log.error(err, 'Failed to generate draft via LLM');
-    return reply.status(500).send({
-      ok: false,
-      kind: 'network',
-      error: 'Internal server error during draft generation.',
-    });
-  }
-});
+    try {
+      const result = await generateDraft(prompt, {
+        settings: resolvedSettings,
+        apiKey,
+        facts,
+      });
+      return result;
+    } catch (e) {
+      request.log.error(e, 'Failed to generate draft via LLM');
+      return err(reply, 500, 'Internal server error during draft generation.', 'network');
+    }
+  },
+);
 
 const start = async () => {
   try {
     const port = Number(process.env.PORT) || 3001;
     const host = process.env.HOST || '127.0.0.1';
     await server.listen({ port, host });
-    console.log(`Server listening on http://${host}:${port}`);
+    server.log.info(`Server listening on http://${host}:${port}`);
 
     // 启动定时抓取调度器（需要 LLM 配置）
     const llmEndpoint = process.env.LLM_ENDPOINT;
@@ -152,9 +161,9 @@ const start = async () => {
         llmApiKey,
         llmModel: process.env.LLM_MODEL,
       });
-      console.log('[scheduler] Cron scheduler started');
+      server.log.info('[scheduler] Cron scheduler started');
     } else {
-      console.log('[scheduler] Skipped (LLM_ENDPOINT/LLM_API_KEY not set)');
+      server.log.info('[scheduler] Skipped (LLM_ENDPOINT/LLM_API_KEY not set)');
     }
   } catch (err) {
     server.log.error(err);

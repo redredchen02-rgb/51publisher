@@ -1,5 +1,5 @@
 ---
-title: "feat: Batch reliability & UX hardening (7 improvements)"
+title: 'feat: Batch reliability & UX hardening (7 improvements)'
 type: feat
 status: completed
 date: 2026-06-04
@@ -15,6 +15,7 @@ Seven targeted improvements derived from open ideation on 2026-06-04. All are bo
 ## Problem Frame
 
 The core batch publish flow is functional but has multiple silent failure paths:
+
 - Quill tier-② degradation is set but never surfaced to the operator
 - Selector drift is detectable but only checked on demand — operators discover it after empty fills
 - Quarantine releases are blind (no signal whether the post actually landed)
@@ -103,9 +104,10 @@ No external research needed — local patterns are well-established for all 7 un
 
 ## High-Level Technical Design
 
-> *This illustrates the intended approach and is directional guidance for review, not implementation specification. The implementing agent should treat it as context, not code to reproduce.*
+> _This illustrates the intended approach and is directional guidance for review, not implementation specification. The implementing agent should treat it as context, not code to reproduce._
 
 **U7 draft edit flow (state + data):**
+
 ```
 BatchView (state: draftOverrides: Map<itemId, Partial<ContentDraft>>)
   │
@@ -120,6 +122,7 @@ BatchView (state: draftOverrides: Map<itemId, Partial<ContentDraft>>)
 ```
 
 **U2 drift gate (batch approval path):**
+
 ```
 BatchView.handleApprove()
   → checkSelectors(batch.tabId)          ← existing messaging.ts helper
@@ -163,28 +166,33 @@ All 7 units are independent and can be executed in any order.
 **Dependencies:** None
 
 **Files:**
+
 - Modify: `lib/batch-orchestrator.ts` — expose fill results on approved items
 - Modify: `lib/batch.ts` — add `fillResults?: FieldFillResult[]` to `BatchItem` (this is the definitive file; `BatchItem` lives here, not in `lib/types.ts`; `FieldFillResult` is imported from `lib/types.ts` alongside the existing `ContentDraft` import)
 - Modify: `entrypoints/sidepanel/BatchReviewPanel.tsx` — render degraded fill result badge/note on approved items
 - Test: `lib/batch.test.ts` — verify `fillResults` stored on markFilled or markConfirmed
 
 **Approach:**
+
 - In `approveBatch()` (batch-orchestrator.ts), capture `fill.results` from the existing `sendFill()` response (the `fill` variable is already `FillPageResponse`; the capture point is already there). After the `fill.ok` guard (~line 105), persist via a new `markFillResultsRecorded(batch, itemId, results)` pure transition in `lib/batch.ts`, or a `patchItem` helper — either way, call `save(batch)` immediately after so SW recycle cannot lose the results.
 - `BatchItem.fillResults?: FieldFillResult[]` holds the array after fill completes
 - `BatchReviewPanel.tsx`: for approved/confirmed items, render a degraded badge when `fillResults.some(r => r.status === 'degraded')`, with expandable detail showing which fields degraded
 - Reuse `FillResultPanel.tsx` styles/patterns for the per-field status display
 
 **Patterns to follow:**
+
 - `FillResultPanel.tsx` — existing per-field status rendering with color coding
 - `bodyResultFromOutcome()` in `lib/body-bridge.ts` — how degraded maps to FieldFillResult
 
 **Test scenarios:**
+
 - Happy path: `approveBatch()` with tier① Quill fill → `item.fillResults` contains status `'filled'` for body field
 - Error path: `approveBatch()` with tier② (no `window.Quill`) → `item.fillResults` contains status `'degraded'` for body field with a non-empty note
 - Happy path: approved item with no degraded fields → no degraded badge in BatchReviewPanel
 - Edge case: approved item with degraded body → degraded badge visible; expanding shows the field name and note
 
 **Verification:**
+
 - After approving a batch item in a jsdom fixture without `window.Quill`, the item renders a degraded indicator in the review panel
 - Existing `pnpm test` passes with no regressions
 
@@ -199,27 +207,32 @@ All 7 units are independent and can be executed in any order.
 **Dependencies:** None
 
 **Files:**
+
 - Modify: `entrypoints/sidepanel/BatchView.tsx` — call `checkSelectors()` before `approveBatch`, block on drift
 - Modify: `entrypoints/sidepanel/App.tsx` — optionally call `checkSelectors()` before single-topic FILL_PAGE
 - Test: `lib/messaging.test.ts` or new `lib/selectors.test.ts` — unit-test the gate logic path
 
 **Approach:**
+
 - Replace the direct `onApprove()` trigger in `BatchView.tsx` with an async wrapper: `async function handleApproveWithDriftCheck(itemId) { const report = await checkSelectors(batch.tabId); if (!report.ok) { setError(...); return; } onApprove(itemId); }`. Wire this to the approve button. If `!report.ok`, set a visible error state listing `report.missing` selectors — do not call `approveBatch`.
 - For single-topic flow (App.tsx): surface as a dismissible warning (not hard-block) since the operator may intentionally fill a partially-configured page
 - The gate uses the full `FieldMapping` (via existing `checkSelectors(tabId)` → content-side `checkSelectorDrift(document, mapping)`) — not just the e2e KEY_SELECTORS subset
 - Keep the existing manual `CHECK_SELECTORS` button in the UI (unchanged); the proactive gate is additive
 
 **Patterns to follow:**
+
 - `checkSelectors(tabId)` in `lib/messaging.ts:61–67` — existing helper returns `DriftReport`
 - Existing busy-state error handling in `BatchView.tsx` — how errors are shown to the user
 
 **Test scenarios:**
+
 - Happy path: all selectors present → `checkSelectors` returns `ok: true` → fill proceeds without warning
 - Error path: one selector missing → `checkSelectors` returns `ok: false, missing: ['#title']` → blocking alert shown, fill does not start
 - Edge case: `checkSelectors` throws (tab closed, content script not injected) → graceful error shown, fill does not start silently
 - Integration: batch with 3 items, selector drift → warning blocks all 3 before any LLM spend on generation
 
 **Verification:**
+
 - In a test fixture where a mapped selector is absent, triggering batch approval renders an error message and does not call `sendFill`
 
 ---
@@ -233,11 +246,13 @@ All 7 units are independent and can be executed in any order.
 **Dependencies:** Reads `trajectory` state already managed in `BatchView` (line 34 — existing state, not new)
 
 **Files:**
+
 - Modify: `entrypoints/sidepanel/BatchView.tsx` — build `trajectoryByItemId` map and pass to BatchReviewPanel
 - Modify: `entrypoints/sidepanel/BatchReviewPanel.tsx` — render trajectory context in quarantine card
 - Test: `entrypoints/sidepanel/BatchReviewPanel.test.tsx` — verify context rendering for quarantined items
 
 **Approach:**
+
 - `BatchView.tsx` already loads `trajectory: TrajectoryRecord[]` in state (line 34)
 - Build `Map<string, TrajectoryRecord>` keyed by `record.id` (which matches `BatchItem.id`)
 - Pass as `trajectoryContext?: Map<string, TrajectoryRecord>` prop to `BatchReviewPanel`
@@ -248,16 +263,19 @@ All 7 units are independent and can be executed in any order.
 - This gives the operator a concrete signal before deciding to Release (re-publish) or Kill (discard)
 
 **Patterns to follow:**
+
 - Existing quarantine card in `BatchReviewPanel.tsx:109–121`
 - `TrajectoryRecord` shape in `lib/trajectory.ts:9`
 
 **Test scenarios:**
+
 - Happy path: quarantined item with trajectory record including `publishUrl` → "可能已發布" with URL displayed
 - Happy path: quarantined item with trajectory record but no `publishUrl` → "未收到發布確認" shown
 - Edge case: quarantined item with no trajectory record → "無發布記錄 — 安全重試" shown
 - Happy path: trajectory record with degraded body field → fill result summary highlights degraded field in quarantine card
 
 **Verification:**
+
 - BatchReviewPanel unit test renders all three context states correctly
 - No change to Release/Kill button behavior — purely additive display
 
@@ -272,12 +290,14 @@ All 7 units are independent and can be executed in any order.
 **Dependencies:** None
 
 **Files:**
+
 - Modify: `lib/storage.ts` — add `getPublishedTopics()`, `addPublishedTopics(topics)` with max-1000 prune
 - Modify: `entrypoints/background.ts` — load persistent topics in `handleRunBatch` deps construction
 - Modify: `lib/batch-orchestrator.ts` — extend `BatchOrchestratorDeps` with `getPublishedTopics`, persist confirmed topics after `appendTrajectory`
 - Test: `lib/storage.test.ts` — new unit tests for the two new storage functions
 
 **Approach:**
+
 - New storage key `local:publishedTopics` stores `string[]`
 - `getPublishedTopics()`: read → validate array → return; on invalid → return `[]` (fail-closed)
 - `addPublishedTopics(newTopics: string[])`: read existing → Set-merge to dedup → trim to most recent 1000 → write back
@@ -286,16 +306,19 @@ All 7 units are independent and can be executed in any order.
 - `filterReentrantTopics()` in batch.ts already accepts a seed set — extend or use as-is
 
 **Patterns to follow:**
+
 - `getAuthorizedHosts()` / `setAuthorizedHosts()` in `lib/storage.ts` — same fail-closed string[] pattern
 - `filterReentrantTopics()` in `lib/batch.ts` — existing dedup logic to hook into
 
 **Test scenarios:**
+
 - Happy path: `addPublishedTopics(['topicA'])` → subsequent `getPublishedTopics()` returns `['topicA']`
 - Edge case: add 1001 topics → store contains at most 1000 entries (oldest trimmed)
 - Error path: storage returns invalid value (null, number) → `getPublishedTopics()` returns `[]` without throwing
 - Integration: `handleRunBatch` with stored `['topicA']` → batch with `['topicA', 'topicB']` → only `['topicB']` queued
 
 **Verification:**
+
 - Unit tests pass for all storage scenarios
 - After simulating a SW restart (clearing in-memory state), `getPublishedTopics()` still excludes previously published topics
 
@@ -310,10 +333,12 @@ All 7 units are independent and can be executed in any order.
 **Dependencies:** None
 
 **Files:**
+
 - Create: `tests/e2e/fixture-drift.test.ts` — new test file
 - Modify: `package.json` — add `"check:fixture-drift"` script entry
 
 **Approach:**
+
 - New test file: `tests/e2e/fixture-drift.test.ts`
   - Imports `DEFAULT_FIELD_MAPPING` from `lib/field-mapping.ts` (no `#imports`, safe for e2e config)
   - Loads `tests/e2e/fixtures/webarticle-add.html` via `fs.readFileSync`
@@ -324,15 +349,18 @@ All 7 units are independent and can be executed in any order.
 - Reuse the existing e2e vitest config — no new deps needed
 
 **Patterns to follow:**
+
 - `tests/e2e/fixture-contract.test.ts` — existing fixture + jsdom selector-check pattern
 - `tests/e2e/fixtures/selectors.ts` — how `KEY_SELECTORS` is derived from `DEFAULT_FIELD_MAPPING`
 
 **Test scenarios:**
+
 - Happy path: all DEFAULT_FIELD_MAPPING selectors present in fixture → test suite passes
 - Error path: a selector from DEFAULT_FIELD_MAPPING absent from fixture → test fails with message identifying the missing selector by field name
 - Contract: selector list is derived from DEFAULT_FIELD_MAPPING, not hand-coded — verified by reading the test source
 
 **Verification:**
+
 - `pnpm check:fixture-drift` exits 0 on current clean fixture
 - Temporarily removing a selector from the fixture causes the command to fail with a clear message
 
@@ -347,26 +375,31 @@ All 7 units are independent and can be executed in any order.
 **Dependencies:** None
 
 **Files:**
+
 - Read: `entrypoints/sidepanel/BatchView.tsx:66–127` — verify existing behavior
 - Modify (if needed): `entrypoints/sidepanel/BatchView.tsx` — add trim/dedup to existing parse path
 - Modify (if needed): `lib/batch.ts`, `entrypoints/background.ts` — add `ADD_BATCH_TOPICS` message for in-flight additions (optional scope)
 
 **Approach:**
+
 - Review `handleStart()` (BatchView.tsx:66–80) to confirm: (a) topics split on `\n`, (b) blank lines removed, (c) whitespace trimmed, (d) deduplication applied before `RUN_BATCH`
 - Current code (`line 67`): `topics.split('\n').map(t => t.trim()).filter(Boolean)` — splits and trims but does **NOT** dedup. Dedup is missing and must be added: `[...new Set(topics.split('\n').map(t => t.trim()).filter(Boolean))]`
 - The "add topics to an active batch" extension (for batches already in progress) is **out of scope for v1** unless the basic textarea is missing one of the above — adding new message types for mid-batch topic injection is a separate feature
 - Add a comment in `BatchView.tsx` near `handleStart` documenting the supported input format
 
 **Patterns to follow:**
+
 - Existing `handleStart()` parse logic
 
 **Test scenarios:**
+
 - Happy path: textarea with 3 topics separated by `\n` → batch starts with 3 items
 - Edge case: textarea with blank lines between topics → blank lines stripped, only non-empty topics queued
 - Edge case: topic with leading/trailing whitespace → trimmed before queuing
 - Edge case: duplicate topic in textarea → deduped before queuing
 
 **Verification:**
+
 - `pnpm test` unit tests for BatchView cover the parse edge cases
 - Manual smoke: paste `"topicA\n\ntopicB\n  topicC  "` → 3 items in batch, none blank
 
@@ -381,12 +414,14 @@ All 7 units are independent and can be executed in any order.
 **Dependencies:** None (can be done independently, but benefits from U1 being done first so degraded state is visible alongside the editable fields)
 
 **Files:**
+
 - Modify: `entrypoints/sidepanel/BatchView.tsx` — add `draftOverrides: Map<string, Partial<ContentDraft>>` state; pass to BatchReviewPanel; merge at approve time
 - Modify: `entrypoints/sidepanel/BatchReviewPanel.tsx` — add `draftOverrides` and `onDraftPatch` props; render editable fields for `awaiting-approval` items
 - Modify: `entrypoints/sidepanel/DraftPreview.tsx` — verify `onChange` prop is already wired and sufficient for partial field updates
 - Test: `entrypoints/sidepanel/BatchReviewPanel.test.tsx` — edit flow tests
 
 **Approach:**
+
 - `BatchView` adds state: `const [draftOverrides, setDraftOverrides] = useState<Map<string, Partial<ContentDraft>>>(() => new Map())`
 - `handleDraftPatch(itemId: string, patch: Partial<ContentDraft>)`: update the map with merged patch for that item
 - Pass `draftOverrides` and `onDraftPatch` as props to `BatchReviewPanel`
@@ -396,10 +431,12 @@ All 7 units are independent and can be executed in any order.
 - If the approve message already accepts a draft parameter, use it; otherwise confirm with the background handler how `APPROVE_BATCH` carries the draft
 
 **Patterns to follow:**
+
 - `DraftPreview.tsx` — existing draft editor with `onChange?: (draft: ContentDraft) => void` prop
 - Controlled component pattern in `BatchReviewPanel.tsx` — all state flows through props
 
 **Test scenarios:**
+
 - Happy path: user edits title → approves → `approveBatch` called with edited title in draft
 - Happy path: user approves without editing → original LLM draft used unchanged
 - Edge case: user edits then kills item → edit discarded, Map entry removed on kill
@@ -408,6 +445,7 @@ All 7 units are independent and can be executed in any order.
 - Integration: edited draft flows through `sendFill()` → fills page with edited title, not LLM title
 
 **Verification:**
+
 - Unit test: editing title in BatchReviewPanel and approving produces correct draft in onApprove callback
 - `pnpm test` passes with no regressions in existing batch tests
 
@@ -422,13 +460,13 @@ All 7 units are independent and can be executed in any order.
 
 ## Risks & Dependencies
 
-| Risk | Mitigation |
-|------|------------|
-| U7: `APPROVE_BATCH` message may not currently carry a draft parameter | Read `lib/types.ts` ApproveBatchMessage before implementing; add `draft?: ContentDraft` to the message type if absent |
-| U5: `vitest run` with a specific file path may behave differently across vitest versions | Verify locally before committing the script |
-| U4: fire-and-forget `addPublishedTopics` may race with subsequent reads | Acceptable for v1; topic dedup is best-effort, not a safety gate. Document this in code. |
-| U2: `checkSelectors` round-trip adds ~50–100ms before every approval | Acceptable latency for a blocking confirmation action; no background polling needed |
-| U5: `vitest run` with a specific file path may behave differently across vitest versions | Verify locally before committing the script |
+| Risk                                                                                     | Mitigation                                                                                                            |
+| ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| U7: `APPROVE_BATCH` message may not currently carry a draft parameter                    | Read `lib/types.ts` ApproveBatchMessage before implementing; add `draft?: ContentDraft` to the message type if absent |
+| U5: `vitest run` with a specific file path may behave differently across vitest versions | Verify locally before committing the script                                                                           |
+| U4: fire-and-forget `addPublishedTopics` may race with subsequent reads                  | Acceptable for v1; topic dedup is best-effort, not a safety gate. Document this in code.                              |
+| U2: `checkSelectors` round-trip adds ~50–100ms before every approval                     | Acceptable latency for a blocking confirmation action; no background polling needed                                   |
+| U5: `vitest run` with a specific file path may behave differently across vitest versions | Verify locally before committing the script                                                                           |
 
 ## Documentation / Operational Notes
 

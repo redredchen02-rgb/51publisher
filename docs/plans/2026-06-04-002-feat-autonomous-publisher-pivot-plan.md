@@ -1,5 +1,5 @@
 ---
-title: "feat: 自主发布器转向 — 授权站点门控 + 批量审核 + 信任阶梯(Hybrid C, 瘦身版)"
+title: 'feat: 自主发布器转向 — 授权站点门控 + 批量审核 + 信任阶梯(Hybrid C, 瘦身版)'
 type: feat
 status: completed
 date: 2026-06-04
@@ -32,10 +32,11 @@ origin: docs/brainstorms/2026-06-04-autonomous-publisher-pivot-requirements.md
 
 帖子全发**自家站点**(可撤下/改/删、无封号风险),逐条人工点发布是产能瓶颈而非安全必需。
 但评审指出三个前提风险,Phase 0 须先验证或显式承担:
+
 1. **"自家站=可安全自动发"忽略 Google 域名级惩罚**:规模化低质内容拖垮**整站**排名,且"撤下"不回滚已抓取计入的域名信号。
 2. **批量审核未必移瓶颈**:认真读 N 条 AI 草稿的认知成本 ≈ 点 N 次;退化成橡皮图章则等于事实全自动但把关失效。
 3. **真约束可能是草稿生成质量而非吞吐**:若 AI 草稿合格率低,自动发布只是更快推次品上域名。
-详见 origin:`docs/brainstorms/2026-06-04-autonomous-publisher-pivot-requirements.md`。
+   详见 origin:`docs/brainstorms/2026-06-04-autonomous-publisher-pivot-requirements.md`。
 
 ## Requirements Trace
 
@@ -66,6 +67,7 @@ origin: docs/brainstorms/2026-06-04-autonomous-publisher-pivot-requirements.md
 ### Relevant Code and Patterns
 
 **架构(三层 + 双世界,务必沿用)**
+
 - Side Panel(React, 隔离)`entrypoints/sidepanel/App.tsx` — 状态机 `Mode`,挂载崩溃恢复
 - 调度中心 `entrypoints/background.ts` — 当前**只**认领 `GENERATE_DRAFT`,监听器签名 `(message)` **无 sender**;**MV3 SW 长任务被回收**,批量循环更易复发
 - 隔离世界 content `entrypoints/content.ts` — 认领 `FILL_PAGE`;**当前 `content.ts:3,28` 把 apiKey 读进 content 调 `generateDraft`(渲染进程含密,须挪 background)**;当前**无任何** `.click()`/`form.submit()`
@@ -73,12 +75,14 @@ origin: docs/brainstorms/2026-06-04-autonomous-publisher-pivot-requirements.md
 - 消息层 `lib/messaging.ts:10-18` — `requestFill` 走 `tabs.query({active})` → `tabs.sendMessage` **直连 content,不经 background**(发布要改道)
 
 **填充引擎 / 字段映射 / 脱敏 / LLM / 存储**
+
 - `lib/fillers.ts:12-16 fireValueEvents`(只 input/change,绝不 Enter)**保留不变**;结果模型 `lib/types.ts:75-79 FieldFillResult{field,status,note?}` = 轨迹天然数据源
 - `lib/field-mapping.ts DEFAULT_FIELD_MAPPING`(单一事实源,不依赖 `#imports`);`lib/quill-paste.ts pasteIntoQuill`(tier①`dangerouslyPasteHTML`/tier② 兜底)
 - `lib/sanitize.ts sanitizeBody`(DOMPurify 白名单)→ U9a 强化;`scripts/check-fixture-secrets.sh`(**commit 期**文件扫描,**非运行时**)→ U6 须 TS 端口
 - `lib/llm.ts`(OpenAI 兼容,只校验 `isHttps`,**无 endpoint allowlist**;全错误结构化、绝不带 key);`lib/storage.ts:36-50`(WXT storage,缺失回落;`local:apiKey` 明文;currentDraft 幂等恢复**对"发布"不成立**)
 
 **测试基建**
+
 - `vitest.e2e.config.ts` jsdom,**只 import `lib/`、不碰 entrypoint**(故**测不了** sender/tabs/background,见 U3 边界)
 - `tests/e2e/helpers/zero-submit.ts installSubmitSpy`(三通道:form.submit/requestSubmit、submit 事件、按钮 click;**无 XHR/fetch 通道** → 若 U0 发现 XHR 提交须加第 4 通道)
 - `tests/e2e/fixtures/selectors.ts KEY_SELECTORS`(派生自 DEFAULT_FIELD_MAPPING)+ `fixture-contract.test.ts` → U5 轻量探针 / 延后 U8 的骨架
@@ -97,15 +101,15 @@ origin: docs/brainstorms/2026-06-04-autonomous-publisher-pivot-requirements.md
 
 Webwright 是 Python+Playwright 外部自主 agent:`DefaultAgent.run→step→query→execute_actions`,模型写 bash 驱动真浏览器,工作区落盘 `plan.md/steps.md/screenshots/logs/final_script.py`,带上下文压缩、自反思截图判官、落盘前 `_sanitize_message_for_disk`、凭据从 env 注入(不进模型上下文)。对照本产品:
 
-| Webwright 机制 | 对 51publisher 的处置 | 落点 |
-|---|---|---|
-| **工作区即状态**(steps/logs/screenshots 逐步落盘 + 落盘前脱敏) | **移植** → 每帖轨迹:填充结果 + `/save` 请求(脱敏)+ 响应 + 快照;`_sanitize_message_for_disk` 印证 U6 运行时脱敏闸门是对的 | U6 |
-| **任务=可重跑脚本**(`final_script.py`) | **移植理念** → 本站"脚本"=参数化 `POST /admin/webarticle/save`;可重跑=漂移探针重放该请求 | U2 / U7a / U8(延后) |
-| **凭据从 env、不进模型上下文** | **已对齐**(评审独立得出同结论)→ apiKey 只在 background、绝不进 content/模型 | Key Decisions |
-| **自反思闸门**(两段式截图判官) | **降配** → v1 用轻量"填充落位自检"(绿/黄/红雏形),**不**上 LLM 截图判官 | U5 |
-| **上下文压缩 / prune 快照** | **v1 跳过**(填充无长上下文);仅无头 B 长任务需要 | 延后 B |
-| **模型写 bash + python sandbox 循环** | **v1 跳过**(扩展跑不了 sandbox)——这是无头 B 形态 | 延后 B |
-| **打包成 Claude Code/Codex skills** | **跳过**(与本产品分发无关) | — |
+| Webwright 机制                                                 | 对 51publisher 的处置                                                                                                    | 落点                |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------- |
+| **工作区即状态**(steps/logs/screenshots 逐步落盘 + 落盘前脱敏) | **移植** → 每帖轨迹:填充结果 + `/save` 请求(脱敏)+ 响应 + 快照;`_sanitize_message_for_disk` 印证 U6 运行时脱敏闸门是对的 | U6                  |
+| **任务=可重跑脚本**(`final_script.py`)                         | **移植理念** → 本站"脚本"=参数化 `POST /admin/webarticle/save`;可重跑=漂移探针重放该请求                                 | U2 / U7a / U8(延后) |
+| **凭据从 env、不进模型上下文**                                 | **已对齐**(评审独立得出同结论)→ apiKey 只在 background、绝不进 content/模型                                              | Key Decisions       |
+| **自反思闸门**(两段式截图判官)                                 | **降配** → v1 用轻量"填充落位自检"(绿/黄/红雏形),**不**上 LLM 截图判官                                                   | U5                  |
+| **上下文压缩 / prune 快照**                                    | **v1 跳过**(填充无长上下文);仅无头 B 长任务需要                                                                          | 延后 B              |
+| **模型写 bash + python sandbox 循环**                          | **v1 跳过**(扩展跑不了 sandbox)——这是无头 B 形态                                                                         | 延后 B              |
+| **打包成 Claude Code/Codex skills**                            | **跳过**(与本产品分发无关)                                                                                               | —                   |
 
 结论:**Webwright 代码不可搬;能搬的是"工作区即状态→轨迹存档"、"任务=可重跑请求→漂移探针"、"凭据隔离"三件,且 v1 都已在计划里。其自主循环/沙箱/压缩/截图判官属无头 B 终态,本次不做。**
 
@@ -154,7 +158,7 @@ Webwright 是 Python+Playwright 外部自主 agent:`DefaultAgent.run→step→qu
 
 ## High-Level Technical Design
 
-> *方向性示意,供评审验证"形状",非实现规范。*
+> _方向性示意,供评审验证"形状",非实现规范。_
 
 ```mermaid
 flowchart TB
@@ -206,9 +210,11 @@ flowchart TB
 **Dependencies:** admin 凭据 + DevTools 访问
 
 **Files:**
+
 - Modify: `docs/field-mapping-guide.md`(记录:① 真后台提交机制 form/button/XHR + 是否 CSRF;② 草稿态可用性;③ 人工"逐条填+点发布"基线耗时/点击数;④ 抽样 N 条 AI 草稿的合格率)
 
 **Approach:**
+
 - **U0 勘查**(go/no-go):DevTools 看 admin 提交时网络/事件,记触发元素 + 是否 XHR + CSRF + 草稿态。
 - **瓶颈基线**:现状发 ~10 条,记"读+填+点发布"各段耗时 → 确认"点发布"是否真占大头(若不是,自动提交收益小,考虑回退 A)。
 - **草稿质量**:抽 ~10 条 AI 草稿,人工标"可直接发/需小改/不合格"比例 → 合格率太低则先改 prompt/生成,暂缓自动发。
@@ -230,6 +236,7 @@ flowchart TB
 **Dependencies:** None
 
 **Files:**
+
 - Create: `lib/safety-gate.ts`(`canSubmit`/`normalizeHost`/`labelBoundaryMatch`)+ `lib/safety-gate.test.ts`
 - Modify: `lib/storage.ts`(`local:safetyMode`/`local:authorizedHosts`,种子 `dx-999-adm.ympxbys.xyz`;解析失败 fail-closed→off+空)
 - Modify: `lib/types.ts`(`SafetyMode='off'|'dry-run'|'authorized'`)
@@ -241,6 +248,7 @@ flowchart TB
 **Patterns to follow:** `lib/storage.ts` 缺失回落;`lib/field-mapping.ts` 单一事实源。
 
 **Test scenarios:**
+
 - Happy: `authorized` + `dx-999-adm.ympxbys.xyz` ∈ 名单 → 真。
 - **必拒样本集(全假)**:`ympxbys.xyz.evil.com`、`aympxbys.xyz`、`evilympxbys.xyz`、`notympxbys.xyz`、`dx-999-adm.ympxbys.xyz.evil.com`、裸 `ympxbys.xyz`、尾点 `...xyz.`、大写(规范化后真)、`user@...`、`...:8080`、`evil.com#...ympxbys.xyz`、`evil.com?x=...`、IP `1.2.3.4`/`[::1]`/`0x7f.1`、punycode/IDN 同形、含 `\0` 拼接。
 - 安全: dry-run/off 即便 host 在名单→假;名单空→假;配置坏值 fail-closed→假;storage `mode=authorized` 但 host 不在名单→假。
@@ -258,6 +266,7 @@ flowchart TB
 **Dependencies:** P0/U0(机制)、U1(闸门)
 
 **Files:**
+
 - Create: `lib/publish.ts`(button-click 分支 / XHR 分支)+ `lib/publish.test.ts`
 - Modify: `entrypoints/background.ts`(发布编排:闸门→await dispatched→准许;**LLM `generateDraft` 调用移此**)
 - Modify: `entrypoints/content.ts`(收准许才触发;**移除 apiKey 读取/LLM 调用**)
@@ -270,6 +279,7 @@ flowchart TB
 **Patterns to follow:** `lib/fillers.ts` 注入 doc + 结构化结果;`lib/llm.ts` 错误纪律。
 
 **Test scenarios:**
+
 - Happy: authorized + 准许 + fixture 有发布元素 → 触发,spy 计数=1,`ok:true`。
 - 安全: 无 background 准许 → content 不触发,spy 三通道(必要时含 XHR 通道)全 0。
 - dry-run/off: 不发准许 → spy 全 0,报告"将发布"。
@@ -289,6 +299,7 @@ flowchart TB
 **Dependencies:** U1, U2
 
 **Files:**
+
 - Create: `tests/e2e/helpers/authorized-submit.ts`(由 `zero-submit.ts` 演化 + 授权矩阵;**若 U0=XHR 则加 patch fetch/XMLHttpRequest 第 4 通道**)
 - Modify: `tests/e2e/fill-core-path.test.ts`(原"零提交"→"off/dry-run 零提交")
 - Create: `tests/e2e/publish-gate.test.ts`(矩阵)
@@ -298,7 +309,8 @@ flowchart TB
 **Patterns to follow:** `fill-core-path.test.ts` spy 风格。
 
 **Test scenarios:**
-- 矩阵: (在名单,authorized,准许)→可=1;(dry-run)→0;(不在名单,authorized)→0;(off,*)→0;(authorized,无准许)→0。
+
+- 矩阵: (在名单,authorized,准许)→可=1;(dry-run)→0;(不在名单,authorized)→0;(off,\*)→0;(authorized,无准许)→0。
 - 防假绿: host 非授权但 mode=authorized → 0。
 - 边界声明: 文档/注释标注 jsdom 不覆盖"防伪造 host",由人工冒烟兜。
 
@@ -315,6 +327,7 @@ flowchart TB
 **Dependencies:** None(可并行)
 
 **Files:**
+
 - Modify: `lib/sanitize.ts` + `lib/sanitize.test.ts`(基线威胁语料 + 版本钉定)
 - Modify: `docs/field-mapping-guide.md`(白名单策略)
 
@@ -323,6 +336,7 @@ flowchart TB
 **Patterns to follow:** 现有 `lib/sanitize.ts` 白名单;"防假绿"思路。
 
 **Test scenarios:**
+
 - 安全: `<img src=//attacker/?leak>` 剥/拒;`data:text/html`、`data:image/svg+xml` 拒;`href=javascript:` 拒;`onerror` 拒。
 - 版本钉定: DOMPurify 版本/配置变更触发测试失败。
 
@@ -339,11 +353,13 @@ flowchart TB
 **Dependencies:** U2
 
 **Files:**
+
 - Create: `lib/batch.ts`(`status`: `queued|generating|filled|awaiting-approval|publish-dispatched|publish-confirmed|needs-human-verification|aborted|error`)+ `lib/batch.test.ts`
 - Modify: `lib/storage.ts`(`local:batch` 持久化 + 崩溃恢复)
 - Modify: `entrypoints/background.ts`(`RUN_BATCH`(钉 tabId)/`APPROVE_BATCH`/`KILL_BATCH`/`RELEASE_QUARANTINE` 编排)
 
 **Approach:**
+
 - **幂等**:background **await** `storage.set(publish-dispatched)` 成功**再**发准许;`publish-confirmed` 回执后写。恢复见 dispatched 无回执→`needs-human-verification`(**可能含已发**,设计如此)**绝不自动重发**;回执 `no-publish-target`(确未触发)→清回 `error`。
 - **隔离退出**:`needs-human-verification` **只**能经显式人工动作(`RELEASE_QUARANTINE`,区别于 `APPROVE_BATCH`)离开;**新 RUN_BATCH 不得自动重入**已隔离的同选题;U5 醒目展示。
 - **钉 tab**:`RUN_BATCH` 解析一次 tabId 并钉;每步前断言活动 tab==钉住 id 且 host 在名单,否则**暂停**批次提示"请切回 admin 标签页";`chrome.tabs.get` 失败(tab 关)→ 闸门 fail-closed 不发准许。
@@ -352,6 +368,7 @@ flowchart TB
 **Patterns to follow:** `lib/storage.ts currentDraft` 恢复写法;`background.ts` 同步 return + AbortController。
 
 **Test scenarios:**
+
 - Happy: 3 topics → 全 awaiting-approval;approve → dispatched→confirmed→done。
 - **幂等(关键)**:模拟"已 dispatched 无回执"重读 storage → 转 `needs-human-verification`,不重发;"已回执 no-publish-target" → 清回 error。
 - 隔离退出: 隔离态仅 `RELEASE_QUARANTINE` 可离开;新 RUN_BATCH 不重入同隔离选题。
@@ -372,11 +389,13 @@ flowchart TB
 **Dependencies:** U4
 
 **Files:**
+
 - Create: `entrypoints/sidepanel/BatchReviewPanel.tsx` + `.test.tsx`
 - Modify: `entrypoints/sidepanel/App.tsx`(`Mode` 增 `batch-review`)
 - Modify: `entrypoints/sidepanel/FillResultPanel.tsx`(复用绿/黄/红,**加非颜色标签/图标**)
 
 **Approach(须落实的设计决策,评审 design-lens):**
+
 - **信息架构(规模化)**:顶部批次摘要带(如"27 绿 / 2 黄 / 1 红 — 3 项需注意");按填充结果严重度排序(红优先);行**默认折叠**、展开看草稿+快照;明确 50 条时的分页/虚拟化。
 - **交互态全覆盖**:空态(未选题)、generating(逐条进度/能否边生成边审)、error 行样式、publish 阶段逐行指示 + 末尾"X 发布/Y 失败"、**`needs-human-verification` 必须在面板有醒目独立表示**(安全关键)。
 - **模式/host/tab 状态区**:常驻状态带——off/dry-run/authorized 用**显著不同**视觉(authorized 必须一眼区别于 dry-run);**字面**展示授权 host(供核对真域名)+ 钉住 tab 健康;tab 漂移→面板进入独立"已暂停"态。
@@ -389,6 +408,7 @@ flowchart TB
 **Patterns to follow:** `App.tsx` 状态机;`FillResultPanel.tsx`/`DraftPreview.tsx`。
 
 **Test scenarios:**
+
 - Happy: 渲染批次 + 摘要带 + 严重度排序;点批准→`APPROVE_BATCH`。
 - 交互态: 空/generating/error/publishing/`needs-human-verification` 各有明确渲染(尤其隔离态醒目)。
 - 安全: authorized 批准→插值 count+host 的二次确认 + 主动手势 + 确认时重检 tab/host;dry-run 文案"预演发布"。
@@ -409,12 +429,14 @@ flowchart TB
 **Dependencies:** U4
 
 **Files:**
+
 - Create: `lib/trajectory.ts` + `lib/trajectory.test.ts`
 - Create: `lib/secret-scrub.ts`(TS 脱敏,供 trajectory 用;与 `scripts/check-fixture-secrets.sh` 规则对齐)
 - Modify: `lib/storage.ts`(`local:trajectory` 追加式)
 - Modify: `entrypoints/sidepanel/BatchReviewPanel.tsx`(展示轨迹 + 回滚/撤下入口)
 
 **Approach:**
+
 - `TrajectoryRecord{id,topic,fields:FieldFillResult[],snapshot(已脱敏),publishUrl?,status,ts,publishedAsDraft?,seq,hash?}`。
 - **脱敏 fail-closed**:快照在内存内扫描(allowlist + 投毒自检),**默认剥所有表单 value(含 hidden)** + CSRF/`<meta csrf>`/nonce/`Authorization`/`Bearer`/长 hex/`data-*` ID;检出即拒写报警;原始快照**永不**在扫描前 `storage.set`。
 - **幂等标记解耦**:`publish-dispatched`(无密极小标记)**不**走快照脱敏闸门,避免脱敏失败堵前置幂等写。
@@ -424,6 +446,7 @@ flowchart TB
 **Patterns to follow:** `lib/sanitize.ts` 白名单;`check-fixture-secrets.sh` allowlist+投毒自检;`lib/storage.ts` 追加。
 
 **Test scenarios:**
+
 - Happy: 发 1 条→轨迹含字段+消毒快照+URL+ts,可读回。
 - 安全(fail-closed): 快照含 hidden value/Bearer/CSRF/长 hex→拒落盘+报警;原始快照扫描通过前无 `storage.set`。
 - 防 no-op: 投毒样本必被检出。
@@ -444,6 +467,7 @@ flowchart TB
 **Dependencies:** 概念汇入 U2;可并行
 
 **Files:**
+
 - Create: `lib/recipe.ts`(`SiteRecipe` 纯数据,不 import `#imports`/chrome)+ `lib/recipe.test.ts`
 - Modify: 调用点读 recipe 数据(`fillers`/`content`/`publish` 的选择器/白名单/发布配置来源)
 - Modify: `docs/field-mapping-guide.md`(recipe 数据说明)
@@ -455,6 +479,7 @@ flowchart TB
 **Patterns to follow:** `lib/field-mapping.ts` 单一事实源;`fixtures/selectors.ts` 派生。
 
 **Test scenarios:**
+
 - Happy: 从 `SiteRecipe` 取值 == 现有默认(行为不变)。
 - 纯净: `lib/recipe.ts` 不 import chrome/`#imports`。
 - 防分叉: recipe 选择器集与 `DEFAULT_FIELD_MAPPING` 一致。
@@ -486,41 +511,46 @@ flowchart TB
 
 ## Risks & Dependencies
 
-| Risk | Mitigation |
-|------|------------|
-| **自家站自动发伤 Google 域名级排名(撤下不回滚)** | Phase 0 测草稿合格率;v1 保留逐条人工审(批量);质量不达标暂缓;先草稿后转正随自主档 |
-| **批量审核退化为橡皮图章 = 事实全自动** | U5 严重度排序 + 二次确认主动手势 + 红/黄强制注意;Success Metrics 量化审核耗时 |
-| **真瓶颈是草稿质量而非吞吐** | Phase 0 go/no-go:合格率低则先改生成,不投自动发 |
-| SW 回收致重复发帖(不可逆) | dispatched await 写盘后才发准许;恢复隔离待人工核,绝不自动重发(U4) |
-| e2e 证不了真后台自动提交/防伪造 host | authorized 首发强制人工 admin 冒烟;U3 标注验证边界 |
-| 闸门被绕过(host 伪装/自我授权) | 闸门在 background + host 取 `chrome.tabs.get(tabId).url`;标签边界 + 必拒样本集;content 只读配置 |
-| **API key 在 content 渲染进程泄露** | LLM 调用移 background,content/side panel 永不接触 key |
-| LLM endpoint 无 allowlist(源信任边界) | v1 文档化"endpoint 是第三方信任";自主档前再考虑 host allowlist |
-| LLM HTML 进登录态 origin XSS | U9a 基线硬化(远程 src/data:/事件属性/版本钉定);完整模型 U9b 随自主档 |
-| dry-run 被绕过误发 | off/dry-run 下 background 不发准许,content 无被调用路径 |
-| 轨迹泄露机密 / 被篡改 | 运行时内存脱敏(剥 hidden value/CSRF;allowlist+投毒自检)拒写;seq+hash 链篡改可检 |
-| 批量误发到非 admin tab | RUN_BATCH 钉 tabId;每步断言 tab+host;`tabs.get` 失败 fail-closed |
-| 真后台提交机制/草稿态未知 | **U0 go/no-go 闸**前置;XHR 则 U3 加 fetch/XHR spy 通道、CSRF 现读 |
-| 隔离态被静默重入/再发 | `needs-human-verification` 仅 `RELEASE_QUARANTINE` 退出;新 RUN_BATCH 不重入同选题 |
-| U0 需 admin 凭据 + DevTools(无 remote) | 列为全 Phase 1 硬访问前提 |
-| 正式环境换顶域 | 授权名单 + manifest 用配置 + 显式扩展,有清单不漏 |
+| Risk                                             | Mitigation                                                                                      |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| **自家站自动发伤 Google 域名级排名(撤下不回滚)** | Phase 0 测草稿合格率;v1 保留逐条人工审(批量);质量不达标暂缓;先草稿后转正随自主档                |
+| **批量审核退化为橡皮图章 = 事实全自动**          | U5 严重度排序 + 二次确认主动手势 + 红/黄强制注意;Success Metrics 量化审核耗时                   |
+| **真瓶颈是草稿质量而非吞吐**                     | Phase 0 go/no-go:合格率低则先改生成,不投自动发                                                  |
+| SW 回收致重复发帖(不可逆)                        | dispatched await 写盘后才发准许;恢复隔离待人工核,绝不自动重发(U4)                               |
+| e2e 证不了真后台自动提交/防伪造 host             | authorized 首发强制人工 admin 冒烟;U3 标注验证边界                                              |
+| 闸门被绕过(host 伪装/自我授权)                   | 闸门在 background + host 取 `chrome.tabs.get(tabId).url`;标签边界 + 必拒样本集;content 只读配置 |
+| **API key 在 content 渲染进程泄露**              | LLM 调用移 background,content/side panel 永不接触 key                                           |
+| LLM endpoint 无 allowlist(源信任边界)            | v1 文档化"endpoint 是第三方信任";自主档前再考虑 host allowlist                                  |
+| LLM HTML 进登录态 origin XSS                     | U9a 基线硬化(远程 src/data:/事件属性/版本钉定);完整模型 U9b 随自主档                            |
+| dry-run 被绕过误发                               | off/dry-run 下 background 不发准许,content 无被调用路径                                         |
+| 轨迹泄露机密 / 被篡改                            | 运行时内存脱敏(剥 hidden value/CSRF;allowlist+投毒自检)拒写;seq+hash 链篡改可检                 |
+| 批量误发到非 admin tab                           | RUN_BATCH 钉 tabId;每步断言 tab+host;`tabs.get` 失败 fail-closed                                |
+| 真后台提交机制/草稿态未知                        | **U0 go/no-go 闸**前置;XHR 则 U3 加 fetch/XHR spy 通道、CSRF 现读                               |
+| 隔离态被静默重入/再发                            | `needs-human-verification` 仅 `RELEASE_QUARANTINE` 退出;新 RUN_BATCH 不重入同选题               |
+| U0 需 admin 凭据 + DevTools(无 remote)           | 列为全 Phase 1 硬访问前提                                                                       |
+| 正式环境换顶域                                   | 授权名单 + manifest 用配置 + 显式扩展,有清单不漏                                                |
 
 ## Phased Delivery
 
 ### Phase 0(go/no-go,先)
+
 P0:U0 勘查 + 瓶颈基线 + 草稿合格率。**门槛:点击确为瓶颈 + 草稿合格率达标 + 提交机制清楚;否则回退"只自动化生成+填充"。**
 
 ### Phase 1(关键路径)
+
 U1 闸门(background)+manifest 收窄 → U2 门控发布(改道+key 移 bg) → U3 安全档位测试 → U9a 基线消毒。
 **里程碑:admin 人工冒烟,authorized 真发一条、off/dry-run 零提交、必拒样本集全绿、key 不进 content。**
 
 ### Phase 2
+
 U4 幂等批量状态机 + U5 审核 UI。**里程碑:一屏审 10 条、崩溃不重复发、隔离只人工退、tab 漂移不误发、模式不可混淆。**
 
 ### Phase 3
+
 U6 轨迹 + 回滚 + 运行时脱敏。**里程碑:可审计、含机密写不出、篡改可检、能回滚。**
 
 ### Phase 4(可并行/收尾)
+
 U7a recipe 数据合并。**里程碑:站点知识单一事实源,行为不变。**(U7b/U8/U9b/抽样·全自动档 = 延后清单。)
 
 ## Documentation / Operational Notes

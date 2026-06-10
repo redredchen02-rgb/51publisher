@@ -2,8 +2,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { fillDraft, fillField, HIGHLIGHT_CLASS } from './fillers';
 import { DEFAULT_SETTINGS } from './storage';
-import { DEFAULT_FIELD_MAPPING } from './field-mapping';
-import type { ContentDraft, FieldDefinition } from './types';
+import { DEFAULT_FIELD_MAPPING } from '@51publisher/shared';
+import type { ContentDraft, FieldDefinition } from '@51publisher/shared';
 
 const mapping = DEFAULT_SETTINGS.fieldMapping;
 

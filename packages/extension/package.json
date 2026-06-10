@@ -10,6 +10,7 @@
     "zip": "wxt zip",
     "compile": "tsc --noEmit",
     "test": "vitest run",
+    "coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "check:fixtures": "bash scripts/check-fixture-secrets.sh",

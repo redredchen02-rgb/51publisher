@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, release/*]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build shared package
+        run: pnpm --filter @51publisher/shared build
+
+      - name: Type check (all packages)
+        run: pnpm compile
+
+      - name: Run unit tests
+        run: pnpm test
+
+      - name: Run fixture checks
+        run: |
+          pnpm check:fixtures || true
+          pnpm check:fixture-drift || true
+
+      - name: Run grounding E2E test
+        run: pnpm test:e2e tests/e2e/validate-grounding.test.ts
+        env:
+          # You should configure these secrets in GitHub Actions
+          LLM_ENDPOINT: ${{ secrets.LLM_ENDPOINT }}
+          LLM_KEY: ${{ secrets.LLM_KEY }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}

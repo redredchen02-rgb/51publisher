@@ -1,7 +1,11 @@
 import type { FastifyInstance } from 'fastify';
+import { err } from '../error-response.js';
 import { scraperConfig } from './scraper-config.js';
 import { extractFacts } from './fact-extractor.js';
 import { savePendingTopic, type PendingTopic } from './pending-store.js';
+import { loadSSRFAllowlist, isHostAllowed } from './ssrf-allowlist.js';
+
+const ssrfConfig = loadSSRFAllowlist();
 
 interface TriggerBody {
   siteName: string;
@@ -14,22 +18,22 @@ export async function registerScraperRoutes(app: FastifyInstance): Promise<void>
     const { siteName, url } = request.body;
 
     if (!siteName) {
-      return reply.status(400).send({ ok: false, error: 'Missing required field: siteName' });
+      return err(reply, 400, 'Missing required field: siteName');
     }
 
     const config = scraperConfig.getSiteConfig(siteName);
     if (!config || !config.enabled) {
-      return reply.status(404).send({ ok: false, error: `Site config not found or disabled: ${siteName}` });
+      return err(reply, 404, `Site config not found or disabled: ${siteName}`);
     }
 
     const adapter = scraperConfig.getAdapter(config.adapterName);
     if (!adapter) {
-      return reply.status(500).send({ ok: false, error: `Adapter not registered: ${config.adapterName}` });
+      return err(reply, 500, `Adapter not registered: ${config.adapterName}`);
     }
 
     const targetUrl = url || config.url;
     if (!targetUrl) {
-      return reply.status(400).send({ ok: false, error: 'No URL provided and no default URL in config' });
+      return err(reply, 400, 'No URL provided and no default URL in config');
     }
 
     // SSRF allowlist: caller-supplied url must share hostname and protocol with the registered site config.
@@ -41,20 +45,24 @@ export async function registerScraperRoutes(app: FastifyInstance): Promise<void>
         parsed = new URL(url);
         configParsed = new URL(config.url);
       } catch {
-        return reply.status(400).send({ ok: false, error: 'Invalid URL format' });
+        return err(reply, 400, 'Invalid URL format');
       }
       if (parsed.username || parsed.password) {
-        return reply.status(400).send({ ok: false, error: 'URL credentials not allowed' });
+        return err(reply, 400, 'URL credentials not allowed');
       }
       if (parsed.hostname !== configParsed.hostname) {
-        return reply
-          .status(400)
-          .send({ ok: false, error: `URL hostname not allowed for site ${siteName}: ${parsed.hostname}` });
+        return err(reply, 400, `URL hostname not allowed for site ${siteName}: ${parsed.hostname}`);
       }
       if (parsed.protocol !== configParsed.protocol) {
         return reply
           .status(400)
           .send({ ok: false, error: `URL protocol not allowed for site ${siteName}: ${parsed.protocol}` });
+      }
+
+      if (!isHostAllowed(parsed, ssrfConfig)) {
+        return reply
+          .status(403)
+          .send({ ok: false, error: `URL hostname blocked by SSRF allowlist: ${parsed.hostname}` });
       }
     }
 
@@ -62,7 +70,7 @@ export async function registerScraperRoutes(app: FastifyInstance): Promise<void>
     const llmApiKey = process.env.LLM_API_KEY;
 
     if (!llmEndpoint || !llmApiKey) {
-      return reply.status(500).send({ ok: false, error: 'LLM_ENDPOINT and LLM_API_KEY must be set in .env' });
+      return err(reply, 500, 'LLM_ENDPOINT and LLM_API_KEY must be set in .env');
     }
 
     try {
@@ -98,10 +106,10 @@ export async function registerScraperRoutes(app: FastifyInstance): Promise<void>
       await savePendingTopic(pendingTopic);
 
       return { ok: true, pendingTopic };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
       request.log.error(err, `Scrape failed for ${siteName}`);
-      return reply.status(500).send({ ok: false, error: `Scrape failed: ${msg}` });
+      return err(reply, 500, `Scrape failed: ${msg}`);
     }
   });
 

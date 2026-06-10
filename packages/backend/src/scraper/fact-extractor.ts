@@ -1,7 +1,7 @@
 import { chatCompletionsUrl } from '../llm.js';
 import type { RawContent, ExtractedFacts } from './site-adapter.js';
-import type { FactsBlock } from '../shared/facts.js';
-import { FACT_ORDER } from '../shared/facts.js';
+import type { FactsBlock } from '@51publisher/shared';
+import { FACT_ORDER } from '@51publisher/shared';
 
 /** json_schema 约束——保证 LLM 输出结构化事实。 */
 const FACTS_SCHEMA = {

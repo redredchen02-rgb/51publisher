@@ -1,5 +1,5 @@
 ---
-title: "feat: Batch Observability & Reliability Hardening"
+title: 'feat: Batch Observability & Reliability Hardening'
 type: feat
 status: completed
 date: 2026-06-04
@@ -16,7 +16,7 @@ All 7 units build on the `feat/batch-reliability-ux` commit (`da275da`) and shar
 
 ## Problem Frame
 
-After the first UX hardening round (U1–U7 in plan-004), the system has solid reliability *mechanisms* but poor *visibility* into them. The user sees a static UI during batch runs, cannot query publish history, and has no notification when crash-recovered items require attention. Simultaneously, several reliability gaps remain: background wiring is untested, the `evaluateGate` TOCTOU race persists, tombstoned fill-dispatches have no recovery path, and a single errored batch item forces a full batch restart.
+After the first UX hardening round (U1–U7 in plan-004), the system has solid reliability _mechanisms_ but poor _visibility_ into them. The user sees a static UI during batch runs, cannot query publish history, and has no notification when crash-recovered items require attention. Simultaneously, several reliability gaps remain: background wiring is untested, the `evaluateGate` TOCTOU race persists, tombstoned fill-dispatches have no recovery path, and a single errored batch item forces a full batch restart.
 
 ## Requirements Trace
 
@@ -81,7 +81,7 @@ After the first UX hardening round (U1–U7 in plan-004), the system has solid r
 
 - **DryRunReport shape**: `local:dryRunReport` → `DryRunReport` type: `{ batchId: string; ts: string; items: DryRunItemResult[] }` where `DryRunItemResult = { itemId, topic, fillResults: FieldFillResult[], draftTitle?: string }`. Written after every dry-run `approveBatch` call; overwritten each time. Side panel shows it when `safetyMode === 'dry-run'` and report is present.
 
-- **RETRY_BATCH_ITEM operator override**: Add `retryBatchItem(batch, itemId): Batch` to `lib/batch.ts` — directly calls `patchItem` bypassing `transition` guards. Documented as an explicit operator-override: `error` and `aborted` remain in `TERMINAL` for all *automated* paths. A new `retryItem(deps, itemId)` orchestrator function in `lib/batch-orchestrator.ts` runs: `retryBatchItem` → `save` → `markGenerating` → `generateDraft` → `markFilled` → `presentForApproval` → `save` → return batch. (Two saves: one after retryBatchItem to flush the status change before any concurrent reader sees `queued`, one after presentForApproval to flush the approval-ready state.)
+- **RETRY_BATCH_ITEM operator override**: Add `retryBatchItem(batch, itemId): Batch` to `lib/batch.ts` — directly calls `patchItem` bypassing `transition` guards. Documented as an explicit operator-override: `error` and `aborted` remain in `TERMINAL` for all _automated_ paths. A new `retryItem(deps, itemId)` orchestrator function in `lib/batch-orchestrator.ts` runs: `retryBatchItem` → `save` → `markGenerating` → `generateDraft` → `markFilled` → `presentForApproval` → `save` → return batch. (Two saves: one after retryBatchItem to flush the status change before any concurrent reader sees `queued`, one after presentForApproval to flush the approval-ready state.)
 
 ## Open Questions
 
@@ -99,7 +99,7 @@ After the first UX hardening round (U1–U7 in plan-004), the system has solid r
 
 ## High-Level Technical Design
 
-> *This illustrates the intended approach and is directional guidance for review, not implementation specification. The implementing agent should treat it as context, not code to reproduce.*
+> _This illustrates the intended approach and is directional guidance for review, not implementation specification. The implementing agent should treat it as context, not code to reproduce._
 
 **Dependency graph — implementation units:**
 
@@ -153,20 +153,24 @@ approveBatch (dry-run mode)
 **Dependencies:** None
 
 **Files:**
+
 - Modify: `entrypoints/sidepanel/BatchView.tsx`
 - Test: `entrypoints/sidepanel/BatchView.test.tsx` (new or extend)
 
 **Approach:**
+
 - In `BatchView`'s `useEffect`, call `storage.watch('local:batch', handler)` after the initial `refresh()`. Store the returned `unwatch` function and call it on cleanup.
 - The handler receives `(newBatch, oldBatch)`. Debounce calling `setBatch(newBatch)` at ~100ms. Also refresh `safetyMode` and `tabHealthy` on change (or keep them as separate watch subscriptions).
 - Remove the dependency on manual refresh for in-progress batch updates. The "完成批量" button should still trigger a `refresh()` to pick up final trajectory state.
 - Do NOT break the existing `refresh()` call pattern — it must still work for initial load and post-action updates.
 
 **Patterns to follow:**
+
 - `BatchView.tsx` `useEffect` with `useCallback` (`refresh` is already a `useCallback`)
 - WXT `storage.watch` returns an unwatch function (same cleanup pattern as `browser.runtime.onMessage.addListener` removal)
 
 **Test scenarios:**
+
 - Happy path: storage.watch fires with updated batch → setBatch called with new value, UI reflects new status
 - Edge case: watch fires with null/undefined → falls back gracefully, no setState(null) crash
 - Edge case: rapid fire (5 events within 50ms) → debounce coalesces into 1 setState call
@@ -174,6 +178,7 @@ approveBatch (dry-run mode)
 - Integration: background calls `saveBatch(updatedBatch)` → side panel re-renders without explicit refresh call
 
 **Verification:**
+
 - Side panel shows per-item status updates during a batch run without the user pressing refresh
 - No console errors on component unmount
 - Existing test suite passes (no regressions from the new effect)
@@ -189,11 +194,13 @@ approveBatch (dry-run mode)
 **Dependencies:** None
 
 **Files:**
+
 - Modify: `entrypoints/sidepanel/BatchView.tsx`
 - Create: `entrypoints/sidepanel/HistoryPanel.tsx`
 - Test: `entrypoints/sidepanel/HistoryPanel.test.tsx` (new)
 
 **Approach:**
+
 - Add `view: 'batch' | 'history'` state to `BatchView.tsx`. Toggle button in the header row ("批次" / "历史").
 - `HistoryPanel` reads `local:trajectory` via `getTrajectory()` on mount. Shows records newest-first in a scrollable list.
 - Each row: topic, status badge (`publish-confirmed` / `error` / etc.), timestamp (relative), publish URL as a clickable link, fill-degraded count from `fields` if present.
@@ -203,11 +210,13 @@ approveBatch (dry-run mode)
 - History panel is read-only: no delete, no re-publish from here (those belong to other units).
 
 **Patterns to follow:**
+
 - `BatchView.tsx` conditional section rendering pattern
 - `TrajectorySection` component in BatchView.tsx (already exists for the trajectory section — HistoryPanel replaces/extends this)
 - Existing `verifyTrajectory` + `rollbackTargets` calls in BatchView.tsx lines 159–186
 
 **Test scenarios:**
+
 - Happy path: 3 trajectory records → renders 3 rows with topic, URL, timestamp
 - Happy path: verifyTrajectory returns true → chain-intact banner shown
 - Edge case: empty trajectory → "暂无发布记录" empty state, no error
@@ -217,6 +226,7 @@ approveBatch (dry-run mode)
 - Integration: `getTrajectory()` resolves with records → component renders them (no mock storage)
 
 **Verification:**
+
 - History tab accessible from side panel header toggle
 - All trajectory records display with correct fields
 - Chain integrity badge reflects actual `verifyTrajectory()` result
@@ -233,10 +243,12 @@ approveBatch (dry-run mode)
 **Dependencies:** None
 
 **Files:**
+
 - Modify: `entrypoints/sidepanel/BatchReviewPanel.tsx`
 - Test: `entrypoints/sidepanel/BatchReviewPanel.test.tsx` (new or extend)
 
 **Approach:**
+
 - Replace the existing `DegradedBadge` component (shown only for degraded fields) with a new `FillStatusTable` component that accepts `results: FieldFillResult[]` and renders a compact 3-column table: filled (green) / skipped (amber) / degraded (red) with counts.
 - Expand row on click: show each skipped/degraded field's `note` string.
 - Show `FillStatusTable` for any item that has `fillResults` (not just degraded), collapsed by default.
@@ -244,11 +256,13 @@ approveBatch (dry-run mode)
 - Keep the existing `DegradedBadge` import chain — replace the `DegradedBadge` usage site in the expanded item card, not the component definition (or rename and extend).
 
 **Patterns to follow:**
+
 - `DegradedBadge` component in `BatchReviewPanel.tsx` (lines 9–29) for expand/collapse pattern
 - `STATUS_LABEL` map pattern for status-to-display-string mapping
 - `FieldFillResult.status` three-state: `'filled' | 'skipped' | 'degraded'`
 
 **Test scenarios:**
+
 - Happy path: 3 fields — 2 filled, 1 skipped → table shows filled:2 skipped:1 degraded:0
 - Happy path: all fields filled → "✓ 全部字段已填" shown, no table
 - Happy path: expand skipped row → note "category 无匹配选项: 2" visible
@@ -257,6 +271,7 @@ approveBatch (dry-run mode)
 - Edge case: 1 degraded field → red badge with note shown (regression check: preserves plan-004 DegradedBadge behavior from plan-004's U1)
 
 **Verification:**
+
 - Opening an approval-card item shows fill status for all three states
 - Skipped fields display their `note`
 - No regression on degraded-only display from existing U1 badge
@@ -272,23 +287,27 @@ approveBatch (dry-run mode)
 **Dependencies:** None (foundational; should land before U5 and U7 to simplify their handler additions)
 
 **Files:**
+
 - Modify: `entrypoints/background.ts`
 - Create: `entrypoints/background.test.ts`
 
 **Approach:**
+
 - Extract all five `handleXxx` functions plus `evaluateGate` into a `createHandlers(deps: BackgroundHandlerDeps)` exported factory. The `defineBackground` block calls `createHandlers(liveDeps)` and wires the result to `runtime.onMessage`.
 - `BackgroundHandlerDeps` includes: `getBatch`, `saveBatch`, `getSettings`, `getApiKey`, `getPublishedTopics`, `addPublishedTopics`, `appendTrajectory`, `getSafetyMode`, `getAuthorizedHosts`, `tabsGet(tabId)`, `tabsSendMessage(tabId, msg)`, `storageSetItem`, `storageGetItem`, `generateDraftFn`, `buildBatchId`, `buildItemId`, `now`.
 - **TOCTOU fix**: In `evaluateGate`, change from two sequential awaits to `Promise.all([getSafetyMode(), getAuthorizedHosts(), resolveTabHost(tabId)])`. All three reads happen in the same microtask batch. Use the snapshotted host in `canSubmit`.
 - Test file at `entrypoints/background.test.ts` (colocated, same as `lib/batch.test.ts` pattern). Import `createHandlers` directly; pass stub deps.
 
-**Execution note:** Write at least one failing test for `evaluateGate` TOCTOU *before* applying the fix to confirm the test catches the original race.
+**Execution note:** Write at least one failing test for `evaluateGate` TOCTOU _before_ applying the fix to confirm the test catches the original race.
 
 **Patterns to follow:**
+
 - `lib/batch-orchestrator.ts` `RunBatchDeps` / `ApproveBatchDeps` interface + factory pattern
 - `lib/batch-orchestrator.test.ts` injection-based test structure (describe / it / vi.fn() stubs)
 - `defineBackground` should remain ≤ 25 lines after extraction (per plan-003 principle)
 
 **Test scenarios:**
+
 - Happy path: `handleRunBatch` called with valid topics + tabId → `generateDraftFn` called once per topic
 - Happy path: `handleApproveBatch` called → `tabsSendMessage` called with FILL_PAGE
 - Error path: `tabsGet` throws → `handleRunBatch` returns `null` (not throws)
@@ -298,6 +317,7 @@ approveBatch (dry-run mode)
 - Integration: `KILL_BATCH` message → `abortBatch` applied to stored batch, result returned
 
 **Verification:**
+
 - `entrypoints/background.test.ts` runs under `vitest run --config vitest.config.ts` without `#imports` errors
 - All 5 handler functions have ≥ 1 passing test
 - TOCTOU test passes after fix, was failing before
@@ -314,6 +334,7 @@ approveBatch (dry-run mode)
 **Dependencies:** U4 (easier to add tombstone deps to the extracted `BackgroundHandlerDeps` than to the original if-chain)
 
 **Files:**
+
 - Modify: `lib/storage.ts`
 - Modify: `lib/batch-orchestrator.ts`
 - Modify: `entrypoints/background.ts`
@@ -321,17 +342,20 @@ approveBatch (dry-run mode)
 - Test: `lib/batch-orchestrator.test.ts` (extend)
 
 **Approach:**
+
 - **Storage**: Add `FILL_TOMBSTONES_KEY = 'local:fillTombstones'` and `QUARANTINE_ALERT_KEY = 'local:pendingQuarantineAlert'` to `lib/storage.ts`. Add `writeFillTombstone(itemId, { tabId, ts })`, `clearFillTombstone(itemId)`, `getFillTombstones()`, `setPendingQuarantineAlert(count)`, `clearPendingQuarantineAlert()`, `getPendingQuarantineAlert()` functions (all fail-closed).
 - **Orchestrator**: Add `writeTombstone(itemId)` and `clearTombstone(itemId)` to `ApproveBatchDeps`. In `approveBatch` loop, call `writeTombstone(item.id)` before `sendFill`, then `clearTombstone(item.id)` after a successful fill ACK. If fill fails (fill.ok === false), still call `clearTombstone` (the item went to error state, not dispatched-limbo).
 - **SW startup**: In `defineBackground` startup block — call `getBatch()` (which runs `recoverBatch` on dispatched items), then call `getFillTombstones()`. Any tombstone entries that remain for items now in `needs-human-verification` confirm the recovery path. Items in tombstone with no corresponding batch entry are stale — clear them. After reconciliation, count total `needs-human-verification` items; if > 0, call `setPendingQuarantineAlert(count)`.
 - **Side panel**: In `BatchView.tsx` `refresh()`, also read `getPendingQuarantineAlert()`. If non-zero, show a dismissible banner: "N 条帖子在上次关机时状态不确定，请前往历史面板核对后再继续。" Button: "我知道了" → calls `clearPendingQuarantineAlert()` + re-read.
 
 **Patterns to follow:**
+
 - `lib/storage.ts` fail-closed read pattern: `const v = await storage.getItem<unknown>(KEY); return isValidShape(v) ? v : defaultValue`
 - `ApproveBatchDeps` injection in `lib/batch-orchestrator.ts` (add two new optional deps with safe defaults)
 - `lib/batch-orchestrator.test.ts` existing test for `sendFill` failure path
 
 **Test scenarios:**
+
 - Happy path: `writeFillTombstone('item1')` → `getFillTombstones()` returns `{ item1: { tabId, ts } }`
 - Happy path: `clearFillTombstone('item1')` after fill ACK → tombstone removed
 - Edge case: `getFillTombstones()` with no stored data → returns `{}`
@@ -342,6 +366,7 @@ approveBatch (dry-run mode)
 - Side panel: `getPendingQuarantineAlert()` returns 2 → banner rendered; "我知道了" click → banner dismissed
 
 **Verification:**
+
 - A batch item's tombstone is always cleared before the item's final state is written
 - SW restart with residual tombstone entries triggers `needs-human-verification` for those items
 - `pendingQuarantineAlert` banner appears in BatchView when alert count > 0
@@ -358,6 +383,7 @@ approveBatch (dry-run mode)
 **Dependencies:** None
 
 **Files:**
+
 - Modify: `lib/types.ts`
 - Modify: `lib/storage.ts`
 - Modify: `lib/batch-orchestrator.ts`
@@ -366,6 +392,7 @@ approveBatch (dry-run mode)
 - Test: `lib/batch-orchestrator.test.ts` (extend)
 
 **Approach:**
+
 - **Types**: Add `DryRunItemResult = { itemId: string; topic: string; fillResults: FieldFillResult[]; draftTitle?: string }` and `DryRunReport = { batchId: string; ts: string; items: DryRunItemResult[] }` to `lib/types.ts`.
 - **Storage**: Add `DRY_RUN_REPORT_KEY = 'local:dryRunReport'` and `saveDryRunReport(report)` / `getDryRunReport()` to `lib/storage.ts`. Fail-closed read.
 - **Orchestrator**: Add `saveDryRunReportFn?: (report: DryRunReport) => Promise<void>` to `ApproveBatchDeps` (optional, no-op default). In `approveBatch` loop, after the `if (r.dryRun) return` branch (which now becomes: collect `DryRunItemResult` from the batch item), continue accumulating. After the loop completes in dry-run mode, call `saveDryRunReportFn?.({ batchId, ts, items })`.
@@ -373,11 +400,13 @@ approveBatch (dry-run mode)
 - **BatchView**: Show `<DryRunReport />` below the review panel when `safetyMode === 'dry-run'` and a report exists in storage. Load on refresh.
 
 **Patterns to follow:**
+
 - `addPublishedTopics` fire-and-forget pattern (optional dep with no-op default)
 - `HistoryPanel.tsx` table rendering (same visual conventions)
 - `lib/storage.ts` `getPublishedTopics` fail-closed array read pattern
 
 **Test scenarios:**
+
 - Happy path: `approveBatch` runs in dry-run with 2 items → `saveDryRunReportFn` called with report containing 2 `DryRunItemResult` entries
 - Happy path: each `DryRunItemResult` contains `fillResults` matching what `markFillResultsRecorded` recorded
 - Edge case: `saveDryRunReportFn` throws → `approveBatch` does not rethrow (best-effort, same as `addPublishedTopics`)
@@ -386,6 +415,7 @@ approveBatch (dry-run mode)
 - Integration: `DryRunReport` component mounts → reads storage, renders report; "清除报告" click → storage cleared, component re-renders to empty state
 
 **Verification:**
+
 - After a dry-run batch approval, `local:dryRunReport` is populated with fill results per item
 - `DryRunReport` UI renders when `safetyMode === 'dry-run'` and report data present
 - No-op when `saveDryRunReportFn` is not provided (backwards compatible)
@@ -402,6 +432,7 @@ approveBatch (dry-run mode)
 **Dependencies:** U4 (add `RETRY_BATCH_ITEM` handler to the extracted `createHandlers` factory)
 
 **Files:**
+
 - Modify: `lib/batch.ts`
 - Modify: `lib/batch-orchestrator.ts`
 - Modify: `lib/types.ts`
@@ -412,19 +443,22 @@ approveBatch (dry-run mode)
 - Test: `lib/batch-orchestrator.test.ts` (extend)
 
 **Approach:**
-- **State machine**: Add `retryBatchItem(batch: Batch, itemId: string): Batch` to `lib/batch.ts`. This function directly calls `patchItem(batch, itemId, { status: 'queued', error: undefined, fillResults: undefined })` — intentionally bypassing `transition` guards. Document with a comment: *"Operator-override path; only reachable via explicit RETRY_BATCH_ITEM message. `error` and `aborted` remain TERMINAL for all automated transitions."*
+
+- **State machine**: Add `retryBatchItem(batch: Batch, itemId: string): Batch` to `lib/batch.ts`. This function directly calls `patchItem(batch, itemId, { status: 'queued', error: undefined, fillResults: undefined })` — intentionally bypassing `transition` guards. Document with a comment: _"Operator-override path; only reachable via explicit RETRY_BATCH_ITEM message. `error` and `aborted` remain TERMINAL for all automated transitions."_
 - **Orchestrator**: Add `retryItem(deps: RunBatchDeps, itemId: string): Promise<Batch | null>` to `lib/batch-orchestrator.ts`. Logic: `getBatch` → `retryBatchItem(batch, itemId)` → `save` → run the generate pipeline for only that item (same as `runBatch` single-item: `markGenerating` → `generateDraft` → `markFilled`) → `presentForApproval` → `save` → return batch.
 - **Types**: Add `{ type: 'RETRY_BATCH_ITEM'; itemId: string }` to `RuntimeMessage` union in `lib/types.ts`.
 - **Background**: Add `RETRY_BATCH_ITEM` case to the `createHandlers` router; handler calls `retryItem(deps, message.itemId)`.
 - **UI**: In `BatchReviewPanel.tsx`, for items with `status === 'error' || status === 'aborted'`, show a "重试此条" button in the expanded card. Add `onRetryItem?: (itemId: string) => void` prop. In `BatchView.tsx`, wire it to a new `withBusy` handler that calls `retryItem` (new message).
 
 **Patterns to follow:**
+
 - `patchItem` usage in `lib/batch.ts` (direct internal mutation bypass — only three existing call sites)
 - `runBatch` single-item loop structure in `lib/batch-orchestrator.ts` (mirror for retryItem)
 - `RELEASE_QUARANTINE` message type pattern in `lib/types.ts`
 - `onRelease` prop + button in `BatchReviewPanel.tsx` — mirror for `onRetryItem`
 
 **Test scenarios:**
+
 - Happy path: `retryBatchItem(batch, 'item1')` where item1.status === 'error' → returns batch with item1.status === 'queued', item1.error === undefined
 - Happy path: `retryBatchItem(batch, 'item1')` where item1.status === 'aborted' → same as above
 - Edge case: `retryBatchItem(batch, 'nonexistent-id')` → returns batch unchanged (patchItem is a no-op for missing IDs)
@@ -435,6 +469,7 @@ approveBatch (dry-run mode)
 - UI: "重试此条" button visible for error/aborted items; triggers `onRetryItem` callback
 
 **Verification:**
+
 - `retryBatchItem` moves error/aborted item to queued without touching other items
 - `retryItem` orchestrates the full generate-fill-present pipeline for one item
 - RETRY_BATCH_ITEM message routes to correct handler
@@ -453,15 +488,15 @@ approveBatch (dry-run mode)
 
 ## Risks & Dependencies
 
-| Risk | Mitigation |
-|------|------------|
-| `storage.watch` debounce value wrong → jank or stale UI | Start at 100ms; tune empirically during smoke test |
-| Tombstone write failure on slow device → false quarantine on restart | Log warning; acceptable false-positive (conservative recovery) |
-| `createHandlers` refactor breaks message routing silently | U4 tests cover all message types; run full test suite before merging |
-| `retryBatchItem` called on `publish-confirmed` item (operator mistake) | Document the risk; no guard by design (operator override) |
+| Risk                                                                              | Mitigation                                                                    |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `storage.watch` debounce value wrong → jank or stale UI                           | Start at 100ms; tune empirically during smoke test                            |
+| Tombstone write failure on slow device → false quarantine on restart              | Log warning; acceptable false-positive (conservative recovery)                |
+| `createHandlers` refactor breaks message routing silently                         | U4 tests cover all message types; run full test suite before merging          |
+| `retryBatchItem` called on `publish-confirmed` item (operator mistake)            | Document the risk; no guard by design (operator override)                     |
 | `presentForApproval` in `retryItem` transitions already-`awaiting-approval` items | Check implementation: only `filled` items are promoted; other items unchanged |
-| DryRunReport storage grows without bound | Report is overwritten each run; no accumulation risk |
-| SW startup tombstone scan adds latency | Measure; gate behind flag if > 50ms |
+| DryRunReport storage grows without bound                                          | Report is overwritten each run; no accumulation risk                          |
+| SW startup tombstone scan adds latency                                            | Measure; gate behind flag if > 50ms                                           |
 
 ## Documentation / Operational Notes
 

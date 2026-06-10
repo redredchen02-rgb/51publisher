@@ -1,5 +1,5 @@
 ---
-title: "refactor: Extract BatchOrchestrator to enable unit testing"
+title: 'refactor: Extract BatchOrchestrator to enable unit testing'
 type: refactor
 status: completed
 date: 2026-06-04
@@ -57,7 +57,7 @@ date: 2026-06-04
 ## Key Technical Decisions
 
 - **RunBatchDeps 和 ApproveBatchDeps 采用扁平注入，不嵌套工厂**：`ApproveBatchDeps` 直接注入 `evaluateGate`、`sendGrant` 等，由 `approveBatch` 内部构造 `OrchestratorDeps` 并调 `orchestratePublish`。避免双层嵌套，测试验证点清晰。
-- **`genBatchId: () => string` 注入**：替换 `batchSeq` 模块状态；background.ts 用 `() => \`batch_\${Date.now()}_\${++localSeq}\`` 接线，本地变量、不污染测试。
+- **`genBatchId: () => string` 注入**：替换 `batchSeq` 模块状态；background.ts 用 `() => \`batch*\${Date.now()}*\${++localSeq}\`` 接线，本地变量、不污染测试。
 - **`pinnedHostOk` 接口签名为 `(batch: Batch) => Promise<boolean>`**：tabId 在 background.ts 侧通过闭包传入，不暴露进接口；与现有调用模式一致。
 - **轨迹记录（`appendTrajectory`）进 ApproveBatchDeps**：与发布结果在同一循环迭代，属"发布编排"的一部分，而非独立副作用。
 - **batch 纯函数调用留在 orchestrator 内部**：`markGenerating`、`markFilled` 等状态机函数是纯函数（`lib/batch.ts`），直接 import 调用，不注入——不属于副作用。
@@ -75,7 +75,7 @@ date: 2026-06-04
 
 ## High-Level Technical Design
 
-> *This illustrates the intended approach and is directional guidance for review, not implementation specification.*
+> _This illustrates the intended approach and is directional guidance for review, not implementation specification._
 
 ```
 background.ts                       lib/batch-orchestrator.ts
@@ -117,6 +117,7 @@ graph TB
 **Dependencies:** 无（纯 lib 层新文件）
 
 **Files:**
+
 - Create: `lib/batch-orchestrator.ts`
 
 **Approach:**
@@ -128,6 +129,7 @@ graph TB
 `approveBatch` 内部：为每条 `awaiting-approval` item 构造 `OrchestratorDeps` 闭合可变 `batch` 引用，调 `orchestratePublish`；非 dryRun 后调 `appendTrajectory`；`blocked` 时 `break`。逻辑语义与当前 `handleApproveBatch` 完全一致，只去除 `browser.*` 直接调用。
 
 **Patterns to follow:**
+
 - `lib/publish-orchestrator.ts`：接口定义风格、deps 扁平结构、错误结构化返回
 - `lib/batch.ts`：直接 import 纯函数（markGenerating、markFilled 等）不注入
 - `lib/llm.ts`、`lib/publish.ts`：超时处理纪律（如 sendFill 需要时补 AbortController，实现时决定）
@@ -135,6 +137,7 @@ graph TB
 **Test scenarios:** 见 Unit 3
 
 **Verification:**
+
 - `tsc --noEmit` 干净
 - 文件不 import `#imports` 或 `browser.*`（纯 lib 层）
 
@@ -149,17 +152,20 @@ graph TB
 **Dependencies:** Unit 1
 
 **Files:**
+
 - Modify: `entrypoints/background.ts`
 
 **Approach:**
 
 `handleRunBatch` 结构：
+
 1. 构造 `RunBatchDeps`，chrome/storage 调用通过 lambda 接线
 2. `resolveHost` → `resolveTabHost(tabId)`（现有函数）
 3. `generateDraft` → `generateDraft(buildPrompt(settings.promptTemplate, topic), { settings, apiKey })` 但 settings/apiKey 须**一次性**在 deps 构造时 await（不在循环内重复 await，性能 + 正确性）
 4. `pinnedHostOk` → lambda 调现有 `pinnedHostOk(batch)` 工具函数
 
 `handleApproveBatch` 结构：
+
 1. 构造 `ApproveBatchDeps`
 2. `evaluateGate` → lambda 调现有 `evaluateGate(tabId)`
 3. `sendGrant`/`sendFill` → lambda 调 `browser.tabs.sendMessage`（现有逻辑）
@@ -168,12 +174,15 @@ graph TB
 `batchSeq`：删除模块级声明，改为在 `handleRunBatch` 内声明 `let seq = 0`（局部）；或在 `genBatchId` lambda 里用闭包。两种都可，实现时选更清晰的。
 
 **Patterns to follow:**
+
 - 现有 `handlePublish` 的接线写法（~20 行，对照参考）
 
 **Test scenarios:**
+
 - Test expectation: none — 接线代码属 chrome 边界层，现有 e2e 套件已覆盖端到端路径（23 条），不要在此添加单测
 
 **Verification:**
+
 - `pnpm test`（161 条）全绿，无新增 failure
 - `pnpm test:e2e`（23 条）全绿
 - `tsc --noEmit` 干净
@@ -190,6 +199,7 @@ graph TB
 **Dependencies:** Unit 1
 
 **Files:**
+
 - Create: `lib/batch-orchestrator.test.ts`
 
 **Approach:**
@@ -197,11 +207,12 @@ graph TB
 用 `vi.fn()` mock 所有注入效果，直接调 `runBatch`/`approveBatch`，断言返回的 `Batch` 状态和副作用调用顺序/次数。
 
 **Patterns to follow:**
+
 - `lib/publish-orchestrator.test.ts`：`makeDeps` helper 模式，`vi.fn()` + `expect(...).toHaveBeenCalledOnce()`
 
 **Test scenarios:**
 
-*runBatch*
+_runBatch_
 
 - Happy path — 2 个 topic 均生成成功：最终 batch items 全部 `'filled'`，调 `presentForApproval` 后变 `'awaiting-approval'`；`generateDraft` 被调用 2 次，`save` 在每次状态变化后被调用。
 - tab 漂移中断：`pinnedHostOk` 第 2 次返回 `false`，第 2 个 topic 不被生成（`generateDraft` 只调用 1 次），循环提前 break。
@@ -209,7 +220,7 @@ graph TB
 - 重入守卫：`getExistingBatch` 返回含隔离 topic 的批次，重复 topic 被 `filterReentrantTopics` 过滤，不重新生成。
 - host 解析失败（resolveHost 返回 null）：不创建批次，直接返回 null。
 
-*approveBatch*
+_approveBatch_
 
 - Happy path — authorized 真发：`sendFill` 成功 → `orchestratePublish`（内部 `evaluateGate` 返回 allowed=true）→ `sendGrant` 成功 → item 变 `publish-confirmed`；`appendTrajectory` 被调用 1 次（非 dryRun）。
 - 填充失败：`sendFill` 返回 `{ ok: false }`，item 变 `error`，循环继续下一条；`appendTrajectory` 不被调用。
@@ -219,6 +230,7 @@ graph TB
 - 快照丢弃告警：`appendTrajectory` 返回 `{ snapshotDropped: true }`，不抛出，正常继续（告警由调用方的 `console.warn` 处理，测试可用 `vi.spyOn(console, 'warn')` 验证是否调用，可选）。
 
 **Verification:**
+
 - `pnpm test` 新增 ~11 条，全绿；总数 ≥ 172 条
 
 ## System-Wide Impact
@@ -230,11 +242,11 @@ graph TB
 
 ## Risks & Dependencies
 
-| Risk | Mitigation |
-|------|------------|
-| `ApproveBatchDeps` 中 `sendFill` 缺超时保护 | 实现 U1 时对照 `lib/publish.ts` 的 AbortController 纪律；若无超时守护则作 TODO 记录 |
-| batchSeq 删除后 ID 生成逻辑出错 | U2 完成后 `pnpm test:e2e` 23 条（含批量路径）覆盖 |
-| `orchestratePublish` 在 approveBatch 内部的 deps 闭合模式理解偏差 | U3 的 happy path 测试直接覆盖此路径，实现偏差会导致测试红 |
+| Risk                                                              | Mitigation                                                                          |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `ApproveBatchDeps` 中 `sendFill` 缺超时保护                       | 实现 U1 时对照 `lib/publish.ts` 的 AbortController 纪律；若无超时守护则作 TODO 记录 |
+| batchSeq 删除后 ID 生成逻辑出错                                   | U2 完成后 `pnpm test:e2e` 23 条（含批量路径）覆盖                                   |
+| `orchestratePublish` 在 approveBatch 内部的 deps 闭合模式理解偏差 | U3 的 happy path 测试直接覆盖此路径，实现偏差会导致测试红                           |
 
 ## Sources & References
 

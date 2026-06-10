@@ -1,5 +1,5 @@
 ---
-title: "feat: 阶段 1 — 源接地生成(防幻觉)R4–R8"
+title: 'feat: 阶段 1 — 源接地生成(防幻觉)R4–R8'
 type: feat
 status: completed
 date: 2026-06-05
@@ -80,7 +80,7 @@ AI 一旦编造这些,就是把错误信息发上自家域名,伤读者信任与
 
 ## High-Level Technical Design
 
-> *直观示意,审阅向导,非实现规范。实现者当上下文,别照抄。*
+> _直观示意,审阅向导,非实现规范。实现者当上下文,别照抄。_
 
 ```
 输入(每行一条):
@@ -125,6 +125,7 @@ graph TB
 **Dependencies:** 无
 
 **Files:**
+
 - Modify: `lib/types.ts`(加 `FactsBlock` 接口;`BatchItem.facts?`、`ContentDraft` 不必带 facts 但生成需读;`RUN_BATCH` 载荷 `topics: string[]` → `items: {topic; facts}[]` 或并列 `facts[]`)
 - Create: `lib/facts.ts`(`parseTopicLine(line): {topic; facts}`、`FACT_KEYS` 别名表、`formatFactsForPrompt(facts)`)
 - Modify: `lib/batch.ts`(`createBatch` 接收带 facts 的条目)
@@ -132,6 +133,7 @@ graph TB
 - Test: `lib/facts.test.ts`、`lib/batch.test.ts`(扩充)
 
 **Approach:**
+
 - `FactsBlock = { 作品名?; 集数?; 制作?; 漢化?; 無修?; 题材?; 简介? }`,全可选。
 - 分隔符:`topic || key=value | key=value`;`||` 分 topic 与 facts 段,`|` 分字段,`=` 分键值;key 走别名表(作品名/name、集数/话数/ep、漢化/hanhua、無修/uncen、题材/标签/tags、简介/desc)。
 - 无 `||` 的行 = 纯 topic(零事实),向后兼容现有 textarea 用法。
@@ -140,6 +142,7 @@ graph TB
 **Patterns to follow:** `lib/batch.ts` 纯函数风格;`lib/field-mapping.ts` 的别名/默认表组织。
 
 **Test scenarios:**
+
 - Happy path:`A || 作品名=X | 集数=6 | 漢化=http://h` → `{topic:'A', facts:{作品名:'X',集数:'6',漢化:'http://h'}}`
 - Edge:无 `||` 整行 → `{topic:line, facts:{}}`;空行跳过;`key=` 空值 → 该字段 undefined 或空
 - Edge:重复 key → 后者覆盖;value 内含 `=` → 只按首个 `=` 切
@@ -159,12 +162,14 @@ graph TB
 **Dependencies:** U1(facts 类型)、U7(few-shot,可并行后接)
 
 **Files:**
+
 - Modify: `lib/llm.ts`(`buildPrompt(template, topic, facts, fewShot)`;组装 messages)
 - Modify: `lib/storage.ts`(`DEFAULT_SETTINGS.promptTemplate` 改为只润色契约版,含 51娘口吻 + 【待补】规则 + "连结只用我给的"硬约束)
 - Modify: `entrypoints/background.ts`(两处 buildPrompt 调用传 facts/fewShot)
 - Test: `lib/llm.test.ts`(扩充)
 
 **Approach:**
+
 - 新 prompt 契约要点:① 你是 51娘;② 只用【事实】区内容,不得新增作品名/集数/原作/连结;③ 缺的字段在文中写`【待补】`;④ 连结只能原样使用【事实】里给的 URL;⑤ 仍以 JSON 返回既有字段。
 - `formatFactsForPrompt(facts)`(U1)把 facts 渲成清晰的【事实】块塞进 prompt;空 facts → 明确写"无事实提供 → 通篇【待补】骨架"。
 - 不改 `response_format`/`toDraft`/JSON 解析路径。
@@ -172,6 +177,7 @@ graph TB
 **Execution note:** 先写 buildPrompt 的契约断言测试(给定 facts→prompt 含事实块+【待补】指令;空 facts→含全待补指令),再改实现。
 
 **Test scenarios:**
+
 - Happy:full facts → prompt 含全部事实 + 只润色指令 + few-shot
 - Edge(零事实):facts={} → prompt 含"通篇【待补】"指令,不含任何具体事实
 - Edge(部分):facts 缺漢化 → prompt 不含漢化值、指示该处【待补】
@@ -191,10 +197,12 @@ graph TB
 **Dependencies:** U1
 
 **Files:**
+
 - Create: `lib/link-source.ts`(`extractLinks(html): string[]`、`normalizeUrl(u)`、`verifyLinks(html, facts): {url; sourced: boolean}[]`)
 - Test: `lib/link-source.test.ts`
 
 **Approach:**
+
 - `extractLinks`:从 body HTML 抽 `<a href>`(用 DOMParser / 现有 jsdom 路径,勿用正则裸抓)。
 - `normalizeUrl`:小写 host、去尾 `/`、去 `www.`、忽略大小写比较 path。
 - `verifyLinks`:facts 里的 URL(漢化/無修/简介中的)归一化成允许集;body 每条 href 归一化后是否 ∈ 允许集 → `sourced`。
@@ -203,6 +211,7 @@ graph TB
 **Patterns to follow:** `lib/sanitize.ts` 的 jsdom/DOMPurify 用法;纯函数 + 单测风格。
 
 **Test scenarios:**
+
 - Happy:body 链接全部来自 facts → 全 `sourced:true`
 - Error(幻觉):body 含 facts 里没有的 URL → 该条 `sourced:false`
 - Edge:归一化等价(`http://A.com/x/` vs `https://a.com/x`)→ 视为命中(注意 scheme 是否计较,默认忽略 scheme 差异)
@@ -222,11 +231,13 @@ graph TB
 **Dependencies:** U2(草稿含【待补】)、U3(连结校验结果)
 
 **Files:**
+
 - Modify: `entrypoints/sidepanel/BatchReviewPanel.tsx`(审批卡顶部加只读摘要条)
 - Modify: `entrypoints/sidepanel/BatchView.tsx`(若需把 verifyLinks 结果接入)
 - Test: `entrypoints/sidepanel/BatchReviewPanel.test.tsx`(或现有测试文件扩充)
 
 **Approach:**
+
 - 摘要条:① 【待补】计数徽章——0 绿 / N 高对比警告 + 列出哪些字段;② 连结清单——每条 URL + 来源✓(绿)/✗(红)。
 - 三态:全事实(绿、可折叠)/ 部分【待补】(警告、展开列缺项)/ 全【待补】(强警告,提示"建议补事实再发")。
 - 只读条,**非 checklist**(scope 已定不做勾验流);不阻塞批准但醒目。
@@ -234,6 +245,7 @@ graph TB
 **Patterns to follow:** `FillStatusTable` 三态徽章渲染;`BatchReviewPanel` 受控组件风格。
 
 **Test scenarios:**
+
 - Happy:草稿无【待补】、连结全 sourced → 绿色摘要、折叠
 - Edge:含 2 个【待补】→ 徽章显示 "2 待补" + 字段名
 - Error:含 1 个 unsourced 链接 → 该链接红色✗
@@ -253,18 +265,21 @@ graph TB
 **Dependencies:** 无(U2 注入时依赖此字段存在)
 
 **Files:**
+
 - Modify: `lib/types.ts`(`Settings.fewShotExamples: string`,或结构化 `{topic; facts; body}[]`)
 - Modify: `lib/storage.ts`(`DEFAULT_SETTINGS.fewShotExamples` 预置 1–2 条取自真帖 109/100 的口吻骨架)
 - Modify: `entrypoints/sidepanel/` Settings 页(加 few-shot 编辑区 + 校验 + 恢复默认)
 - Test: `lib/storage.test.ts`(扩充:默认含 few-shot、缺失回落)
 
 **Approach:**
-- 默认 few-shot 取真帖口吻(「嗨嗨~大家好我是51娘ヾ(≧▽≦*)o…準備好衛生紙和飛機杯…(*/ω＼*)」开合 + 逐作品事实 + 漢化/無修连结结构),但**用占位事实**,避免把真实连结/敏感内容写进仓库默认值(脱敏)。
+
+- 默认 few-shot 取真帖口吻(「嗨嗨~大家好我是51娘ヾ(≧▽≦*)o…準備好衛生紙和飛機杯…(*/ω＼\*)」开合 + 逐作品事实 + 漢化/無修连结结构),但**用占位事实**,避免把真实连结/敏感内容写进仓库默认值(脱敏)。
 - Settings 编辑区复用 promptTemplate 编辑控件模式(textarea + 校验 + 恢复默认)。
 
 **Patterns to follow:** Settings 页 `promptTemplate` / `fieldMapping` 编辑器;`getSettings` 回落默认。
 
 **Test scenarios:**
+
 - Happy:`getSettings()` 返回含 `fewShotExamples` 默认
 - Edge:storage 缺该字段 → 回落默认(向后兼容老 storage)
 - 脱敏:默认 few-shot 不含真实漢化/無修 URL(用占位)—— 断言默认值不含真实域名
@@ -282,11 +297,13 @@ graph TB
 **Dependencies:** U2(新生成路径)
 
 **Files:**
+
 - Modify: `lib/batch.ts` / `entrypoints/background.ts`(加"迭代生成"路径:跳过 `filterReentrantTopics` 对 `publishedTopics` 的过滤,仅生成草稿不进发布态)
 - Modify: `entrypoints/sidepanel/BatchView.tsx`(加"重跑生成"入口)
 - Test: `lib/batch.test.ts`(扩充:迭代路径不丢已发题目)
 
 **Approach:**
+
 - 新增 message/path(如 `REGENERATE_BATCH`)或给 RUN_BATCH 加 `iterate: true` 标志,该路径**不查 publishedTopics、不写发布态**,产出草稿覆盖当前批的草稿供肉眼对比。
 - 对比 = 肉眼读两轮输出;**不存上轮草稿、不做并排 diff**(scope OUT)。
 - 仍受 dry-run/authorized 档位约束:迭代只到"草稿/审批"态,不触发真发。
@@ -294,6 +311,7 @@ graph TB
 **Patterns to follow:** `createHandlers(deps)` 工厂;`filterReentrantTopics` 现有签名(加旁路参数而非删守卫)。
 
 **Test scenarios:**
+
 - Happy:同批含 1 个已 published 题目,迭代重跑 → 该题目**仍生成**草稿(不被过滤)
 - Edge:迭代路径不产生发布态/不写 publishedTopics(断言无副作用)
 - 回归:正常 RUN_BATCH 仍过滤 publishedTopics(守卫未被破坏)
@@ -310,13 +328,13 @@ graph TB
 
 ## Risks & Dependencies
 
-| Risk | Mitigation |
-|------|------------|
-| `buildPrompt`/`RUN_BATCH` 签名变更漏改调用点 | tsc 强约束 + grep 全调用点;U2 回归用例 |
-| facts 未随 batch 持久化 → 刷新后丢 | U1 把 facts 纳入 BatchItem 序列化;崩溃恢复用例覆盖 |
-| 默认 few-shot 写入真实漢化/無修连结 = 仓库夹带敏感内容 | U5 用占位事实脱敏;`check:fixtures` 闸把关 |
-| 连结归一化过宽/过严(漏报/误报幻觉连结) | U3 多归一化用例;默认忽略 scheme、去 www/尾斜杠,记录口径 |
-| 模型不遵守【待补】契约仍编造 | 这是阶段 1 第一批真跑要验证的;审核区呈现 + 连结校验作为兜底网 |
+| Risk                                                   | Mitigation                                                    |
+| ------------------------------------------------------ | ------------------------------------------------------------- |
+| `buildPrompt`/`RUN_BATCH` 签名变更漏改调用点           | tsc 强约束 + grep 全调用点;U2 回归用例                        |
+| facts 未随 batch 持久化 → 刷新后丢                     | U1 把 facts 纳入 BatchItem 序列化;崩溃恢复用例覆盖            |
+| 默认 few-shot 写入真实漢化/無修连结 = 仓库夹带敏感内容 | U5 用占位事实脱敏;`check:fixtures` 闸把关                     |
+| 连结归一化过宽/过严(漏报/误报幻觉连结)                 | U3 多归一化用例;默认忽略 scheme、去 www/尾斜杠,记录口径       |
+| 模型不遵守【待补】契约仍编造                           | 这是阶段 1 第一批真跑要验证的;审核区呈现 + 连结校验作为兜底网 |
 
 ## Documentation / Operational Notes
 

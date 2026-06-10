@@ -1,4 +1,4 @@
-import type { ContentDraft, FieldDefinition, FieldFillResult, FieldMapping } from './types';
+import type { ContentDraft, FieldDefinition, FieldFillResult, FieldMapping } from '@51publisher/shared';
 
 // 已填字段的高亮标记(双通道反馈:页面高亮 + side panel 结果面板)。
 export const HIGHLIGHT_CLASS = 'pfa-filled';

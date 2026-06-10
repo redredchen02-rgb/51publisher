@@ -1,5 +1,5 @@
 ---
-title: "feat: 阶段 0 — 前提基线 + 首飞验证(go/no-go 闸门)"
+title: 'feat: 阶段 0 — 前提基线 + 首飞验证(go/no-go 闸门)'
 type: feat
 status: active
 date: 2026-06-05
@@ -88,9 +88,11 @@ origin: docs/brainstorms/2026-06-05-content-quality-and-first-flight-requirement
 **Dependencies:** 无(须已登录 admin 后台)
 
 **Files:**
+
 - 只读核对,无改动;若漂移:`lib/recipe.ts`(SiteRecipe 单一数据源)/ `lib/field-mapping.ts` / `lib/selectors.ts`
 
 **Approach(照做清单):**
+
 1. 登录 `https://dx-999-adm.ympxbys.xyz/`,开发者工具 Network 勾 Preserve log。
 2. 手动新增一条临时帖、保存,确认:仍是 `POST /admin/webarticle/save`?urlencoded?字段名(media_id/title/subtitle/type/status/description/published_at/html_content/tags[])是否一致?
 3. Elements 核对正文编辑器仍是 Quill `#editor`;新增表单仍是 layui layer(`lay-event="add"`)。
@@ -116,9 +118,11 @@ origin: docs/brainstorms/2026-06-05-content-quality-and-first-flight-requirement
 **Dependencies:** 无(Unit 1 建议先做,确保链路可用;RB 只生成不必真发)
 
 **Files:**
+
 - 数据捕获:`docs/stage0-baseline-worksheet.md`(本计划 Unit 5 产出的模板,操作者填)
 
 **Approach(照做清单):**
+
 1. 选 **5–10 个本站真实题材**(贴近日常分布,**别专挑好写的**,否则基线虚高 —— 评审 residual risk)。
 2. `pnpm build` 加载扩展;side panel → 批量 → 逐条/批量用**现版 prompt**生成(Settings 不动)。
 3. 每条记入 worksheet:
@@ -147,9 +151,11 @@ origin: docs/brainstorms/2026-06-05-content-quality-and-first-flight-requirement
 **Dependencies:** Unit 1 通过(契约无漂移)
 
 **Files:**
+
 - 只运行,无改动;摩擦点记入 worksheet「R2 首飞日志」
 
 **Approach(照做清单):**
+
 1. 后台发帖页打开「添加」表单(批量填充作用于当前标签页)。
 2. side panel 批量取 RB 中 1 条**合格**草稿(或单独写一条安全测试内容,status 设隐藏更稳妥)。
 3. Settings 切 `authorized` → 打字 `publish` 手势 → 批准。
@@ -178,14 +184,15 @@ origin: docs/brainstorms/2026-06-05-content-quality-and-first-flight-requirement
 
 **Approach(判据表):**
 
-| 信号 | 读数来源 | go 方向 | no-go 方向 |
-|---|---|---|---|
-| 幻觉是否真发生 | RB 幻觉发生率 | 高(现版常编造)→ 源接地有的放矢 | 几乎不编造 → 源接地解决的是伪问题,重审前提 |
-| 找事实成本 | RB 事实耗时 + 来源 | 低/可控(事实就在手边)→ 贴事实代价小 | 高(每条要满网找)→ 找事实才是真瓶颈 |
-| AI 残值 | RB「小改」内容性质 | AI 真省了写作/组织功夫 | 接地后 AI 只剩套壳,净耗时 ≥ 手工 |
-| 链路可用 | R2 | 端到端通 | 有硬阻塞 → 先修链路 |
+| 信号           | 读数来源           | go 方向                             | no-go 方向                                 |
+| -------------- | ------------------ | ----------------------------------- | ------------------------------------------ |
+| 幻觉是否真发生 | RB 幻觉发生率      | 高(现版常编造)→ 源接地有的放矢      | 几乎不编造 → 源接地解决的是伪问题,重审前提 |
+| 找事实成本     | RB 事实耗时 + 来源 | 低/可控(事实就在手边)→ 贴事实代价小 | 高(每条要满网找)→ 找事实才是真瓶颈         |
+| AI 残值        | RB「小改」内容性质 | AI 真省了写作/组织功夫              | 接地后 AI 只剩套壳,净耗时 ≥ 手工           |
+| 链路可用       | R2                 | 端到端通                            | 有硬阻塞 → 先修链路                        |
 
 **判定:**
+
 - **GATE = go**:幻觉确为瓶颈 **且** 找事实成本可控 **且** R2 通 → 进阶段 1,`/ce:plan` 规划 R4–R8(届时回答 origin 中 Deferred 的事实字段集/契约/few-shot 等)。
 - **GATE = no-go**:找事实才是瓶颈 / AI 接地后只剩套壳 / 净耗时未省 → **不进源接地**,回 `/ce:brainstorm` 转向(候选:定向自动取链而非全 scrape、帖体模板化 + 单次 AI 润色、或重定"日常瓶颈"问题)。
 
@@ -204,6 +211,7 @@ origin: docs/brainstorms/2026-06-05-content-quality-and-first-flight-requirement
 **Dependencies:** 无(可最先做)
 
 **Files:**
+
 - Create: `docs/stage0-baseline-worksheet.md`
 
 **Approach:** 含四块——「R0 契约核对」勾选表、「RB 基线」5–10 行表(题材/质量/幻觉√×/事实耗时/事实来源/审改耗时/手工基线)、「R2 首飞日志」摩擦点清单、「GATE 结论」判据表+结论行。
@@ -214,13 +222,13 @@ origin: docs/brainstorms/2026-06-05-content-quality-and-first-flight-requirement
 
 ## Risks & Dependencies
 
-| Risk | Mitigation |
-|------|------------|
-| RB 题材专挑好写的 → 基线虚高 | Unit 2 明确"贴近日常分布、别挑好写的";结论标注样本偏置 |
-| 样本 5–10 统计置信弱 | 作方向性判断,不当精确测量;GATE 看的是量级差异不是小数点 |
-| 后台契约已漂移 → R2 失败 | Unit 1 前置核对,先于 R2 |
-| authorized 真发不可撤回 | R2 首发 status=隐藏,确认后再显示;测试内容发完清理 |
-| 操作者跳过计时只填质量 | worksheet 把计时列设为必填;无计时则 GATE 的"找事实成本"信号缺失=结论无效 |
+| Risk                         | Mitigation                                                               |
+| ---------------------------- | ------------------------------------------------------------------------ |
+| RB 题材专挑好写的 → 基线虚高 | Unit 2 明确"贴近日常分布、别挑好写的";结论标注样本偏置                   |
+| 样本 5–10 统计置信弱         | 作方向性判断,不当精确测量;GATE 看的是量级差异不是小数点                  |
+| 后台契约已漂移 → R2 失败     | Unit 1 前置核对,先于 R2                                                  |
+| authorized 真发不可撤回      | R2 首发 status=隐藏,确认后再显示;测试内容发完清理                        |
+| 操作者跳过计时只填质量       | worksheet 把计时列设为必填;无计时则 GATE 的"找事实成本"信号缺失=结论无效 |
 
 ## Documentation / Operational Notes
 

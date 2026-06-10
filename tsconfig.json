@@ -1,8 +1,8 @@
 {
-  "extends": "./.wxt/tsconfig.json",
-  "compilerOptions": {
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "jsx": "react-jsx"
-  }
+  "files": [],
+  "references": [
+    { "path": "packages/shared" },
+    { "path": "packages/backend" },
+    { "path": "packages/extension" }
+  ]
 }

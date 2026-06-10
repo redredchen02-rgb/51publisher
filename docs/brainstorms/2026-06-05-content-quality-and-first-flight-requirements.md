@@ -62,11 +62,13 @@ topic: content-quality-and-first-flight
 ## Requirements
 
 **A. 阶段 0:前提基线 + 首飞验证(本轮必做,产出决策数据)**
+
 - R0.(前置闸)在跑任何题材前**重新核对后台契约**:`POST /admin/webarticle/save` 提交机制、表单字段集、选择器、Quill/layui 行为是否与 2026-06-04 实证一致;有漂移先记录再修。这是唯一硬交付(R2)的外部依赖,核对成本极低,中途才发现成本极高。
 - RB.(前提基线,**闸门依据**)用**现版 prompt(无源接地)**在 **5–10 个本站真实题材**上生成草稿,逐条标注**分开记**「直接发 / 需小改 / 不合格」,并对每条**计时**:事实搜集耗时(并记**事实从哪来**)、审改耗时;同一批记一个**手工撰写基线时间**对比。「需小改」以时间界定(如 < N 分钟)。→ 既证实幻觉是否真发生,又测准"找事实"是不是真瓶颈。
 - R2.(首飞,阶段 0 即可做)走通**至少一条 authorized 真实发布**的完整端到端链路(生成 → 填充 → `POST /admin/webarticle/save` → 后台核对 → 轨迹记录),记录全程摩擦点(选择器漂移、Quill 真实行为、layui 提交等)。可用现版内容先打通管路。
 
 **B. 阶段 1(仅闸门=go 才做):源接地生成(防幻觉核心)**
+
 - R4. 输入模型从"纯选题"扩为"**选题 + 事实块**":每条题目可附结构化事实(作品名 / 集数·话数 / 漢化连结 / 無修连结 / 其他要点)。**注意这是贯穿消息契约的改动,非纯 UI**:`RUN_BATCH` 载荷、`BatchItem`、`ContentDraft`、`buildPrompt` 签名都要从"单 topic 字符串"扩为携带 facts;故"结构化表单 vs 约定分隔符"是契约决定,须 Resolve Before Planning(推荐分隔符约定起步,保留 textarea 心智、好扩到 5–10 条)。
 - R5. Prompt 改造为「**只润色、不造事实**」契约:AI 仅使用操作者提供的事实 + 套 51娘口吻组织成帖;任何未提供的事实**留空并标【待补】**;严禁编造作品名 / 集数 / 连结。`buildPrompt` 须改签名接收 facts 与新 token,并定义**空 / 部分事实**如何渲入 prompt(逼模型输出【待补】而非自由发挥)。
 - R5b.(事实状态边界)定义三态行为:**零事实** → 仍生成全【待补】草稿(还是输入处拦截/告警?);**部分事实** → 填已知、其余【待补】;并明确**全【待补】草稿是否计入 R1 合格率基线**(避免污染数字)。
@@ -74,6 +76,7 @@ topic: content-quality-and-first-flight
 - R7. 51娘口吻 + 帖体结构以**少量 gold-standard 范例(few-shot)**固化,降低风格漂移。**存储决定**:因 R8 要单独调 few-shot,few-shot 应作为**独立 Settings 字段**(非塞进 `promptTemplate` 单串)。
 
 **C. 阶段 1(仅闸门=go 才做):质量快速迭代(轻量)**
+
 - R8. 草稿质量可快速迭代:操作者能改 system prompt / few-shot 范例并**重跑同一批题目**对比效果(单一模板,**非**逐条 override)。**对比 = 手工肉眼读两轮输出**;保存上轮草稿做并排 diff / 版本存储**本轮 OUT**(除非首飞证明肉眼比对是瓶颈)。**必须绕过重入闸**:`runBatch` 会用 `filterReentrantTopics` 过滤 `publishedTopics`/隔离题目——R2 真发后这些题目被永久拉黑,重跑会**静默丢弃**;R8 需走"只生成不发"的迭代通道,不查 `publishedTopics`。
 
 ## Success Criteria
@@ -107,15 +110,18 @@ topic: content-quality-and-first-flight
 ## Outstanding Questions
 
 ### Resolved(本次 brainstorm 已拍板)
+
 - ✅ **市场 = 自用、每天能发**(非对外产品)。
 - ✅ **防幻觉走"源接地·提前掉死"**(非事后兜住)。
 - ✅ **先基线、闸门、再建**:阶段 0(RB)数据决定是否投入源接地;评审三人对"找事实才是真瓶颈"的质疑由 RB 直接证伪/证实。
 
 ### Resolve Before Planning(阶段 0,极轻)
+
 - [RB][User decision] 阶段 0 的合格率阈值与"省时间"达标线:默认 直接发+小改 ≥80% 且 净耗时 ≤ 手工;跑完 RB 看真实数据再拍最终值(可现在先认默认)。
 - 阶段 0 几乎无其它阻塞——它本身就是"先跑再说"。
 
 ### Deferred to 阶段 1 Planning(仅闸门=go 才需回答)
+
 - [R4][User decision] 事实块固定哪些字段?(提议默认:作品名 / 集数·话数 / 制作或原作 / 漢化连结 / 無修连结 / 题材或标签 / 简介要点)
 - [R4][Contract] 结构化表单 vs 约定分隔符?(推荐分隔符起步)
 - [R6][Contract] "连结来自输入"判定:精确 vs 归一化(load-bearing)。
@@ -127,4 +133,5 @@ topic: content-quality-and-first-flight
 → **阶段 0 几乎无写码,可直接执行**:可走 `/ce:plan` 出一份"阶段 0 执行 + 闸门判据"的轻量计划,或直接动手跑 RB/R0/R2(本质是你之前那份 `phase-0-validation-worksheet.md` 的补完)。闸门=go 后再 `/ce:plan` 阶段 1(R4–R8)。
 
 ### 一次性运维(非 Requirement)
+
 - 清理后台遗留的 3 条测试帖 **id 110 / 111 / 112**(标题带 `TEST_勿用`):后台列表搜 `TEST_勿用` 删除。(原 R3,经评审降级——一次性杂务,不交付能力、不对应任何 Success Criteria。)

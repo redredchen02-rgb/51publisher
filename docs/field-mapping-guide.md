@@ -25,23 +25,23 @@
 
 ## 字段映射(稳定选择器,均为 `name` 属性)
 
-| 草稿字段 | 后台标签 | 选择器 | 类型 | 填充策略 |
-|---|---|---|---|---|
-| title | 標題 | `input[name="title"]` | text | set value + dispatch input/change |
-| subtitle | 副標題 | `input[name="subtitle"]` | text | 同上 |
-| category | 類型 | `select[name="type"]` | **原生 `<select>`** | set value + dispatch change。选项:`2`=漫畫文章,`4`=動漫文章(仅 2 项) |
-| body | 文章内容 | `#editor`(Quill) | quill | 见上「正文编辑器」 |
-| tags | 標籤 | `input[name="tags[]"]`(checkbox 组,在 `div.tags-container` 内) | **checkbox 多选**(非 tag-input!) | 按标签名匹配对应 checkbox 并 `.click()`/勾选 + dispatch change。每项 `id="tag_<标签id>"`,`value=标签id`;label 文本在相邻节点。共约 3912 个标签,弹层内有搜索框 `input[placeholder="输入关键字自动筛选"]` 过滤 |
-| coverImageUrl | 封面圖 | `input[type="file"][name="file"]`(旁有「上传」按钮) | **file 上传** | **MVP 不填**,人工上传(与计划一致) |
+| 草稿字段      | 后台标签 | 选择器                                                         | 类型                             | 填充策略                                                                                                                                                                                                     |
+| ------------- | -------- | -------------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| title         | 標題     | `input[name="title"]`                                          | text                             | set value + dispatch input/change                                                                                                                                                                            |
+| subtitle      | 副標題   | `input[name="subtitle"]`                                       | text                             | 同上                                                                                                                                                                                                         |
+| category      | 類型     | `select[name="type"]`                                          | **原生 `<select>`**              | set value + dispatch change。选项:`2`=漫畫文章,`4`=動漫文章(仅 2 项)                                                                                                                                         |
+| body          | 文章内容 | `#editor`(Quill)                                               | quill                            | 见上「正文编辑器」                                                                                                                                                                                           |
+| tags          | 標籤     | `input[name="tags[]"]`(checkbox 组,在 `div.tags-container` 内) | **checkbox 多选**(非 tag-input!) | 按标签名匹配对应 checkbox 并 `.click()`/勾选 + dispatch change。每项 `id="tag_<标签id>"`,`value=标签id`;label 文本在相邻节点。共约 3912 个标签,弹层内有搜索框 `input[placeholder="输入关键字自动筛选"]` 过滤 |
+| coverImageUrl | 封面圖   | `input[type="file"][name="file"]`(旁有「上传」按钮)            | **file 上传**                    | **MVP 不填**,人工上传(与计划一致)                                                                                                                                                                            |
 
 ### 勘查中发现的额外字段(原 brainstorm 未列)
 
-| 后台字段 | 选择器 | 类型 | 备注 |
-|---|---|---|---|
-| 作品 id | `input[name="media_id"]` | text | 关联作品 id |
-| 狀態 | `select[name="status"]` | select | `0`=隐藏,`1`=显示 |
-| 描述 | `textarea[name="description"]` | textarea | 文章描述/摘要 |
-| 發佈時間 | `input[name="published_at"]` | date(layui `x-date-time`,`yyyy-MM-dd`) | 日期选择器 |
+| 后台字段 | 选择器                         | 类型                                   | 备注              |
+| -------- | ------------------------------ | -------------------------------------- | ----------------- |
+| 作品 id  | `input[name="media_id"]`       | text                                   | 关联作品 id       |
+| 狀態     | `select[name="status"]`        | select                                 | `0`=隐藏,`1`=显示 |
+| 描述     | `textarea[name="description"]` | textarea                               | 文章描述/摘要     |
+| 發佈時間 | `input[name="published_at"]`   | date(layui `x-date-time`,`yyyy-MM-dd`) | 日期选择器        |
 
 > 这些字段是否纳入插件填充范围,是一个待你拍板的范围决策(见计划 Open Questions)。
 
@@ -66,10 +66,10 @@
 
 ```json
 {
-  "title":    { "selector": "input[name=\"title\"]",        "fieldType": "text" },
-  "category": { "selector": "select[name=\"type\"]",         "fieldType": "native-select" },
-  "tags":     { "selector": "input[name=\"tags[]\"]",        "fieldType": "checkbox-multi" },
-  "body":     { "selector": "#editor",                       "fieldType": "quill" }
+  "title": { "selector": "input[name=\"title\"]", "fieldType": "text" },
+  "category": { "selector": "select[name=\"type\"]", "fieldType": "native-select" },
+  "tags": { "selector": "input[name=\"tags[]\"]", "fieldType": "checkbox-multi" },
+  "body": { "selector": "#editor", "fieldType": "quill" }
 }
 ```
 
@@ -79,13 +79,13 @@
 2. **优先用稳定属性**:`name` > `id` > `data-*` > `aria-label`;**避免**易变的 class 链。
 3. 把选择器填进对应字段,`fieldType` 选下表之一。
 
-| fieldType | 适用 | 填充方式 |
-|---|---|---|
-| `text` / `textarea` | 普通输入框 / 多行框 | set value + input/change |
-| `native-select` | 原生 `<select>` | 按 value 或选项文本匹配 |
-| `checkbox-multi` | 一组 checkbox(标签) | 按标签文本匹配勾选 |
-| `date` | 日期输入框 | set value + change |
-| `quill` | Quill 富文本 | 主世界 `Quill.find().dangerouslyPasteHTML` |
+| fieldType           | 适用                | 填充方式                                   |
+| ------------------- | ------------------- | ------------------------------------------ |
+| `text` / `textarea` | 普通输入框 / 多行框 | set value + input/change                   |
+| `native-select`     | 原生 `<select>`     | 按 value 或选项文本匹配                    |
+| `checkbox-multi`    | 一组 checkbox(标签) | 按标签文本匹配勾选                         |
+| `date`              | 日期输入框          | set value + change                         |
+| `quill`             | Quill 富文本        | 主世界 `Quill.find().dangerouslyPasteHTML` |
 
 > 改完点「保存」会做 JSON + schema 校验;填错会给出可读报错,可点「恢复默认」回到现场勘查的版本。
 

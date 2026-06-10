@@ -1,5 +1,5 @@
 ---
-title: "用 claude-in-chrome 核验后台契约时,脚本字面值被打码——改用结构+行为间接确认"
+title: '用 claude-in-chrome 核验后台契约时,脚本字面值被打码——改用结构+行为间接确认'
 date: 2026-06-05
 category: docs/solutions/developer-experience
 module: stage-0 backend contract verification (R0/R2)
@@ -58,26 +58,33 @@ tags: [claude-in-chrome, browser-automation, redaction, backend-contract, javasc
 ## Examples
 
 **踩坑(字面值被打码):**
+
 ```js
 // 想直接拿端点片段 → 整段被打码,读不出 URL
 const i = inline.search(/webarticle\/save/i);
-inline.slice(i-120, i+80)
-// → "[BLOCKED: Cookie/query string data]"
+inline.slice(
+  i - 120,
+  i + 80,
+)(
+  // → "[BLOCKED: Cookie/query string data]"
 
-(inline.match(/admin\/webarticle\/[a-z_]+/gi) || [])
+  inline.match(/admin\/webarticle\/[a-z_]+/gi) || [],
+);
 // → ["[BLOCKED: Base64 encoded data]", ...]   ← 路径数组也被整体打码
 ```
 
 **绕法(返回结构与布尔,不返回敏感字面):**
+
 ```js
-const saveCtx = (() => { const i = inline.search(/webarticle\/save/i);
-                         return i < 0 ? '' : inline.slice(i-200, i+40); })();
+const saveCtx = (() => {
+  const i = inline.search(/webarticle\/save/i);
+  return i < 0 ? '' : inline.slice(i - 200, i + 40);
+})();
 const out = {
-  endpointPresent: inline.indexOf('webarticle/save') >= 0,        // 布尔,不打码
+  endpointPresent: inline.indexOf('webarticle/save') >= 0, // 布尔,不打码
   saveUsesPost: /\$\.post|type\s*:\s*['"]post['"]/i.test(saveCtx), // 布尔,不打码
-  fields: [...form.querySelectorAll('[name]')].map(e => e.name),   // 字段名,不打码
-  statusOptions: [...form.querySelectorAll('[name=status] option')]
-                   .map(o => `${o.value}:${o.textContent.trim()}`), // 0:隐藏/1:显示
+  fields: [...form.querySelectorAll('[name]')].map((e) => e.name), // 字段名,不打码
+  statusOptions: [...form.querySelectorAll('[name=status] option')].map((o) => `${o.value}:${o.textContent.trim()}`), // 0:隐藏/1:显示
 };
 // → { endpointPresent:true, saveUsesPost:true, fields:[media_id,title,...], ... }
 ```
@@ -86,6 +93,7 @@ const out = {
 `tags[]` 增至 3912 个、后台品牌名显示「海角社区」(但用户确认内容口吻仍是「51娘」)。
 
 ## Related
+
 - 阶段 0 数据表(R0 结果):`docs/stage0-baseline-worksheet.md`
 - 阶段 0 计划 Unit 1:`docs/plans/2026-06-05-001-feat-stage0-premise-baseline-plan.md`
 - 需求文档(R0/R2 背景):`docs/brainstorms/2026-06-05-content-quality-and-first-flight-requirements.md`

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { DEFAULT_SETTINGS, getSettings, saveSettings } from '../../lib/storage';
-import type { FieldMapping, FieldType } from '../../lib/types';
+import type { FieldMapping, FieldType } from '@51publisher/shared';
 import { fetchPrompts, createPrompt, type PromptTemplate } from '../../lib/prompt-client';
 
 const FIELD_TYPES: FieldType[] = [

@@ -53,6 +53,7 @@ function siteName() {
 
 beforeEach(async () => {
   testId++;
+  process.env.ALLOWED_HOSTS = 'https://*.example.com';
   app = await buildApp();
   // 注册一个启用的测试站点
   scraperConfig.registerAdapter(makeMockAdapter(`adapter-${testId}`));
@@ -68,6 +69,7 @@ beforeEach(async () => {
 afterEach(async () => {
   await app.close();
   vi.clearAllMocks();
+  delete process.env.ALLOWED_HOSTS;
 });
 
 // ================================================================
