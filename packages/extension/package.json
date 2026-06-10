@@ -8,7 +8,7 @@
     "dev": "wxt",
     "build": "wxt build",
     "zip": "wxt zip",
-    "compile": "tsc --noEmit",
+    "compile": "wxt prepare && tsc --noEmit",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
     "test:watch": "vitest",
@@ -16,7 +16,7 @@
     "check:fixtures": "bash scripts/check-fixture-secrets.sh",
     "check:fixture-drift": "vitest run --config vitest.e2e.config.ts tests/e2e/fixture-contract.test.ts",
     "format": "prettier --write \"**/*.{ts,tsx,css,json,md}\" --ignore-path .gitignore",
-    "postinstall": "wxt prepare"
+    "postinstall": "wxt prepare || true"
   },
   "dependencies": {
     "@51publisher/shared": "workspace:*",
