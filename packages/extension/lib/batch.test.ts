@@ -195,4 +195,40 @@ describe('retryBatchItem', () => {
     const result = retryBatchItem(b, 'item_0');
     expect(result.items[1]!.status).toBe('queued'); // item_1 untouched
   });
+
+  it('retry 不清除持久化的 coverImageUrl(供重生成后回注)', () => {
+    const b = createBatch('b1', 42, 'dx-999-adm.ympxbys.xyz', ['t'], '2026-06-04T00:00:00.000Z', genId, undefined, [
+      'http://cover.jpg',
+    ]);
+    let after = markGenerateFailed(b, 'item_0', 'network');
+    after = retryBatchItem(after, 'item_0');
+    expect(after.items[0]!.coverImageUrl).toBe('http://cover.jpg');
+  });
+});
+
+// ================================================================
+// createBatch — coverImageUrls(Unit 3 封面持久化)
+// ================================================================
+
+describe('createBatch coverImageUrls', () => {
+  const NOW = '2026-06-04T00:00:00.000Z';
+  const HOST = 'dx-999-adm.ympxbys.xyz';
+
+  it('与 topics 同序平行写入各 item.coverImageUrl', () => {
+    const b = createBatch('b1', 42, HOST, ['a', 'b'], NOW, genId, undefined, ['http://a.jpg', 'http://b.jpg']);
+    expect(b.items[0]!.coverImageUrl).toBe('http://a.jpg');
+    expect(b.items[1]!.coverImageUrl).toBe('http://b.jpg');
+  });
+
+  it('数组长度不足/含 undefined → 对应条目无 coverImageUrl 字段,其余正常', () => {
+    const b = createBatch('b1', 42, HOST, ['a', 'b', 'c'], NOW, genId, undefined, [undefined, 'http://b.jpg']);
+    expect('coverImageUrl' in b.items[0]!).toBe(false); // 显式 undefined
+    expect(b.items[1]!.coverImageUrl).toBe('http://b.jpg');
+    expect('coverImageUrl' in b.items[2]!).toBe(false); // 长度不足
+  });
+
+  it('未传 coverImageUrls → 所有条目无 coverImageUrl 字段(向后兼容)', () => {
+    const b = newBatch(['a', 'b']);
+    expect(b.items.every((it) => !('coverImageUrl' in it))).toBe(true);
+  });
 });

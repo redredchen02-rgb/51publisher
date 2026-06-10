@@ -99,7 +99,9 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
   }
 
   const freshFacts = fresh.map((t) => factsByTopic.get(t));
-  let batch = createBatch(genBatchId(), tabId, host, fresh, now(), genItemId, freshFacts);
+  // 封面持久化进 BatchItem:retry 重生成时才能回注(闭包 Map 不跨调用存活)。
+  const freshCovers = fresh.map((t) => coverUrlsByTopic.get(t));
+  let batch = createBatch(genBatchId(), tabId, host, fresh, now(), genItemId, freshFacts, freshCovers);
   await save(batch);
 
   for (const item of batch.items) {
@@ -113,9 +115,8 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
       await save(batch);
       continue;
     }
-    // 注入封面图 URL（若适配器提供）。
-    const coverUrl = coverUrlsByTopic.get(item.topic);
-    const draft = coverUrl ? { ...gen.draft, coverImageUrl: coverUrl } : gen.draft;
+    // 注入封面图 URL(统一从持久化的 item.coverImageUrl 读,与 retryItem 同源)。
+    const draft = item.coverImageUrl ? { ...gen.draft, coverImageUrl: item.coverImageUrl } : gen.draft;
     batch = markFilled(batch, item.id, draft);
     await save(batch);
   }
@@ -313,7 +314,9 @@ export async function retryItem(deps: RetryItemDeps, itemId: string): Promise<Ba
     return batch;
   }
 
-  batch = markFilled(batch, itemId, gen.draft);
+  // 封面回注:批次创建时持久化的 item.coverImageUrl(生成恒置 '');旧批次无此字段则优雅降级。
+  const draft = item.coverImageUrl ? { ...gen.draft, coverImageUrl: item.coverImageUrl } : gen.draft;
+  batch = markFilled(batch, itemId, draft);
   batch = presentForApproval(batch);
   await deps.save(batch); // flush approval-ready state
   return batch;

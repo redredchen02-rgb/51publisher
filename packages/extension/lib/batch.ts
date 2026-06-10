@@ -31,6 +31,8 @@ export interface BatchItem {
   /** 源接地结构化事实(R4);生成时喂给 buildPrompt,AI 只用这些事实不得编造。 */
   facts?: FactsBlock;
   status: BatchItemStatus;
+  /** 选题封面图 URL(批次创建时持久化;retry 重生成后回注 draft,防丢失)。 */
+  coverImageUrl?: string;
   /** 生成阶段存下的草稿;批准时填进表单 + 发布。 */
   draft?: ContentDraft;
   publishUrl?: string;
@@ -70,6 +72,7 @@ export function createBatch(
   now: string,
   genItemId: (index: number) => string,
   facts?: (FactsBlock | undefined)[],
+  coverImageUrls?: (string | undefined)[],
 ): Batch {
   return {
     id,
@@ -78,7 +81,14 @@ export function createBatch(
     createdAt: now,
     items: topics.map((topic, i) => {
       const f = facts?.[i];
-      return { id: genItemId(i), topic, status: 'queued' as const, ...(f ? { facts: f } : {}) };
+      const cover = coverImageUrls?.[i];
+      return {
+        id: genItemId(i),
+        topic,
+        status: 'queued' as const,
+        ...(f ? { facts: f } : {}),
+        ...(cover ? { coverImageUrl: cover } : {}),
+      };
     }),
   };
 }

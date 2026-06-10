@@ -447,6 +447,62 @@ describe('retryItem', () => {
     await retryItem(deps, 'item_0');
     expect(save).toHaveBeenCalledTimes(3); // queued, generating, filled+approval
   });
+
+  // ---- 封面回注(Unit 3):retry 重生成后从持久化的 item.coverImageUrl 回注 ----
+
+  it('封面回注 happy path: item 持久化封面 → retry 后 draft.coverImageUrl = 创建时注入值', async () => {
+    const batch: Batch = {
+      id: 'batch_1',
+      tabId: 1,
+      authorizedHost: HOST,
+      createdAt: '',
+      items: [
+        { id: 'item_0', topic: TOPIC_A, status: 'error' as const, error: 'prev-error', coverImageUrl: 'http://a.jpg' },
+      ],
+    };
+    const deps = makeRetryDeps(batch);
+    const result = await retryItem(deps, 'item_0');
+    expect(result!.items[0]!.status).toBe('awaiting-approval');
+    // 生成恒置 ''(DRAFT.coverImageUrl=''),回注后应为持久化值
+    expect(result!.items[0]!.draft?.coverImageUrl).toBe('http://a.jpg');
+  });
+
+  it("无封面 topic retry: 不报错,draft.coverImageUrl 保持 ''", async () => {
+    const batch: Batch = {
+      id: 'batch_1',
+      tabId: 1,
+      authorizedHost: HOST,
+      createdAt: '',
+      items: [{ id: 'item_0', topic: TOPIC_A, status: 'error' as const, error: 'prev-error', coverImageUrl: '' }],
+    };
+    const deps = makeRetryDeps(batch);
+    const result = await retryItem(deps, 'item_0');
+    expect(result!.items[0]!.status).toBe('awaiting-approval');
+    expect(result!.items[0]!.draft?.coverImageUrl).toBe('');
+  });
+
+  it("回归: 旧批次条目(无 coverImageUrl 字段)retry 优雅降级,draft.coverImageUrl 保持 ''", async () => {
+    const batch = errorBatch(TOPIC_A); // errorBatch 构造无 coverImageUrl 字段 = 旧批次形态
+    const deps = makeRetryDeps(batch);
+    const result = await retryItem(deps, 'item_0');
+    expect(result).not.toBeNull();
+    expect(result!.items[0]!.status).toBe('awaiting-approval');
+    expect(result!.items[0]!.draft?.coverImageUrl).toBe('');
+  });
+
+  it('回归: 封面回注不影响 facts 透传 generateDraft', async () => {
+    const facts = { 作品名: 'A作' };
+    const batch: Batch = {
+      id: 'batch_1',
+      tabId: 1,
+      authorizedHost: HOST,
+      createdAt: '',
+      items: [{ id: 'item_0', topic: TOPIC_A, status: 'error' as const, facts, coverImageUrl: 'http://a.jpg' }],
+    };
+    const deps = makeRetryDeps(batch);
+    await retryItem(deps, 'item_0');
+    expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_A, facts);
+  });
 });
 
 // ================================================================
@@ -504,5 +560,18 @@ describe('runBatch coverImageUrls', () => {
     );
     expect(finalBatch?.items[0]?.draft?.coverImageUrl).toBe('http://only-a.jpg');
     expect(finalBatch?.items[1]?.draft?.coverImageUrl).toBe('');
+  });
+
+  it('封面持久化进 BatchItem(Unit 3):重入过滤后仍按 topic 对齐', async () => {
+    const deps = makeRunDeps({
+      topics: [TOPIC_A, TOPIC_B],
+      coverImageUrls: ['http://a.jpg', 'http://b.jpg'],
+      persistentBlockedTopics: [TOPIC_A], // TOPIC_A 被过滤,验证封面跟 topic 走不错位
+    });
+    const result = await runBatch(deps);
+    expect(result!.items).toHaveLength(1);
+    expect(result!.items[0]!.topic).toBe(TOPIC_B);
+    expect(result!.items[0]!.coverImageUrl).toBe('http://b.jpg');
+    expect(result!.items[0]!.draft?.coverImageUrl).toBe('http://b.jpg');
   });
 });
