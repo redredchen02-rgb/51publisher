@@ -1,12 +1,20 @@
 ---
 title: "feat: Capability Upgrade — Prompt Quality, Pending UI & Few-shot Editor"
 type: feat
-status: active
+status: completed
 date: 2026-06-09
 origin: docs/brainstorms/2026-06-09-comprehensive-capability-upgrade-requirements.md
 ---
 
 # feat: Capability Upgrade — Prompt Quality, Pending UI & Few-shot Editor
+
+## ⚠️ 对账记录(2026-06-10,由 2026-06-10-003 计划 Unit 6a 执行)
+
+**账面 9/9 unit 全勾 ≠ 需求全实现。实际:origin 需求 R1-R13 中 10/13 完成(≈77%)。**
+
+- **R11-R13(few-shot 可视化编辑器)未实现**:单元拆分时遗漏——Unit 6 实际只做了 recommendedTags、Unit 7 只做了 PendingTopicsView;`fewShotPairs` 仅有类型脚手架(shared/types.ts + storage.ts),Settings.tsx 至今仍是原始 textarea。**由 roadmap(2026-06-10-intelligent-publisher-roadmap)阶段 2 R3 承接,与一键回灌同期落地。**
+- **Unit 3 存在 cron 路径缺口**:其 Files 清单从未包含 `scheduler.ts`,导致 cron 入池路径丢失 coverImageUrl(对单元文字范围勾选为真,对 R10「flows through fact-extraction into PendingTopic storage」的目标为假)。**已由 2026-06-10-003 计划 Unit 1 修复。**
+- 另:`ACGS51_START_URL` 默认首页与详情页 adapter 不匹配的「开箱即坑」,已由 2026-06-10-003 Unit 2 以条件 fail-closed 校验修复。
 
 ## Overview
 
@@ -241,7 +249,7 @@ graph TB
 
 ---
 
-- [x] **Unit 3: Backend CoverImageUrl Passthrough Chain**
+- [x] **Unit 3: Backend CoverImageUrl Passthrough Chain** *(对账注记 2026-06-10:本单元 Files 未含 scheduler.ts,cron 入池路径丢 coverImageUrl——缺口已由 2026-06-10-003 计划 Unit 1 修复)*
 
 **Goal:** Extend backend types so adapters can supply a cover image URL that flows through fact-extraction into PendingTopic storage.
 
