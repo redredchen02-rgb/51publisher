@@ -31,8 +31,9 @@ export interface SSRFConfig {
   mode: 'fail-closed';
 }
 
-export function loadSSRFAllowlist(): SSRFConfig {
-  const raw = process.env.ALLOWED_HOSTS ?? '';
+// env 参数化以便 env-check 等调用方传入受测环境;默认行为不变。
+export function loadSSRFAllowlist(env: NodeJS.ProcessEnv = process.env): SSRFConfig {
+  const raw = env.ALLOWED_HOSTS ?? '';
   const patterns: Pattern[] = [];
   for (const part of raw.split(',')) {
     const p = compilePattern(part);

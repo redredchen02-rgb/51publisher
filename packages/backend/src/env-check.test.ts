@@ -70,3 +70,66 @@ describe('checkEnv', () => {
     expect(() => validateEnv(goodEnv())).not.toThrow();
   });
 });
+
+describe('checkEnv: ACGS51_START_URL guard (only when ACGS51_ENABLED=true)', () => {
+  const validStartUrl = 'https://51acgs.com/acg/12345.html';
+
+  function scraperEnv(overrides: Record<string, string> = {}): NodeJS.ProcessEnv {
+    return goodEnv({
+      ACGS51_ENABLED: 'true',
+      ACGS51_START_URL: validStartUrl,
+      ALLOWED_HOSTS: '51acgs.com',
+      ...overrides,
+    });
+  }
+
+  it('passes with a valid detail-page URL whose host is in ALLOWED_HOSTS', () => {
+    expect(checkEnv(scraperEnv())).toEqual([]);
+  });
+
+  it('passes with protocol-prefixed and wildcard ALLOWED_HOSTS patterns', () => {
+    expect(checkEnv(scraperEnv({ ALLOWED_HOSTS: 'https://51acgs.com' }))).toEqual([]);
+    expect(
+      checkEnv(
+        scraperEnv({
+          ACGS51_START_URL: 'https://sub.51acgs.com/acg/1.html',
+          ALLOWED_HOSTS: '*.51acgs.com',
+        }),
+      ),
+    ).toEqual([]);
+  });
+
+  it('rejects missing ACGS51_START_URL when enabled, with guidance', () => {
+    const env = goodEnv({ ACGS51_ENABLED: 'true', ALLOWED_HOSTS: '51acgs.com' });
+    const errors = checkEnv(env);
+    expect(errors.some((e) => e.includes('ACGS51_START_URL') && e.includes('.env.example'))).toBe(true);
+  });
+
+  it('rejects empty or whitespace-only ACGS51_START_URL when enabled', () => {
+    for (const url of ['', '   ']) {
+      const errors = checkEnv(scraperEnv({ ACGS51_START_URL: url }));
+      expect(errors.some((e) => e.includes('ACGS51_START_URL') && e.includes('.env.example'))).toBe(true);
+    }
+  });
+
+  it('rejects a START_URL host not in ALLOWED_HOSTS', () => {
+    const errors = checkEnv(scraperEnv({ ALLOWED_HOSTS: 'other-site.com' }));
+    expect(errors.some((e) => e.includes('ALLOWED_HOSTS'))).toBe(true);
+  });
+
+  it('rejects when ALLOWED_HOSTS is unset (fail-closed deny all)', () => {
+    const env = goodEnv({ ACGS51_ENABLED: 'true', ACGS51_START_URL: validStartUrl });
+    const errors = checkEnv(env);
+    expect(errors.some((e) => e.includes('ALLOWED_HOSTS'))).toBe(true);
+  });
+
+  it('rejects a malformed START_URL', () => {
+    const errors = checkEnv(scraperEnv({ ACGS51_START_URL: 'not-a-url' }));
+    expect(errors.some((e) => e.includes('not a valid URL'))).toBe(true);
+  });
+
+  it('skips the guard entirely when ACGS51_ENABLED is unset or false', () => {
+    expect(checkEnv(goodEnv())).toEqual([]);
+    expect(checkEnv(goodEnv({ ACGS51_ENABLED: 'false' }))).toEqual([]);
+  });
+});
