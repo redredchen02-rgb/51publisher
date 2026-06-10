@@ -148,4 +148,18 @@ describe('startScheduler — cron 任务的 coverImageUrl 透传', () => {
 
     expect(savePendingTopic).not.toHaveBeenCalled();
   });
+
+  it('url 为空的启用站点被跳过，不注册 cron 任务（纵深防御）', () => {
+    scraperConfig.registerAdapter(makeMockAdapter(`sched-adapter-${testId}`));
+    scraperConfig.addSiteConfig({
+      siteName: currentSite,
+      adapterName: `sched-adapter-${testId}`,
+      url: '',
+      cron: '0 * * * *',
+      enabled: true,
+    });
+    startScheduler(DEPS);
+
+    expect(vi.mocked(cron.schedule).mock.calls).toHaveLength(0);
+  });
 });

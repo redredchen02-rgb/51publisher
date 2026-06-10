@@ -23,7 +23,9 @@ async function sleep(attempt: number): Promise<void> {
 }
 
 export function startScheduler(deps: SchedulerDeps): void {
-  const sites = scraperConfig.listSiteConfigs().filter((s) => s.enabled && s.cron);
+  // url 守卫为纵深防御:正常启动路径已由 env-check fail-closed 拦截空 URL,
+  // 但 startScheduler 可被 index.ts 之外的调用方直接启动(如测试),空 url 站点一律跳过
+  const sites = scraperConfig.listSiteConfigs().filter((s) => s.enabled && s.cron && s.url && s.url.trim() !== '');
 
   for (const site of sites) {
     if (jobs.has(site.siteName)) {
