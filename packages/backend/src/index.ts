@@ -19,6 +19,7 @@ import { demoAdapter } from './scraper/adapters/demo-adapter.js';
 import { acgs51Adapter } from './scraper/adapters/acgs51-adapter.js';
 import { startScheduler } from './scraper/scheduler.js';
 import { initPendingDb } from './scraper/pending-db.js';
+import { validateEnv } from './env-check.js';
 
 dotenv.config();
 
@@ -144,6 +145,9 @@ server.post<{ Body: GenerateDraftBody }>(
 
 const start = async () => {
   try {
+    // Fail-closed: refuse to start on weak/placeholder security env.
+    validateEnv();
+
     const port = Number(process.env.PORT) || 3001;
     const host = process.env.HOST || '127.0.0.1';
     await server.listen({ port, host });

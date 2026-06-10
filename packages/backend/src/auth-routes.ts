@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import jwt from 'jsonwebtoken';
 import { err } from './error-response.js';
 import { LoginBody, LoginResponse } from './schemas.js';
+import { verifyPassword } from './password.js';
 
 interface LoginBody {
   password: string;
@@ -19,8 +20,8 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (request, reply) => {
-      const adminPassword = process.env.JWT_ADMIN_PASSWORD;
-      if (!adminPassword) {
+      const adminHash = process.env.JWT_ADMIN_PASSWORD_HASH;
+      if (!adminHash) {
         return err(reply, 500, 'auth not configured');
       }
 
@@ -30,11 +31,11 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       }
 
       const { password } = request.body;
-      if (password !== adminPassword) {
+      if (!verifyPassword(password, adminHash)) {
         return err(reply, 401, 'invalid password');
       }
 
-      const token = jwt.sign({}, secret, { expiresIn: '7d' });
+      const token = jwt.sign({}, secret, { expiresIn: '24h', algorithm: 'HS256' });
       return { ok: true, token };
     },
   );
@@ -52,7 +53,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 
     const token = authHeader.slice(7);
     try {
-      jwt.verify(token, secret);
+      jwt.verify(token, secret, { algorithms: ['HS256'], clockTolerance: 30 });
       return { ok: true, authenticated: true };
     } catch {
       return { ok: true, authenticated: false };

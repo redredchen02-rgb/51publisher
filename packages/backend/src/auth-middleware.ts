@@ -26,7 +26,7 @@ export async function requireAuth(request: FastifyRequest, reply: FastifyReply):
   }
 
   try {
-    jwt.verify(token, secret);
+    jwt.verify(token, secret, { algorithms: ['HS256'], clockTolerance: 30 });
     request.user = { authenticated: true };
   } catch {
     err(reply, 401, 'unauthorized');
