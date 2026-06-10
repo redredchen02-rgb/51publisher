@@ -2,6 +2,7 @@
 // 每次 cron 触发抓取配置中指定的单条详情页 URL。
 // 选择器基于 51acgs.com 常见页面结构——运营者可在 scraper-config 中调整目标 URL。
 import type { SiteAdapter, RawContent } from '../site-adapter.js';
+import { safeFetch } from '../ssrf-guard.js';
 
 const UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
@@ -91,7 +92,7 @@ export const acgs51Adapter: SiteAdapter = {
   name: 'acgs51',
 
   async fetchContent(url: string): Promise<RawContent> {
-    const res = await fetch(url, {
+    const res = await safeFetch(url, {
       headers: {
         'User-Agent': UA,
         Accept: 'text/html,application/xhtml+xml',

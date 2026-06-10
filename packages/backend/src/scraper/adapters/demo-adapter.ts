@@ -1,4 +1,5 @@
 import type { SiteAdapter, RawContent } from '../site-adapter.js';
+import { safeFetch } from '../ssrf-guard.js';
 
 function extractTitle(html: string): string {
   const m = html.match(/<title[^>]*>([^<]*)<\/title>/i);
@@ -16,7 +17,7 @@ export const demoAdapter: SiteAdapter = {
   name: 'demo',
 
   async fetchContent(url: string): Promise<RawContent> {
-    const res = await fetch(url, {
+    const res = await safeFetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; 51publisher-scraper/1.0; +http://127.0.0.1:3001)',
       },

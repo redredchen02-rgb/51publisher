@@ -13,6 +13,7 @@
  */
 
 import type { SiteAdapter, RawContent } from '../site-adapter.js';
+import { safeFetch } from '../ssrf-guard.js';
 
 // ---- HTML 解析辅助 ----
 // 简单正则足够应对无 DOM 环境的服务端；如目标站点有复杂 DOM 需求可引入 cheerio。
@@ -66,7 +67,7 @@ export class TemplateSiteAdapter implements SiteAdapter {
   readonly name = 'template-site';
 
   async fetchContent(url: string): Promise<RawContent> {
-    const res = await fetch(url, {
+    const res = await safeFetch(url, {
       headers: {
         // TODO: 如目标站点有 UA 限制，调整此处
         'User-Agent': 'Mozilla/5.0 (compatible; 51publisher-scraper/1.0; +http://127.0.0.1:3001)',

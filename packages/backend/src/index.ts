@@ -119,8 +119,13 @@ server.post<{ Body: GenerateDraftBody }>(
       return err(reply, 500, 'Backend is not configured with an LLM_API_KEY. Please check .env file.', 'no-key');
     }
 
-    // Override or fallback settings endpoint/model if configured on backend
-    const backendEndpoint = process.env.LLM_ENDPOINT || settings.endpoint;
+    // Pin the LLM endpoint to server config. The client-supplied settings.endpoint
+    // is intentionally ignored: honoring it would let any authenticated caller
+    // exfiltrate LLM_API_KEY to an arbitrary host.
+    const backendEndpoint = process.env.LLM_ENDPOINT || '';
+    if (!backendEndpoint) {
+      return err(reply, 500, 'Backend is not configured with an LLM_ENDPOINT. Please check .env file.', 'no-key');
+    }
     const backendModel = process.env.LLM_MODEL || settings.model;
 
     const resolvedSettings = {
