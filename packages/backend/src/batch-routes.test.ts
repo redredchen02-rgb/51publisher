@@ -16,6 +16,12 @@ async function buildApp(): Promise<FastifyInstance> {
 }
 
 function cleanData() {
+  // Safety guard: never rmSync the real data dir. test-setup.ts injects
+  // PUBLISHER_DATA_DIR (a temp dir); if it's missing, refuse rather than risk
+  // wiping packages/backend/data when this file is run outside vitest setup.
+  if (!process.env.PUBLISHER_DATA_DIR) {
+    throw new Error('cleanData refused: PUBLISHER_DATA_DIR not set (test isolation missing)');
+  }
   if (existsSync(DATA_DIR)) {
     rmSync(DATA_DIR, { recursive: true, force: true });
   }

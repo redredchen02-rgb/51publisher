@@ -30,6 +30,22 @@ describe('isPublicUnicastIp', () => {
     }
   });
 
+  it('blocks hex-form IPv4-in-IPv6 (compat / mapped / NAT64) pointing at private space', () => {
+    for (const ip of [
+      '::a00:1', // ::/96 compat = 10.0.0.1
+      '::7f00:1', // ::/96 compat = 127.0.0.1
+      '::a9fe:a9fe', // ::/96 compat = 169.254.169.254 (cloud metadata)
+      '::ffff:a00:1', // mapped = 10.0.0.1
+      '64:ff9b::7f00:1', // NAT64 = 127.0.0.1
+    ]) {
+      expect(isPublicUnicastIp(ip), ip).toBe(false);
+    }
+  });
+
+  it('still allows public hex-form embedded IPv4', () => {
+    expect(isPublicUnicastIp('::ffff:808:808')).toBe(true); // mapped = 8.8.8.8
+  });
+
   it('rejects non-IP input', () => {
     expect(isPublicUnicastIp('not-an-ip')).toBe(false);
   });

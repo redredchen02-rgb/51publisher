@@ -124,7 +124,9 @@ server.post<{ Body: GenerateDraftBody }>(
     // exfiltrate LLM_API_KEY to an arbitrary host.
     const backendEndpoint = process.env.LLM_ENDPOINT || '';
     if (!backendEndpoint) {
-      return err(reply, 500, 'Backend is not configured with an LLM_ENDPOINT. Please check .env file.', 'no-key');
+      // No 'no-key' kind here: this is a server .env issue the operator can't
+      // fix from the extension settings panel, so don't steer them there.
+      return err(reply, 500, 'Backend is not configured with an LLM_ENDPOINT. Please check .env file.');
     }
     const backendModel = process.env.LLM_MODEL || settings.model;
 

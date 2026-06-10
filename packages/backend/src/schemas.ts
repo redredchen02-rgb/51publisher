@@ -49,7 +49,8 @@ export const GenerateDraftResponse = Type.Object({
 
 // ── Auth ──────────────────────────────────────────────
 export const LoginBody = Type.Object({
-  password: Type.String({ minLength: 1 }),
+  // maxLength bounds the synchronous scrypt cost per request (micro-DoS guard).
+  password: Type.String({ minLength: 1, maxLength: 1024 }),
 });
 
 export const LoginResponse = Type.Object({

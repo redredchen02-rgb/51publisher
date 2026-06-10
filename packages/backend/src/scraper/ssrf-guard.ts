@@ -34,16 +34,62 @@ function isPublicV4(ip: string): boolean {
   return true;
 }
 
+// Parse an IPv6 string into 8 16-bit hextets, expanding "::" and any trailing
+// dotted-quad. Returns null on anything malformed (caller then denies).
+function parseV6Hextets(ip: string): number[] | null {
+  const s = ip.split('%')[0]!; // drop zone id
+  const halves = s.split('::');
+  if (halves.length > 2) return null;
+
+  const toHextets = (raw: string): number[] | null => {
+    if (raw === '') return [];
+    const out: number[] = [];
+    for (const g of raw.split(':')) {
+      if (g.includes('.')) {
+        const v4 = g.split('.').map(Number);
+        if (v4.length !== 4 || v4.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return null;
+        out.push((v4[0]! << 8) | v4[1]!, (v4[2]! << 8) | v4[3]!);
+      } else {
+        if (!/^[0-9a-f]{1,4}$/i.test(g)) return null;
+        out.push(Number.parseInt(g, 16));
+      }
+    }
+    return out;
+  };
+
+  const head = toHextets(halves[0]!);
+  const tail = halves.length === 2 ? toHextets(halves[1]!) : [];
+  if (!head || !tail) return null;
+
+  if (halves.length === 2) {
+    const fill = 8 - head.length - tail.length;
+    if (fill < 0) return null;
+    return [...head, ...new Array(fill).fill(0), ...tail];
+  }
+  return head.length === 8 ? head : null;
+}
+
 function isPublicV6(ip: string): boolean {
-  const lower = ip.toLowerCase();
-  if (lower === '::1' || lower === '::') return false; // loopback / unspecified
-  // IPv4-mapped (::ffff:x), NAT64 (64:ff9b::x), v4-compat: validate embedded v4.
-  const embedded = lower.match(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
-  if (embedded) return isPublicV4(embedded[1]!);
-  const firstHextet = lower.split(':').find((h) => h !== '');
-  if (!firstHextet) return false;
-  const fh = Number.parseInt(firstHextet, 16);
-  if (Number.isNaN(fh)) return false;
+  const hx = parseV6Hextets(ip.toLowerCase());
+  if (!hx) return false;
+  const embeddedV4 = () => `${hx[6]! >> 8}.${hx[6]! & 0xff}.${hx[7]! >> 8}.${hx[7]! & 0xff}`;
+  const highZero = hx.slice(0, 6).every((x) => x === 0);
+
+  // :: (unspecified) and ::1 (loopback) and any ::/96 IPv4-compatible address.
+  if (highZero) {
+    if (hx[6] === 0) return false; // ::, ::1, ::x.x in 0.0.0.0/8 — all non-public
+    return isPublicV4(embeddedV4()); // ::a.b.c.d  → validate embedded v4
+  }
+  // ::ffff:0:0/96 IPv4-mapped.
+  if (hx[0] === 0 && hx[1] === 0 && hx[2] === 0 && hx[3] === 0 && hx[4] === 0 && hx[5] === 0xffff) {
+    return isPublicV4(embeddedV4());
+  }
+  // 64:ff9b::/96 NAT64.
+  if (hx[0] === 0x64 && hx[1] === 0xff9b && hx[2] === 0 && hx[3] === 0 && hx[4] === 0 && hx[5] === 0) {
+    return isPublicV4(embeddedV4());
+  }
+
+  const fh = hx[0]!;
   if (fh >= 0xfc00 && fh <= 0xfdff) return false; // fc00::/7 unique-local
   if (fh >= 0xfe80 && fh <= 0xfebf) return false; // fe80::/10 link-local
   if (fh >= 0xff00) return false; // ff00::/8 multicast

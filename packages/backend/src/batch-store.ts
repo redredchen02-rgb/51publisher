@@ -77,7 +77,9 @@ export async function listBatches(limit = 50): Promise<Batch[]> {
   await ensureDir(BATCHES_DIR);
   const { readdir } = await import('node:fs/promises');
   const files = await readdir(BATCHES_DIR);
-  const jsonFiles = files.filter((f) => f.endsWith('.json')).slice(0, limit * 2);
+  // Read all batches then sort by updatedAt — readdir order is arbitrary, so
+  // slicing before the sort could drop a recently-updated batch.
+  const jsonFiles = files.filter((f) => f.endsWith('.json'));
 
   const batches: Batch[] = [];
   for (const f of jsonFiles) {
