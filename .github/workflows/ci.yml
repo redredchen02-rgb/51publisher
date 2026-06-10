@@ -1,3 +1,6 @@
+# DORMANT: this repo's remote is GitLab (gitlab.com/redredchen01/51publisher),
+# so GitHub Actions never runs. Kept for archival / potential GitHub mirror.
+# The active pipeline is .gitlab-ci.yml at the repo root.
 name: CI
 
 on:
