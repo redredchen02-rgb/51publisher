@@ -30,7 +30,7 @@ export interface PromptTemplateUpdate {
 
 // ---- 文件持久层（轻量 JSON，与 pending-store.ts 一致） ----
 
-const DATA_DIR = join(dirname(new URL(import.meta.url).pathname), '..', 'data');
+const DATA_DIR = process.env.PUBLISHER_DATA_DIR || join(dirname(new URL(import.meta.url).pathname), '..', 'data');
 const PROMPTS_DIR = join(DATA_DIR, 'prompts');
 
 async function ensureDir(dir: string): Promise<void> {

@@ -4,8 +4,9 @@ import { registerBatchRoutes } from './batch-routes.js';
 import { rmSync, existsSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 
-// data/ 目录清理(测试隔离)
-const DATA_DIR = join(dirname(new URL(import.meta.url).pathname), '..', 'data');
+// data/ 目录清理(测试隔离)。优先使用 test-setup 注入的隔离临时目录，
+// 避免误删真实 packages/backend/data。
+const DATA_DIR = process.env.PUBLISHER_DATA_DIR || join(dirname(new URL(import.meta.url).pathname), '..', 'data');
 
 async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify();

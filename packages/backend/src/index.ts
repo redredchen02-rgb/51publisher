@@ -19,13 +19,11 @@ import { demoAdapter } from './scraper/adapters/demo-adapter.js';
 import { acgs51Adapter } from './scraper/adapters/acgs51-adapter.js';
 import { startScheduler } from './scraper/scheduler.js';
 import { initPendingDb } from './scraper/pending-db.js';
-import { initAppDb } from './scraper/migrations/db.js';
 
 dotenv.config();
 
-// 初始化 SQLite 持久层（必须在路由注册前完成）
+// 初始化 pending/config 的 SQLite 持久层（batch/prompt 使用 JSON 文件存储）
 initPendingDb();
-initAppDb();
 
 const server = Fastify({ logger: true });
 

@@ -8,7 +8,7 @@ import {
   type PromptTemplate,
   type PromptTemplateCreate,
   type PromptTemplateUpdate,
-} from './prompt-store-sqlite.js';
+} from './prompt-store.js';
 
 /**
  * Prompt 模板管理 API。

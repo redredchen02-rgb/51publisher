@@ -9,7 +9,7 @@ import {
   type Batch,
   type BatchItem,
   type BatchItemStatus,
-} from './scraper/batch-store-sqlite.js';
+} from './batch-store.js';
 
 /**
  * Batch 状态管理 API。

@@ -11,7 +11,7 @@ const _require = createRequire(import.meta.url);
 const Database = _require('better-sqlite3') as typeof import('better-sqlite3');
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = join(__dirname, '..', '..', 'data');
+const DATA_DIR = process.env.PUBLISHER_DATA_DIR || join(__dirname, '..', '..', 'data');
 export const DB_PATH = join(DATA_DIR, 'pending.db');
 
 export type BetterSqlite3DB = InstanceType<typeof Database>;
