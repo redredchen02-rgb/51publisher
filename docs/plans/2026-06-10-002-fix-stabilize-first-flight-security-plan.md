@@ -10,12 +10,12 @@ origin: docs/brainstorms/2026-06-10-stabilize-first-flight-security-requirements
 
 ## Execution Status (2026-06-10)
 
-**已完成并本地提交（分支 feat/batch-reliability-ux，未推送）**：U1（本地快照+data 备份）、U2、U3、U4、U5、U6（CI 文件 + fresh-clone 本地验证全绿）、U10、U11、U12。基线：后端 109 测试、扩展 315 测试、`pnpm -r compile` 全绿；干净 fresh clone install→build→compile→test 全部通过。U7 状态对账已完成。
+**已完成并本地提交（分支 feat/batch-reliability-ux，未推送）**：U1（本地快照+data 备份）、U2、U3、U4、U5、U6（CI 文件 + fresh-clone 本地验证全绿）、U7、U8（run-sheet 对齐，R14 操作步骤写入 Part 0）、U10、U11、U12。基线：后端 111 测试、扩展 315 测试、`pnpm -r compile` 全绿；干净 fresh clone install→build→compile→test 全部通过。
 
 **待运营者动作（自主会话止步于此）**：
 - **U6 推送**：先确认 GitLab 仓库私有 → `git push` feat 分支 + `rescue/wip-2026-06-10`（pre-push 会跑密钥扫描；建议先 `brew install gitleaks`）。
-- **U8/U14 首飞前轮换**：`node packages/backend/scripts/hash-password.mjs` 生成 `JWT_ADMIN_PASSWORD_HASH`、换强 `JWT_SECRET`、轮换 `LLM_API_KEY`，改 `.env`（启动 fail-closed 会拒绝弱值），轮换后做一次扩展登录验证。
-- **U9 首飞**：两条路径各 ≥1 篇真实发布 + 前台核验 + 首飞后再备份 data/。
+- **U8 操作步骤**（详见 `docs/run-sheet-首飞与基线.md` Part 0）：运行 `hash-password.mjs` 生成 `JWT_ADMIN_PASSWORD_HASH`、生成强 `JWT_SECRET`、在供应商轮换 `LLM_API_KEY`，写入 `.env` 重启后端，做扩展登录验证确认 G1。
+- **U9 首飞**：两条路径各 ≥1 篇真实发布 + 前台核验 + 首飞后再备份 data/（详见 run-sheet Part 2–4）。
 - **U13 CORS 收紧**：首飞成功后做，需打包扩展真实请求实测。
 
 ## Overview
@@ -319,7 +319,7 @@ flowchart TB
 
 ### Phase B — 首飞（3 天窗口自 G1 满足日起算）
 
-- [ ] **Unit 8: 首飞准备包（R5 run-sheet 对齐 + R14 密钥轮换）**
+- [x] **Unit 8: 首飞准备包（R5 run-sheet 对齐 + R14 密钥轮换）**
 
 **Goal:** 运营者拿到一份与现状完全一致的执行单，且后端不再运行在已知默认凭证上。
 
