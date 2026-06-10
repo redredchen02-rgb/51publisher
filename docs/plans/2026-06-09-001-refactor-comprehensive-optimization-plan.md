@@ -1,7 +1,14 @@
 ---
 date: 2026-06-09
 topic: comprehensive-optimization
+status: superseded
 ---
+
+> **状态对账（2026-06-10）**：本「七维度大重构」计划顺序被否（大重构先于产品验证，执行到一半反让仓库更脆弱）。
+> 已由 `docs/plans/2026-06-10-002-fix-stabilize-first-flight-security-plan.md`（止血→首飞→安全）重排取代。
+> 本计划已落地的部分：shared 包已建并被两端一致引用（A1 完成）、Biome 已引入（A2 完成）。
+> 已**回退**的部分：JSON→SQLite 统一迁移（batch/prompt 回退为 JSON，仅 pending/config 留 SQLite）。
+> 其余维度（前端质量、测试大补强、运维设施）**延后**，首飞后依真实数据量再评估。
 
 # 全面優化企劃書 — 51publisher
 

@@ -1,10 +1,14 @@
 ---
 title: Technical debt optimization — Phase A/C/E remaining work
 type: refactor
-status: active
+status: superseded
 date: 2026-06-10
 origin: docs/brainstorms/2026-06-10-tech-debt-optimization-requirements.md
 ---
+
+> **状态对账（2026-06-10）**：此计划疑为并发会话产物，方向（继续完成 SQLite 迁移）与
+> `docs/plans/2026-06-10-002-fix-stabilize-first-flight-security-plan.md`（回退保 JSON）冲突。
+> 运营者已停止该会话；本计划作废，以 06-10-002 为准。
 
 # Technical debt optimization — Phase A/C/E remaining work
 

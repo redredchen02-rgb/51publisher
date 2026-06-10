@@ -8,6 +8,16 @@ origin: docs/brainstorms/2026-06-10-stabilize-first-flight-security-requirements
 
 # fix: 止血→首飞→安全 — 仓库恢复、产品首飞与安全加固
 
+## Execution Status (2026-06-10)
+
+**已完成并本地提交（分支 feat/batch-reliability-ux，未推送）**：U1（本地快照+data 备份）、U2、U3、U4、U5、U6（CI 文件 + fresh-clone 本地验证全绿）、U10、U11、U12。基线：后端 109 测试、扩展 315 测试、`pnpm -r compile` 全绿；干净 fresh clone install→build→compile→test 全部通过。U7 状态对账已完成。
+
+**待运营者动作（自主会话止步于此）**：
+- **U6 推送**：先确认 GitLab 仓库私有 → `git push` feat 分支 + `rescue/wip-2026-06-10`（pre-push 会跑密钥扫描；建议先 `brew install gitleaks`）。
+- **U8/U14 首飞前轮换**：`node packages/backend/scripts/hash-password.mjs` 生成 `JWT_ADMIN_PASSWORD_HASH`、换强 `JWT_SECRET`、轮换 `LLM_API_KEY`，改 `.env`（启动 fail-closed 会拒绝弱值），轮换后做一次扩展登录验证。
+- **U9 首飞**：两条路径各 ≥1 篇真实发布 + 前台核验 + 首飞后再备份 data/。
+- **U13 CORS 收紧**：首飞成功后做，需打包扩展真实请求实测。
+
 ## Overview
 
 把 51publisher 从「三重不稳定」（约 116 个文件未入库、存储迁移半成品、后端测试红）恢复为绿色可还原的基线，随后用两条路径的真实发布完成产品闭环首飞（G2），最后修复 4 个高危 + 3 个低成本中危安全项。三阶段强顺序、阶段内并行，全部决策承接自源需求文档（经两轮六人格评审定稿）。
@@ -134,7 +144,7 @@ flowchart TB
 
 ### Phase A — 止血
 
-- [ ] **Unit 1: 抢救快照与数据备份（R0）**
+- [x] **Unit 1: 抢救快照与数据备份（R0）**
 
 **Goal:** 在任何回退/删除前，把全部工作区成果置于 git 保护下，并备份运行数据。
 
@@ -162,7 +172,7 @@ flowchart TB
 **Verification:**
 - 远端存在 rescue 分支且包含全部未跟踪源码；扫描记录无命中（或命中已处置）；`data/` 副本存在于第二位置。
 
-- [ ] **Unit 2: 回退半成品 SQLite 迁移（R1）**
+- [x] **Unit 2: 回退半成品 SQLite 迁移（R1）**
 
 **Goal:** batch/prompt 回到 JSON 文件存储，消除半成品双初始化与 batch-routes 500。
 
@@ -190,7 +200,7 @@ flowchart TB
 **Verification:**
 - `pnpm --filter publisher-backend compile` 零错误；启动路径无废弃迁移代码；上述往返实测通过。
 
-- [ ] **Unit 3: 扩展侧 tsc 错误修复（R13）**
+- [x] **Unit 3: 扩展侧 tsc 错误修复（R13）**
 
 **Goal:** 修复 4 个既有类型错误，使 workspace 级 `pnpm -r compile` 全绿。
 
@@ -212,7 +222,7 @@ flowchart TB
 **Verification:**
 - `pnpm -r compile`（含 shared build，见 Unit 5）零错误。
 
-- [ ] **Unit 4: 后端测试重基线与修复（R2）**
+- [x] **Unit 4: 后端测试重基线与修复（R2）**
 
 **Goal:** 回退后重测，修复存活失败至全绿；时间盒 1 个工作日。
 
@@ -234,7 +244,7 @@ flowchart TB
 **Verification:**
 - 后端测试全绿，或时间盒触发后留有书面存活清单（不含首飞关键路径路由）。
 
-- [ ] **Unit 5: 仓库卫生（R3a：忽略规则/环境样例/构建脚本/钩子）**
+- [x] **Unit 5: 仓库卫生（R3a：忽略规则/环境样例/构建脚本/钩子）**
 
 **Goal:** 让「fresh clone 可还原」的工程前提全部就位。
 
@@ -261,7 +271,7 @@ flowchart TB
 **Verification:**
 - 上述命令链在无 .env 环境通过；hook 拦截实测有效。
 
-- [ ] **Unit 6: 整理入库、CI 与 fresh-clone 验收（R3b）**
+- [x] **Unit 6: 整理入库、CI 与 fresh-clone 验收（R3b）**
 
 **Goal:** 全部应入库文件按逻辑域整理提交并推送，远端可独立还原。
 
@@ -286,7 +296,7 @@ flowchart TB
 **Verification:**
 - `git status` 干净（除忽略项）；远端分支完整；GitLab CI 绿或已触发预定兜底。
 
-- [ ] **Unit 7: 账本对账（R4）**
+- [x] **Unit 7: 账本对账（R4）**
 
 **Goal:** 让记忆与计划文档反映真实状态，杜绝下轮会话基于过期账本决策。
 
@@ -359,7 +369,7 @@ flowchart TB
 
 ### Phase C — 安全加固（U10–U12 可与首飞窗口穿插；U13 必须在首飞成功后）
 
-- [ ] **Unit 10: 凭证安全（R8 哈希+fail-closed 启动校验；R12 JWT 24h）**
+- [x] **Unit 10: 凭证安全（R8 哈希+fail-closed 启动校验；R12 JWT 24h）**
 
 **Goal:** 密码不再明文比较/存储；弱配置无法启动；token 有效期收紧。
 
@@ -389,7 +399,7 @@ flowchart TB
 **Verification:**
 - 新测试全绿；curl QA 含 401 用例；启动校验手测两种拒绝场景。
 
-- [ ] **Unit 11: 登录防护（R11 限流+审计日志+PUBLIC_ROUTES 盘点）**
+- [x] **Unit 11: 登录防护（R11 限流+审计日志+PUBLIC_ROUTES 盘点）**
 
 **Goal:** 登录不可暴力枚举，认证事件可审计，免认证面收敛。
 
@@ -417,7 +427,7 @@ flowchart TB
 **Verification:**
 - 新增用例全绿；curl QA 含 429 用例；审计文件内容抽查无敏感值。
 
-- [ ] **Unit 12: 出站加固（R10 SSRF IP 钉死 + LLM endpoint 钉死）**
+- [x] **Unit 12: 出站加固（R10 SSRF IP 钉死 + LLM endpoint 钉死）**
 
 **Goal:** 抓取出站只允许公网单播且校验与连接同 IP；LLM 凭证只发往 env 配置的地址。
 

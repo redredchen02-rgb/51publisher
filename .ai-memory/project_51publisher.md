@@ -2,12 +2,32 @@
 name: 51publisher 项目状态
 description: 前端-后端分离进度、架构决策、待办
 type: project
-updated: 2026-06-08
-expires: 2026-07-08
+updated: 2026-06-10
+expires: 2026-07-10
 platform: universal
 ---
 
 # 51publisher 项目状态
+
+## 2026-06-10 止血→安全（计划 docs/plans/2026-06-10-002，分支 feat/batch-reliability-ux）
+
+**已完成并本地提交（未推送，等运营者确认 GitLab 私有后推）：**
+- **U1 抢救快照**：本地 commit `1958f08` + 分支 `rescue/wip-2026-06-10` 保全全部成果；`data/` 备份在 `~/51publisher-backups/`
+- **U2 回退半成品 SQLite 迁移**：batch/prompt 改回 JSON store（pending/config 仍 SQLite），删 `*-store-sqlite.ts`、`scraper/migrations/db.ts`、迁移脚本；`index.ts` 去 `initAppDb`
+- **U4 测试数据隔离**：store/db 读 `PUBLISHER_DATA_DIR`，vitest `src/test-setup.ts` 指向临时目录，测试不再清真实 `data/`
+- **U3+U5 仓库卫生**：修扩展 4 个 tsc 错误；shared 加 `compile` 脚本；`*.tsbuildinfo`/coverage/logs 入 gitignore；`.env.example` 补 ACGS51_*；pre-push 密钥扫描 hook；`hash-password.mjs`
+- **U6 fresh-clone 修复**：根因=被提交的 `tsconfig.tsbuildinfo` 让 composite 跳过 emit→shared dist 不生成；已修，干净 fresh clone install→build→compile→test 全绿（后端 109 / 扩展 315）。`.gitlab-ci.yml` 已加，GitHub workflow 标注休眠
+- **U10 凭证安全**：scrypt+timingSafeEqual（`JWT_ADMIN_PASSWORD_HASH=salt:key`），启动 fail-closed 校验弱密钥，JWT 24h + HS256 钉死 + clockTolerance（auth-routes + auth-middleware）
+- **U11 登录防护**：`/auth/login`+`/auth/status` 路由级限流 10/min；零依赖审计日志 `logs/auth-audit.log`（只记 time/ip/result，含 429 onExceeded）；`/api/v1/models` 移出 PUBLIC_ROUTES
+- **U12 出站加固**：`ssrf-guard.ts` 解析后校验公网单播 IP + manual-redirect 逐跳校验，三 adapter 走 `safeFetch`；LLM endpoint 钉死到 env（去 `settings.endpoint` 回退）
+
+**测试基线（2026-06-10）**：后端 109 通过、扩展 315 通过、workspace `pnpm -r compile` 全绿。
+
+**待运营者动作（未做）：**
+- **推送**：先确认 GitLab `redredchen01/51publisher` 私有 → `git push` feat 分支与 rescue 分支
+- **U8/U14 首飞前轮换**：用 `hash-password.mjs` 生成 `JWT_ADMIN_PASSWORD_HASH`、换强 `JWT_SECRET`、轮换 LLM_API_KEY（probe-grounding.mjs 已从工作区消失，疑曾含 key，无条件轮换）；改 `.env` 后启动会 fail-closed 拒绝弱值
+- **U9 首飞**：两条路径（手动+待审池）各 ≥1 篇真实发布，前台核验，首飞后再备份 data/
+- **U13 CORS 收紧**：故意排在首飞成功后（避免归因困难），收紧需打包扩展真实请求实测
 
 ## 项目架构
 - **Monorepo** (pnpm workspace): `packages/backend/` (Fastify 5 + TypeScript, port 3001) + `packages/extension/` (WXT + React 19 + MV3)
