@@ -14,6 +14,7 @@
   "files": ["dist"],
   "scripts": {
     "build": "tsc",
+    "compile": "tsc",
     "dev": "tsc --watch"
   },
   "dependencies": {},

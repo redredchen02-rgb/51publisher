@@ -16,9 +16,13 @@ export function extractLinks(html: string): string[] {
   const regex = /<a\s+(?:[^>]*?\s+)?href=(["'])(.*?)\1/gi;
   let match;
   while ((match = regex.exec(html)) !== null) {
-    let href = match[2].trim();
+    let href = (match[2] ?? '').trim();
     // Decode basic HTML entities that might have been escaped in href
-    href = href.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+    href = href
+      .replace(/&quot;/g, '"')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&');
     if (href) {
       links.push(href);
     }

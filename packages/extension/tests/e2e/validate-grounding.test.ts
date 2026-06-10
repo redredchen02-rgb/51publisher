@@ -93,7 +93,7 @@ async function generate(topic: string, f: Record<string, string>) {
   return { mode, parsed, assembled, facts: f };
 }
 
-const CASES = [
+const CASES: { topic: string; facts: Record<string, string> }[] = [
   {
     topic: '某新番成人動畫介紹',
     facts: {
@@ -120,7 +120,7 @@ describe.skipIf(!KEY)('validate-grounding', () => {
     expect(r.err).toBeUndefined();
 
     // 审计:body 里所有 URL 必须都来自 facts
-    const inputUrls = Object.values(c.facts).join(' ').match(URL_RE) || [];
+    const inputUrls: string[] = Object.values(c.facts).join(' ').match(URL_RE) || [];
     const bodyUrls = (r.assembled!.body.match(URL_RE) || []).map((u) => u.replace(/&quot;.*$/, ''));
     const stray = bodyUrls.filter((u) => !inputUrls.includes(u));
     expect(stray).toHaveLength(0);
@@ -137,7 +137,7 @@ describe.skipIf(!KEY)('validate-grounding', () => {
       // stub others
     };
     const verdict = evaluateGrounding(draftMock, r.facts as any);
-    
+
     // 如果是"缺事实压力测试" case，作品名是只给名丙，没有其它，可能被拦吗？
     // 我们的 evaluateGrounding 只有在 draft.title 或 draft.body 包含 PLACEHOLDER 时，或者有无来源连结时拦。
     // 如果提供了作品名，就不会有 title PLACEHOLDER。如果模型没造假 URL，就没有 body PLACEHOLDER。

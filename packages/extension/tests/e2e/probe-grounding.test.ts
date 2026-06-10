@@ -87,7 +87,7 @@ describe.skipIf(!API_KEY)('probe-grounding', () => {
     }
 
     const body = String(draft.body || '');
-    const bodyLinks = [...body.matchAll(/href\s*=\s*["']([^"']+)["']/gi)].map((m) => m[1]);
+    const bodyLinks = [...body.matchAll(/href\s*=\s*["']([^"']+)["']/gi)].map((m) => m[1] ?? '');
     const allowed = new Set(allowedUrls.map(norm));
     const unsourced = [...new Set(bodyLinks)].filter((u) => !allowed.has(norm(u)));
 
