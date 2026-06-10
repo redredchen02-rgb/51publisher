@@ -80,7 +80,7 @@ export function startScheduler(deps: SchedulerDeps): void {
       }
 
       try {
-        const { facts, confidence, extractionMode } = await extractFacts(rawContent, {
+        const { facts, confidence, extractionMode, coverImageUrl } = await extractFacts(rawContent, {
           endpoint: deps.llmEndpoint,
           apiKey: deps.llmApiKey,
           model: deps.llmModel || 'gpt-4o-mini',
@@ -95,6 +95,7 @@ export function startScheduler(deps: SchedulerDeps): void {
           rawContent,
           facts,
           confidence,
+          ...(coverImageUrl ? { coverImageUrl } : {}),
           status: 'pending',
           createdAt: now,
           updatedAt: now,
