@@ -39,11 +39,19 @@ export const GenerateDraftBody = Type.Object({
 export const GenerateDraftResponse = Type.Object({
   ok: OkStatus,
   draft: Type.Object({
+    id: Type.String(),
     title: Type.String(),
-    content: Type.String(),
-    intro: Type.String(),
-    highlights: Type.Array(Type.String()),
+    subtitle: Type.String(),
+    category: Type.String(),
+    coverImageUrl: Type.String(),
+    body: Type.String(),
     tags: Type.Array(Type.String()),
+    description: Type.String(),
+    postStatus: Type.String(),
+    publishedAt: Type.String(),
+    mediaId: Type.String(),
+    status: Type.String(),
+    createdAt: Type.String(),
   }),
 });
 

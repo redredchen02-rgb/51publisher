@@ -145,6 +145,9 @@ server.post<{ Body: GenerateDraftBody }>(
         apiKey,
         facts,
       });
+      if (!result.ok) {
+        return err(reply, 422, result.error, result.kind);
+      }
       return result;
     } catch (e) {
       request.log.error(e, 'Failed to generate draft via LLM');
