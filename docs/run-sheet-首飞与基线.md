@@ -46,12 +46,17 @@ JWT_SECRET=<96字符hex>
 JWT_ADMIN_PASSWORD_HASH=<saltHex>:<keyHex>
 LLM_API_KEY=<新key>
 LLM_ENDPOINT=https://api.deepseek.com/v1   # 或你的供应商地址
+CORS_ORIGIN=chrome-extension://<你的扩展ID>   # 在 chrome://extensions 开发者模式下查看
 ```
+
+> **找扩展 ID**：`chrome://extensions` → 开启右上角「开发者模式」→ 找 51publisher → 复制 ID（32位字母）。
+> 若同时有已解压（开发版）和打包版两个 ID，逗号分隔填两个。
 
 ```bash
 # 停止旧进程后
 cd packages/backend && pnpm start
 # 启动日志应显示：Server listening on http://127.0.0.1:3001
+# 若报 "CORS_ORIGIN is not set" → 补填 .env 再重启
 # 若报 "Weak JWT_SECRET" 或 "Invalid JWT_ADMIN_PASSWORD_HASH" → 检查 .env 格式
 ```
 
@@ -195,7 +200,21 @@ cp -r packages/backend/data/ "$HOME/51publisher-backups/data-postflight-$(date +
 - **帖子 URL（路径 A）**：\_\_\_\_\_\_ （若愿意记录）
 - **帖子 URL（路径 B）**：\_\_\_\_\_\_ （若愿意记录）
 
-**G2 完成** → 可以进行 U13 CORS 收紧。
+**G2 完成** → 进行 U13 CORS 集成验证（代码已就绪，只差下面一步）：
+
+### U13 集成验证（首飞后，~5 分钟）
+
+> CORS 收紧代码已合入，`CORS_ORIGIN` 未设置或为 `*` 时后端已 fail-closed 拒绝启动。
+> 唯一还差的是「打包版扩展真实请求」走一遍：
+
+1. 确认 `.env` 中 `CORS_ORIGIN` 已填你的扩展 ID（见 Part 0-D）。
+2. 用**已加载的扩展**（非 curl）执行一次带认证的操作（如「拉取模型列表」或触发一次生成）。
+3. F12 → Network → 找该请求 → Response Headers：
+   - `access-control-allow-origin: chrome-extension://<你的ID>` ✓ 即通过。
+   - 无该头 → 检查 CORS_ORIGIN 是否与扩展 ID 完全一致（区分大小写）。
+4. 在本行记录完成：\_\_\_\_\_\_ ✅
+
+**U13 全部完成，整个计划收工。**
 
 ---
 

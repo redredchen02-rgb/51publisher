@@ -28,11 +28,14 @@ initPendingDb();
 
 const server = Fastify({ logger: true });
 
-// Enable CORS for Chrome Extension origins
-const corsOrigin = process.env.CORS_ORIGIN || '*';
-await server.register(cors, {
-  origin: corsOrigin === '*' ? true : corsOrigin.split(',').map((s) => s.trim()),
-});
+// Fail-closed CORS: env-check in start() refuses '*' or unset CORS_ORIGIN.
+// At module init, parse what we have; '*' and empty are filtered out so
+// the origin list is either valid entries or [] (deny-all — safe default).
+const corsOrigins = (process.env.CORS_ORIGIN ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter((s) => s && s !== '*');
+await server.register(cors, { origin: corsOrigins });
 
 // Apply rate limiting: 100 requests per minute per IP
 await server.register(rateLimit, {

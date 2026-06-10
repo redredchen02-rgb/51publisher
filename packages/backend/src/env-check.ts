@@ -33,6 +33,15 @@ export function checkEnv(env: NodeJS.ProcessEnv = process.env): string[] {
     );
   }
 
+  const corsOrigin = (env.CORS_ORIGIN ?? '').trim();
+  if (!corsOrigin || corsOrigin === '*') {
+    errors.push(
+      "CORS_ORIGIN is not set or is '*'. Set it to your extension's origin, e.g. " +
+        'chrome-extension://<extension-id>. Comma-separate for dev+prod IDs. ' +
+        "Wildcard '*' is rejected to prevent open cross-origin access.",
+    );
+  }
+
   return errors;
 }
 
