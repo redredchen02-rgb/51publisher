@@ -99,8 +99,10 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
 				authorizedHost,
 				createdAt: now,
 				updatedAt: now,
+				// item ID 必须与扩展端 buildItemId(`item_${i}`)一致,否则扩展回写
+				// 状态时 PATCH /items/item_0 在后端找不到 item → 404,后端镜像永不更新。
 				items: topics.map((topic, i) => ({
-					id: `${id}_item_${i}`,
+					id: `item_${i}`,
 					topic,
 					status: "queued" as const,
 					...(facts?.[i] ? { facts: facts[i] } : {}),

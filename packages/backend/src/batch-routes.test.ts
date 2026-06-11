@@ -124,7 +124,7 @@ describe("Batch Routes", () => {
 
 			const res = await app.inject({
 				method: "PATCH",
-				url: "/api/v1/batches/b2/items/b2_item_0",
+				url: "/api/v1/batches/b2/items/item_0",
 				payload: { status: "generating" },
 			});
 			expect(res.statusCode).toBe(200);
@@ -146,7 +146,7 @@ describe("Batch Routes", () => {
 			// queued → publish-confirmed is invalid
 			const res = await app.inject({
 				method: "PATCH",
-				url: "/api/v1/batches/b3/items/b3_item_0",
+				url: "/api/v1/batches/b3/items/item_0",
 				payload: { status: "publish-confirmed" },
 			});
 			expect(res.statusCode).toBe(409);
