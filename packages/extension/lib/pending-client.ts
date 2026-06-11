@@ -1,4 +1,4 @@
-import { getToken, clearToken } from './auth-client';
+import { clearToken, getToken } from './auth-client';
 
 const BACKEND_BASE = 'http://127.0.0.1:3001';
 
@@ -7,14 +7,28 @@ export interface PendingTopic {
   sourceUrl: string;
   siteName: string;
   title: string;
-  rawContent?: { title: string; body: string; url: string; metadata?: Record<string, string> };
+  rawContent?: {
+    title: string;
+    body: string;
+    url: string;
+    metadata?: Record<string, string>;
+  };
   facts: Record<string, string>;
   confidence: number;
+  qualityScore?: number;
   status: 'pending' | 'approved' | 'rejected';
   rejectedReason?: string;
   coverImageUrl?: string;
+  /** 质量分低于 fold_threshold 时后端标记为折叠（低优先级）。 */
+  folded?: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface FetchPendingTopicsOptions {
+  status?: string;
+  sort_by?: 'score' | 'created_at';
+  fold_threshold?: number;
 }
 
 export interface PendingTopicsResponse {
@@ -30,20 +44,59 @@ export interface PendingTopicResponse {
 }
 
 /**
- * 拉取待审核选题列表。
+ * 拉取待审核选题列表。支持按质量分排序（sort_by='score'）和折叠阈值。
+ *
+ * 两种调用方式（向前兼容）：
+ *   fetchPendingTopics('pending')
+ *   fetchPendingTopics('pending', 'score', 0.5)
+ *   fetchPendingTopics({ status: 'pending', sort_by: 'score', fold_threshold: 0.5 })
  */
 export async function fetchPendingTopics(
-  status?: string,
-  fetchFn: typeof fetch = fetch,
+  statusOrOpts?: string | FetchPendingTopicsOptions,
+  sortByOrFetch?: 'score' | 'created_at' | typeof fetch,
+  foldThresholdOrTimeout?: number,
+  fetchFnArg?: typeof fetch,
   timeoutMs = 10_000,
 ): Promise<PendingTopic[]> {
-  const params = status ? `?status=${encodeURIComponent(status)}` : '';
+  // 解析重载参数
+  let opts: FetchPendingTopicsOptions;
+  let fetchFn: typeof fetch;
+  let timeout: number;
+
+  if (typeof statusOrOpts === 'object' && statusOrOpts !== null) {
+    // fetchPendingTopics(opts, fetchFn?, timeoutMs?)
+    opts = statusOrOpts;
+    fetchFn = (sortByOrFetch as typeof fetch | undefined) ?? fetch;
+    timeout = (foldThresholdOrTimeout as number | undefined) ?? 10_000;
+  } else if (typeof sortByOrFetch === 'string' || sortByOrFetch === undefined) {
+    // fetchPendingTopics(status?, sortBy?, foldThreshold?, fetchFn?, timeoutMs?)
+    opts = {
+      status: statusOrOpts as string | undefined,
+      sort_by: sortByOrFetch as 'score' | 'created_at' | undefined,
+      fold_threshold: typeof foldThresholdOrTimeout === 'number' ? foldThresholdOrTimeout : undefined,
+    };
+    fetchFn = fetchFnArg ?? fetch;
+    timeout = timeoutMs;
+  } else {
+    // fetchPendingTopics(status?, fetchFn, timeoutMs?)
+    opts = { status: statusOrOpts as string | undefined };
+    fetchFn = sortByOrFetch as typeof fetch;
+    timeout = (foldThresholdOrTimeout as number | undefined) ?? 10_000;
+  }
+
+  const qp = new URLSearchParams();
+  if (opts.status) qp.set('status', opts.status);
+  if (opts.sort_by) qp.set('sort_by', opts.sort_by);
+  if (opts.fold_threshold !== undefined) qp.set('fold_threshold', String(opts.fold_threshold));
+  const params = qp.toString() ? `?${qp.toString()}` : '';
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => controller.abort(), timeout);
 
   try {
     const token = await getToken();
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
     const res = await fetchFn(`${BACKEND_BASE}/api/v1/pending-topics${params}`, {
@@ -78,7 +131,9 @@ export async function patchPendingTopic(
 
   try {
     const token = await getToken();
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
     const res = await fetchFn(`${BACKEND_BASE}/api/v1/pending-topics/${encodeURIComponent(id)}`, {
@@ -112,7 +167,9 @@ export async function triggerScrape(
 
   try {
     const token = await getToken();
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
     const res = await fetchFn(`${BACKEND_BASE}/api/v1/scraper/trigger`, {
@@ -142,7 +199,9 @@ export async function fetchAdapters(fetchFn: typeof fetch = fetch, timeoutMs = 1
 
   try {
     const token = await getToken();
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
     const res = await fetchFn(`${BACKEND_BASE}/api/v1/scraper/adapters`, {
@@ -154,7 +213,10 @@ export async function fetchAdapters(fetchFn: typeof fetch = fetch, timeoutMs = 1
       return [];
     }
     if (!res.ok) return [];
-    const data = (await res.json()) as { ok: boolean; adapters?: { name: string }[] };
+    const data = (await res.json()) as {
+      ok: boolean;
+      adapters?: { name: string }[];
+    };
     return data.ok && data.adapters ? data.adapters.map((a) => a.name) : [];
   } catch {
     return [];
@@ -178,13 +240,18 @@ export async function updatePendingStatus(
 
   try {
     const token = await getToken();
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
     const res = await fetchFn(`${BACKEND_BASE}/api/v1/pending-topics/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       headers,
-      body: JSON.stringify({ status, ...(rejectedReason ? { rejectedReason } : {}) }),
+      body: JSON.stringify({
+        status,
+        ...(rejectedReason ? { rejectedReason } : {}),
+      }),
       signal: controller.signal,
     });
     if (res.status === 401) {

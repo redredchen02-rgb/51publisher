@@ -13,13 +13,15 @@ import {
   refreshRemoteMappings,
 } from '../lib/storage';
 import { generateDraft, reviewDraft, rewriteDraft } from '../lib/llm';
+import { clearReadItems } from '../lib/read-tracker';
 import { canSubmit } from '../lib/safety-gate';
 import { orchestratePublish, type GateDecision } from '../lib/publish-orchestrator';
 import { abortBatch, releaseQuarantine, patchBatchDrafts, storeFillResults, type Batch } from '../lib/batch';
 import { buildPrompt } from '../lib/messaging';
 import { computeSlotDiff } from '../lib/draft-diff';
 import { recordPublishedPost, type PublishedPostRecord } from '../lib/published-posts-client';
-import { runBatch, approveBatch, retryItem } from '../lib/batch-orchestrator';
+import { runBatch, approveBatch, retryItem, discardBatchItem } from '../lib/batch-orchestrator';
+import { updatePendingStatus } from '../lib/pending-client';
 import { evaluateGrounding } from '../lib/grounding-gate';
 import { withBackendSync } from '../lib/batch-sync';
 import {
@@ -168,6 +170,8 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
     coverImageUrls?: string[],
   ): Promise<Batch | null> {
     try {
+      // 新批次启动:重置已读标记,确保门控从零开始(SW kill 后恢复也同样干净)。
+      await clearReadItems();
       const [settings, apiKey, publishedTopics] = await Promise.all([
         deps.getSettings(),
         deps.getApiKey(),
@@ -305,6 +309,29 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
     }
   }
 
+  async function handleDiscardBatchItem(
+    itemId: string,
+    rejectionReason?: import('@51publisher/shared').RejectionReason,
+  ): Promise<Batch | null> {
+    const batch = await deps.getBatch();
+    if (!batch) return null;
+    const item = batch.items.find((it) => it.id === itemId);
+    try {
+      const next = discardBatchItem(batch, itemId);
+      await deps.saveBatch(next);
+      // fire-and-forget — 拒绝状态同步失败不影响 batch 本地状态
+      if (item?.pendingTopicId && rejectionReason) {
+        updatePendingStatus(item.pendingTopicId, 'rejected', rejectionReason).catch((err) =>
+          console.warn('[bg] updatePendingStatus failed:', err),
+        );
+      }
+      return next;
+    } catch {
+      // Item may have already transitioned (concurrent approveBatch race). Treat as no-op.
+      return batch;
+    }
+  }
+
   return {
     handleGenerate,
     handlePublish,
@@ -314,8 +341,37 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
     handleReleaseQuarantine,
     handleMarkItemEdited,
     handleRetryBatchItem,
+    handleDiscardBatchItem,
     evaluateGate,
   };
+}
+
+/**
+ * SW 启动恢复:将上次 SW 被杀时卡在 generating 状态的条目标记为 error,
+ * 让操作者可以重试。gate-failed 类终态不受影响。
+ * 失败时只 warn,绝不阻断 SW 启动。
+ */
+export async function runStartupGeneratingRecovery(
+  deps: {
+    getBatch: () => Promise<import('../lib/batch').Batch | null>;
+    saveBatch: (b: import('../lib/batch').Batch) => Promise<void>;
+  } = { getBatch: getBatchRaw, saveBatch },
+): Promise<void> {
+  try {
+    const batch = await deps.getBatch();
+    if (!batch) return;
+    let changed = false;
+    for (const item of batch.items) {
+      if (item.status === 'generating') {
+        item.status = 'error';
+        item.error = 'SW restarted during generation';
+        changed = true;
+      }
+    }
+    if (changed) await deps.saveBatch(batch);
+  } catch (e) {
+    console.warn('[bg] generating recovery scan 失败', e);
+  }
 }
 
 async function runStartupTombstoneScan(): Promise<void> {
@@ -352,6 +408,8 @@ export default defineBackground(() => {
 
   // SW 启动扫描:检测上次 fill 飞行中 SW 被回收的残留 tombstone → 设隔离通知。
   void runStartupTombstoneScan();
+  // SW 启动恢复:将上次 SW 被杀时卡在 generating 状态的条目标记为 error,让操作者可以重试。
+  void runStartupGeneratingRecovery();
 
   // 启动时拉取后端最新字段映射(选择器配置热更新)。
   // 后端不可达时 fail-closed,不覆盖本地已有映射。
@@ -416,6 +474,8 @@ export default defineBackground(() => {
     if (message?.type === 'RELEASE_QUARANTINE') return handlers.handleReleaseQuarantine(message.itemId);
     if (message?.type === 'MARK_ITEM_EDITED') return handlers.handleMarkItemEdited(message.itemId);
     if (message?.type === 'RETRY_BATCH_ITEM') return handlers.handleRetryBatchItem(message.itemId);
+    if (message?.type === 'DISCARD_BATCH_ITEM')
+      return handlers.handleDiscardBatchItem(message.itemId, message.rejectionReason);
     if (message?.type === 'GET_BATCH') return getBatch();
     return undefined;
   });

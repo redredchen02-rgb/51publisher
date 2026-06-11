@@ -45,6 +45,9 @@ function defaultProps(batch: Batch, mode: SafetyMode = 'authorized') {
     safetyMode: mode,
     authorizedHost: 'dx-999-adm.ympxbys.xyz',
     tabHealthy: true,
+    // allRead:true bypasses the U4 read-gate so existing tests keep passing;
+    // U4-specific tests supply their own readItems/allRead values.
+    allRead: true,
     onApprove: vi.fn(),
     onApproveBypass: vi.fn(),
     onKill: vi.fn(),
@@ -356,5 +359,214 @@ describe('Phase-2 degrade badge + few-shot (新增行为)', () => {
     const b = awaitingBatch(['A', 'B']);
     render(<BatchReviewPanel {...defaultProps(b)} />);
     expect(screen.queryByText(/条自评已优化/)).toBeNull();
+  });
+});
+
+// ================================================================
+// Phase-5 U9: read gate, gate-failed display, rejection flow, error distinction
+// ================================================================
+
+describe('Phase-5 U9 features', () => {
+  afterEach(() => cleanup());
+
+  // ---- U9-1: read gate ----
+  it('未读条目 → 批准按钮不可用(readGate 未满足)', () => {
+    const b = awaitingBatch(['A']);
+    // allRead=false, readItems empty → batch approve button should not appear
+    const props = {
+      ...defaultProps(b),
+      allRead: false,
+      readItems: new Set<string>(),
+    };
+    render(<BatchReviewPanel {...props} />);
+    // 批准按钮不应出现(canApprove=false because readGateOk=false)
+    expect(screen.queryByText(/批准发布/)).toBeNull();
+  });
+
+  it('展开条目调 onItemRead → allRead=true 后批准按钮可用', () => {
+    const b = awaitingBatch(['A']);
+    const onItemRead = vi.fn();
+    const props = {
+      ...defaultProps(b),
+      allRead: false,
+      readItems: new Set<string>(),
+      onItemRead,
+    };
+    render(<BatchReviewPanel {...props} />);
+    // 展开条目应触发 onItemRead
+    fireEvent.click(screen.getByText('A'));
+    expect(onItemRead).toHaveBeenCalledWith('item_0');
+  });
+
+  it('allRead=true → 批准按钮可见', () => {
+    const b = awaitingBatch(['A']);
+    const props = {
+      ...defaultProps(b),
+      allRead: true,
+      readItems: new Set(['item_0']),
+    };
+    render(<BatchReviewPanel {...props} />);
+    expect(screen.getByText(/批准发布 1 条/)).toBeTruthy();
+  });
+
+  // ---- U9-2: gate-failed display ----
+  it('gate-failed 条目展开 → 显示黄色接地拦截 badge + 重新生成按钮', () => {
+    const gateFailedBatch: Batch = {
+      id: 'b1',
+      tabId: 1,
+      authorizedHost: 'dx-999-adm.ympxbys.xyz',
+      createdAt: '',
+      items: [
+        {
+          id: 'item_0',
+          topic: 'gate-topic',
+          status: 'gate-failed' as const,
+          gateFailReason: '标题含【待补】',
+        },
+      ],
+    };
+    const props = { ...defaultProps(gateFailedBatch) };
+    render(<BatchReviewPanel {...props} />);
+    fireEvent.click(screen.getByText('gate-topic'));
+    expect(screen.getByLabelText('接地拦截原因')).toBeTruthy();
+    expect(screen.getByText(/标题含【待补】/)).toBeTruthy();
+    expect(screen.getByText('重新生成')).toBeTruthy();
+  });
+
+  it('gate-failed 条目 → 不显示批准/审批按钮', () => {
+    const gateFailedBatch: Batch = {
+      id: 'b1',
+      tabId: 1,
+      authorizedHost: 'dx-999-adm.ympxbys.xyz',
+      createdAt: '',
+      items: [
+        {
+          id: 'item_0',
+          topic: 'gate-topic',
+          status: 'gate-failed' as const,
+          gateFailReason: '无来源链接',
+        },
+      ],
+    };
+    render(<BatchReviewPanel {...defaultProps(gateFailedBatch)} />);
+    expect(screen.queryByText(/批准发布/)).toBeNull();
+    expect(screen.queryByText(/否决/)).toBeNull();
+  });
+
+  it('gate-failed 重新生成按钮触发 onRetryItem', () => {
+    const gateFailedBatch: Batch = {
+      id: 'b1',
+      tabId: 1,
+      authorizedHost: 'dx-999-adm.ympxbys.xyz',
+      createdAt: '',
+      items: [
+        {
+          id: 'item_0',
+          topic: 'gate-topic',
+          status: 'gate-failed' as const,
+          gateFailReason: '标题含【待补】',
+        },
+      ],
+    };
+    const onRetryItem = vi.fn();
+    render(<BatchReviewPanel {...defaultProps(gateFailedBatch)} onRetryItem={onRetryItem} />);
+    fireEvent.click(screen.getByText('gate-topic'));
+    fireEvent.click(screen.getByText('重新生成'));
+    expect(onRetryItem).toHaveBeenCalledWith('item_0');
+  });
+
+  // ---- U9-3: rejection flow ----
+  it('否决按钮 → 显示拒绝原因选择器', () => {
+    const b = awaitingBatch(['A']);
+    const onDiscardItem = vi.fn();
+    render(<BatchReviewPanel {...defaultProps(b)} onDiscardItem={onDiscardItem} />);
+    fireEvent.click(screen.getByLabelText('否决 A'));
+    expect(screen.getByLabelText('拒绝原因')).toBeTruthy();
+    expect(screen.getByText('确认')).toBeTruthy();
+    expect(screen.getByText('取消')).toBeTruthy();
+  });
+
+  it('选择原因后确认 → 调 onDiscardItem 传 rejectionReason', () => {
+    const b = awaitingBatch(['A']);
+    const onDiscardItem = vi.fn();
+    render(<BatchReviewPanel {...defaultProps(b)} onDiscardItem={onDiscardItem} />);
+    fireEvent.click(screen.getByLabelText('否决 A'));
+    fireEvent.change(screen.getByLabelText('拒绝原因'), { target: { value: 'duplicate' } });
+    fireEvent.click(screen.getByLabelText('确认否决 A'));
+    expect(onDiscardItem).toHaveBeenCalledWith('item_0', 'duplicate');
+  });
+
+  it('取消否决 → 原因选择器消失,onDiscardItem 未调用', () => {
+    const b = awaitingBatch(['A']);
+    const onDiscardItem = vi.fn();
+    render(<BatchReviewPanel {...defaultProps(b)} onDiscardItem={onDiscardItem} />);
+    fireEvent.click(screen.getByLabelText('否决 A'));
+    expect(screen.getByLabelText('拒绝原因')).toBeTruthy();
+    fireEvent.click(screen.getByText('取消'));
+    expect(screen.queryByLabelText('拒绝原因')).toBeNull();
+    expect(onDiscardItem).not.toHaveBeenCalled();
+  });
+
+  // ---- U9-4: error status distinction ----
+  it('grounding-blocked 错误 → 橙色"内容审核失败" badge + 重新生成按钮', () => {
+    const groundingErrorBatch: Batch = {
+      id: 'b1',
+      tabId: 1,
+      authorizedHost: 'dx-999-adm.ympxbys.xyz',
+      createdAt: '',
+      items: [
+        {
+          id: 'item_0',
+          topic: 'grounding-topic',
+          status: 'error' as const,
+          error: 'grounding-blocked:标题含无来源链接',
+        },
+      ],
+    };
+    const onRetryItem = vi.fn();
+    render(<BatchReviewPanel {...defaultProps(groundingErrorBatch)} onRetryItem={onRetryItem} />);
+    fireEvent.click(screen.getByText('grounding-topic'));
+    expect(screen.getByLabelText('内容审核失败')).toBeTruthy();
+    expect(screen.getByText(/内容审核失败/)).toBeTruthy();
+    // 不显示普通"重试此条"
+    expect(screen.queryByText('重试此条')).toBeNull();
+    // 显示"重新生成"
+    expect(screen.getByText('重新生成')).toBeTruthy();
+  });
+
+  it('普通 error(无 grounding-blocked 前缀) → 红色 badge + 重试此条 按钮', () => {
+    const errorBatch: Batch = {
+      id: 'b1',
+      tabId: 1,
+      authorizedHost: 'dx-999-adm.ympxbys.xyz',
+      createdAt: '',
+      items: [{ id: 'item_0', topic: 'error-topic', status: 'error' as const, error: 'network-timeout' }],
+    };
+    render(<BatchReviewPanel {...defaultProps(errorBatch)} onRetryItem={vi.fn()} />);
+    fireEvent.click(screen.getByText('error-topic'));
+    expect(screen.getByText('重试此条')).toBeTruthy();
+    expect(screen.queryByLabelText('内容审核失败')).toBeNull();
+  });
+
+  it('grounding-blocked 错误 重新生成按钮触发 onRetryItem', () => {
+    const groundingErrorBatch: Batch = {
+      id: 'b1',
+      tabId: 1,
+      authorizedHost: 'dx-999-adm.ympxbys.xyz',
+      createdAt: '',
+      items: [
+        {
+          id: 'item_0',
+          topic: 'grounding-topic',
+          status: 'error' as const,
+          error: 'grounding-blocked:some reason',
+        },
+      ],
+    };
+    const onRetryItem = vi.fn();
+    render(<BatchReviewPanel {...defaultProps(groundingErrorBatch)} onRetryItem={onRetryItem} />);
+    fireEvent.click(screen.getByText('grounding-topic'));
+    fireEvent.click(screen.getByText('重新生成'));
+    expect(onRetryItem).toHaveBeenCalledWith('item_0');
   });
 });

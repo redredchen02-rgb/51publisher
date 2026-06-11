@@ -4,6 +4,8 @@ import {
   markGenerating,
   markFilled,
   markGenerateFailed,
+  markGateFailed,
+  retryFromGateFailed,
   presentForApproval,
   markDispatched,
   markConfirmed,
@@ -331,5 +333,113 @@ describe('Phase-3 reviewMeta', () => {
     expect(b.items[0]!.llmCostTokens).toEqual({ prompt: 100, completion: 50 });
     expect(b.items[0]!.generationDurationMs).toBe(500);
     expect('aiReviewTriggered' in b.items[0]!).toBe(false);
+  });
+});
+
+// ================================================================
+// gate-failed 状态(U2 — 接地闸门拦截)
+// ================================================================
+
+describe('gate-failed 状态机', () => {
+  it('filled → gate-failed 转移成功，写入 gateFailReason', () => {
+    let b = newBatch(['x']);
+    b = markGenerating(b, 'item_0');
+    b = markFilled(b, 'item_0', draftFor('item_0'));
+    b = markGateFailed(b, 'item_0', '残留【待补】占位符');
+    expect(b.items[0]!.status).toBe('gate-failed');
+    expect(b.items[0]!.gateFailReason).toBe('残留【待补】占位符');
+  });
+
+  it('gate-failed → queued 转移成功（重试），清除 gateFailReason', () => {
+    let b = newBatch(['x']);
+    b = markGenerating(b, 'item_0');
+    b = markFilled(b, 'item_0', draftFor('item_0'));
+    b = markGateFailed(b, 'item_0', 'no-source-link');
+    b = retryFromGateFailed(b, 'item_0');
+    expect(b.items[0]!.status).toBe('queued');
+    expect(b.items[0]!.gateFailReason).toBeUndefined();
+  });
+
+  it('awaiting-approval → gate-failed 越级转移被拒（无此路径）', () => {
+    let b = newBatch(['x']);
+    b = markGenerating(b, 'item_0');
+    b = markFilled(b, 'item_0', draftFor('item_0'));
+    b = presentForApproval(b);
+    expect(b.items[0]!.status).toBe('awaiting-approval');
+    // awaiting-approval 不在 markGateFailed 的 from=['filled']，无效
+    const after = markGateFailed(b, 'item_0', 'should-not-happen');
+    expect(after.items[0]!.status).toBe('awaiting-approval');
+  });
+
+  it('abortBatch 对 gate-failed 项生效 → aborted', () => {
+    let b = newBatch(['a', 'b']);
+    b = markGenerating(b, 'item_0');
+    b = markFilled(b, 'item_0', draftFor('item_0'));
+    b = markGateFailed(b, 'item_0', 'no-source-link');
+    b = markGenerating(b, 'item_1');
+    b = markFilled(b, 'item_1', draftFor('item_1'));
+    b = presentForApproval(b);
+    const killed = abortBatch(b);
+    expect(killed.items[0]!.status).toBe('aborted'); // gate-failed → aborted
+    expect(killed.items[1]!.status).toBe('aborted'); // awaiting-approval → aborted
+  });
+
+  it('batchPhase:gate-failed + awaiting-approval → awaiting-approval', () => {
+    let b = newBatch(['a', 'b']);
+    b = markGenerating(b, 'item_0');
+    b = markFilled(b, 'item_0', draftFor('item_0'));
+    b = markGateFailed(b, 'item_0', 'reason');
+    b = markGenerating(b, 'item_1');
+    b = markFilled(b, 'item_1', draftFor('item_1'));
+    b = presentForApproval(b);
+    expect(b.items[0]!.status).toBe('gate-failed');
+    expect(b.items[1]!.status).toBe('awaiting-approval');
+    expect(batchPhase(b)).toBe('awaiting-approval');
+  });
+
+  it('batchPhase:全部 gate-failed → awaiting-approval（非 done）', () => {
+    let b = newBatch(['a', 'b']);
+    for (const id of ['item_0', 'item_1']) {
+      b = markGenerating(b, id);
+      b = markFilled(b, id, draftFor(id));
+      b = markGateFailed(b, id, 'no-source-link');
+    }
+    expect(b.items.every((it) => it.status === 'gate-failed')).toBe(true);
+    expect(batchPhase(b)).toBe('awaiting-approval'); // 不是 done
+  });
+
+  it('recoverBatch 不影响 gate-failed 项（非崩溃态，无隔离）', () => {
+    let b = newBatch(['x']);
+    b = markGenerating(b, 'item_0');
+    b = markFilled(b, 'item_0', draftFor('item_0'));
+    b = markGateFailed(b, 'item_0', 'reason');
+    const recovered = recoverBatch(b);
+    // gate-failed 不是 publish-dispatched，recoverBatch 不动它
+    expect(recovered.items[0]!.status).toBe('gate-failed');
+  });
+
+  it('gateFailReason 字段不干扰后续转移（retryFromGateFailed 后状态正常）', () => {
+    let b = newBatch(['x']);
+    b = markGenerating(b, 'item_0');
+    b = markFilled(b, 'item_0', draftFor('item_0'));
+    b = markGateFailed(b, 'item_0', 'residual-placeholder');
+    b = retryFromGateFailed(b, 'item_0');
+    // 重回 queued 后可以正常走生成→填充→审批流程
+    b = markGenerating(b, 'item_0');
+    b = markFilled(b, 'item_0', draftFor('item_0'));
+    b = presentForApproval(b);
+    expect(b.items[0]!.status).toBe('awaiting-approval');
+    expect(b.items[0]!.gateFailReason).toBeUndefined();
+  });
+
+  it('pendingTopicId 字段存入后不影响转移', () => {
+    let b = newBatch(['x']);
+    // 模拟 handleRunBatch 写入 pendingTopicId
+    b = { ...b, items: [{ ...b.items[0]!, pendingTopicId: 'topic-uuid-123' }] };
+    b = markGenerating(b, 'item_0');
+    b = markFilled(b, 'item_0', draftFor('item_0'));
+    b = markGateFailed(b, 'item_0', 'no-source-link');
+    expect(b.items[0]!.status).toBe('gate-failed');
+    expect(b.items[0]!.pendingTopicId).toBe('topic-uuid-123'); // 字段保留
   });
 });

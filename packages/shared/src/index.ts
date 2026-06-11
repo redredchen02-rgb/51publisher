@@ -18,6 +18,7 @@ export type {
   PublishPageResponse,
   ReviewDimension,
   ReviewResult,
+  RejectionReason,
 } from './types.js';
 
 export type { FactsBlock, FactKey, ParsedTopic } from './facts.js';

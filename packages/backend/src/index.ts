@@ -1,25 +1,26 @@
-import Fastify from 'fastify';
+import type { FactsBlock, Settings } from '@51publisher/shared';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import dotenv from 'dotenv';
-import { err } from './error-response.js';
-import { GenerateDraftBody, GenerateDraftResponse } from './schemas.js';
-import { generateDraft, listModels, reviewDraftLlm, rewriteDraftLlm } from './llm.js';
-import type { Settings } from '@51publisher/shared';
-import type { FactsBlock } from '@51publisher/shared';
-import { registerConfigRoutes } from './config-routes.js';
+import Fastify from 'fastify';
+import { PUBLIC_ROUTES, requireAuth } from './auth-middleware.js';
+import { registerAuthRoutes } from './auth-routes.js';
 import { registerBatchRoutes } from './batch-routes.js';
-import { registerScraperRoutes } from './scraper/scraper-routes.js';
+import { registerConfigRoutes } from './config-routes.js';
+import { validateEnv } from './env-check.js';
+import { err } from './error-response.js';
+import { generateDraft, listModels, reviewDraftLlm, rewriteDraftLlm } from './llm.js';
+import { registerPublishedPostsRoutes } from './published-posts-routes.js';
+import { startRevisitJob } from './revisit-job.js';
+import { GenerateDraftBody as GenerateDraftBodySchema, GenerateDraftResponse } from './schemas.js';
+import { acgs51Adapter } from './scraper/adapters/acgs51-adapter.js';
+import { demoAdapter } from './scraper/adapters/demo-adapter.js';
+import { initPendingDb } from './scraper/pending-db.js';
 import { registerPendingRoutes } from './scraper/pending-routes.js';
 import { registerPromptRoutes } from './scraper/prompt-routes.js';
-import { registerAuthRoutes } from './auth-routes.js';
-import { PUBLIC_ROUTES, requireAuth } from './auth-middleware.js';
-import { scraperConfig } from './scraper/scraper-config.js';
-import { demoAdapter } from './scraper/adapters/demo-adapter.js';
-import { acgs51Adapter } from './scraper/adapters/acgs51-adapter.js';
 import { startScheduler } from './scraper/scheduler.js';
-import { initPendingDb } from './scraper/pending-db.js';
-import { validateEnv } from './env-check.js';
+import { scraperConfig } from './scraper/scraper-config.js';
+import { registerScraperRoutes } from './scraper/scraper-routes.js';
 
 dotenv.config();
 
@@ -43,6 +44,8 @@ await server.register(rateLimit, {
   timeWindow: '1 minute',
 });
 
+server.get('/api/v1/healthz', async () => ({ ok: true }));
+
 await registerAuthRoutes(server);
 
 server.addHook('preHandler', async (request, reply) => {
@@ -60,6 +63,7 @@ await registerScraperRoutes(server);
 // 注册 Pending Topics 路由(待审核选题池)
 await registerPendingRoutes(server);
 await registerPromptRoutes(server);
+await registerPublishedPostsRoutes(server);
 
 // 初始化 Scraper:注册适配器与站点配置
 scraperConfig.registerAdapter(demoAdapter);
@@ -76,6 +80,7 @@ scraperConfig.addSiteConfig({
   adapterName: 'acgs51',
   // 必须是具体待抓取的作品详情页 URL;无默认值,启用时由 env-check 兜底校验。
   url: process.env.ACGS51_START_URL ?? '',
+  listUrl: process.env.ACGS51_LIST_URL || undefined,
   cron: process.env.ACGS51_CRON || '0 */6 * * *', // 默认每 6 小时
   enabled: process.env.ACGS51_ENABLED === 'true',
 });
@@ -107,7 +112,7 @@ server.post<{ Body: GenerateDraftBody }>(
   '/api/v1/drafts/generate',
   {
     schema: {
-      body: GenerateDraftBody,
+      body: GenerateDraftBodySchema,
       response: {
         200: GenerateDraftResponse,
       },
@@ -165,8 +170,15 @@ server.post('/api/v1/drafts/review', async (request, reply) => {
   const apiKey = process.env.LLM_API_KEY || '';
   const backendEndpoint = process.env.LLM_ENDPOINT || '';
   if (!apiKey || !backendEndpoint) return err(reply, 500, 'Backend not configured (LLM_API_KEY/LLM_ENDPOINT missing).');
-  const resolvedSettings = { ...settings, endpoint: backendEndpoint, model: process.env.LLM_MODEL || settings.model };
-  const result = await reviewDraftLlm(draft, criteriaPrompt, { settings: resolvedSettings, apiKey });
+  const resolvedSettings = {
+    ...settings,
+    endpoint: backendEndpoint,
+    model: process.env.LLM_MODEL || settings.model,
+  };
+  const result = await reviewDraftLlm(draft, criteriaPrompt, {
+    settings: resolvedSettings,
+    apiKey,
+  });
   if (!result.ok) return err(reply, 422, result.error);
   return result;
 });
@@ -182,8 +194,15 @@ server.post('/api/v1/drafts/rewrite', async (request, reply) => {
   if (!apiKey || !backendEndpoint) return err(reply, 500, 'Backend not configured (LLM_API_KEY/LLM_ENDPOINT missing).');
   if (!Array.isArray(failedDims) || failedDims.length === 0)
     return err(reply, 400, 'failedDims must be a non-empty array.');
-  const resolvedSettings = { ...settings, endpoint: backendEndpoint, model: process.env.LLM_MODEL || settings.model };
-  const result = await rewriteDraftLlm(draft, failedDims, { settings: resolvedSettings, apiKey });
+  const resolvedSettings = {
+    ...settings,
+    endpoint: backendEndpoint,
+    model: process.env.LLM_MODEL || settings.model,
+  };
+  const result = await rewriteDraftLlm(draft, failedDims, {
+    settings: resolvedSettings,
+    apiKey,
+  });
   if (!result.ok) return err(reply, 422, result.error);
   return result;
 });
@@ -212,6 +231,9 @@ const start = async () => {
     } else {
       server.log.info('[scheduler] Skipped (LLM_ENDPOINT/LLM_API_KEY not set)');
     }
+
+    startRevisitJob({ logger: server.log });
+    server.log.info('[revisit] Revisit job started');
   } catch (err) {
     server.log.error(err);
     process.exit(1);

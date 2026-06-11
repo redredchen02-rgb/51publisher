@@ -12,6 +12,7 @@ import { mergeRewriteResult } from './llm';
 import type { GateDecision } from './publish-orchestrator';
 import type { TrajectoryInput } from './trajectory';
 import type { Batch } from './batch';
+import type { PublishedPostRecord } from './published-posts-client';
 import {
   createBatch,
   markGenerating,
@@ -25,9 +26,12 @@ import {
   quarantinedTopics,
   filterReentrantTopics,
   retryBatchItem,
+  transition,
 } from './batch';
 import { orchestratePublish } from './publish-orchestrator';
 import type { GroundingVerdict } from './grounding-gate';
+import { evaluateGrounding as defaultEvaluateGrounding } from './grounding-gate';
+import { markGateFailed } from './batch';
 
 // 批量编排逻辑(效果全注入,无 chrome/browser/* 直接依赖)。
 // 参照 lib/publish-orchestrator.ts 模式:background.ts 只做接线,逻辑在此可单测。
@@ -61,6 +65,11 @@ export interface RunBatchDeps {
   rewriteDraft?: (draft: ContentDraft, failedDims: string[]) => Promise<RewriteDraftResponse>;
   /** Phase 3 — 自定义评审标准 prompt;空=后端用内置四维标准。 */
   reviewCriteriaPrompt?: string;
+  /**
+   * Phase 5 (U4) — 备稿阶段 grounding gate;省略时使用默认 evaluateGrounding 实现。
+   * 可注入 mock 函数供测试隔离。fail-open:若抛出异常,视为通过,不拦截。
+   */
+  evaluateGrounding?: (draft: ContentDraft, facts?: FactsBlock) => GroundingVerdict;
 }
 
 /** 批量生成循环。返回最终 Batch 状态;host 解析失败或所有 topic 均被重入过滤 → null。 */
@@ -149,8 +158,25 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
 
     batch = markFilled(batch, item.id, draft, gen.llmCostTokens, undefined, reviewMeta);
     await save(batch);
+
+    // Phase 5 (U4) — 备稿阶段 grounding gate 预筛:
+    // filled → gate-failed(内容问题,可重试) 或 保留 filled(末尾 presentForApproval 批量升格)。
+    // fail-open:gate 函数抛出异常时视为通过,不拦截本条。
+    const gateCheck = deps.evaluateGrounding ?? defaultEvaluateGrounding;
+    let verdict: GroundingVerdict;
+    try {
+      verdict = gateCheck(draft, item.facts);
+    } catch {
+      verdict = { ok: true, reasons: [] }; // fail-open
+    }
+    if (!verdict.ok) {
+      batch = markGateFailed(batch, item.id, verdict.reasons.join(' '));
+      await save(batch);
+    }
   }
 
+  // presentForApproval 是 bulk 操作:仅将 filled 状态的 item 升格为 awaiting-approval。
+  // gate-failed items 已离开 filled 状态,自然不受此调用影响。
   batch = presentForApproval(batch);
   await save(batch);
   return batch;
@@ -176,6 +202,10 @@ export interface ApproveBatchDeps {
   clearTombstone?: (itemId: string) => Promise<void>;
   /** 发布前 grounding 硬闸(U4):仅 authorized 档拦截。返回 verdict;省略=不检查。 */
   checkGrounding?: (draft: ContentDraft, facts?: FactsBlock) => GroundingVerdict;
+  /** 发布确认后登记已发布帖子(best-effort fire-and-forget,省略=跳过)。 */
+  recordPost?: (record: PublishedPostRecord) => Promise<void>;
+  /** 当前时间戳生成器;省略=new Date().toISOString()。注入后测试可注入固定值。 */
+  now?: () => string;
 }
 
 /** 批量发布循环。返回最终 Batch;无批次 → null。 */
@@ -193,6 +223,8 @@ export async function approveBatch(deps: ApproveBatchDeps): Promise<Batch | null
     writeTombstone,
     clearTombstone,
     checkGrounding,
+    recordPost,
+    now = () => new Date().toISOString(),
   } = deps;
 
   const loaded = await getBatch();
@@ -261,6 +293,15 @@ export async function approveBatch(deps: ApproveBatchDeps): Promise<Batch | null
         if (r.dryRun) return; // dry-run 不落状态
         batch = r.ok ? markConfirmed(batch, item.id, r.url) : markPublishFailed(batch, item.id, r.error ?? 'unknown');
         await save(batch);
+        if (r.ok && recordPost) {
+          recordPost({
+            id: crypto.randomUUID(),
+            batchItemId: item.id,
+            sourceTitle: item.topic,
+            publishUrl: r.url ?? '',
+            publishedAt: now(),
+          }).catch((err) => console.warn('[batch-orchestrator] recordPost 失败(best-effort)', err));
+        }
       },
     });
 
@@ -309,6 +350,19 @@ export async function approveBatch(deps: ApproveBatchDeps): Promise<Batch | null
 
 function defaultSnapshotDropped(itemId: string): void {
   console.warn(`[batch-orchestrator] 轨迹快照含机密被丢弃(record 已落,无快照) itemId=${itemId}`);
+}
+
+// ---- DISCARD ITEM ----
+
+/**
+ * 操作者主动否决单条待审项(awaiting-approval → aborted)。
+ * 与 retryBatchItem 对称:唯一能将 awaiting-approval 打到 aborted 的路径。
+ */
+export function discardBatchItem(batch: Batch, itemId: string): Batch {
+  return transition(batch, itemId, 'awaiting-approval', {
+    status: 'aborted',
+    error: 'operator-discarded',
+  });
 }
 
 // ---- RETRY ITEM ----

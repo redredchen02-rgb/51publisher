@@ -11,6 +11,7 @@ import { Settings } from './Settings';
 import { BatchView } from './BatchView';
 import { AuthView } from './AuthView';
 import { PendingTopicsView } from './PendingTopicsView';
+import { TodayBatchView } from './TodayBatchView';
 
 type Mode = 'empty' | 'generating' | 'draft' | 'filling' | 'filled' | 'partial';
 
@@ -19,7 +20,7 @@ const primaryBtn: React.CSSProperties = {};
 const plainBtn: React.CSSProperties = {};
 
 export function App() {
-  const [view, setView] = useState<'main' | 'settings' | 'batch' | 'pending' | 'auth'>('main');
+  const [view, setView] = useState<'main' | 'settings' | 'batch' | 'pending' | 'today' | 'auth'>('main');
   const [mode, setMode] = useState<Mode>('empty');
   const [topic, setTopic] = useState('');
   const [draft, setDraft] = useState<ContentDraft | null>(null);
@@ -134,6 +135,7 @@ export function App() {
       </Wrap>
     );
   if (view === 'batch') return <BatchView onBack={() => setView('main')} />;
+  if (view === 'today') return <TodayBatchView onBack={() => setView('main')} />;
   if (view === 'pending')
     return (
       <PendingTopicsView
@@ -165,6 +167,9 @@ export function App() {
           </span>
           <button onClick={() => setView('pending')} className="btn btn-plain" aria-label="待审核">
             ◎ 待审
+          </button>
+          <button onClick={() => setView('today')} className="btn btn-plain" aria-label="今日备稿">
+            ☀ 今日
           </button>
           <button onClick={() => setView('batch')} className="btn btn-plain" aria-label="批量">
             ≣ 批量

@@ -22,6 +22,7 @@ const SW_TIMEOUT: Partial<Record<RuntimeMessage['type'], number>> = {
   KILL_BATCH: 10_000,
   RELEASE_QUARANTINE: 10_000,
   RETRY_BATCH_ITEM: 10_000,
+  DISCARD_BATCH_ITEM: 10_000,
 };
 
 function sendMsg<T>(msg: RuntimeMessage): Promise<T> {
@@ -96,8 +97,9 @@ export async function runBatch(
   facts?: FactsBlock[],
   coverImageUrls?: string[],
   iterate?: boolean,
+  topicIds?: string[],
 ): Promise<BatchResponse> {
-  return sendMsg<BatchResponse>({ type: 'RUN_BATCH', topics, tabId, facts, iterate, coverImageUrls });
+  return sendMsg<BatchResponse>({ type: 'RUN_BATCH', topics, tabId, facts, iterate, coverImageUrls, topicIds });
 }
 
 /** 批准整批:逐条门控发布(钉住的 tab)。draftOverrides 为人工编辑的草稿覆盖(按 itemId)。 */
@@ -126,6 +128,14 @@ export async function markItemEdited(itemId: string): Promise<void> {
 /** 运营商显式重试单条 error/aborted 条目。 */
 export async function retryBatchItemMsg(itemId: string): Promise<BatchResponse> {
   return sendMsg<BatchResponse>({ type: 'RETRY_BATCH_ITEM', itemId });
+}
+
+/** 操作者否决/丢弃单条 awaiting-approval 条目(→ aborted);rejectionReason 供后端统计用。 */
+export async function discardBatchItem(
+  itemId: string,
+  rejectionReason?: import('@51publisher/shared').RejectionReason,
+): Promise<void> {
+  await sendMsg<BatchResponse>({ type: 'DISCARD_BATCH_ITEM', itemId, ...(rejectionReason ? { rejectionReason } : {}) });
 }
 
 /** 读当前批次(加载即崩溃恢复)。 */

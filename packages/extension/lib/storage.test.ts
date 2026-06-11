@@ -261,4 +261,41 @@ describe('storage', () => {
       expect(s.fewShotPairs ?? []).toHaveLength(0);
     });
   });
+
+  describe('dailyBatchSize clamp', () => {
+    it('未设置时 getSettings 返回默认值 5', async () => {
+      const s = await getSettings();
+      expect(s.dailyBatchSize).toBe(5);
+    });
+
+    it('saveSettings(5) → getSettings 返回 5', async () => {
+      await saveSettings({ ...DEFAULT_SETTINGS, dailyBatchSize: 5 });
+      const s = await getSettings();
+      expect(s.dailyBatchSize).toBe(5);
+    });
+
+    it('saveSettings(0) → clamp 到 1', async () => {
+      await saveSettings({ ...DEFAULT_SETTINGS, dailyBatchSize: 0 });
+      const s = await getSettings();
+      expect(s.dailyBatchSize).toBe(1);
+    });
+
+    it('saveSettings(99) → clamp 到 20', async () => {
+      await saveSettings({ ...DEFAULT_SETTINGS, dailyBatchSize: 99 });
+      const s = await getSettings();
+      expect(s.dailyBatchSize).toBe(20);
+    });
+
+    it('saveSettings(undefined) → getSettings 回落默认值 5', async () => {
+      await saveSettings({ ...DEFAULT_SETTINGS, dailyBatchSize: undefined });
+      const s = await getSettings();
+      expect(s.dailyBatchSize).toBe(5);
+    });
+
+    it('旧 storage（无 dailyBatchSize）→ getSettings 回落默认值 5', async () => {
+      await storage.setItem('local:settings', { endpoint: 'https://x.com', model: 'gpt-4o' });
+      const s = await getSettings();
+      expect(s.dailyBatchSize).toBe(5);
+    });
+  });
 });

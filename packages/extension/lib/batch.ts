@@ -18,6 +18,7 @@ export type BatchItemStatus =
   | 'queued'
   | 'generating'
   | 'filled'
+  | 'gate-failed'
   | 'awaiting-approval'
   | 'publish-dispatched'
   | 'publish-confirmed'
@@ -51,6 +52,10 @@ export interface BatchItem {
   aiReviewTriggered?: boolean;
   /** AI 评审 LLM token 用量（Phase 3）；独立于生成用量记录。 */
   reviewCostTokens?: { prompt: number; completion: number; estimated?: boolean };
+  /** 接地闸门拦截原因（gate-failed 状态时写入;用户点"重新生成"后重置）。 */
+  gateFailReason?: string;
+  /** 关联选题 ID（来自后端抓取的 pending_topics.id;handleRunBatch 写入）。 */
+  pendingTopicId?: string;
 }
 
 export interface Batch {
@@ -111,7 +116,7 @@ function patchItem(batch: Batch, itemId: string, patch: Partial<BatchItem>): Bat
 }
 
 /** 仅当该项处于 expected 状态之一才推进(否则原样返回,防越级转移)。 */
-function transition(
+export function transition(
   batch: Batch,
   itemId: string,
   from: BatchItemStatus | BatchItemStatus[],
@@ -156,6 +161,27 @@ export function storeFillResults(batch: Batch, itemId: string, fillResults: Fiel
 export function markGenerateFailed(batch: Batch, itemId: string, error: string): Batch {
   // 单条生成/填充失败标 error,不阻断其余。
   return transition(batch, itemId, ['queued', 'generating', 'filled'], { status: 'error', error });
+}
+
+/**
+ * 接地闸门拦截:filled → gate-failed。
+ * 草稿内容存在【待补】占位符或无来源链接时触发,用户可重新生成（retryFromGateFailed）。
+ * gate-failed 不进 TERMINAL,可重试。
+ */
+export function markGateFailed(batch: Batch, itemId: string, gateFailReason: string): Batch {
+  return transition(batch, itemId, 'filled', { status: 'gate-failed', gateFailReason });
+}
+
+/**
+ * 用户点"重新生成"后从 gate-failed 退回 queued。
+ * 清除 gateFailReason 和 fillResults,重置为初始待生成状态。
+ */
+export function retryFromGateFailed(batch: Batch, itemId: string): Batch {
+  return transition(batch, itemId, 'gate-failed', {
+    status: 'queued',
+    gateFailReason: undefined,
+    fillResults: undefined,
+  });
 }
 
 /** 全部 filled 项 → awaiting-approval(批量呈现给人审)。 */
@@ -203,7 +229,13 @@ export function markPublishFailed(batch: Batch, itemId: string, error: string): 
 
 /** 急停:未发布项 → aborted;已 confirmed/terminal 不回退;在途 dispatched 不动(在飞)。 */
 export function abortBatch(batch: Batch): Batch {
-  const ABORTABLE: ReadonlySet<BatchItemStatus> = new Set(['queued', 'generating', 'filled', 'awaiting-approval']);
+  const ABORTABLE: ReadonlySet<BatchItemStatus> = new Set([
+    'queued',
+    'generating',
+    'filled',
+    'gate-failed',
+    'awaiting-approval',
+  ]);
   return {
     ...batch,
     items: batch.items.map((it) => (ABORTABLE.has(it.status) ? { ...it, status: 'aborted' as const } : it)),
@@ -253,7 +285,9 @@ export function batchPhase(batch: Batch): BatchPhase {
   const statuses = batch.items.map((it) => it.status);
   if (statuses.some((s) => s === 'queued' || s === 'generating')) return 'generating';
   if (statuses.some((s) => s === 'publish-dispatched')) return 'publishing';
-  if (statuses.some((s) => s === 'filled' || s === 'awaiting-approval')) return 'awaiting-approval';
+  // gate-failed 视为待人工处理（可重试），与 filled/awaiting-approval 同属审批阶段。
+  if (statuses.some((s) => s === 'filled' || s === 'awaiting-approval' || s === 'gate-failed'))
+    return 'awaiting-approval';
   return 'done'; // 全部 terminal
 }
 
