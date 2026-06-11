@@ -7,6 +7,8 @@ import type {
   DryRunItemResult,
 } from '@51publisher/shared';
 import type { FactsBlock } from '@51publisher/shared';
+import type { ReviewDraftResponse, RewriteDraftResponse } from './llm';
+import { mergeRewriteResult } from './llm';
 import type { GateDecision } from './publish-orchestrator';
 import type { TrajectoryInput } from './trajectory';
 import type { Batch } from './batch';
@@ -53,6 +55,12 @@ export interface RunBatchDeps {
   persistentBlockedTopics?: string[];
   /** R8 迭代通道:true 时跳过重入闸(不查 publishedTopics/隔离),允许重跑已发题目对比效果。 */
   bypassReentry?: boolean;
+  /** Phase 3 — AI 评审代理;未注入时跳过评审(fail-open)。 */
+  reviewDraft?: (draft: ContentDraft, criteriaPrompt?: string) => Promise<ReviewDraftResponse>;
+  /** Phase 3 — AI 重写代理;与 reviewDraft 同时注入才生效。 */
+  rewriteDraft?: (draft: ContentDraft, failedDims: string[]) => Promise<RewriteDraftResponse>;
+  /** Phase 3 — 自定义评审标准 prompt;空=后端用内置四维标准。 */
+  reviewCriteriaPrompt?: string;
 }
 
 /** 批量生成循环。返回最终 Batch 状态;host 解析失败或所有 topic 均被重入过滤 → null。 */
@@ -116,8 +124,30 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
       continue;
     }
     // 注入封面图 URL(统一从持久化的 item.coverImageUrl 读,与 retryItem 同源)。
-    const draft = item.coverImageUrl ? { ...gen.draft, coverImageUrl: item.coverImageUrl } : gen.draft;
-    batch = markFilled(batch, item.id, draft);
+    let draft = item.coverImageUrl ? { ...gen.draft, coverImageUrl: item.coverImageUrl } : gen.draft;
+
+    // Phase 3 评审重写管道（fail-open：任何失败均跳过，不阻断发布）。
+    let reviewMeta: Parameters<typeof markFilled>[5] = undefined;
+    if (deps.reviewDraft) {
+      const reviewRes = await deps.reviewDraft(draft, deps.reviewCriteriaPrompt);
+      if (reviewRes.ok) {
+        const failedDims = (reviewRes.result.dimensions ?? []).filter((d) => !d.pass).map((d) => d.name);
+        if (failedDims.length === 0) {
+          reviewMeta = { triggered: false, reviewCostTokens: reviewRes.reviewCostTokens };
+        } else if (deps.rewriteDraft) {
+          const rewriteRes = await deps.rewriteDraft(draft, failedDims);
+          if (rewriteRes.ok) {
+            draft = mergeRewriteResult(draft, rewriteRes.draft, failedDims);
+            reviewMeta = { triggered: true, reviewCostTokens: reviewRes.reviewCostTokens };
+          }
+          // 重写失败 → fail-open，reviewMeta 保持 undefined
+        }
+        // reviewDraft 注入但 rewriteDraft 未注入 → fail-open
+      }
+      // reviewRes.ok===false → fail-open，reviewMeta 保持 undefined
+    }
+
+    batch = markFilled(batch, item.id, draft, gen.llmCostTokens, undefined, reviewMeta);
     await save(batch);
   }
 
@@ -256,6 +286,8 @@ export async function approveBatch(deps: ApproveBatchDeps): Promise<Batch | null
         status: cur?.status ?? 'unknown',
         ts: new Date().toISOString(),
         publishedAsDraft: item.draft.postStatus === '0',
+        ...(cur?.aiReviewTriggered !== undefined ? { aiReviewTriggered: cur.aiReviewTriggered } : {}),
+        ...(cur?.reviewCostTokens !== undefined ? { reviewCostTokens: cur.reviewCostTokens } : {}),
       });
       if (snapshotDropped) {
         (onSnapshotDropped ?? defaultSnapshotDropped)(item.id);

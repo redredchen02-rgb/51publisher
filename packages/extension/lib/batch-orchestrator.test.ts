@@ -574,4 +574,89 @@ describe('runBatch coverImageUrls', () => {
     expect(result!.items[0]!.coverImageUrl).toBe('http://b.jpg');
     expect(result!.items[0]!.draft?.coverImageUrl).toBe('http://b.jpg');
   });
+
+  // ================================================================
+  // Phase-3 review→rewrite pipeline
+  // ================================================================
+
+  it('Phase-3: reviewDraft 未注入 → 流程与 Phase 2 一致,aiReviewTriggered 未设置', async () => {
+    const deps = makeRunDeps({ topics: [TOPIC_A] });
+    const result = await runBatch(deps);
+    expect('aiReviewTriggered' in result!.items[0]!).toBe(false);
+  });
+
+  it('Phase-3: reviewDraft 全维度通过 → aiReviewTriggered=false,草稿不变', async () => {
+    const reviewDraftFn = vi.fn(async () => ({
+      ok: true as const,
+      result: { ok: true, dimensions: [{ name: 'body_richness', pass: true }] },
+      reviewCostTokens: { prompt: 100, completion: 30 },
+    }));
+    const deps = makeRunDeps({
+      topics: [TOPIC_A],
+      reviewDraft: reviewDraftFn,
+      rewriteDraft: vi.fn(),
+    });
+    const result = await runBatch(deps);
+    expect(result!.items[0]!.aiReviewTriggered).toBe(false);
+    expect(result!.items[0]!.draft?.title).toBe(DRAFT.title); // 草稿未变
+    expect(reviewDraftFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('Phase-3: reviewDraft 有维度不通过,rewriteDraft 成功 → aiReviewTriggered=true,草稿更新', async () => {
+    const rewrittenDraft = { ...DRAFT, title: '重写标题' };
+    const reviewDraftFn = vi.fn(async () => ({
+      ok: true as const,
+      result: { ok: false, dimensions: [{ name: 'title_quality', pass: false }] },
+      reviewCostTokens: { prompt: 120, completion: 40 },
+    }));
+    const rewriteDraftFn = vi.fn(async () => ({
+      ok: true as const,
+      draft: rewrittenDraft,
+    }));
+    const deps = makeRunDeps({
+      topics: [TOPIC_A],
+      reviewDraft: reviewDraftFn,
+      rewriteDraft: rewriteDraftFn,
+    });
+    const result = await runBatch(deps);
+    expect(result!.items[0]!.aiReviewTriggered).toBe(true);
+    expect(result!.items[0]!.draft?.title).toBe('重写标题');
+    expect(result!.items[0]!.reviewCostTokens).toEqual({ prompt: 120, completion: 40 });
+  });
+
+  it('Phase-3: reviewDraft 返回 ok:false → fail-open,aiReviewTriggered 未设置,loop 继续', async () => {
+    const reviewDraftFn = vi.fn(async () => ({
+      ok: false as const,
+      kind: 'network' as const,
+      error: '连接失败',
+    }));
+    const deps = makeRunDeps({
+      topics: [TOPIC_A, TOPIC_B],
+      reviewDraft: reviewDraftFn,
+      rewriteDraft: vi.fn(),
+    });
+    const result = await runBatch(deps);
+    expect('aiReviewTriggered' in result!.items[0]!).toBe(false);
+    expect('aiReviewTriggered' in result!.items[1]!).toBe(false);
+    expect(result!.items).toHaveLength(2); // loop 未中断
+  });
+
+  it('Phase-3: rewriteDraft 失败 → fail-open,aiReviewTriggered 未设置,原草稿保留', async () => {
+    const reviewDraftFn = vi.fn(async () => ({
+      ok: true as const,
+      result: { ok: false, dimensions: [{ name: 'body_richness', pass: false }] },
+    }));
+    const rewriteDraftFn = vi.fn(async () => ({
+      ok: false as const,
+      error: '重写失败',
+    }));
+    const deps = makeRunDeps({
+      topics: [TOPIC_A],
+      reviewDraft: reviewDraftFn,
+      rewriteDraft: rewriteDraftFn,
+    });
+    const result = await runBatch(deps);
+    expect('aiReviewTriggered' in result!.items[0]!).toBe(false);
+    expect(result!.items[0]!.draft?.title).toBe(DRAFT.title); // 原草稿保留
+  });
 });
