@@ -633,8 +633,12 @@ export function BatchReviewPanel(props: Props) {
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <button
               onClick={confirmApprove}
-              disabled={!gestureOk}
-              style={{ ...btn, background: gestureOk ? '#cf1322' : '#f5f5f5', color: gestureOk ? '#fff' : '#bbb' }}
+              disabled={!gestureOk || !!busy}
+              style={{
+                ...btn,
+                background: gestureOk && !busy ? '#cf1322' : '#f5f5f5',
+                color: gestureOk && !busy ? '#fff' : '#bbb',
+              }}
             >
               确认
             </button>
