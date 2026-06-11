@@ -45,6 +45,9 @@ function defaultProps(batch: Batch, mode: SafetyMode = 'authorized') {
     safetyMode: mode,
     authorizedHost: 'dx-999-adm.ympxbys.xyz',
     tabHealthy: true,
+    // allRead:true bypasses the U4 read-gate so existing tests keep passing;
+    // U4-specific tests supply their own readItems/allRead values.
+    allRead: true,
     onApprove: vi.fn(),
     onApproveBypass: vi.fn(),
     onKill: vi.fn(),
