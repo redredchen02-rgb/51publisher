@@ -130,6 +130,7 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 			>
 				<h1 style={{ fontSize: 16, margin: 0 }}>今日备稿</h1>
 				<button
+					type="button"
 					onClick={onBack}
 					style={{
 						...btn,
@@ -166,6 +167,7 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 			)}
 
 			<button
+				type="button"
 				onClick={() => void handleDailyBatch()}
 				disabled={busy || adminTabId == null}
 				style={{
