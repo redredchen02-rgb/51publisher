@@ -97,8 +97,9 @@ export async function runBatch(
   facts?: FactsBlock[],
   coverImageUrls?: string[],
   iterate?: boolean,
+  topicIds?: string[],
 ): Promise<BatchResponse> {
-  return sendMsg<BatchResponse>({ type: 'RUN_BATCH', topics, tabId, facts, iterate, coverImageUrls });
+  return sendMsg<BatchResponse>({ type: 'RUN_BATCH', topics, tabId, facts, iterate, coverImageUrls, topicIds });
 }
 
 /** 批准整批:逐条门控发布(钉住的 tab)。draftOverrides 为人工编辑的草稿覆盖(按 itemId)。 */
