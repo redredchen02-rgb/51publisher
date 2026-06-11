@@ -54,7 +54,8 @@ interface BatchItemParams {
 const ALLOWED_TRANSITIONS: Record<string, ReadonlySet<BatchItemStatus>> = {
   queued: new Set(['generating', 'aborted']),
   generating: new Set(['filled', 'error', 'aborted']),
-  filled: new Set(['awaiting-approval', 'error', 'aborted']),
+  filled: new Set(['awaiting-approval', 'gate-failed', 'error', 'aborted']),
+  'gate-failed': new Set(['queued', 'aborted']), // queued=重试；aborted=KILL
   'awaiting-approval': new Set(['publish-dispatched', 'aborted']),
   'publish-dispatched': new Set(['publish-confirmed', 'error', 'needs-human-verification']),
   error: new Set(['queued']), // retry

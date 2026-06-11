@@ -147,6 +147,8 @@ export type RuntimeMessage =
       facts?: FactsBlock[];
       iterate?: boolean;
       coverImageUrls?: string[];
+      /** 与 topics 同序平行;同索引 = 同选题。handleRunBatch 写入 item.pendingTopicId。 */
+      topicIds?: string[];
     }
   | { type: 'APPROVE_BATCH'; tabId: number; draftOverrides?: Record<string, ContentDraft> }
   | { type: 'KILL_BATCH' }
