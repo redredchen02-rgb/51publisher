@@ -1,6 +1,6 @@
 import type { FactsBlock } from '@51publisher/shared';
 import type { RawContent } from './site-adapter.js';
-import { getDb, pendingWriteQueue } from './pending-db.js';
+import { getDb, pendingWriteQueue, type BetterSqlite3DB } from './pending-db.js';
 
 export type PendingStatus = 'pending' | 'approved' | 'rejected';
 
@@ -15,6 +15,7 @@ export interface PendingTopic {
   status: PendingStatus;
   rejectedReason?: string;
   coverImageUrl?: string;
+  score?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -37,6 +38,7 @@ interface PendingRow {
   status: string;
   rejected_reason: string | null;
   cover_image_url: string | null;
+  score: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -53,9 +55,43 @@ function rowToTopic(row: PendingRow): PendingTopic {
     status: row.status as PendingStatus,
     rejectedReason: row.rejected_reason ?? undefined,
     coverImageUrl: row.cover_image_url ?? undefined,
+    score: row.score ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+/**
+ * 计算选题质量分 (0–1):
+ *   score = fieldCompleteness × freshnessDecay × (1 − publishedPenalty)
+ * - fieldCompleteness: {title, body, facts, coverImageUrl} 中非空字段占比
+ * - freshnessDecay: exp(-daysSinceCreation / 7)，半衰期约 5 天
+ * - publishedPenalty: 0.8（已发布 source_title 匹配），否则 0
+ */
+function computeScore(topic: PendingTopic, db: BetterSqlite3DB): number {
+  const hasTitle = topic.title.trim().length > 0;
+  const hasBody = !!topic.rawContent?.body?.trim();
+  const hasFacts = Object.values(topic.facts ?? {}).some((v) => v !== null && v !== undefined && v !== '');
+  const hasCover = !!topic.coverImageUrl;
+  const fieldCompleteness = [hasTitle, hasBody, hasFacts, hasCover].filter(Boolean).length / 4;
+
+  const daysSince = (Date.now() - Date.parse(topic.createdAt)) / (1000 * 60 * 60 * 24);
+  const freshnessDecay = Math.exp(-daysSince / 7);
+
+  let publishedPenalty = 0;
+  try {
+    const hit = db.prepare('SELECT id FROM published_posts WHERE source_title = ? LIMIT 1').get(topic.title);
+    if (hit) publishedPenalty = 0.8;
+  } catch {
+    // published_posts テーブルが存在しない場合（旧 DB）はペナルティなし
+  }
+
+  return fieldCompleteness * freshnessDecay * (1 - publishedPenalty);
+}
+
+export async function pendingTopicExistsBySourceUrl(url: string): Promise<boolean> {
+  const db = getDb();
+  return db.prepare('SELECT 1 FROM pending_topics WHERE source_url = ?').get(url) !== undefined;
 }
 
 export async function loadPendingTopic(id: string): Promise<PendingTopic | null> {
@@ -77,14 +113,16 @@ export async function savePendingTopic(topic: PendingTopic): Promise<{ inserted:
       return { inserted: false };
     }
 
+    const score = computeScore(topic, db);
+
     db.prepare(
       `
       INSERT INTO pending_topics
         (id, source_url, site_name, title, raw_content, facts, confidence, status,
-         rejected_reason, cover_image_url, created_at, updated_at)
+         rejected_reason, cover_image_url, score, created_at, updated_at)
       VALUES
         (@id, @sourceUrl, @siteName, @title, @rawContent, @facts, @confidence, @status,
-         @rejectedReason, @coverImageUrl, @createdAt, @updatedAt)
+         @rejectedReason, @coverImageUrl, @score, @createdAt, @updatedAt)
       ON CONFLICT(id) DO UPDATE SET
         source_url = excluded.source_url,
         site_name  = excluded.site_name,
@@ -95,6 +133,7 @@ export async function savePendingTopic(topic: PendingTopic): Promise<{ inserted:
         status     = excluded.status,
         rejected_reason = excluded.rejected_reason,
         cover_image_url = excluded.cover_image_url,
+        score      = excluded.score,
         updated_at = excluded.updated_at
     `,
     ).run({
@@ -108,6 +147,7 @@ export async function savePendingTopic(topic: PendingTopic): Promise<{ inserted:
       status: topic.status,
       rejectedReason: topic.rejectedReason ?? null,
       coverImageUrl: topic.coverImageUrl ?? null,
+      score,
       createdAt: topic.createdAt,
       updatedAt: topic.updatedAt,
     });
@@ -117,16 +157,21 @@ export async function savePendingTopic(topic: PendingTopic): Promise<{ inserted:
   });
 }
 
-export async function listPendingTopics(limit?: number, status?: PendingStatus): Promise<PendingTopic[]> {
+export async function listPendingTopics(
+  limit?: number,
+  status?: PendingStatus,
+  sortBy?: 'score' | 'created_at',
+): Promise<PendingTopic[]> {
   const db = getDb();
   const cap = Math.min(Math.max(limit ?? 50, 1), 500);
+  const orderCol = sortBy === 'score' ? 'score DESC NULLS LAST' : 'created_at DESC';
   let rows: PendingRow[];
   if (status !== undefined) {
     rows = db
-      .prepare('SELECT * FROM pending_topics WHERE status = ? ORDER BY created_at DESC LIMIT ?')
+      .prepare(`SELECT * FROM pending_topics WHERE status = ? ORDER BY ${orderCol} LIMIT ?`)
       .all(status, cap) as PendingRow[];
   } else {
-    rows = db.prepare('SELECT * FROM pending_topics ORDER BY created_at DESC LIMIT ?').all(cap) as PendingRow[];
+    rows = db.prepare(`SELECT * FROM pending_topics ORDER BY ${orderCol} LIMIT ?`).all(cap) as PendingRow[];
   }
   return rows.map(rowToTopic);
 }

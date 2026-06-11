@@ -35,13 +35,26 @@ interface PendingIdParams {
 }
 
 export async function registerPendingRoutes(app: FastifyInstance): Promise<void> {
-  // 列出所有待审核选题（可按 status 筛选）
-  app.get<{ Querystring: { limit?: string; status?: string } }>('/api/v1/pending-topics', async (request) => {
-    const limit = Math.min(Math.max(Number(request.query.limit) || 50, 1), 200);
-    const status = request.query.status as PendingStatus | undefined;
-    const topics = await listPendingTopics(limit, status);
-    return { ok: true, topics };
-  });
+  // 列出所有待审核选题（可按 status 筛选、score 排序、fold_threshold 折叠低分）
+  app.get<{ Querystring: { limit?: string; status?: string; sort_by?: string; fold_threshold?: string } }>(
+    '/api/v1/pending-topics',
+    async (request) => {
+      const limit = Math.min(Math.max(Number(request.query.limit) || 50, 1), 200);
+      const status = request.query.status as PendingStatus | undefined;
+      const sortBy = request.query.sort_by === 'score' ? ('score' as const) : ('created_at' as const);
+      const foldThreshold =
+        request.query.fold_threshold !== undefined ? Number(request.query.fold_threshold) : undefined;
+
+      const rawTopics = await listPendingTopics(limit, status, sortBy);
+
+      const topics =
+        foldThreshold !== undefined && !Number.isNaN(foldThreshold)
+          ? rawTopics.map((t) => ({ ...t, folded: (t.score ?? 0) < foldThreshold }))
+          : rawTopics;
+
+      return { ok: true, topics };
+    },
+  );
 
   // 获取单个待审核选题
   app.get<{ Params: PendingIdParams }>('/api/v1/pending-topics/:id', async (request, reply) => {

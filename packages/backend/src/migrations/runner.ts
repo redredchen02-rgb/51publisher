@@ -45,6 +45,8 @@ CREATE TABLE IF NOT EXISTS published_posts (
 );
 CREATE INDEX IF NOT EXISTS idx_published_publish_url ON published_posts(publish_url);
 CREATE INDEX IF NOT EXISTS idx_published_outcome ON published_posts(outcome);`,
+  '005-score-column.sql': `\
+ALTER TABLE pending_topics ADD COLUMN score REAL DEFAULT NULL;`,
   '004-source-url-unique.sql': `\
 DELETE FROM pending_topics WHERE rowid NOT IN (
   SELECT MIN(rowid) FROM pending_topics GROUP BY source_url

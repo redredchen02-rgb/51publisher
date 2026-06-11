@@ -128,3 +128,105 @@ describe('PATCH /api/v1/pending-topics/:id — rejectedReason validation', () =>
     expect(res.statusCode).toBe(404);
   });
 });
+
+// ================================================================
+// GET sort_by=score + fold_threshold (U7)
+// ================================================================
+
+describe('GET /api/v1/pending-topics — sort_by + fold_threshold (U7)', () => {
+  it('无 sort_by → created_at DESC（不回归）', async () => {
+    const now = new Date().toISOString();
+    await savePendingTopic(
+      makeTopic({
+        id: 'oldest',
+        sourceUrl: 'https://51acgs.com/s/1',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: now,
+      }),
+    );
+    await savePendingTopic(
+      makeTopic({
+        id: 'newest',
+        sourceUrl: 'https://51acgs.com/s/2',
+        createdAt: '2026-06-01T00:00:00.000Z',
+        updatedAt: now,
+      }),
+    );
+
+    const res = await app.inject({ method: 'GET', url: '/api/v1/pending-topics' });
+    expect(res.statusCode).toBe(200);
+    const topics = res.json().topics as { id: string }[];
+    expect(topics[0].id).toBe('newest');
+  });
+
+  it('sort_by=score → score 降序（score 有值的排前面）', async () => {
+    const now = new Date().toISOString();
+    // 所有字段都有 → 高分
+    await savePendingTopic(
+      makeTopic({
+        id: 'high',
+        sourceUrl: 'https://51acgs.com/s/high',
+        title: '高分选题',
+        rawContent: { title: '高分选题', body: '<p>正文</p>', url: 'https://51acgs.com/s/high' },
+        coverImageUrl: 'https://cdn.example.com/cover.jpg',
+        createdAt: now,
+        updatedAt: now,
+      }),
+    );
+    // 缺少 body 和 cover → 低分
+    await savePendingTopic(
+      makeTopic({
+        id: 'low',
+        sourceUrl: 'https://51acgs.com/s/low',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }),
+    );
+
+    const res = await app.inject({ method: 'GET', url: '/api/v1/pending-topics?sort_by=score' });
+    expect(res.statusCode).toBe(200);
+    const topics = res.json().topics as { id: string; score?: number }[];
+    // 高分在前
+    expect(topics[0].id).toBe('high');
+  });
+
+  it('fold_threshold=0.5 → 低分项 folded=true，高分项 folded=false，所有项都在', async () => {
+    const now = new Date().toISOString();
+    await savePendingTopic(
+      makeTopic({
+        id: 'rich',
+        sourceUrl: 'https://51acgs.com/s/rich',
+        title: '丰富选题',
+        rawContent: { title: '丰富选题', body: '<p>正文</p>', url: 'https://51acgs.com/s/rich' },
+        coverImageUrl: 'https://cdn.example.com/c.jpg',
+        createdAt: now,
+        updatedAt: now,
+      }),
+    );
+    await savePendingTopic(
+      makeTopic({
+        id: 'sparse',
+        sourceUrl: 'https://51acgs.com/s/sparse',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }),
+    );
+
+    const res = await app.inject({ method: 'GET', url: '/api/v1/pending-topics?fold_threshold=0.5' });
+    expect(res.statusCode).toBe(200);
+    const topics = res.json().topics as { id: string; folded?: boolean }[];
+    // 两条都在（不隐藏）
+    expect(topics.length).toBe(2);
+    const rich = topics.find((t) => t.id === 'rich')!;
+    const sparse = topics.find((t) => t.id === 'sparse')!;
+    expect(rich.folded).toBe(false);
+    expect(sparse.folded).toBe(true);
+  });
+
+  it('无 fold_threshold → 响应不含 folded 字段', async () => {
+    await savePendingTopic(makeTopic({ id: 'nofold', sourceUrl: 'https://51acgs.com/s/nf' }));
+    const res = await app.inject({ method: 'GET', url: '/api/v1/pending-topics' });
+    const topics = res.json().topics as Record<string, unknown>[];
+    expect(topics.every((t) => !('folded' in t))).toBe(true);
+  });
+});
