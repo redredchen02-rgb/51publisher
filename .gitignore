@@ -11,3 +11,4 @@ coverage
 packages/backend/data
 packages/backend/logs
 packages/backend/.env
+.claude/worktrees/
