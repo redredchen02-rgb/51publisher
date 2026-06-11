@@ -171,6 +171,9 @@ export interface DryRunReport {
   items: DryRunItemResult[];
 }
 
+/** 拒绝原因枚举值（路由层校验；DB 列保留 TEXT 存储字符串值）。 */
+export type RejectionReason = 'duplicate' | 'quality' | 'topic_mismatch' | 'missing_facts' | 'other';
+
 /** AI 评审单维度结果。 */
 export interface ReviewDimension {
   name: string;

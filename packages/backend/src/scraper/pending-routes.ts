@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import type { RejectionReason } from '@51publisher/shared';
 import { err } from '../error-response.js';
 import {
   loadPendingTopic,
@@ -10,6 +11,14 @@ import {
   type PendingStatus,
   type PendingTopicPatch,
 } from './pending-store.js';
+
+const VALID_REJECTION_REASONS = new Set<RejectionReason>([
+  'duplicate',
+  'quality',
+  'topic_mismatch',
+  'missing_facts',
+  'other',
+]);
 
 interface CreatePendingBody {
   sourceUrl: string;
@@ -75,6 +84,19 @@ export async function registerPendingRoutes(app: FastifyInstance): Promise<void>
       const body = request.body;
 
       if (body.status) {
+        // 拒绝时校验 rejectedReason（若提供）必须是合法枚举值
+        if (
+          body.status === 'rejected' &&
+          body.rejectedReason !== undefined &&
+          !VALID_REJECTION_REASONS.has(body.rejectedReason as RejectionReason)
+        ) {
+          return err(
+            reply,
+            400,
+            `Invalid rejectedReason "${body.rejectedReason}". Must be one of: ${[...VALID_REJECTION_REASONS].join(', ')}`,
+          );
+        }
+
         const updated = await updatePendingTopicStatus(id, body.status, body.rejectedReason);
         if (!updated) return err(reply, 404, 'Pending topic not found');
         return { ok: true, topic: updated };
