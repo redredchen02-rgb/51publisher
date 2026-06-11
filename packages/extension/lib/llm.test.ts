@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { generateDraft, listModels } from './llm';
-import type { Settings } from '@51publisher/shared';
+import { generateDraft, listModels, reviewDraft, rewriteDraft, mergeRewriteResult } from './llm';
+import type { ContentDraft, Settings } from '@51publisher/shared';
 
 vi.mock('./auth-client', () => ({
   getToken: vi.fn(async () => null),
@@ -96,5 +96,118 @@ describe('Extension LLM client proxy', () => {
         headers: { 'Content-Type': 'application/json' },
       }),
     );
+  });
+});
+
+const draft: ContentDraft = {
+  id: 'd1',
+  title: '测试标题',
+  subtitle: '',
+  category: '2',
+  coverImageUrl: '',
+  body: '<p>测试正文</p>',
+  tags: ['标签A'],
+  description: '',
+  postStatus: '1',
+  publishedAt: '',
+  mediaId: '99',
+  status: 'draft',
+  createdAt: '2026-06-11T00:00:00.000Z',
+};
+
+const deps = { settings, apiKey: '' };
+
+describe('reviewDraft proxy', () => {
+  it('happy path: 返回 ok:true + result', async () => {
+    const payload = { ok: true, result: { ok: true, dimensions: [{ name: 'body_richness', pass: true }] } };
+    const f = mockFetch(payload);
+    const res = await reviewDraft(draft, undefined, { ...deps, fetchFn: f });
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.result.dimensions?.[0]?.name).toBe('body_richness');
+    expect(f).toHaveBeenCalledWith(
+      'http://127.0.0.1:3001/api/v1/drafts/review',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('网络失败 → ok:false kind:network', async () => {
+    const f = mockFetch({}, { throwName: 'TypeError' });
+    const res = await reviewDraft(draft, undefined, { ...deps, fetchFn: f });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.kind).toBe('network');
+  });
+
+  it('后端 500 → ok:false', async () => {
+    const f = mockFetch({ error: 'server error' }, { ok: false, status: 500 });
+    const res = await reviewDraft(draft, undefined, { ...deps, fetchFn: f });
+    expect(res.ok).toBe(false);
+  });
+
+  it('401 → 清 token + ok:false', async () => {
+    const { clearToken } = await import('./auth-client');
+    const f = mockFetch({}, { ok: false, status: 401 });
+    const res = await reviewDraft(draft, undefined, { ...deps, fetchFn: f });
+    expect(res.ok).toBe(false);
+    expect(clearToken).toHaveBeenCalled();
+  });
+});
+
+describe('rewriteDraft proxy', () => {
+  it('happy path: 返回 ok:true + draft', async () => {
+    const rewritten = { ...draft, title: '新标题' };
+    const payload = { ok: true, draft: rewritten };
+    const f = mockFetch(payload);
+    const res = await rewriteDraft(draft, ['title_quality'], { ...deps, fetchFn: f });
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.draft.title).toBe('新标题');
+    expect(f).toHaveBeenCalledWith(
+      'http://127.0.0.1:3001/api/v1/drafts/rewrite',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('后端失败 → ok:false', async () => {
+    const f = mockFetch({}, { ok: false, status: 422 });
+    const res = await rewriteDraft(draft, ['body_richness'], { ...deps, fetchFn: f });
+    expect(res.ok).toBe(false);
+  });
+});
+
+describe('mergeRewriteResult', () => {
+  const rewrite: Partial<ContentDraft> = { title: '重写标题', body: '<p>重写正文</p>', tags: ['新标签'] };
+
+  it('title_quality 失败 → title 来自 rewrite', () => {
+    const r = mergeRewriteResult(draft, rewrite, ['title_quality']);
+    expect(r.title).toBe('重写标题');
+    expect(r.body).toBe(draft.body); // 未改
+  });
+
+  it('body_richness 失败 → body 来自 rewrite', () => {
+    const r = mergeRewriteResult(draft, rewrite, ['body_richness']);
+    expect(r.body).toBe('<p>重写正文</p>');
+    expect(r.title).toBe(draft.title); // 未改
+  });
+
+  it('community_tone 失败 → body 来自 rewrite', () => {
+    const r = mergeRewriteResult(draft, rewrite, ['community_tone']);
+    expect(r.body).toBe('<p>重写正文</p>');
+  });
+
+  it('category_accuracy 失败 → tags 来自 rewrite', () => {
+    const r = mergeRewriteResult(draft, rewrite, ['category_accuracy']);
+    expect(r.tags).toEqual(['新标签']);
+  });
+
+  it('id / coverImageUrl / mediaId 始终保留 original', () => {
+    const r = mergeRewriteResult(draft, { ...rewrite, id: 'hacked', mediaId: '0' }, ['title_quality']);
+    expect(r.id).toBe(draft.id);
+    expect(r.mediaId).toBe(draft.mediaId);
+    expect(r.coverImageUrl).toBe(draft.coverImageUrl);
+  });
+
+  it('rewrite 缺少字段 → 保留 original 对应字段', () => {
+    const r = mergeRewriteResult(draft, {}, ['title_quality', 'body_richness']);
+    expect(r.title).toBe(draft.title);
+    expect(r.body).toBe(draft.body);
   });
 });
