@@ -88,8 +88,58 @@ function extractBody(html: string): string {
   return extractMetaDescription(html);
 }
 
+/**
+ * 匹配详情页路径：/分类段/数字ID(.html可选)
+ * 例: /acg/12345.html  /anime/67890
+ */
+const DETAIL_PATH_RE = /^\/[a-z0-9_-]+\/\d+(?:\.html?)?(?:[?#].*)?$/i;
+
 export const acgs51Adapter: SiteAdapter = {
   name: 'acgs51',
+
+  async fetchList(listUrl: string): Promise<string[]> {
+    let res: Response;
+    try {
+      res = await safeFetch(listUrl, {
+        headers: {
+          'User-Agent': UA,
+          Accept: 'text/html,application/xhtml+xml',
+          'Accept-Language': 'zh-TW,zh;q=0.9,ja;q=0.8',
+        },
+      });
+    } catch {
+      return [];
+    }
+    if (!res.ok) return [];
+
+    const html = await res.text();
+    const base = new URL(listUrl);
+    const seen = new Set<string>();
+    const urls: string[] = [];
+
+    // 提取所有 <a href="..."> 值
+    const hrefRe = /<a\s[^>]*href=["']([^"'#][^"']*)["']/gi;
+    let m: RegExpExecArray | null;
+    while ((m = hrefRe.exec(html)) !== null) {
+      let href = m[1].trim();
+      // 处理相对路径
+      let absolute: URL;
+      try {
+        absolute = new URL(href, base);
+      } catch {
+        continue;
+      }
+      // 必须同 host + 匹配详情页路径模式
+      if (absolute.hostname !== base.hostname) continue;
+      if (!DETAIL_PATH_RE.test(absolute.pathname)) continue;
+      // 去除 query/hash 后去重
+      const normalized = `${absolute.origin}${absolute.pathname}`;
+      if (seen.has(normalized)) continue;
+      seen.add(normalized);
+      urls.push(normalized);
+    }
+    return urls;
+  },
 
   async fetchContent(url: string): Promise<RawContent> {
     const res = await safeFetch(url, {

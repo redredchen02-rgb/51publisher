@@ -74,6 +74,50 @@ export function checkEnv(env: NodeJS.ProcessEnv = process.env): string[] {
         );
       }
     }
+
+    // ACGS51_LIST_URL: 可选；若填写则必须是合法 URL 且 host 在 allowlist 内
+    const listUrl = (env.ACGS51_LIST_URL ?? '').trim();
+    if (listUrl) {
+      let parsedList: URL | null = null;
+      try {
+        parsedList = new URL(listUrl);
+      } catch {
+        errors.push(
+          `ACGS51_LIST_URL is not a valid URL: "${listUrl}". ` +
+            'Set it to the list/index page of the acgs51 site (e.g. https://51acgs.com/acg/).',
+        );
+      }
+      if (parsedList && !isHostAllowed(parsedList, loadSSRFAllowlist(env))) {
+        errors.push(
+          `ACGS51_LIST_URL host "${parsedList.hostname}" is not covered by ALLOWED_HOSTS. ` +
+            'Add it to ALLOWED_HOSTS or fix the URL.',
+        );
+      }
+    }
+
+    // ACGS51_LIST_BUDGET: 可选；若填写必须是正整数
+    const budgetStr = (env.ACGS51_LIST_BUDGET ?? '').trim();
+    if (budgetStr) {
+      const n = Number(budgetStr);
+      if (!Number.isInteger(n) || n < 1) {
+        errors.push(`ACGS51_LIST_BUDGET must be a positive integer (got "${budgetStr}"). ` + 'Default is 20 if unset.');
+      }
+    }
+  }
+
+  if (env.TG_ENABLED === 'true') {
+    const token = (env.TG_BOT_TOKEN ?? '').trim();
+    if (!token) {
+      errors.push('TG_ENABLED=true but TG_BOT_TOKEN is missing or blank.');
+    } else if (!/^\d+:[A-Za-z0-9_-]{35,}$/.test(token)) {
+      errors.push(
+        'TG_BOT_TOKEN does not match the expected Bot Token format (numeric_id:secret). ' +
+          'Get it from @BotFather on Telegram.',
+      );
+    }
+    if (!(env.TG_CHAT_ID ?? '').trim()) {
+      errors.push('TG_ENABLED=true but TG_CHAT_ID is missing or blank.');
+    }
   }
 
   return errors;

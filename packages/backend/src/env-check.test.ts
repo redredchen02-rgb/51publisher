@@ -133,3 +133,52 @@ describe('checkEnv: ACGS51_START_URL guard (only when ACGS51_ENABLED=true)', () 
     expect(checkEnv(goodEnv({ ACGS51_ENABLED: 'false' }))).toEqual([]);
   });
 });
+
+describe('checkEnv: ACGS51_LIST_URL + ACGS51_LIST_BUDGET (only when ACGS51_ENABLED=true)', () => {
+  const validStartUrl = 'https://51acgs.com/acg/12345.html';
+
+  function scraperEnv(overrides: Record<string, string | undefined> = {}) {
+    return goodEnv({
+      ACGS51_ENABLED: 'true',
+      ACGS51_START_URL: validStartUrl,
+      ALLOWED_HOSTS: '51acgs.com',
+      ...overrides,
+    });
+  }
+
+  it('ACGS51_LIST_URL absent → startup proceeds (list mode optional)', () => {
+    expect(checkEnv(scraperEnv())).toEqual([]);
+  });
+
+  it('ACGS51_LIST_URL valid and host in ALLOWED_HOSTS → no error', () => {
+    expect(checkEnv(scraperEnv({ ACGS51_LIST_URL: 'https://51acgs.com/acg/' }))).toEqual([]);
+  });
+
+  it('ACGS51_LIST_URL host not in ALLOWED_HOSTS → startup rejected', () => {
+    const errors = checkEnv(scraperEnv({ ACGS51_LIST_URL: 'https://other-site.com/acg/' }));
+    expect(errors.some((e) => e.includes('ACGS51_LIST_URL') && e.includes('ALLOWED_HOSTS'))).toBe(true);
+  });
+
+  it('ACGS51_LIST_URL malformed URL → error', () => {
+    const errors = checkEnv(scraperEnv({ ACGS51_LIST_URL: 'not-a-url' }));
+    expect(errors.some((e) => e.includes('ACGS51_LIST_URL'))).toBe(true);
+  });
+
+  it('ACGS51_LIST_BUDGET absent → startup proceeds (default 20)', () => {
+    expect(checkEnv(scraperEnv())).toEqual([]);
+  });
+
+  it('ACGS51_LIST_BUDGET valid positive integer → no error', () => {
+    expect(checkEnv(scraperEnv({ ACGS51_LIST_BUDGET: '50' }))).toEqual([]);
+  });
+
+  it('ACGS51_LIST_BUDGET non-numeric string → startup rejected', () => {
+    const errors = checkEnv(scraperEnv({ ACGS51_LIST_BUDGET: 'many' }));
+    expect(errors.some((e) => e.includes('ACGS51_LIST_BUDGET'))).toBe(true);
+  });
+
+  it('ACGS51_LIST_BUDGET zero → startup rejected', () => {
+    const errors = checkEnv(scraperEnv({ ACGS51_LIST_BUDGET: '0' }));
+    expect(errors.some((e) => e.includes('ACGS51_LIST_BUDGET'))).toBe(true);
+  });
+});

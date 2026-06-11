@@ -15,6 +15,8 @@ export interface RawContent {
 export interface SiteAdapter {
   readonly name: string;
   fetchContent(url: string): Promise<RawContent>;
+  /** 从列表页发现详情页 URL。可选；缺失时调度器回退到单条 URL 模式。*/
+  fetchList?(listUrl: string): Promise<string[]>;
 }
 
 /** 站点配置。 */
