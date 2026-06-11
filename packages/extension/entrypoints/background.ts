@@ -13,6 +13,7 @@ import {
   refreshRemoteMappings,
 } from '../lib/storage';
 import { generateDraft, reviewDraft, rewriteDraft } from '../lib/llm';
+import { clearReadItems } from '../lib/read-tracker';
 import { canSubmit } from '../lib/safety-gate';
 import { orchestratePublish, type GateDecision } from '../lib/publish-orchestrator';
 import { abortBatch, releaseQuarantine, patchBatchDrafts, storeFillResults, type Batch } from '../lib/batch';
@@ -168,6 +169,8 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
     coverImageUrls?: string[],
   ): Promise<Batch | null> {
     try {
+      // 新批次启动:重置已读标记,确保门控从零开始(SW kill 后恢复也同样干净)。
+      await clearReadItems();
       const [settings, apiKey, publishedTopics] = await Promise.all([
         deps.getSettings(),
         deps.getApiKey(),

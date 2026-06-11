@@ -6,6 +6,7 @@ import { batchPhase } from '../../lib/batch';
 import { parseTopicLine, type FactsBlock } from '@51publisher/shared';
 import type { DriftReport } from '../../lib/selectors';
 import { getSafetyMode, getPendingQuarantineAlert, clearPendingQuarantineAlert } from '../../lib/storage';
+import { getReadItems, markItemRead } from '../../lib/read-tracker';
 import {
   getBatchState,
   runBatch,
@@ -44,6 +45,8 @@ export function BatchView({ onBack }: { onBack: () => void }) {
   // 人工编辑覆盖(transient;panel reload 后丢失,属已知可接受行为)。
   const [draftOverrides, setDraftOverrides] = useState<Map<string, ContentDraft>>(new Map());
   const [toast, setToast] = useState<{ message: string; undoable: boolean } | null>(null);
+  // U6 已读门控:storage-backed,SW kill 后恢复;background 启动新批次时清空。
+  const [readItems, setReadItems] = useState<Set<string>>(new Set());
   const savingItems = useRef(new Set<string>());
   const toastTimer = useRef<number | null>(null);
 
@@ -68,6 +71,8 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     void refresh();
+    // 初始化已读状态(SW kill 恢复场景:storage 中仍有上轮已读记录)。
+    void getReadItems().then((s) => setReadItems(s));
 
     // storage.watch: background 每次 save(batch) 后推送变更 → 实时更新 UI,无需轮询。
     const unwatch = storage.watch<import('../../lib/batch').Batch | null>('local:batch', (newBatch) => {
@@ -77,8 +82,14 @@ export function BatchView({ onBack }: { onBack: () => void }) {
       }, 100);
     });
 
+    // background 启动新批次时调用 clearReadItems → 写空数组 → 此 watch 触发 → UI 同步清零。
+    const unwatchRead = storage.watch<string[]>('local:readItems', (newVal) => {
+      setReadItems(new Set(newVal ?? []));
+    });
+
     return () => {
       unwatch();
+      unwatchRead();
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [refresh]);
@@ -125,6 +136,17 @@ export function BatchView({ onBack }: { onBack: () => void }) {
     setToast(null);
   }
 
+  const onItemRead = useCallback((id: string) => {
+    // 乐观更新本地 state,同时异步持久化(SW kill 后可从 storage 恢复)。
+    setReadItems((prev) => {
+      if (prev.has(id)) return prev;
+      const n = new Set(prev);
+      n.add(id);
+      return n;
+    });
+    void markItemRead(id);
+  }, []);
+
   async function handleStart() {
     // 每行解析"选题 || 事实块"(源接地);按 topic 去重保序,facts 与 topics 同序平行。
     const byTopic = new Map<string, FactsBlock>();
@@ -164,6 +186,11 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 
   const showStarter = view === 'batch' && (!batch || batchPhase(batch) === 'done' || batchPhase(batch) === 'empty');
   const batchActive = batch && batchPhase(batch) !== 'done' && batchPhase(batch) !== 'empty';
+
+  // U6 已读门控:只在 awaiting-approval 阶段生效。
+  const awaitingApprovalItems = batch ? batch.items.filter((it) => it.status === 'awaiting-approval') : [];
+  const allRead = awaitingApprovalItems.length > 0 && awaitingApprovalItems.every((it) => readItems.has(it.id));
+  const readCount = awaitingApprovalItems.filter((it) => readItems.has(it.id)).length;
 
   return (
     <main style={{ fontFamily: 'system-ui, sans-serif', padding: 12, fontSize: 14 }}>
@@ -279,75 +306,84 @@ export function BatchView({ onBack }: { onBack: () => void }) {
       {view === 'history' && <HistoryPanel />}
 
       {view === 'batch' && batch && batchPhase(batch) !== 'empty' && (
-        <BatchReviewPanel
-          batch={batch}
-          draftOverrides={draftOverrides}
-          safetyMode={safetyMode}
-          authorizedHost={batch.authorizedHost}
-          tabHealthy={tabHealthy}
-          busy={busy}
-          driftResult={drift}
-          onApprove={() =>
-            void withBusy(async () => {
-              // 批准前先做选择器漂移自检(U2):任何关键选择器缺失 → 阻断并展示警告,等人工处理。
-              const report = await checkSelectors(batch.tabId);
-              setDrift(report);
-              if (!report.ok) {
-                setError(
-                  `选择器自检失败,缺失:${report.missing.join('、')}。请点"漂移自检"了解详情,或在目标页修复后重试。`,
-                );
-                return;
-              }
-              const overrides = draftOverrides.size > 0 ? Object.fromEntries(draftOverrides) : undefined;
-              await approveBatch(batch.tabId, overrides);
-              setDraftOverrides(new Map());
-              await refresh();
-            })
-          }
-          onApproveBypass={() =>
-            void withBusy(async () => {
-              const overrides = draftOverrides.size > 0 ? Object.fromEntries(draftOverrides) : undefined;
-              await approveBatch(batch.tabId, overrides);
-              setDraftOverrides(new Map());
-              await refresh();
-            })
-          }
-          onDraftChange={(itemId, draft) => setDraftOverrides((prev) => new Map(prev).set(itemId, draft))}
-          onKill={() =>
-            void withBusy(async () => {
-              await killBatch();
-              setDraftOverrides(new Map());
-              await refresh();
-            })
-          }
-          onRelease={(itemId) =>
-            void withBusy(async () => {
-              await releaseQuarantine(itemId);
-              await refresh();
-            })
-          }
-          onRetryItem={(itemId) =>
-            void withBusy(async () => {
-              await retryBatchItemMsg(itemId);
-              await refresh();
-            })
-          }
-          onDriftCheck={() =>
-            void withBusy(async () => {
-              setDrift(await checkSelectors(batch.tabId));
-            })
-          }
-          onResume={() => void refresh()}
-          onItemEdited={(itemId) => {
-            void (async () => {
-              await markItemEdited(itemId);
-              await refresh();
-            })();
-          }}
-          onSaveAsFewShot={(itemId) => {
-            void handleSaveAsFewShot(itemId);
-          }}
-        />
+        <>
+          {batchPhase(batch) === 'awaiting-approval' && awaitingApprovalItems.length > 0 && (
+            <div style={{ fontSize: 12, color: allRead ? '#389e0d' : '#874d00', marginBottom: 6 }}>
+              {allRead
+                ? '✓ 全部已读,可发布'
+                : `已读 ${readCount}/${awaitingApprovalItems.length} 篇(请展开每条审阅后再发布)`}
+            </div>
+          )}
+          <BatchReviewPanel
+            batch={batch}
+            draftOverrides={draftOverrides}
+            safetyMode={safetyMode}
+            authorizedHost={batch.authorizedHost}
+            tabHealthy={tabHealthy}
+            busy={busy}
+            driftResult={drift}
+            onApprove={() =>
+              void withBusy(async () => {
+                // 批准前先做选择器漂移自检(U2):任何关键选择器缺失 → 阻断并展示警告,等人工处理。
+                const report = await checkSelectors(batch.tabId);
+                setDrift(report);
+                if (!report.ok) {
+                  setError(
+                    `选择器自检失败,缺失:${report.missing.join('、')}。请点"漂移自检"了解详情,或在目标页修复后重试。`,
+                  );
+                  return;
+                }
+                const overrides = draftOverrides.size > 0 ? Object.fromEntries(draftOverrides) : undefined;
+                await approveBatch(batch.tabId, overrides);
+                setDraftOverrides(new Map());
+                await refresh();
+              })
+            }
+            onApproveBypass={() =>
+              void withBusy(async () => {
+                const overrides = draftOverrides.size > 0 ? Object.fromEntries(draftOverrides) : undefined;
+                await approveBatch(batch.tabId, overrides);
+                setDraftOverrides(new Map());
+                await refresh();
+              })
+            }
+            onDraftChange={(itemId, draft) => setDraftOverrides((prev) => new Map(prev).set(itemId, draft))}
+            onKill={() =>
+              void withBusy(async () => {
+                await killBatch();
+                setDraftOverrides(new Map());
+                await refresh();
+              })
+            }
+            onRelease={(itemId) =>
+              void withBusy(async () => {
+                await releaseQuarantine(itemId);
+                await refresh();
+              })
+            }
+            onRetryItem={(itemId) =>
+              void withBusy(async () => {
+                await retryBatchItemMsg(itemId);
+                await refresh();
+              })
+            }
+            onDriftCheck={() =>
+              void withBusy(async () => {
+                setDrift(await checkSelectors(batch.tabId));
+              })
+            }
+            onResume={() => void refresh()}
+            onItemEdited={(itemId) => {
+              void (async () => {
+                await markItemEdited(itemId);
+                await refresh();
+              })();
+            }}
+            onSaveAsFewShot={(itemId) => {
+              void handleSaveAsFewShot(itemId);
+            }}
+          />
+        </>
       )}
 
       {view === 'batch' && batch && batchPhase(batch) === 'awaiting-approval' && (
