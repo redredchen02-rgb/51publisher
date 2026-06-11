@@ -14,7 +14,15 @@ import { evaluateGrounding } from '../../lib/grounding-gate';
  * - 连结:正文每条 URL 标「程式注入」(✓)或「非来源·疑似编造」(✗,组装后应不出现)。
  * - 硬闸:展示该条若 authorized 发布会否被拦(残留【待补】/无来源连结)。
  */
-function GroundingStrip({ draft, facts, onFixPlaceholder }: { draft: ContentDraft; facts?: FactsBlock; onFixPlaceholder?: () => void }) {
+function GroundingStrip({
+  draft,
+  facts,
+  onFixPlaceholder,
+}: {
+  draft: ContentDraft;
+  facts?: FactsBlock;
+  onFixPlaceholder?: () => void;
+}) {
   const f = facts ?? {};
   let links: { url: string; sourced: boolean }[] = [];
   try {
@@ -41,7 +49,7 @@ function GroundingStrip({ draft, facts, onFixPlaceholder }: { draft: ContentDraf
       </div>
       {/* 明确列出缺失事实，避免审核者忽略 */}
       {(() => {
-        const missing = FACT_ORDER.filter(k => !f[k]?.trim());
+        const missing = FACT_ORDER.filter((k) => !f[k]?.trim());
         if (missing.length > 0) {
           return (
             <div style={{ marginTop: 2, color: '#d46b08', fontWeight: 600 }}>
@@ -65,7 +73,16 @@ function GroundingStrip({ draft, facts, onFixPlaceholder }: { draft: ContentDraf
       )}
 
       {/* 发布前硬闸判定 */}
-      <div style={{ marginTop: 2, color: verdict.ok ? '#389e0d' : '#cf1322', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div
+        style={{
+          marginTop: 2,
+          color: verdict.ok ? '#389e0d' : '#cf1322',
+          fontWeight: 600,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+        }}
+      >
         {verdict.ok ? '✓ grounding 通过(authorized 可发)' : '⛔ authorized 会被拦:'}
         {!verdict.ok && (draft.title.includes('【待补】') || draft.body.includes('【待补】')) && onFixPlaceholder && (
           <button
@@ -77,7 +94,7 @@ function GroundingStrip({ draft, facts, onFixPlaceholder }: { draft: ContentDraf
               borderRadius: 3,
               padding: '2px 6px',
               fontSize: 11,
-              cursor: 'pointer'
+              cursor: 'pointer',
             }}
           >
             ✏️ 一键填入【待补】
@@ -399,7 +416,11 @@ export function BatchReviewPanel(props: Props) {
                   <GroundingStrip
                     draft={draftOverrides?.get(it.id) ?? it.draft}
                     facts={it.facts}
-                    onFixPlaceholder={onDraftChange ? () => handleFixPlaceholder(it.id, draftOverrides?.get(it.id) ?? it.draft!) : undefined}
+                    onFixPlaceholder={
+                      onDraftChange
+                        ? () => handleFixPlaceholder(it.id, draftOverrides?.get(it.id) ?? it.draft!)
+                        : undefined
+                    }
                   />
                 )}
                 <FillStatusTable results={it.fillResults} />
@@ -527,8 +548,12 @@ export function BatchReviewPanel(props: Props) {
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <button
               onClick={confirmApprove}
-              disabled={!gestureOk}
-              style={{ ...btn, background: gestureOk ? '#cf1322' : '#f5f5f5', color: gestureOk ? '#fff' : '#bbb' }}
+              disabled={!gestureOk || !!busy}
+              style={{
+                ...btn,
+                background: gestureOk && !busy ? '#cf1322' : '#f5f5f5',
+                color: gestureOk && !busy ? '#fff' : '#bbb',
+              }}
             >
               确认
             </button>
