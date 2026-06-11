@@ -15,9 +15,10 @@ import {
   filterReentrantTopics,
   batchPhase,
   batchSummary,
+  storeFillResults,
   type Batch,
 } from './batch';
-import type { ContentDraft } from './types';
+import type { ContentDraft, FieldFillResult } from './types';
 
 const genId = (i: number) => `item_${i}`;
 
@@ -147,6 +148,56 @@ describe('batch 状态机', () => {
       expect(killed.items[0]!.status).toBe('publish-confirmed'); // 不回退
       expect(killed.items[1]!.status).toBe('publish-dispatched'); // 在飞不动
       expect(killed.items[2]!.status).toBe('aborted'); // 未发→停
+    });
+  });
+
+  describe('Phase-2 度量字段 (markFilled + storeFillResults)', () => {
+    it('markFilled 携带 llmCostTokens + generationDurationMs → 存入 item', () => {
+      let b = newBatch(['x']);
+      b = markGenerating(b, 'item_0');
+      b = markFilled(b, 'item_0', draftFor('item_0'), { prompt: 100, completion: 50 }, 1234);
+      const item = b.items[0]!;
+      expect(item.llmCostTokens).toEqual({ prompt: 100, completion: 50 });
+      expect(item.generationDurationMs).toBe(1234);
+    });
+
+    it('markFilled 不传度量参数 → 字段 undefined(不污染旧记录)', () => {
+      let b = newBatch(['x']);
+      b = markGenerating(b, 'item_0');
+      b = markFilled(b, 'item_0', draftFor('item_0'));
+      const item = b.items[0]!;
+      expect(item.llmCostTokens).toBeUndefined();
+      expect(item.generationDurationMs).toBeUndefined();
+    });
+
+    it('markFilled 快照 publishedDraft 是草稿的 shallow copy', () => {
+      const d = draftFor('item_0');
+      let b = newBatch(['x']);
+      b = markGenerating(b, 'item_0');
+      b = markFilled(b, 'item_0', d);
+      const item = b.items[0]!;
+      expect(item.publishedDraft).toEqual(d);
+      // shallow copy:不是同一引用
+      expect(item.publishedDraft).not.toBe(d);
+    });
+
+    it('storeFillResults:patch fillResults,不改变 status', () => {
+      let b = newBatch(['x']);
+      b = markGenerating(b, 'item_0');
+      b = markFilled(b, 'item_0', draftFor('item_0'));
+      b = presentForApproval(b);
+      const results: FieldFillResult[] = [{ field: 'title', status: 'filled' }, { field: 'category', status: 'degraded' }];
+      b = storeFillResults(b, 'item_0', results);
+      const item = b.items[0]!;
+      expect(item.fillResults).toEqual(results);
+      expect(item.status).toBe('awaiting-approval'); // 状态不变
+    });
+
+    it('storeFillResults:itemId 不存在 → batch 不变', () => {
+      const b = newBatch(['x']);
+      const before = JSON.stringify(b);
+      const after = storeFillResults(b, 'nonexistent', []);
+      expect(JSON.stringify(after)).toBe(before);
     });
   });
 });

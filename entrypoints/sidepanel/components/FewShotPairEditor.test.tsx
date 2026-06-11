@@ -56,4 +56,20 @@ describe('FewShotPairEditor', () => {
     render(<FewShotPairEditor pairs={[]} onChange={vi.fn()} />);
     expect(screen.queryByText('导入')).toBeNull();
   });
+
+  it('上移第二张 → onChange 交换顺序', () => {
+    const onChange = vi.fn();
+    render(<FewShotPairEditor pairs={[pair('A', 'B'), pair('C', 'D')]} onChange={onChange} />);
+    const upBtns = screen.getAllByLabelText('上移') as HTMLButtonElement[];
+    fireEvent.click(upBtns[1]!); // 上移第二张
+    expect(onChange).toHaveBeenCalledWith([{ input: 'C', output: 'D' }, { input: 'A', output: 'B' }]);
+  });
+
+  it('下移第一张 → onChange 交换顺序', () => {
+    const onChange = vi.fn();
+    render(<FewShotPairEditor pairs={[pair('A', 'B'), pair('C', 'D')]} onChange={onChange} />);
+    const downBtns = screen.getAllByLabelText('下移') as HTMLButtonElement[];
+    fireEvent.click(downBtns[0]!); // 下移第一张
+    expect(onChange).toHaveBeenCalledWith([{ input: 'C', output: 'D' }, { input: 'A', output: 'B' }]);
+  });
 });

@@ -7,8 +7,10 @@ import {
   markGenerating,
   markFilled,
   markDispatched,
+  markConfirmed,
   recoverBatch,
   presentForApproval,
+  storeFillResults,
   type Batch,
 } from '../../lib/batch';
 import type { ContentDraft, SafetyMode } from '../../lib/types';
@@ -120,5 +122,90 @@ describe('BatchReviewPanel', () => {
     fireEvent.click(screen.getByText('番A'));
     expect(screen.getByText('番A 摘要')).toBeTruthy();
     expect(screen.getByText(/缺失:標題/)).toBeTruthy();
+  });
+
+  describe('Phase-2 degrade badge + few-shot (新增行为)', () => {
+    it('批次完成且有降级 → 摘要行显示降级 badge', () => {
+      let b = awaitingBatch(['A']);
+      b = storeFillResults(b, 'item_0', [{ field: 'category', status: 'degraded' }]);
+      // 推进到 done 状态
+      b = markConfirmed(markDispatched(b, 'item_0'), 'item_0', 'https://example.com/1');
+      render(<BatchReviewPanel {...defaultProps(b)} />);
+      expect(screen.getByText(/1 条降级/)).toBeTruthy();
+    });
+
+    it('批次完成且所有字段 filled → 显示全部成功 banner', () => {
+      let b = awaitingBatch(['A']);
+      b = storeFillResults(b, 'item_0', [{ field: 'title', status: 'filled' }]);
+      b = markConfirmed(markDispatched(b, 'item_0'), 'item_0', 'https://example.com/1');
+      render(<BatchReviewPanel {...defaultProps(b)} />);
+      expect(screen.getByText(/所有字段填充成功/)).toBeTruthy();
+    });
+
+    it('批次完成无 fillResults → 不显示降级相关 banner', () => {
+      let b = awaitingBatch(['A']);
+      b = markConfirmed(markDispatched(b, 'item_0'), 'item_0', 'https://example.com/1');
+      render(<BatchReviewPanel {...defaultProps(b)} />);
+      expect(screen.queryByText(/所有字段填充成功/)).toBeNull();
+      expect(screen.queryByText(/条目有字段降级/)).toBeNull();
+    });
+
+    it('条目有降级字段时展开行显示降级计数 badge', () => {
+      let b = awaitingBatch(['A']);
+      b = storeFillResults(b, 'item_0', [
+        { field: 'category', status: 'degraded' },
+        { field: 'title', status: 'filled' },
+      ]);
+      render(<BatchReviewPanel {...defaultProps(b)} />);
+      expect(screen.getByText(/1\/2 降级/)).toBeTruthy();
+    });
+
+    it('awaiting-approval 条目:onItemEdited 未传时不显示编辑复选框', () => {
+      const b = awaitingBatch(['A']);
+      render(<BatchReviewPanel {...defaultProps(b)} />);
+      fireEvent.click(screen.getByText('A'));
+      expect(screen.queryByText('已手动修改草稿')).toBeNull();
+    });
+
+    it('awaiting-approval 条目:onItemEdited 传入时显示复选框;点击调 onItemEdited', () => {
+      const onItemEdited = vi.fn();
+      const b = awaitingBatch(['A']);
+      render(<BatchReviewPanel {...defaultProps(b)} onItemEdited={onItemEdited} />);
+      fireEvent.click(screen.getByText('A'));
+      const checkbox = screen.getByRole('checkbox');
+      fireEvent.click(checkbox);
+      expect(onItemEdited).toHaveBeenCalledWith('item_0');
+    });
+
+    it('awaiting-approval 条目:userEdited=true 时复选框不重复触发 onItemEdited', () => {
+      const onItemEdited = vi.fn();
+      let b = awaitingBatch(['A']);
+      // 手动 patch userEdited=true
+      b = { ...b, items: b.items.map((it) => ({ ...it, userEdited: true })) };
+      render(<BatchReviewPanel {...defaultProps(b)} onItemEdited={onItemEdited} />);
+      fireEvent.click(screen.getByText('A'));
+      const checkbox = screen.getByRole('checkbox');
+      fireEvent.click(checkbox);
+      expect(onItemEdited).not.toHaveBeenCalled();
+    });
+
+    it('publish-confirmed 条目:onSaveAsFewShot 传入时显示"存为范例"按钮', () => {
+      const onSaveAsFewShot = vi.fn();
+      let b = awaitingBatch(['A']);
+      b = markConfirmed(markDispatched(b, 'item_0'), 'item_0', 'https://example.com/1');
+      render(<BatchReviewPanel {...defaultProps(b)} onSaveAsFewShot={onSaveAsFewShot} />);
+      fireEvent.click(screen.getByText('A'));
+      const btn = screen.getByText('存为范例');
+      fireEvent.click(btn);
+      expect(onSaveAsFewShot).toHaveBeenCalledWith('item_0');
+    });
+
+    it('publish-confirmed 条目:onSaveAsFewShot 未传时不显示"存为范例"按钮', () => {
+      let b = awaitingBatch(['A']);
+      b = markConfirmed(markDispatched(b, 'item_0'), 'item_0', 'https://example.com/1');
+      render(<BatchReviewPanel {...defaultProps(b)} />);
+      fireEvent.click(screen.getByText('A'));
+      expect(screen.queryByText('存为范例')).toBeNull();
+    });
   });
 });
