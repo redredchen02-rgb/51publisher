@@ -137,10 +137,10 @@ export function BatchView({ onBack }: { onBack: () => void }) {
   }, []);
 
   const onDiscardItem = useCallback(
-    (itemId: string) => {
+    (itemId: string, rejectionReason?: import('@51publisher/shared').RejectionReason) => {
       setBusy(true);
       setError('');
-      discardBatchItem(itemId)
+      discardBatchItem(itemId, rejectionReason)
         .then(() => refresh())
         .catch(() => setError('操作失败,请重试。'))
         .finally(() => setBusy(false));

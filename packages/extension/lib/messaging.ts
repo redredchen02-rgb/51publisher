@@ -130,9 +130,12 @@ export async function retryBatchItemMsg(itemId: string): Promise<BatchResponse> 
   return sendMsg<BatchResponse>({ type: 'RETRY_BATCH_ITEM', itemId });
 }
 
-/** 操作者否决/丢弃单条 awaiting-approval 条目(→ aborted)。 */
-export async function discardBatchItem(itemId: string): Promise<void> {
-  await sendMsg<BatchResponse>({ type: 'DISCARD_BATCH_ITEM', itemId });
+/** 操作者否决/丢弃单条 awaiting-approval 条目(→ aborted);rejectionReason 供后端统计用。 */
+export async function discardBatchItem(
+  itemId: string,
+  rejectionReason?: import('@51publisher/shared').RejectionReason,
+): Promise<void> {
+  await sendMsg<BatchResponse>({ type: 'DISCARD_BATCH_ITEM', itemId, ...(rejectionReason ? { rejectionReason } : {}) });
 }
 
 /** 读当前批次(加载即崩溃恢复)。 */
