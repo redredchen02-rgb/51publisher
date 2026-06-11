@@ -61,7 +61,6 @@ await registerScraperRoutes(server);
 // 注册 Pending Topics 路由(待审核选题池)
 await registerPendingRoutes(server);
 await registerPromptRoutes(server);
-// 注册已发布帖子注册表路由(R8 endpoint + 回访数据源)
 await registerPublishedPostsRoutes(server);
 
 // 初始化 Scraper:注册适配器与站点配置

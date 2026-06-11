@@ -64,10 +64,19 @@ export async function loadPendingTopic(id: string): Promise<PendingTopic | null>
   return row ? rowToTopic(row) : null;
 }
 
-export async function savePendingTopic(topic: PendingTopic): Promise<void> {
+export async function savePendingTopic(topic: PendingTopic): Promise<{ inserted: boolean }> {
   const db = getDb();
   topic.updatedAt = new Date().toISOString();
-  await pendingWriteQueue.enqueue(() => {
+  return pendingWriteQueue.enqueue(() => {
+    // 跨会话去重：source_url 已存在但 id 不同 → 跳过，不插入
+    const existing = db.prepare('SELECT id FROM pending_topics WHERE source_url = ?').get(topic.sourceUrl) as
+      | { id: string }
+      | undefined;
+
+    if (existing && existing.id !== topic.id) {
+      return { inserted: false };
+    }
+
     db.prepare(
       `
       INSERT INTO pending_topics
@@ -102,6 +111,9 @@ export async function savePendingTopic(topic: PendingTopic): Promise<void> {
       createdAt: topic.createdAt,
       updatedAt: topic.updatedAt,
     });
+
+    // existing 且同 id → upsert 更新；不存在 → 新插入
+    return { inserted: existing === undefined };
   });
 }
 
@@ -110,7 +122,9 @@ export async function listPendingTopics(limit?: number, status?: PendingStatus):
   const cap = Math.min(Math.max(limit ?? 50, 1), 500);
   let rows: PendingRow[];
   if (status !== undefined) {
-    rows = db.prepare('SELECT * FROM pending_topics WHERE status = ? ORDER BY created_at DESC LIMIT ?').all(status, cap) as PendingRow[];
+    rows = db
+      .prepare('SELECT * FROM pending_topics WHERE status = ? ORDER BY created_at DESC LIMIT ?')
+      .all(status, cap) as PendingRow[];
   } else {
     rows = db.prepare('SELECT * FROM pending_topics ORDER BY created_at DESC LIMIT ?').all(cap) as PendingRow[];
   }

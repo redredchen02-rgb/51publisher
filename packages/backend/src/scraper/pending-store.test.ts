@@ -83,8 +83,18 @@ describe('pending-store (SQLite)', () => {
   });
 
   it('listPendingTopics 无筛选 → 返回所有记录，按 created_at DESC', async () => {
-    const t1 = makeTopic({ id: 'id-1', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' });
-    const t2 = makeTopic({ id: 'id-2', createdAt: '2026-01-02T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z' });
+    const t1 = makeTopic({
+      id: 'id-1',
+      sourceUrl: 'https://51acgs.com/list/1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+    const t2 = makeTopic({
+      id: 'id-2',
+      sourceUrl: 'https://51acgs.com/list/2',
+      createdAt: '2026-01-02T00:00:00.000Z',
+      updatedAt: '2026-01-02T00:00:00.000Z',
+    });
     await savePendingTopic(t1);
     await savePendingTopic(t2);
     const list = await listPendingTopics();
@@ -93,8 +103,8 @@ describe('pending-store (SQLite)', () => {
   });
 
   it('listPendingTopics(status) → 只返回对应状态', async () => {
-    const pending = makeTopic({ id: 'p1', status: 'pending' });
-    const approved = makeTopic({ id: 'a1', status: 'approved' });
+    const pending = makeTopic({ id: 'p1', sourceUrl: 'https://51acgs.com/status/p1', status: 'pending' });
+    const approved = makeTopic({ id: 'a1', sourceUrl: 'https://51acgs.com/status/a1', status: 'approved' });
     await savePendingTopic(pending);
     await savePendingTopic(approved);
     const pendingList = await listPendingTopics(50, 'pending');
@@ -103,7 +113,7 @@ describe('pending-store (SQLite)', () => {
   });
 
   it('listPendingTopics(limit) → 最多返回 limit 条', async () => {
-    for (let i = 0; i < 5; i++) await savePendingTopic(makeTopic());
+    for (let i = 0; i < 5; i++) await savePendingTopic(makeTopic({ sourceUrl: `https://51acgs.com/limit/${i}` }));
     const list = await listPendingTopics(3);
     expect(list.length).toBe(3);
   });
@@ -145,6 +155,59 @@ describe('pending-store (SQLite)', () => {
   it('updatePendingTopicStatus 不存在的 id → null', async () => {
     const result = await updatePendingTopicStatus('ghost-id', 'approved');
     expect(result).toBeNull();
+  });
+
+  // ---- source_url 去重 (migration 004) ----
+
+  it('新 sourceUrl → inserted: true', async () => {
+    const topic = makeTopic({ id: 'dedup-1', sourceUrl: 'https://51acgs.com/unique/A' });
+    const result = await savePendingTopic(topic);
+    expect(result).toEqual({ inserted: true });
+  });
+
+  it('相同 sourceUrl 不同 id → inserted: false，DB 只有一条记录', async () => {
+    const urlA = 'https://51acgs.com/unique/B';
+    const first = makeTopic({ id: 'dedup-first', sourceUrl: urlA });
+    const duplicate = makeTopic({ id: 'dedup-second', sourceUrl: urlA });
+    await savePendingTopic(first);
+    const result = await savePendingTopic(duplicate);
+    expect(result).toEqual({ inserted: false });
+    // DB 中只应保留第一条
+    const rows = await listPendingTopics(10);
+    const matches = rows.filter((t) => t.sourceUrl === urlA);
+    expect(matches.length).toBe(1);
+    expect(matches[0].id).toBe('dedup-first');
+  });
+
+  it('相同 sourceUrl 相同 id → upsert 成功，inserted: false，标题已更新', async () => {
+    const urlA = 'https://51acgs.com/unique/C';
+    const topic = makeTopic({ id: 'dedup-same', sourceUrl: urlA, title: '旧标题' });
+    await savePendingTopic(topic);
+    const updated = { ...topic, title: '新标题' };
+    const result = await savePendingTopic(updated);
+    expect(result).toEqual({ inserted: false });
+    const loaded = await loadPendingTopic('dedup-same');
+    expect(loaded!.title).toBe('新标题');
+  });
+
+  it('两个不同 sourceUrl → 各自 inserted: true，DB 保留两条', async () => {
+    const t1 = makeTopic({ id: 'dedup-a', sourceUrl: 'https://51acgs.com/unique/D1' });
+    const t2 = makeTopic({ id: 'dedup-b', sourceUrl: 'https://51acgs.com/unique/D2' });
+    const r1 = await savePendingTopic(t1);
+    const r2 = await savePendingTopic(t2);
+    expect(r1).toEqual({ inserted: true });
+    expect(r2).toEqual({ inserted: true });
+    const rows = await listPendingTopics(10);
+    expect(rows.length).toBe(2);
+  });
+
+  it('忽略返回值的调用方仍能正常工作（向后兼容）', async () => {
+    const topic = makeTopic({ id: 'compat-1', sourceUrl: 'https://51acgs.com/unique/E' });
+    // 模拟旧调用方：不使用返回值
+    await savePendingTopic(topic);
+    const loaded = await loadPendingTopic('compat-1');
+    expect(loaded).not.toBeNull();
+    expect(loaded!.title).toBe(topic.title);
   });
 
   // ---- rawContent JSON 往返 ----

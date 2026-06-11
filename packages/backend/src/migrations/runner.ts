@@ -45,6 +45,11 @@ CREATE TABLE IF NOT EXISTS published_posts (
 );
 CREATE INDEX IF NOT EXISTS idx_published_publish_url ON published_posts(publish_url);
 CREATE INDEX IF NOT EXISTS idx_published_outcome ON published_posts(outcome);`,
+  '004-source-url-unique.sql': `\
+DELETE FROM pending_topics WHERE rowid NOT IN (
+  SELECT MIN(rowid) FROM pending_topics GROUP BY source_url
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_source_url ON pending_topics(source_url);`,
 };
 
 export function runMigrations(dbPath: string): void {
