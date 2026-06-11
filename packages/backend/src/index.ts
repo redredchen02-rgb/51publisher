@@ -44,7 +44,7 @@ await server.register(rateLimit, {
   timeWindow: '1 minute',
 });
 
-server.get('/healthz', async () => ({ ok: true }));
+server.get('/api/v1/healthz', async () => ({ ok: true }));
 
 await registerAuthRoutes(server);
 
