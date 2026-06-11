@@ -26,7 +26,7 @@ export function pickAdminTabId(
 }
 
 /** 解析后台发帖页所在 tab id(优先活动 tab,否则按 host 在所有窗口里找)。 */
-async function resolveAdminTabId(): Promise<number | null> {
+export async function resolveAdminTabId(): Promise<number | null> {
   const host = DEFAULT_RECIPE.host;
   const [active] = await browser.tabs.query({ active: true, currentWindow: true });
   // host 权限已覆盖该域 → 无需 'tabs' 权限即可按 url 查询。

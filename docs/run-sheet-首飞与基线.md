@@ -306,14 +306,19 @@ cp -r packages/backend/data/ "$HOME/51publisher-backups/data-postflight-$(date +
 
 | 项 | 记录 |
 |---|------|
-| 触发方式(侧边栏/curl/cron) | |
-| 触发→入池耗时 | |
-| extractionMode(strict/fallback) + confidence | |
-| facts 内联修正(原值→改值,逐项) | |
-| 封面:是否入池 / 是否进草稿 | |
-| **cover_url 字段实证结论**(hidden URL 可填 vs 必须 file upload) | |
-| **pending 来源校验**(id 前缀 `scheduled_`/trigger 产物=真实抓取 ✓;手注=不计过闸) | |
-| pending id ↔ 批次条目对照(手记) | |
+| 触发方式(侧边栏/curl/cron) | curl,**不带 url**(走 config.url=ACGS51_START_URL),2026-06-10 18:14:56 |
+| 触发→入池耗时 | ~2.6 秒(抓取+LLM 提取同步返回) |
+| extractionMode(strict/fallback) + confidence | confidence **0.43**(偏低;extractionMode 未在 trigger 响应暴露) |
+| facts 内联修正(原值→改值,逐项) | 待审读阶段(原 facts 稀疏:作品名✓、题材=多人群交、简介=多人群交[=meta desc 直抄]) |
+| 封面:是否入池 / 是否进草稿 | 入池=是,但取到的是**站点 TG 占位图** `/static/web/images/tg-image.jpg`(相对路径,非真实封面) |
+| **cover_url 字段实证结论**(hidden URL 可填 vs 必须 file upload) | 待发布阶段(建议 status=0 隐藏帖先不带封面,占位图相对路径不可用) |
+| **pending 来源校验**(id 前缀 `scheduled_`/trigger 产物=真实抓取 ✓;手注=不计过闸) | id=`scrape_1781086498819_jr414k`,前缀 `scrape_`=trigger 真实抓取产物 ✓(非手注) |
+| pending id ↔ 批次条目对照(手记) | 待批准 |
+
+> **首飞实证·确凿 bug(留首飞后快循环修,触碰 SSRF 安全面不飞行中热修)**:
+> `scraper-routes.ts:8` 的 `loadSSRFAllowlist()` 在模块顶层执行,因 ESM import 提升早于 `index.ts:24` 的 `dotenv.config()` → 路由层 ALLOWED_HOSTS 快照永远为空 → **凡带 `url` 参数的 trigger(run-sheet 方式2)一律 deny-all 403**。env-check 在 `start()` 内(dotenv 之后)读到正确值故启动通过——这正是账实不符:方式2 从未真跑过所以缺陷一直潜伏。
+> **合规绕过(本次采用)**:trigger 不传 `url`,走 `config.url`(=已被 env-check 启动时校验的 START_URL),路由 SSRF 块整段跳过,`safeFetch` 的公网 IP 校验照常生效。
+> **修复方向**:把 allowlist 改为首次调用时惰性加载,或 index.ts 确保 dotenv 先于路由 import。受影响:`scraper-routes.ts` + 其测试。
 
 ### 5-3 审读与发布确认(每条)
 
@@ -339,7 +344,7 @@ cp -r packages/backend/data/ "$HOME/51publisher-backups/data-postflight-$(date +
 
 | 修了什么 | 当时代码 = 基线 commit + 未提交改动摘要 | 修后跑过的测试 |
 |---------|----------------------------------------|---------------|
-| | | |
+| **批准链路 tab 定位 bug**(2026-06-10 首飞中热修):`PendingTopicsView.tsx`/`BatchView.tsx` 用 side panel 的 `tabs.query({active:true})` 当批次目标 tab。根因(5-agent workflow 坐实):side panel/DevTools 抢焦点时 active tab 非授权域 → `runBatch` `resolveHost()`=null → line 75 `return null` 静默流产(后端零 POST /batches);叠加 MV3 SW 回收致 `sendMessage` 永久 pending → 侧栏「处理中…」卡死。修复=两组件改用 messaging.ts 既有正确实现 `resolveAdminTabId()`(按 host 全窗口定位发帖页)。**不碰闸门链/发布/消毒面**(仅换 tab 来源,复用已测函数)。待办:放大器 B(sendMessage 超时兜底)+ C(connect 长连接抗 SW 回收)留正式 PR。 | 基线 `ed306ab` + 未提交:`messaging.ts` 导出 `resolveAdminTabId`、`PendingTopicsView`/`BatchView` 改用之并删未用 `browser` import | `messaging.test` + sidepanel 组件 **51 passed**;扩展 `compile` 绿 |
 
 ---
 

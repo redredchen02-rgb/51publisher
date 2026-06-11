@@ -14,6 +14,7 @@ import {
   releaseQuarantine,
   checkSelectors,
   retryBatchItemMsg,
+  resolveAdminTabId,
 } from '../../lib/messaging';
 import { BatchReviewPanel } from './BatchReviewPanel';
 import { DryRunReport } from './DryRunReport';
@@ -103,12 +104,13 @@ export function BatchView({ onBack }: { onBack: () => void }) {
       return;
     }
     await withBusy(async () => {
-      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-      if (!tab?.id) {
-        setError('未找到当前标签页——请停在 admin 发帖页。');
+      // 按 host 全窗口定位发帖页,不赌「当前活动标签」(side panel/DevTools 抢焦点会钉错 tab)。
+      const adminTabId = await resolveAdminTabId();
+      if (adminTabId == null) {
+        setError('未找到后台发帖页标签——请先打开后台发帖页。');
         return;
       }
-      await runBatch(list, tab.id, factsList);
+      await runBatch(list, adminTabId, factsList);
       setTopics('');
       await refresh();
     });

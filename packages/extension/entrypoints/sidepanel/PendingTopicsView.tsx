@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { browser } from '#imports';
 import {
   fetchPendingTopics,
   updatePendingStatus,
@@ -8,7 +7,7 @@ import {
   fetchAdapters,
   type PendingTopic,
 } from '../../lib/pending-client';
-import { runBatch } from '../../lib/messaging';
+import { runBatch, resolveAdminTabId } from '../../lib/messaging';
 
 interface Props {
   onBack: () => void;
@@ -95,10 +94,11 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
         }),
       );
 
-      // 2. Get current tab
-      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-      if (!tab?.id) {
-        onError('未找到当前标签页。');
+      // 2. 定位后台发帖页 tab(按 host 全窗口找,不赌「当前活动标签」——
+      //    side panel 自身/DevTools/别的标签抢焦点时,active tab 会钉错 → runBatch 静默流产)
+      const adminTabId = await resolveAdminTabId();
+      if (adminTabId == null) {
+        onError('未找到后台发帖页标签——请先在浏览器打开后台发帖页。');
         setBusy(false);
         return;
       }
@@ -110,7 +110,7 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
       const hasCoverUrls = coverUrls.some((u) => u !== '');
       await runBatch(
         topicList,
-        tab.id,
+        adminTabId,
         factsList.length > 0 ? factsList : undefined,
         hasCoverUrls ? coverUrls : undefined,
       );
