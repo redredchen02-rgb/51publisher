@@ -94,4 +94,51 @@ describe('trajectory', () => {
     const b = buildRecord(input(), 1, '0').record;
     expect(a.hash).toBe(b.hash);
   });
+
+  describe('Phase-2 度量字段携带', () => {
+    it('mode 字段随 input 写入 record', () => {
+      const { list } = appendRecord([], input({ mode: 'authorized' }));
+      expect(list[0]!.mode).toBe('authorized');
+    });
+
+    it('hasManualEdit 字段随 input 写入 record', () => {
+      const { list } = appendRecord([], input({ hasManualEdit: true }));
+      expect(list[0]!.hasManualEdit).toBe(true);
+    });
+
+    it('llmCostTokens 字段随 input 写入 record', () => {
+      const { list } = appendRecord([], input({ llmCostTokens: { prompt: 100, completion: 50 } }));
+      expect(list[0]!.llmCostTokens).toEqual({ prompt: 100, completion: 50 });
+    });
+
+    it('generationDurationMs 字段随 input 写入 record', () => {
+      const { list } = appendRecord([], input({ generationDurationMs: 1500 }));
+      expect(list[0]!.generationDurationMs).toBe(1500);
+    });
+
+    it('slotDiff 字段随 input 写入 record', () => {
+      const slotDiff = { changedSlots: ['title', 'body'], totalSlots: 10 };
+      const { list } = appendRecord([], input({ slotDiff }));
+      expect(list[0]!.slotDiff).toEqual(slotDiff);
+    });
+
+    it('度量字段均缺省时不出现在 record (undefined 不污染)', () => {
+      const { list } = appendRecord([], input());
+      expect(list[0]!.mode).toBeUndefined();
+      expect(list[0]!.hasManualEdit).toBeUndefined();
+      expect(list[0]!.llmCostTokens).toBeUndefined();
+      expect(list[0]!.generationDurationMs).toBeUndefined();
+      expect(list[0]!.slotDiff).toBeUndefined();
+    });
+
+    it('携带度量字段后 hash 链仍可验证', () => {
+      let list: TrajectoryRecord[] = [];
+      list = appendRecord(
+        list,
+        input({ id: 'a', mode: 'authorized', llmCostTokens: { prompt: 10, completion: 5 } }),
+      ).list;
+      list = appendRecord(list, input({ id: 'b', slotDiff: { changedSlots: ['title'], totalSlots: 10 } })).list;
+      expect(verifyTrajectory(list)).toBe(true);
+    });
+  });
 });

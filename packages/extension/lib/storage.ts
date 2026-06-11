@@ -77,11 +77,18 @@ export const DEFAULT_SETTINGS: Settings = {
 export async function getSettings(): Promise<Settings> {
   const stored = await storage.getItem<Partial<Settings>>(SETTINGS_KEY);
   if (!stored) return structuredClone(DEFAULT_SETTINGS);
-  return {
+  const merged: Settings = {
     ...DEFAULT_SETTINGS,
     ...stored,
     fieldMapping: { ...DEFAULT_SETTINGS.fieldMapping, ...(stored.fieldMapping ?? {}) },
   };
+  // fewShotPairs is the source of truth for fewShotExamples; when pairs are
+  // explicitly stored as empty, clear fewShotExamples instead of falling back
+  // to the DEFAULT_SETTINGS example string.
+  if (stored.fewShotPairs !== undefined && stored.fewShotPairs.length === 0) {
+    merged.fewShotExamples = undefined;
+  }
+  return merged;
 }
 
 export async function saveSettings(settings: Settings): Promise<void> {

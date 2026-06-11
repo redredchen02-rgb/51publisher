@@ -1,7 +1,5 @@
 import type { PublishResult } from '@51publisher/shared';
-import { getToken } from './auth-client';
-
-const BACKEND_BASE = 'http://127.0.0.1:3001';
+import { getSettings, getBackendToken } from './storage';
 
 export interface PublishedPostRecord {
   id: string;
@@ -15,13 +13,15 @@ export interface PublishedPostRecord {
 
 /**
  * best-effort POST 到后端 published_posts 注册表。
- * token 缺失 / 网络失败 → 静默跳过，trajectory 是本地 source of truth。
+ * backendUrl 未配置 / token 缺失 / 网络失败 → 静默跳过，trajectory 是本地 source of truth。
  */
 export async function recordPublishedPost(record: PublishedPostRecord): Promise<void> {
   try {
-    const token = await getToken();
+    const [settings, token] = await Promise.all([getSettings(), getBackendToken()]);
+    if (!settings.backendUrl) return;
     if (!token) return;
-    await fetch(`${BACKEND_BASE}/api/v1/published-posts`, {
+    if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(settings.backendUrl)) return;
+    await fetch(`${settings.backendUrl}/api/v1/published-posts`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

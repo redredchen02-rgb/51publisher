@@ -7,6 +7,8 @@ import {
   saveSettings,
   getApiKey,
   saveApiKey,
+  getBackendToken,
+  saveBackendToken,
   getSafetyMode,
   setSafetyMode,
   getAuthorizedHosts,
@@ -17,6 +19,8 @@ import {
   getTrajectory,
   appendTrajectory,
   clearTrajectory,
+  addFewShotPair,
+  removeLastFewShotPair,
 } from './storage';
 import { createBatch, markDispatched, markFilled, markGenerating, presentForApproval } from './batch';
 import type { Batch } from './batch';
@@ -193,6 +197,68 @@ describe('storage', () => {
       await appendTrajectory(rec('a'));
       await clearTrajectory();
       expect(await getTrajectory()).toEqual([]);
+    });
+  });
+
+  describe('backendToken', () => {
+    it('未设置时返回空字符串', async () => {
+      expect(await getBackendToken()).toBe('');
+    });
+
+    it('saveBackendToken 后能取回', async () => {
+      await saveBackendToken('jwt-token-abc');
+      expect(await getBackendToken()).toBe('jwt-token-abc');
+    });
+  });
+
+  describe('addFewShotPair / removeLastFewShotPair', () => {
+    it('addFewShotPair:首条追加成功 → ok:true,settings 存有 pair + fewShotExamples 派生', async () => {
+      const r = await addFewShotPair({ input: 'Q1', output: 'A1' });
+      expect(r).toEqual({ ok: true });
+      const s = await getSettings();
+      expect(s.fewShotPairs).toHaveLength(1);
+      expect(s.fewShotPairs![0]).toEqual({ input: 'Q1', output: 'A1' });
+      expect(s.fewShotExamples).toBe('Q1\n---\nA1');
+    });
+
+    it('addFewShotPair:已有 8 条 → ok:false, reason:full,不写入', async () => {
+      for (let i = 0; i < 8; i++) {
+        await addFewShotPair({ input: `i${i}`, output: `o${i}` });
+      }
+      const r = await addFewShotPair({ input: 'overflow', output: 'x' });
+      expect(r).toEqual({ ok: false, reason: 'full' });
+      const s = await getSettings();
+      expect(s.fewShotPairs).toHaveLength(8);
+    });
+
+    it('addFewShotPair:多条时 fewShotExamples 以 \\n\\n 分隔', async () => {
+      await addFewShotPair({ input: 'Q1', output: 'A1' });
+      await addFewShotPair({ input: 'Q2', output: 'A2' });
+      const s = await getSettings();
+      expect(s.fewShotExamples).toBe('Q1\n---\nA1\n\nQ2\n---\nA2');
+    });
+
+    it('removeLastFewShotPair:移除末尾一条', async () => {
+      await addFewShotPair({ input: 'Q1', output: 'A1' });
+      await addFewShotPair({ input: 'Q2', output: 'A2' });
+      await removeLastFewShotPair();
+      const s = await getSettings();
+      expect(s.fewShotPairs).toHaveLength(1);
+      expect(s.fewShotPairs![0]).toEqual({ input: 'Q1', output: 'A1' });
+    });
+
+    it('removeLastFewShotPair:最后一条移除后 fewShotExamples 为 undefined', async () => {
+      await addFewShotPair({ input: 'Q1', output: 'A1' });
+      await removeLastFewShotPair();
+      const s = await getSettings();
+      expect(s.fewShotPairs).toHaveLength(0);
+      expect(s.fewShotExamples).toBeUndefined();
+    });
+
+    it('removeLastFewShotPair:空列表时幂等,不报错', async () => {
+      await expect(removeLastFewShotPair()).resolves.toBeUndefined();
+      const s = await getSettings();
+      expect(s.fewShotPairs ?? []).toHaveLength(0);
     });
   });
 });
