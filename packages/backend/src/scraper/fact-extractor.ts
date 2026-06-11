@@ -1,26 +1,26 @@
-import { chatCompletionsUrl } from '../llm.js';
-import type { RawContent, ExtractedFacts } from './site-adapter.js';
-import type { FactsBlock } from '@51publisher/shared';
-import { FACT_ORDER } from '@51publisher/shared';
+import type { FactsBlock } from "@51publisher/shared";
+import { FACT_ORDER } from "@51publisher/shared";
+import { chatCompletionsUrl } from "../llm.js";
+import type { ExtractedFacts, RawContent } from "./site-adapter.js";
 
 /** json_schema 约束——保证 LLM 输出结构化事实。 */
 const FACTS_SCHEMA = {
-  name: 'extracted_facts',
-  strict: true,
-  schema: {
-    type: 'object',
-    additionalProperties: false,
-    properties: {
-      作品名: { type: ['string', 'null'] },
-      集数: { type: ['string', 'null'] },
-      制作: { type: ['string', 'null'] },
-      漢化: { type: ['string', 'null'] },
-      無修: { type: ['string', 'null'] },
-      题材: { type: ['string', 'null'] },
-      简介: { type: ['string', 'null'] },
-    },
-    required: ['作品名', '集数', '制作', '漢化', '無修', '题材', '简介'],
-  },
+	name: "extracted_facts",
+	strict: true,
+	schema: {
+		type: "object",
+		additionalProperties: false,
+		properties: {
+			作品名: { type: ["string", "null"] },
+			集数: { type: ["string", "null"] },
+			制作: { type: ["string", "null"] },
+			漢化: { type: ["string", "null"] },
+			無修: { type: ["string", "null"] },
+			题材: { type: ["string", "null"] },
+			简介: { type: ["string", "null"] },
+		},
+		required: ["作品名", "集数", "制作", "漢化", "無修", "题材", "简介"],
+	},
 } as const;
 
 const EXTRACTOR_PROMPT = `你是一个内容分析助手。你接收一篇网页内容（标题 + 正文），从中提取结构化事实。
@@ -39,94 +39,110 @@ const EXTRACTOR_PROMPT = `你是一个内容分析助手。你接收一篇网页
 const FALLBACK_CONFIDENCE_CAP = 0.3;
 
 function str(v: unknown): string {
-  return typeof v === 'string' ? v : '';
+	return typeof v === "string" ? v : "";
 }
 
 function parseFactsFromContent(content: string): FactsBlock {
-  const parsed = JSON.parse(content) as Record<string, unknown>;
-  const facts: FactsBlock = {};
-  for (const key of FACT_ORDER) {
-    const val = str(parsed[key]);
-    if (val) facts[key] = val;
-  }
-  return facts;
+	const parsed = JSON.parse(content) as Record<string, unknown>;
+	const facts: FactsBlock = {};
+	for (const key of FACT_ORDER) {
+		const val = str(parsed[key]);
+		if (val) facts[key] = val;
+	}
+	return facts;
 }
 
 export async function extractFacts(
-  rawContent: RawContent,
-  opts: {
-    endpoint: string;
-    apiKey: string;
-    model?: string;
-    timeoutMs?: number;
-    fetchFn?: typeof fetch;
-  },
+	rawContent: RawContent,
+	opts: {
+		endpoint: string;
+		apiKey: string;
+		model?: string;
+		timeoutMs?: number;
+		fetchFn?: typeof fetch;
+	},
 ): Promise<ExtractedFacts> {
-  const { endpoint, apiKey, model = 'gpt-4o-mini', timeoutMs = 30_000, fetchFn = fetch } = opts;
+	const {
+		endpoint,
+		apiKey,
+		model = "gpt-4o-mini",
+		timeoutMs = 30_000,
+		fetchFn = fetch,
+	} = opts;
 
-  const userPrompt = `${EXTRACTOR_PROMPT}\n\n标题：${rawContent.title}\n\n正文：${rawContent.body.slice(0, 8000)}`;
+	const userPrompt = `${EXTRACTOR_PROMPT}\n\n标题：${rawContent.title}\n\n正文：${rawContent.body.slice(0, 8000)}`;
 
-  // Two-pass: json_schema strict → json_object fallback (mirrors llm.ts pattern)
-  for (const useSchema of [true, false] as const) {
-    const responseFormat = useSchema
-      ? { type: 'json_schema' as const, json_schema: FACTS_SCHEMA }
-      : { type: 'json_object' as const };
+	// Two-pass: json_schema strict → json_object fallback (mirrors llm.ts pattern)
+	for (const useSchema of [true, false] as const) {
+		const responseFormat = useSchema
+			? { type: "json_schema" as const, json_schema: FACTS_SCHEMA }
+			: { type: "json_object" as const };
 
-    const requestBody = {
-      model,
-      messages: [{ role: 'user' as const, content: userPrompt }],
-      response_format: responseFormat,
-    };
+		const requestBody = {
+			model,
+			messages: [{ role: "user" as const, content: userPrompt }],
+			response_format: responseFormat,
+		};
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+		const controller = new AbortController();
+		const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-    let res: Response | null = null;
-    let fetchErr: unknown = null;
-    try {
-      res = await fetchFn(chatCompletionsUrl(endpoint), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify(requestBody),
-        signal: controller.signal,
-      });
-    } catch (err) {
-      fetchErr = err;
-    } finally {
-      clearTimeout(timer);
-    }
+		let res: Response | null = null;
+		let fetchErr: unknown = null;
+		try {
+			res = await fetchFn(chatCompletionsUrl(endpoint), {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${apiKey}`,
+				},
+				body: JSON.stringify(requestBody),
+				signal: controller.signal,
+			});
+		} catch (err) {
+			fetchErr = err;
+		} finally {
+			clearTimeout(timer);
+		}
 
-    if (fetchErr) {
-      if (fetchErr instanceof Error && fetchErr.name === 'AbortError') {
-        throw new Error('Fact extraction timed out');
-      }
-      throw fetchErr;
-    }
+		if (fetchErr) {
+			if (fetchErr instanceof Error && fetchErr.name === "AbortError") {
+				throw new Error("Fact extraction timed out");
+			}
+			throw fetchErr;
+		}
 
-    if (!res) throw new Error('No response received from LLM');
+		if (!res) throw new Error("No response received from LLM");
 
-    // json_schema not supported by this endpoint → retry with json_object
-    if (useSchema && res.status === 400) continue;
+		// json_schema not supported by this endpoint → retry with json_object
+		if (useSchema && res.status === 400) continue;
 
-    if (!res.ok) {
-      throw new Error(`LLM request failed: HTTP ${res.status}`);
-    }
+		if (!res.ok) {
+			throw new Error(`LLM request failed: HTTP ${res.status}`);
+		}
 
-    const raw = await res.json();
-    const content =
-      (raw as { choices?: Array<{ message?: { content?: string } }> })?.choices?.[0]?.message?.content ?? '';
+		const raw = await res.json();
+		const content =
+			(raw as { choices?: Array<{ message?: { content?: string } }> })
+				?.choices?.[0]?.message?.content ?? "";
 
-    const facts = parseFactsFromContent(content);
-    const filled = FACT_ORDER.filter((k) => facts[k]).length;
-    const rawConfidence = FACT_ORDER.length > 0 ? filled / FACT_ORDER.length : 0;
-    const extractionMode = useSchema ? 'strict' : 'fallback';
-    const confidence = extractionMode === 'fallback' ? Math.min(rawConfidence, FALLBACK_CONFIDENCE_CAP) : rawConfidence;
+		const facts = parseFactsFromContent(content);
+		const filled = FACT_ORDER.filter((k) => facts[k]).length;
+		const rawConfidence =
+			FACT_ORDER.length > 0 ? filled / FACT_ORDER.length : 0;
+		const extractionMode = useSchema ? "strict" : "fallback";
+		const confidence =
+			extractionMode === "fallback"
+				? Math.min(rawConfidence, FALLBACK_CONFIDENCE_CAP)
+				: rawConfidence;
 
-    return { facts, confidence, coverImageUrl: rawContent.coverImageUrl, extractionMode };
-  }
+		return {
+			facts,
+			confidence,
+			coverImageUrl: rawContent.coverImageUrl,
+			extractionMode,
+		};
+	}
 
-  throw new Error('Fact extraction failed after all attempts');
+	throw new Error("Fact extraction failed after all attempts");
 }
