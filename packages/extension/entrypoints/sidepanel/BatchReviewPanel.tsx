@@ -252,6 +252,8 @@ interface Props {
 	onDraftChange?: (itemId: string, draft: ContentDraft) => void;
 	/** 运营商显式重试单条 error/aborted 条目。 */
 	onRetryItem?: (itemId: string) => void;
+	/** 发布档位切换(操作者主动变更)。 */
+	onModeChange?: (mode: SafetyMode) => void;
 	/** 标准批准(含漂移自检前置门)。 */
 	onApprove: () => void;
 	/** 跳过漂移自检直接批准(仅在自检失败后提供)。 */
@@ -346,6 +348,7 @@ export function BatchReviewPanel(props: Props) {
 		onItemRead,
 		onDiscardItem,
 		allRead,
+		onModeChange,
 	} = props;
 	const summary = batchSummary(batch);
 	const phase = batchPhase(batch);
@@ -427,8 +430,39 @@ export function BatchReviewPanel(props: Props) {
 					color: modeStyle.color,
 				}}
 			>
-				<div style={{ fontWeight: 600 }} aria-label={`发布档位 ${safetyMode}`}>
-					{modeStyle.icon} 档位:{modeStyle.label}
+				<div
+					style={{
+						display: "flex",
+						alignItems: "center",
+						gap: 8,
+						fontWeight: 600,
+					}}
+					aria-label={`发布档位 ${safetyMode}`}
+				>
+					{modeStyle.icon} 档位:
+					{onModeChange ? (
+						<select
+							value={safetyMode}
+							onChange={(e) =>
+								onModeChange(e.target.value as SafetyMode)
+							}
+							style={{
+								fontSize: 12,
+								padding: "1px 4px",
+								border: `1px solid ${modeStyle.border}`,
+								borderRadius: 4,
+								background: modeStyle.bg,
+								color: modeStyle.color,
+								cursor: "pointer",
+							}}
+						>
+							<option value="off">⏻ 关闭(只填充)</option>
+							<option value="dry-run">🧪 预演(不真发)</option>
+							<option value="authorized">🚀 已授权·真发布</option>
+						</select>
+					) : (
+						modeStyle.label
+					)}
 				</div>
 				<div style={{ marginTop: 2 }}>
 					授权站点:<code>{authorizedHost || "(未记录)"}</code>

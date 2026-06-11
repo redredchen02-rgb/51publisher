@@ -22,6 +22,7 @@ import {
 	clearPendingQuarantineAlert,
 	getPendingQuarantineAlert,
 	getSafetyMode,
+	setSafetyMode as persistSafetyMode,
 	removeLastFewShotPair,
 } from "../../lib/storage";
 import { BatchReviewPanel } from "./BatchReviewPanel";
@@ -387,6 +388,9 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 						onItemRead={onItemRead}
 						onDiscardItem={onDiscardItem}
 						allRead={allRead}
+						onModeChange={(mode) => {
+							void persistSafetyMode(mode).then(() => refresh());
+						}}
 						onApprove={() =>
 							void withBusy(async () => {
 								// 批准前先做选择器漂移自检(U2):任何关键选择器缺失 → 阻断并展示警告,等人工处理。
