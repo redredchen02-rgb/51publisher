@@ -89,6 +89,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
   const [backendUrl, setBackendUrl] = useState('');
   const [backendToken, setBackendToken] = useState('');
   const [fewShotPairs, setFewShotPairs] = useState<FewShotPair[]>([]);
+  const [reviewCriteriaPrompt, setReviewCriteriaPrompt] = useState('');
   const [importBanner, setImportBanner] = useState('');
   const [importTruncated, setImportTruncated] = useState('');
   const [error, setError] = useState('');
@@ -109,6 +110,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
       setApiKey(key);
       setBackendUrl(s.backendUrl ?? '');
       setBackendToken(bToken);
+      setReviewCriteriaPrompt(s.reviewCriteriaPrompt ?? '');
       if (s.fallbackModel) {
         setFallbackModel(s.fallbackModel);
         setFallbackOpen(true);
@@ -207,6 +209,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
       fieldMapping: JSON.parse(mappingText) as FieldMapping,
       fallbackModel: fallbackModel || undefined,
       backendUrl: backendUrl || undefined,
+      reviewCriteriaPrompt: reviewCriteriaPrompt || undefined,
     });
     await saveApiKey(apiKey);
     await saveBackendToken(backendToken);
@@ -350,6 +353,19 @@ export function Settings({ onClose }: { onClose: () => void }) {
       />
       <p style={{ color: '#888', fontSize: 11, margin: '2px 0 0' }}>
         AI 生成时只从此列表选择标签；留空则仅约束分类不约束标签。
+      </p>
+
+      <label style={labelStyle}>AI 评审标准（Phase 3，留空使用内置四维标准）</label>
+      <textarea
+        style={{ ...inputStyle, minHeight: 80 }}
+        placeholder={
+          '留空=内置四维标准(内容丰富度/社群语气/标题质量/分类准确)。\n如需自定义,请按 JSON 格式写入各维度标准。'
+        }
+        value={reviewCriteriaPrompt}
+        onChange={(e) => setReviewCriteriaPrompt(e.target.value)}
+      />
+      <p style={{ color: '#888', fontSize: 11, margin: '2px 0 8px' }}>
+        内置标准覆盖：内容丰富度 / 社群语气 / 标题质量 / 分类准确。Phase 3 启用后每条草稿生成后自动评审。
       </p>
 
       <hr style={{ margin: '14px 0 6px', border: 'none', borderTop: '1px solid #e8e8e8' }} />
