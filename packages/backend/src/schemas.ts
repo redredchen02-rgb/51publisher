@@ -40,6 +40,7 @@ export const GenerateDraftBody = Type.Object({
 	prompt: Type.String({ minLength: 1 }),
 	settings: SettingsSchema,
 	facts: Type.Optional(FactsBlockSchema),
+	enrichment: Type.Optional(Type.String()),
 });
 
 export const GenerateDraftResponse = Type.Object({

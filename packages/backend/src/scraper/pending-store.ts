@@ -5,6 +5,7 @@ import {
 	pendingWriteQueue,
 } from "./pending-db.js";
 import type { RawContent } from "./site-adapter.js";
+import type { EnrichedContext } from "./web-enricher.js";
 
 export type PendingStatus = "pending" | "approved" | "rejected";
 
@@ -20,6 +21,7 @@ export interface PendingTopic {
 	rejectedReason?: string;
 	coverImageUrl?: string;
 	score?: number;
+	enrichment?: EnrichedContext;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -43,6 +45,7 @@ interface PendingRow {
 	rejected_reason: string | null;
 	cover_image_url: string | null;
 	score: number | null;
+	enrichment: string | null;
 	created_at: string;
 	updated_at: string;
 }
@@ -62,6 +65,9 @@ function rowToTopic(row: PendingRow): PendingTopic {
 		rejectedReason: row.rejected_reason ?? undefined,
 		coverImageUrl: row.cover_image_url ?? undefined,
 		score: row.score ?? undefined,
+		enrichment: row.enrichment
+			? (JSON.parse(row.enrichment) as EnrichedContext)
+			: undefined,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
@@ -142,10 +148,10 @@ export async function savePendingTopic(
 			`
       INSERT INTO pending_topics
         (id, source_url, site_name, title, raw_content, facts, confidence, status,
-         rejected_reason, cover_image_url, score, created_at, updated_at)
+         rejected_reason, cover_image_url, score, enrichment, created_at, updated_at)
       VALUES
         (@id, @sourceUrl, @siteName, @title, @rawContent, @facts, @confidence, @status,
-         @rejectedReason, @coverImageUrl, @score, @createdAt, @updatedAt)
+         @rejectedReason, @coverImageUrl, @score, @enrichment, @createdAt, @updatedAt)
       ON CONFLICT(id) DO UPDATE SET
         source_url = excluded.source_url,
         site_name  = excluded.site_name,
@@ -157,6 +163,7 @@ export async function savePendingTopic(
         rejected_reason = excluded.rejected_reason,
         cover_image_url = excluded.cover_image_url,
         score      = excluded.score,
+        enrichment = excluded.enrichment,
         updated_at = excluded.updated_at
     `,
 		).run({
@@ -171,6 +178,7 @@ export async function savePendingTopic(
 			rejectedReason: topic.rejectedReason ?? null,
 			coverImageUrl: topic.coverImageUrl ?? null,
 			score,
+			enrichment: topic.enrichment ? JSON.stringify(topic.enrichment) : null,
 			createdAt: topic.createdAt,
 			updatedAt: topic.updatedAt,
 		});

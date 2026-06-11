@@ -250,15 +250,10 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 						disabled={busy || adapters.length === 0}
 						onClick={() => {
 							void (async () => {
-								const site =
-									adapters.length === 1
-										? adapters[0]!
-										: adapters.length > 1
-											? window.prompt(
-													`选择适配器:\n${adapters.join("\n")}`,
-													adapters[0],
-												)
-											: null;
+								// 优先使用 acgs51（自动指向网站列表页发现模式），否则取第一个可用适配器。
+								const site = adapters.includes("acgs51")
+									? "acgs51"
+									: (adapters[0] ?? null);
 								if (!site) return;
 								setScrapeStatus("抓取中…");
 								await triggerScrape(site);

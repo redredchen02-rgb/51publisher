@@ -122,6 +122,7 @@ interface GenerateDraftBody {
 	prompt: string;
 	settings: Settings;
 	facts?: FactsBlock;
+	enrichment?: string;
 }
 
 server.get("/api/v1/models", async (request, reply) => {
@@ -156,7 +157,7 @@ server.post<{ Body: GenerateDraftBody }>(
 		},
 	},
 	async (request, reply) => {
-		const { prompt, settings, facts } = request.body;
+		const { prompt, settings, facts, enrichment } = request.body;
 
 		// Use API key from server environment (never expose or store on client)
 		const apiKey = process.env.LLM_API_KEY || "";
@@ -195,6 +196,7 @@ server.post<{ Body: GenerateDraftBody }>(
 				settings: resolvedSettings,
 				apiKey,
 				facts,
+				enrichment,
 			});
 			if (!result.ok) {
 				return err(reply, 422, result.error, result.kind);

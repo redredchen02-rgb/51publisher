@@ -108,6 +108,18 @@ export function checkEnv(env: NodeJS.ProcessEnv = process.env): string[] {
 		}
 	}
 
+	// Web search enrichment: ENRICHMENT_MAX_QUERIES must be 1-10 if set
+	const enrichmentMaxQ = (env.ENRICHMENT_MAX_QUERIES ?? "").trim();
+	if (enrichmentMaxQ) {
+		const n = Number(enrichmentMaxQ);
+		if (!Number.isInteger(n) || n < 1 || n > 10) {
+			errors.push(
+				`ENRICHMENT_MAX_QUERIES must be an integer between 1 and 10 (got "${enrichmentMaxQ}"). ` +
+					"Default is 3 if unset.",
+			);
+		}
+	}
+
 	// Revisit job: REVISIT_ALLOWED_HOSTS must not be wildcard when set
 	const revisitHosts = (env.REVISIT_ALLOWED_HOSTS ?? "").trim();
 	if (revisitHosts === "*") {

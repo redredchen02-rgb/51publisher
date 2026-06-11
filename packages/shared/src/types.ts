@@ -109,6 +109,8 @@ export interface Settings {
 	reviewCriteriaPrompt?: string;
 	/** 每日批量自动发帖上限（Phase 5）;有效范围 [1, 20],默认 5。 */
 	dailyBatchSize?: number;
+	/** 是否启用 Web 搜索富化（默认 true）;启用后抓取时自动搜索补充资讯。 */
+	webSearchEnabled?: boolean;
 }
 
 // ---- 消息协议(side panel ↔ background ↔ content script) ----
