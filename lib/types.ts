@@ -75,6 +75,8 @@ export interface Settings {
   promptTemplate: string;
   /** 字段映射(可在设置页编辑)。 */
   fieldMapping: FieldMapping;
+  /** 备用 LLM 端点(主端点失败时回退;undefined = 不启用 fallback)。 */
+  fallbackModel?: { endpoint: string; model?: string };
 }
 
 // ---- 消息协议(side panel ↔ background ↔ content script) ----

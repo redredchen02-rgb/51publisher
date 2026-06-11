@@ -32,6 +32,9 @@ export function Settings({ onClose }: { onClose: () => void }) {
   const [apiKey, setApiKey] = useState('');
   const [promptTemplate, setPromptTemplate] = useState('');
   const [mappingText, setMappingText] = useState('');
+  const [fallbackEndpoint, setFallbackEndpoint] = useState('');
+  const [fallbackModel, setFallbackModel] = useState('');
+  const [fallbackOpen, setFallbackOpen] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
 
@@ -43,6 +46,11 @@ export function Settings({ onClose }: { onClose: () => void }) {
       setPromptTemplate(s.promptTemplate);
       setMappingText(JSON.stringify(s.fieldMapping, null, 2));
       setApiKey(key);
+      if (s.fallbackModel) {
+        setFallbackEndpoint(s.fallbackModel.endpoint);
+        setFallbackModel(s.fallbackModel.model ?? '');
+        setFallbackOpen(true);
+      }
     })();
   }, []);
 
@@ -52,13 +60,20 @@ export function Settings({ onClose }: { onClose: () => void }) {
       setError('endpoint 必须是 https:// 地址(API key 会发往此处)。');
       return;
     }
+    if (fallbackEndpoint && !/^https:\/\//i.test(fallbackEndpoint)) {
+      setError('备用 endpoint 必须是 https:// 地址。');
+      return;
+    }
     const mapErr = validateMapping(mappingText);
     if (mapErr) {
       setError(mapErr);
       return;
     }
     setError('');
-    await saveSettings({ endpoint, model, promptTemplate, fieldMapping: JSON.parse(mappingText) as FieldMapping });
+    const fbModel = fallbackEndpoint
+      ? { endpoint: fallbackEndpoint, ...(fallbackModel ? { model: fallbackModel } : {}) }
+      : undefined;
+    await saveSettings({ endpoint, model, promptTemplate, fieldMapping: JSON.parse(mappingText) as FieldMapping, fallbackModel: fbModel });
     await saveApiKey(apiKey);
     setSaved(true);
   }
@@ -79,6 +94,26 @@ export function Settings({ onClose }: { onClose: () => void }) {
       <p style={{ color: '#cf1322', fontSize: 11, margin: '2px 0 0' }}>
         ⚠️ key 以明文存储于本地浏览器(chrome.storage.local),并会随请求发往上面配置的 endpoint。请只配置可信地址,建议使用权限受限的专用 key。
       </p>
+
+      {/* 备用 LLM 端点(可折叠) */}
+      <div style={{ marginTop: 10, border: '1px solid #e8e8e8', borderRadius: 4, padding: '6px 8px' }}>
+        <button
+          type="button"
+          onClick={() => setFallbackOpen((v) => !v)}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#555', padding: 0, width: '100%', textAlign: 'left' }}
+        >
+          {fallbackOpen ? '▼' : '▶'} 备用 LLM 端点{fallbackEndpoint ? ' (已配置)' : ' (可选)'}
+        </button>
+        {fallbackOpen && (
+          <div style={{ marginTop: 6 }}>
+            <p style={{ fontSize: 11, color: '#888', margin: '0 0 6px' }}>主端点失败时自动回退。留空即不启用。</p>
+            <label style={labelStyle}>备用 endpoint</label>
+            <input style={inputStyle} value={fallbackEndpoint} placeholder="https://…" onChange={(e) => setFallbackEndpoint(e.target.value)} />
+            <label style={labelStyle}>备用模型名(可选)</label>
+            <input style={inputStyle} value={fallbackModel} onChange={(e) => setFallbackModel(e.target.value)} />
+          </div>
+        )}
+      </div>
 
       <label style={labelStyle}>Prompt 模板(用 {'{{topic}}'} 注入主题)</label>
       <textarea style={{ ...inputStyle, minHeight: 80 }} value={promptTemplate} onChange={(e) => setPromptTemplate(e.target.value)} />
