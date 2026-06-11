@@ -3,7 +3,7 @@ import cron from 'node-cron';
 import { startScheduler } from './scheduler.js';
 import { scraperConfig } from './scraper-config.js';
 import { extractFacts } from './fact-extractor.js';
-import { savePendingTopic, type PendingTopic } from './pending-store.js';
+import { savePendingTopic, pendingTopicExistsBySourceUrl, type PendingTopic } from './pending-store.js';
 import type { SiteAdapter, RawContent } from './site-adapter.js';
 
 // ---- mocks ----
@@ -21,7 +21,12 @@ vi.mock('./fact-extractor.js', () => ({
 }));
 
 vi.mock('./pending-store.js', () => ({
-  savePendingTopic: vi.fn(async () => undefined),
+  savePendingTopic: vi.fn(async () => ({ inserted: true })),
+  pendingTopicExistsBySourceUrl: vi.fn(async () => false),
+}));
+
+vi.mock('../telegram.js', () => ({
+  sendAlert: vi.fn(async () => undefined),
 }));
 
 // ---- helpers ----
@@ -161,5 +166,130 @@ describe('startScheduler — cron 任务的 coverImageUrl 透传', () => {
     startScheduler(DEPS);
 
     expect(vi.mocked(cron.schedule).mock.calls).toHaveLength(0);
+  });
+});
+
+// ================================================================
+// U4: list-discovery 模式
+// ================================================================
+
+import { sendAlert } from '../telegram.js';
+
+const LIST_URL = 'https://test-site.example.com/list/';
+
+function makeFetchListAdapter(name: string, urls: string[]): SiteAdapter {
+  return {
+    name,
+    fetchContent: vi.fn(async (_url: string): Promise<RawContent> => MOCK_RAW),
+    fetchList: vi.fn(async () => urls),
+  };
+}
+
+function startListJob(listUrls: string[], budgetOverride?: string): () => Promise<void> {
+  if (budgetOverride !== undefined) process.env.ACGS51_LIST_BUDGET = budgetOverride;
+  scraperConfig.registerAdapter(makeFetchListAdapter(`list-adapter-${testId}`, listUrls));
+  scraperConfig.addSiteConfig({
+    siteName: currentSite,
+    adapterName: `list-adapter-${testId}`,
+    url: currentUrl,
+    listUrl: LIST_URL,
+    cron: '0 * * * *',
+    enabled: true,
+  });
+  startScheduler(DEPS);
+  const calls = vi.mocked(cron.schedule).mock.calls;
+  expect(calls).toHaveLength(1);
+  return calls[0][1] as () => Promise<void>;
+}
+
+describe('startScheduler — list-discovery mode (U4)', () => {
+  beforeEach(() => {
+    delete process.env.ACGS51_LIST_BUDGET;
+    // clearAllMocks does not reset implementations; explicitly restore defaults here
+    vi.mocked(pendingTopicExistsBySourceUrl).mockResolvedValue(false);
+    vi.mocked(savePendingTopic).mockResolvedValue({ inserted: true });
+    vi.mocked(extractFacts).mockResolvedValue({
+      facts: { 作品名: '测试作품' },
+      confidence: 0.85,
+      coverImageUrl: undefined,
+      extractionMode: 'strict',
+    });
+  });
+
+  it('3 个新 URL → fetchContent 调用 3 次，savePendingTopic 调用 3 次', async () => {
+    const urls = [
+      'https://test-site.example.com/acg/1',
+      'https://test-site.example.com/acg/2',
+      'https://test-site.example.com/acg/3',
+    ];
+    const job = startListJob(urls);
+    await job();
+
+    expect(vi.mocked(savePendingTopic).mock.calls).toHaveLength(3);
+  });
+
+  it('budget cap: 5 个 URL，budget=3 → 只处理 3 条', async () => {
+    const urls = Array.from({ length: 5 }, (_, i) => `https://test-site.example.com/acg/${i + 1}`);
+    const job = startListJob(urls, '3');
+    await job();
+
+    expect(vi.mocked(savePendingTopic).mock.calls).toHaveLength(3);
+    delete process.env.ACGS51_LIST_BUDGET;
+  });
+
+  it('session set 去重：同一 URL 出现两次，fetchContent 只调用一次', async () => {
+    const url = 'https://test-site.example.com/acg/dup';
+    const job = startListJob([url, url]);
+    await job();
+
+    expect(vi.mocked(savePendingTopic).mock.calls).toHaveLength(1);
+  });
+
+  it('DB 去重：URL 已在 pending_topics → fetchContent 不调用', async () => {
+    vi.mocked(pendingTopicExistsBySourceUrl).mockResolvedValue(true);
+    const job = startListJob(['https://test-site.example.com/acg/existing']);
+    await job();
+
+    expect(vi.mocked(savePendingTopic)).not.toHaveBeenCalled();
+  });
+
+  it('fetchContent 连续失败 3 次 → sendAlert 调用一次', async () => {
+    const adapterName = `fail-adapter-${testId}`;
+    const failAdapter: SiteAdapter = {
+      name: adapterName,
+      fetchContent: vi.fn(async () => {
+        throw new Error('network error');
+      }),
+      fetchList: vi.fn(async () => [
+        'https://test-site.example.com/acg/f1',
+        'https://test-site.example.com/acg/f2',
+        'https://test-site.example.com/acg/f3',
+      ]),
+    };
+    scraperConfig.registerAdapter(failAdapter);
+    scraperConfig.addSiteConfig({
+      siteName: currentSite,
+      adapterName,
+      url: currentUrl,
+      listUrl: LIST_URL,
+      cron: '0 * * * *',
+      enabled: true,
+    });
+    startScheduler(DEPS);
+    const calls = vi.mocked(cron.schedule).mock.calls;
+    const job = calls[0][1] as () => Promise<void>;
+    await job();
+
+    expect(vi.mocked(sendAlert)).toHaveBeenCalledOnce();
+    expect(vi.mocked(sendAlert).mock.calls[0][0]).toContain('consecutive fetch failures');
+  });
+
+  it('adapter 无 fetchList → 走单条 URL 路径（回退，不回归）', async () => {
+    const job = startAndGetJob(); // uses makeMockAdapter without fetchList
+    await job();
+
+    // single-URL path: savePendingTopic called once with site.url as sourceUrl
+    expect(vi.mocked(savePendingTopic).mock.calls).toHaveLength(1);
+    expect(vi.mocked(savePendingTopic).mock.calls[0][0].sourceUrl).toBe(currentUrl);
   });
 });

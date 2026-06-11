@@ -24,6 +24,8 @@ export interface ScraperSiteConfig {
   siteName: string;
   adapterName: string;
   url: string;
+  /** 列表页 URL；设置后启用 list-discovery 模式（fetchList）。 */
+  listUrl?: string;
   cron?: string;
   enabled: boolean;
 }
