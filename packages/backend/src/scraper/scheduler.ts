@@ -13,7 +13,7 @@ interface SchedulerDeps {
   llmModel?: string;
 }
 
-const jobs = new Map<string, cron.ScheduledTask>();
+export const jobs = new Map<string, cron.ScheduledTask>();
 
 const BASE_DELAY_MS = 1_000;
 const MAX_ATTEMPTS = 3;

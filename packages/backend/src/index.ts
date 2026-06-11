@@ -19,6 +19,7 @@ import { scraperConfig } from './scraper/scraper-config.js';
 import { demoAdapter } from './scraper/adapters/demo-adapter.js';
 import { acgs51Adapter } from './scraper/adapters/acgs51-adapter.js';
 import { startScheduler } from './scraper/scheduler.js';
+import { startRevisitJob } from './revisit-job.js';
 import { initPendingDb } from './scraper/pending-db.js';
 import { validateEnv } from './env-check.js';
 
@@ -214,6 +215,9 @@ const start = async () => {
     } else {
       server.log.info('[scheduler] Skipped (LLM_ENDPOINT/LLM_API_KEY not set)');
     }
+
+    startRevisitJob({ logger: server.log });
+    server.log.info('[revisit] Revisit job started');
   } catch (err) {
     server.log.error(err);
     process.exit(1);
