@@ -9,6 +9,7 @@ export type BatchItemStatus =
 	| "queued"
 	| "generating"
 	| "filled"
+	| "gate-failed"
 	| "awaiting-approval"
 	| "publish-dispatched"
 	| "publish-confirmed"
@@ -25,6 +26,10 @@ export interface BatchItem {
 	publishUrl?: string;
 	error?: string;
 	fillResults?: FieldFillResult[];
+	/** gate-failed 拦截原因(与前端 batch.ts 对齐) */
+	gateFailReason?: string;
+	/** 来源待审池题目 ID(与前端 batch.ts 对齐) */
+	pendingTopicId?: string;
 }
 
 export interface Batch {
