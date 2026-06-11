@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { SafetyMode } from '../../lib/types';
 import { type Batch, type BatchItem, batchSummary, batchPhase } from '../../lib/batch';
+import { aggregateDegradeStats } from '../../lib/degrade-stats';
 import type { DriftReport } from '../../lib/selectors';
 
 // 批量审核面板:专为"在窄面板里高效审 N 条"设计(评审 design-lens)。
@@ -20,6 +21,8 @@ interface Props {
   onRelease: (itemId: string) => void;
   onDriftCheck: () => void;
   onResume: () => void;
+  /** 操作者手动修改了草稿后调用,用于直发率度量。 */
+  onItemEdited?: (itemId: string) => void;
 }
 
 const box: React.CSSProperties = { borderRadius: 6, padding: '8px 10px', fontSize: 13, marginBottom: 10 };
@@ -103,7 +106,26 @@ export function BatchReviewPanel(props: Props) {
         共 {summary.total} 条 · 待审 {summary.awaitingApproval} · 已发 {summary.confirmed} · 失败 {summary.errored}
         {summary.quarantined > 0 && <strong style={{ color: '#cf1322' }}> · 待人工核 {summary.quarantined}</strong>}
         {summary.aborted > 0 && <span> · 已停 {summary.aborted}</span>}
+        {(() => {
+          const ds = aggregateDegradeStats(batch.items);
+          return phase === 'done' && ds.itemsWithAnyDegrade > 0
+            ? <span style={{ marginLeft: 6, background: '#fa8c16', color: '#fff', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 600 }}>{ds.itemsWithAnyDegrade} 条降级</span>
+            : null;
+        })()}
       </div>
+
+      {/* 降级汇总条(批次完成后展示) */}
+      {phase === 'done' && (() => {
+        const ds = aggregateDegradeStats(batch.items);
+        if (ds.totalItemsWithResults === 0) return null;
+        const topSummary = ds.topFields.map((f) => `${f.field}（${f.count}x）`).join('，');
+        return ds.itemsWithAnyDegrade === 0
+          ? <div style={{ ...box, background: '#f6ffed', border: '1px solid #b7eb8f', color: '#389e0d', fontSize: 12 }}>✅ 本批次所有字段填充成功</div>
+          : <div style={{ ...box, background: '#fff7e6', border: '1px solid #ffd591', color: '#874d00', fontSize: 12 }}>
+              ⚠️ 本批次 {ds.itemsWithAnyDegrade}/{ds.totalItemsWithResults} 条目有字段降级
+              {topSummary && <span> | 高频：{topSummary}</span>}
+            </div>;
+      })()}
 
       {/* 隔离态:醒目独立表示(安全关键) */}
       {quarantined.length > 0 && (
@@ -128,10 +150,16 @@ export function BatchReviewPanel(props: Props) {
             <button
               onClick={() => toggle(it.id)}
               aria-expanded={expanded.has(it.id)}
-              style={{ ...btn, width: '100%', textAlign: 'left', background: '#fff', display: 'flex', justifyContent: 'space-between' }}
+              style={{ ...btn, width: '100%', textAlign: 'left', background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
             >
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.topic}</span>
-              <span aria-label={`状态 ${it.status}`} style={{ marginLeft: 8, fontSize: 12, color: '#888' }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{it.topic}</span>
+              {it.fillResults && it.fillResults.length > 0 && (() => {
+                const degraded = it.fillResults.filter((r) => r.status === 'degraded').length;
+                return degraded > 0
+                  ? <span style={{ marginLeft: 4, fontSize: 11, color: '#fa8c16', flexShrink: 0 }}>{degraded}/{it.fillResults.length} 降级</span>
+                  : null;
+              })()}
+              <span aria-label={`状态 ${it.status}`} style={{ marginLeft: 8, fontSize: 12, color: '#888', flexShrink: 0 }}>
                 [{STATUS_LABEL[it.status]}]
               </span>
             </button>
@@ -141,6 +169,16 @@ export function BatchReviewPanel(props: Props) {
                   <>
                     <div><strong>{it.draft.title || '(无标题)'}</strong></div>
                     <div style={{ color: '#666', maxHeight: 120, overflow: 'auto' }}>{it.draft.description || it.draft.body.replace(/<[^>]+>/g, ' ').slice(0, 200)}</div>
+                    {it.status === 'awaiting-approval' && props.onItemEdited && (
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 6, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={it.userEdited ?? false}
+                          onChange={() => { if (!it.userEdited) props.onItemEdited!(it.id); }}
+                        />
+                        <span style={{ color: '#888' }}>已手动修改草稿</span>
+                      </label>
+                    )}
                   </>
                 ) : (
                   <span style={{ color: '#999' }}>无草稿内容{it.error ? `(${it.error})` : ''}</span>

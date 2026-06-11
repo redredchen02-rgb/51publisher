@@ -13,6 +13,7 @@ import {
   approveBatch,
   killBatch,
   releaseQuarantine,
+  markItemEdited,
   checkSelectors,
 } from '../../lib/messaging';
 import { BatchReviewPanel } from './BatchReviewPanel';
@@ -105,6 +106,7 @@ export function BatchView({ onBack }: { onBack: () => void }) {
           onRelease={(itemId) => void withBusy(async () => { await releaseQuarantine(itemId); await refresh(); })}
           onDriftCheck={() => void withBusy(async () => { setDrift(await checkSelectors(batch.tabId)); })}
           onResume={() => void refresh()}
+          onItemEdited={(itemId) => { void (async () => { await markItemEdited(itemId); await refresh(); })(); }}
         />
       )}
 

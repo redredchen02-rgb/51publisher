@@ -52,6 +52,11 @@ export async function releaseQuarantine(itemId: string): Promise<BatchResponse> 
   return browser.runtime.sendMessage({ type: 'RELEASE_QUARANTINE', itemId });
 }
 
+/** 标记该条草稿已被操作者手动修改(直发率度量置位)。 */
+export async function markItemEdited(itemId: string): Promise<void> {
+  return browser.runtime.sendMessage({ type: 'MARK_ITEM_EDITED', itemId });
+}
+
 /** 读当前批次(加载即崩溃恢复)。 */
 export async function getBatchState(): Promise<BatchResponse> {
   return browser.runtime.sendMessage({ type: 'GET_BATCH' });

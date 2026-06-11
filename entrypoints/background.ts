@@ -21,6 +21,7 @@ import {
   markDispatched,
   markConfirmed,
   markPublishFailed,
+  storeFillResults,
   presentForApproval,
   abortBatch,
   releaseQuarantine,
@@ -57,6 +58,9 @@ export default defineBackground(() => {
     }
     if (message?.type === 'RELEASE_QUARANTINE') {
       return handleReleaseQuarantine(message.itemId);
+    }
+    if (message?.type === 'MARK_ITEM_EDITED') {
+      return handleMarkItemEdited(message.itemId);
     }
     if (message?.type === 'GET_BATCH') {
       return getBatch();
@@ -179,13 +183,15 @@ async function handleRunBatch(topics: string[], tabId: number): Promise<Batch | 
       batch = markGenerating(batch, item.id);
       await saveBatch(batch);
 
+      const genStart = Date.now();
       const gen = await generateDraft(buildPrompt(settings.promptTemplate, item.topic), { settings, apiKey });
+      const genDurationMs = Date.now() - genStart;
       if (!gen.ok) {
         batch = markGenerateFailed(batch, item.id, gen.error);
         await saveBatch(batch);
         continue;
       }
-      batch = markFilled(batch, item.id, gen.draft);
+      batch = markFilled(batch, item.id, gen.draft, gen.llmCostTokens, genDurationMs);
       await saveBatch(batch);
     }
 
@@ -204,6 +210,9 @@ async function handleApproveBatch(tabId: number): Promise<Batch | null> {
     if (!loaded) return null;
     let batch: Batch = loaded;
 
+    // 档位在批次运行期间稳定,取一次即可。
+    const currentMode = await getSafetyMode();
+
     for (const snapshot of batch.items) {
       // 每轮从最新 batch 取该项当前状态(前面的转移可能已变)。
       const item = batch.items.find((it) => it.id === snapshot.id);
@@ -217,6 +226,10 @@ async function handleApproveBatch(tabId: number): Promise<Batch | null> {
         await saveBatch(batch);
         continue;
       }
+
+      // 存填充结果(degrade 聚合 U4 数据源)。
+      batch = storeFillResults(batch, item.id, fill.results);
+      await saveBatch(batch);
 
       const result = await orchestratePublish({
         evaluateGate: () => evaluateGate(tabId),
@@ -239,19 +252,31 @@ async function handleApproveBatch(tabId: number): Promise<Batch | null> {
           await saveBatch(batch);
         },
       });
-      // 轨迹:authorized 真发(非 dry-run)才落档,作回放/回滚依据。
-      if (!result.dryRun) {
+
+      // 轨迹:全档位落档(R6a)。
+      {
+        const freshItem = batch.items.find((it) => it.id === item.id);
+        const status = result.dryRun
+          ? 'dry-run-completed'
+          : result.error === 'blocked'
+            ? 'fill-completed'
+            : (itemStatus(batch, item.id) ?? 'unknown');
         const { snapshotDropped } = await appendTrajectory({
           id: item.id,
           topic: item.topic,
           fields: fill.results,
           publishUrl: result.url,
-          status: itemStatus(batch, item.id) ?? 'unknown',
+          status,
           ts: new Date().toISOString(),
           publishedAsDraft: item.draft.postStatus === '0',
+          mode: currentMode,
+          hasManualEdit: currentMode === 'authorized' ? (freshItem?.userEdited ?? false) : undefined,
+          llmCostTokens: freshItem?.llmCostTokens,
+          generationDurationMs: freshItem?.generationDurationMs,
         });
         if (snapshotDropped) console.warn('[bg] 轨迹快照含机密被丢弃(record 已落,无快照)');
       }
+
       // dry-run / blocked:不推进条目(留在 awaiting-approval),让 UI 报告。
       if (!result.ok && result.error === 'blocked') break;
     }
@@ -289,4 +314,13 @@ async function handleReleaseQuarantine(itemId: string): Promise<Batch | null> {
   const next = releaseQuarantine(batch, itemId);
   await saveBatch(next);
   return next;
+}
+
+async function handleMarkItemEdited(itemId: string): Promise<void> {
+  const batch = await getBatch();
+  if (!batch) return;
+  const item = batch.items.find((it) => it.id === itemId);
+  if (!item || item.userEdited) return; // 已标记则幂等跳过
+  const next = { ...batch, items: batch.items.map((it) => it.id === itemId ? { ...it, userEdited: true } : it) };
+  await saveBatch(next);
 }

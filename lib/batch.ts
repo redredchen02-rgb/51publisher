@@ -1,4 +1,4 @@
-import type { ContentDraft } from './types';
+import type { ContentDraft, FieldFillResult } from './types';
 
 // 批量发布队列状态机(纯函数,无副作用/不碰 chrome)。
 // background 拿它做编排,把异步效果(生成/填充/发布)的结果喂进来推进状态。
@@ -32,6 +32,16 @@ export interface BatchItem {
   draft?: ContentDraft;
   publishUrl?: string;
   error?: string;
+  /** 操作者在批量审核界面是否手动编辑了草稿(直发率分母判断依据)。 */
+  userEdited?: boolean;
+  /** LLM 实际 token 用量(来自 response.usage;不可得时为估算,estimated=true)。 */
+  llmCostTokens?: { prompt: number; completion: number; estimated?: boolean };
+  /** 草稿生成耗时(ms)。 */
+  generationDurationMs?: number;
+  /** 填充字段结果(供 degrade 聚合 U4 使用)。 */
+  fillResults?: FieldFillResult[];
+  /** 发布时草稿快照(供 R5b slot-level diff 用)。 */
+  publishedDraft?: ContentDraft;
 }
 
 export interface Batch {
@@ -96,8 +106,24 @@ export function markGenerating(batch: Batch, itemId: string): Batch {
   return transition(batch, itemId, 'queued', { status: 'generating' });
 }
 
-export function markFilled(batch: Batch, itemId: string, draft: ContentDraft): Batch {
-  return transition(batch, itemId, ['generating', 'queued'], { status: 'filled', draft });
+export function markFilled(
+  batch: Batch,
+  itemId: string,
+  draft: ContentDraft,
+  llmCostTokens?: BatchItem['llmCostTokens'],
+  generationDurationMs?: number,
+): Batch {
+  return transition(batch, itemId, ['generating', 'queued'], {
+    status: 'filled',
+    draft,
+    ...(llmCostTokens !== undefined ? { llmCostTokens } : {}),
+    ...(generationDurationMs !== undefined ? { generationDurationMs } : {}),
+  });
+}
+
+/** 记录填充结果(degrade 聚合数据源)。不改变状态,仅 patch fillResults。 */
+export function storeFillResults(batch: Batch, itemId: string, fillResults: FieldFillResult[]): Batch {
+  return patchItem(batch, itemId, { fillResults });
 }
 
 export function markGenerateFailed(batch: Batch, itemId: string, error: string): Batch {
