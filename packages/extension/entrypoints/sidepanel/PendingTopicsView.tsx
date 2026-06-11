@@ -9,6 +9,10 @@ import {
 } from '../../lib/pending-client';
 import { runBatch, resolveAdminTabId } from '../../lib/messaging';
 
+interface QuickDraftConfirm {
+  topics: PendingTopic[];
+}
+
 interface Props {
   onBack: () => void;
   onBatchStarted: () => void;
@@ -35,6 +39,8 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
   const [scrapeStatus, setScrapeStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [quickDraftConfirm, setQuickDraftConfirm] = useState<QuickDraftConfirm | null>(null);
+  const [quickDraftStatus, setQuickDraftStatus] = useState('');
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -139,11 +145,80 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
     }
   }
 
+  async function handleQuickDraft() {
+    setQuickDraftStatus('备稿中…');
+    setQuickDraftConfirm(null);
+    try {
+      const sorted = await fetchPendingTopics({ status: 'pending', sort_by: 'score' });
+      if (sorted.length === 0) {
+        setQuickDraftStatus('待审池暂无选题，请先抓取');
+        return;
+      }
+      const top = sorted.slice(0, 3);
+      setQuickDraftStatus('');
+      setQuickDraftConfirm({ topics: top });
+    } catch {
+      setQuickDraftStatus('获取选题失败，请重试');
+    }
+  }
+
+  async function handleQuickDraftConfirm() {
+    if (!quickDraftConfirm) return;
+    const confirmedTopics = quickDraftConfirm.topics;
+    setQuickDraftConfirm(null);
+    setQuickDraftStatus('');
+    setSelected(new Set(confirmedTopics.map((t) => t.id)));
+    setBusy(true);
+    try {
+      await Promise.all(
+        confirmedTopics.map(async (t) => {
+          const edited = localFacts[t.id];
+          if (edited) await patchPendingTopic(t.id, { facts: edited });
+          await updatePendingStatus(t.id, 'approved');
+        }),
+      );
+      const adminTabId = await resolveAdminTabId();
+      if (adminTabId == null) {
+        onError('未找到后台发帖页标签——请先在浏览器打开后台发帖页。');
+        setBusy(false);
+        return;
+      }
+      const topicList = confirmedTopics.map((t) => t.title || t.sourceUrl);
+      const factsList = confirmedTopics.map((t) => localFacts[t.id] ?? t.facts);
+      const coverUrls = confirmedTopics.map((t) => t.coverImageUrl ?? '');
+      const hasCoverUrls = coverUrls.some((u) => u !== '');
+      await runBatch(
+        topicList,
+        adminTabId,
+        factsList.length > 0 ? factsList : undefined,
+        hasCoverUrls ? coverUrls : undefined,
+      );
+      setSelected(new Set());
+      onBatchStarted();
+    } catch {
+      onError('操作失败，请重试。');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <main style={{ fontFamily: 'system-ui, sans-serif', padding: 12, fontSize: 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <h1 style={{ fontSize: 16, margin: 0 }}>待审核选题</h1>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <button
+            disabled={busy || adapters.length === 0}
+            onClick={() => void handleQuickDraft()}
+            style={{
+              ...btn,
+              background: busy || adapters.length === 0 ? '#f0f0f0' : '#1677ff',
+              color: busy || adapters.length === 0 ? '#bbb' : '#fff',
+              padding: '4px 10px',
+            }}
+          >
+            {quickDraftStatus === '备稿中…' ? '备稿中…' : '今日一键备稿'}
+          </button>
           <button
             disabled={busy || adapters.length === 0}
             onClick={() => {
@@ -184,6 +259,55 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
         </div>
       </div>
       {scrapeStatus && <div style={{ fontSize: 12, color: '#fa8c16', marginBottom: 4 }}>{scrapeStatus}</div>}
+
+      {quickDraftStatus && !quickDraftConfirm && (
+        <div
+          style={{ fontSize: 12, color: quickDraftStatus.startsWith('待审池') ? '#888' : '#1677ff', marginBottom: 4 }}
+        >
+          {quickDraftStatus}
+        </div>
+      )}
+
+      {quickDraftConfirm && (
+        <div
+          style={{
+            border: '1px solid #1677ff',
+            borderRadius: 6,
+            padding: '10px 12px',
+            marginBottom: 8,
+            background: '#f0f7ff',
+            fontSize: 13,
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>将生成 {quickDraftConfirm.topics.length} 篇草稿：</div>
+          <ul style={{ margin: '0 0 8px 0', paddingLeft: 16 }}>
+            {quickDraftConfirm.topics.map((t) => (
+              <li key={t.id} style={{ marginBottom: 2, fontSize: 12, color: '#333' }}>
+                {t.title || t.sourceUrl}
+              </li>
+            ))}
+          </ul>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => void handleQuickDraftConfirm()}
+              disabled={busy}
+              style={{ ...btn, background: '#1677ff', color: '#fff', padding: '4px 12px' }}
+            >
+              确认生成
+            </button>
+            <button
+              onClick={() => {
+                setQuickDraftConfirm(null);
+                setQuickDraftStatus('');
+              }}
+              disabled={busy}
+              style={{ ...btn, background: '#f0f0f0', color: '#333', padding: '4px 12px' }}
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      )}
 
       {loading && <div style={{ color: '#888', fontSize: 13 }}>加载中…</div>}
 
