@@ -92,7 +92,7 @@ origin: docs/brainstorms/2026-06-11-release-readiness-requirements.md
 
 **Verification:** 旧 key 实测作废;新 key 生成链路通;泄漏排查结论已记录。
 
-- [ ] **Unit 1: 核对并合入 MR!6/!7 到 main**
+- [x] **Unit 1: 核对并合入 MR!6/!7 到 main**
 
 **Goal:** main 成为日常运营唯一基准。
 
@@ -113,7 +113,7 @@ origin: docs/brainstorms/2026-06-11-release-readiness-requirements.md
 
 **Verification:** main 上 check-all 全绿;GitLab 两个 MR 状态闭合。
 
-- [ ] **Unit 2: dailyBatchSize 进 shared Settings + 修编译破洞**
+- [x] **Unit 2: dailyBatchSize 进 shared Settings + 修编译破洞**
 
 **Goal:** 消除「旧 dist 假绿」,补全设置链路。
 
@@ -208,7 +208,7 @@ origin: docs/brainstorms/2026-06-11-release-readiness-requirements.md
 
 **Verification:** 上述验证点全部观察到且符合预期;发布帖前台核验通过。
 
-- [ ] **Unit 6: 运营 runbook + 首周观察机制**
+- [x] **Unit 6: 运营 runbook + 首周观察机制**
 
 **Goal:** 操作者不看聊天记录即可独立运营。
 
