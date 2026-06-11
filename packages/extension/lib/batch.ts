@@ -111,7 +111,7 @@ function patchItem(batch: Batch, itemId: string, patch: Partial<BatchItem>): Bat
 }
 
 /** 仅当该项处于 expected 状态之一才推进(否则原样返回,防越级转移)。 */
-function transition(
+export function transition(
   batch: Batch,
   itemId: string,
   from: BatchItemStatus | BatchItemStatus[],

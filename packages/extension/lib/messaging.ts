@@ -22,6 +22,7 @@ const SW_TIMEOUT: Partial<Record<RuntimeMessage['type'], number>> = {
   KILL_BATCH: 10_000,
   RELEASE_QUARANTINE: 10_000,
   RETRY_BATCH_ITEM: 10_000,
+  DISCARD_BATCH_ITEM: 10_000,
 };
 
 function sendMsg<T>(msg: RuntimeMessage): Promise<T> {
@@ -126,6 +127,11 @@ export async function markItemEdited(itemId: string): Promise<void> {
 /** 运营商显式重试单条 error/aborted 条目。 */
 export async function retryBatchItemMsg(itemId: string): Promise<BatchResponse> {
   return sendMsg<BatchResponse>({ type: 'RETRY_BATCH_ITEM', itemId });
+}
+
+/** 操作者否决/丢弃单条 awaiting-approval 条目(→ aborted)。 */
+export async function discardBatchItem(itemId: string): Promise<void> {
+  await sendMsg<BatchResponse>({ type: 'DISCARD_BATCH_ITEM', itemId });
 }
 
 /** 读当前批次(加载即崩溃恢复)。 */
