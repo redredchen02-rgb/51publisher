@@ -90,6 +90,7 @@ export function createBatch(
   genItemId: (index: number) => string,
   facts?: (FactsBlock | undefined)[],
   coverImageUrls?: (string | undefined)[],
+  pendingTopicIds?: (string | undefined)[],
 ): Batch {
   return {
     id,
@@ -99,12 +100,14 @@ export function createBatch(
     items: topics.map((topic, i) => {
       const f = facts?.[i];
       const cover = coverImageUrls?.[i];
+      const tid = pendingTopicIds?.[i];
       return {
         id: genItemId(i),
         topic,
         status: 'queued' as const,
         ...(f ? { facts: f } : {}),
         ...(cover ? { coverImageUrl: cover } : {}),
+        ...(tid ? { pendingTopicId: tid } : {}),
       };
     }),
   };

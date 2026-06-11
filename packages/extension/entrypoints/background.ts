@@ -168,6 +168,7 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
     facts?: FactsBlock[],
     iterate?: boolean,
     coverImageUrls?: string[],
+    topicIds?: string[],
   ): Promise<Batch | null> {
     try {
       // 新批次启动:重置已读标记,确保门控从零开始(SW kill 后恢复也同样干净)。
@@ -181,6 +182,7 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
         topics,
         facts,
         coverImageUrls,
+        topicIds,
         tabId,
         resolveHost: () => resolveTabHost(tabId),
         getExistingBatch: deps.getBatch,
@@ -468,6 +470,7 @@ export default defineBackground(() => {
         message.facts,
         message.iterate,
         message.coverImageUrls,
+        message.topicIds,
       );
     if (message?.type === 'APPROVE_BATCH') return handlers.handleApproveBatch(message.tabId, message.draftOverrides);
     if (message?.type === 'KILL_BATCH') return handlers.handleKillBatch();

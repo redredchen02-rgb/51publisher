@@ -44,6 +44,8 @@ export interface RunBatchDeps {
   facts?: (FactsBlock | undefined)[];
   /** 与 topics 同序平行的封面图 URL;可省略。长度不足时对应条目用 ''。 */
   coverImageUrls?: (string | undefined)[];
+  /** 与 topics 同序平行的待审池选题 ID(U7 状态回写);可省略(手动批量=无来源选题)。 */
+  topicIds?: (string | undefined)[];
   tabId: number;
   /** chrome.tabs.get(tabId).hostname;tab 无 url/已关 → null。 */
   resolveHost: () => Promise<string | null>;
@@ -102,6 +104,13 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
     if (u) coverUrlsByTopic.set(t, u);
   });
 
+  // topic → 待审池选题 ID 映射(同序平行,U7 状态回写)。
+  const topicIdsByTopic = new Map<string, string>();
+  topics.forEach((t, i) => {
+    const tid = deps.topicIds?.[i];
+    if (tid) topicIdsByTopic.set(t, tid);
+  });
+
   // 重入守卫:排除上一批仍被隔离的同选题 + 持久化已发布选题(防跨 session 重发)。
   // R8 迭代通道(bypassReentry)跳过此守卫,允许重跑已发题目对比 prompt/few-shot 效果。
   const existing = await getExistingBatch();
@@ -118,7 +127,8 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
   const freshFacts = fresh.map((t) => factsByTopic.get(t));
   // 封面持久化进 BatchItem:retry 重生成时才能回注(闭包 Map 不跨调用存活)。
   const freshCovers = fresh.map((t) => coverUrlsByTopic.get(t));
-  let batch = createBatch(genBatchId(), tabId, host, fresh, now(), genItemId, freshFacts, freshCovers);
+  const freshTopicIds = fresh.map((t) => topicIdsByTopic.get(t));
+  let batch = createBatch(genBatchId(), tabId, host, fresh, now(), genItemId, freshFacts, freshCovers, freshTopicIds);
   await save(batch);
 
   for (const item of batch.items) {

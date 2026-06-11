@@ -283,6 +283,12 @@ describe('createBatch coverImageUrls', () => {
     expect('coverImageUrl' in b.items[2]!).toBe(false); // 长度不足
   });
 
+  it('pendingTopicIds 与 topics 同序平行写入各 item.pendingTopicId(U7 状态回写)', () => {
+    const b = createBatch('b1', 42, HOST, ['a', 'b'], NOW, genId, undefined, undefined, ['pid_a', undefined]);
+    expect(b.items[0]!.pendingTopicId).toBe('pid_a');
+    expect('pendingTopicId' in b.items[1]!).toBe(false);
+  });
+
   it('未传 coverImageUrls → 所有条目无 coverImageUrl 字段(向后兼容)', () => {
     const b = newBatch(['a', 'b']);
     expect(b.items.every((it) => !('coverImageUrl' in it))).toBe(true);
