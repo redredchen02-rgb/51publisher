@@ -219,7 +219,7 @@ describe('health sweep — checks outcome="online" rows', () => {
     await health();
 
     // The health sweep calls prepare with the 'online' query
-    const prepareCalls = vi.mocked(mockDb.prepare).mock.calls.map((c) => c[0]);
+    const prepareCalls = (vi.mocked(mockDb.prepare).mock.calls as [string][][]).map(([sql]) => sql!);
     expect(prepareCalls.some((sql) => sql.includes("outcome = 'online'"))).toBe(true);
     expect(mockRun).toHaveBeenCalledWith('online', expect.any(String), 'post-1');
   });

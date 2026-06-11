@@ -34,7 +34,7 @@ function rowToPost(row: Record<string, unknown>): PublishedPost {
     publishUrlSource: (row.publish_url_source as string | null) ?? undefined,
     publishedAt: (row.published_at as string | null) ?? undefined,
     outcome: row.outcome as string | null,
-    lastCheckedAt: (row.last_checked_at as string | null) ?? undefined,
+    lastCheckedAt: row.last_checked_at as string | null,
     createdAt: row.created_at as string,
   };
 }
