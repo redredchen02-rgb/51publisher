@@ -1,13 +1,42 @@
 import { browser } from '#imports';
-import type { ContentDraft, FillPageResponse, GenerateDraftResponse, PublishPageResponse } from '@51publisher/shared';
+import type {
+  ContentDraft,
+  FillPageResponse,
+  GenerateDraftResponse,
+  PublishPageResponse,
+  RuntimeMessage,
+} from '@51publisher/shared';
 import type { Batch } from './batch';
 import type { DriftReport } from './selectors';
 import { applyPromptTemplate, type FactsBlock } from '@51publisher/shared';
 import { DEFAULT_RECIPE } from './recipe';
 
+// MV3 Service Worker 随时可能被回收。sendMessage 若 SW 死亡可能永久 pending。
+// sendMsg 包一层 race，超时则 reject → withBusy catch 显示"请重试"而非卡死。
+const SW_TIMEOUT: Partial<Record<RuntimeMessage['type'], number>> = {
+  RUN_BATCH: 300_000, // 多条 × LLM，最多 5 分钟
+  APPROVE_BATCH: 300_000,
+  GENERATE_DRAFT: 30_000,
+  PUBLISH_PAGE: 30_000,
+  GET_BATCH: 10_000,
+  KILL_BATCH: 10_000,
+  RELEASE_QUARANTINE: 10_000,
+  RETRY_BATCH_ITEM: 10_000,
+};
+
+function sendMsg<T>(msg: RuntimeMessage): Promise<T> {
+  const ms = SW_TIMEOUT[msg.type] ?? 30_000;
+  return Promise.race([
+    browser.runtime.sendMessage(msg) as Promise<T>,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`[sw/${msg.type}] 未在 ${ms / 1000}s 内响应，SW 可能已回收，请重试`)), ms),
+    ),
+  ]);
+}
+
 /** side panel → background:生成草稿。 */
 export async function requestGenerate(prompt: string): Promise<GenerateDraftResponse> {
-  return browser.runtime.sendMessage({ type: 'GENERATE_DRAFT', prompt });
+  return sendMsg<GenerateDraftResponse>({ type: 'GENERATE_DRAFT', prompt });
 }
 
 /**
@@ -53,7 +82,7 @@ export async function requestFill(draft: ContentDraft): Promise<FillPageResponse
  * 都在 background;此处只传**显式 tabId**(绝不让 background 查 active tab)。
  */
 export async function requestPublish(tabId: number): Promise<PublishPageResponse> {
-  return browser.runtime.sendMessage({ type: 'PUBLISH_PAGE', tabId });
+  return sendMsg<PublishPageResponse>({ type: 'PUBLISH_PAGE', tabId });
 }
 
 // ---- 批量编排(side panel → background)----
@@ -68,7 +97,7 @@ export async function runBatch(
   coverImageUrls?: string[],
   iterate?: boolean,
 ): Promise<BatchResponse> {
-  return browser.runtime.sendMessage({ type: 'RUN_BATCH', topics, tabId, facts, iterate, coverImageUrls });
+  return sendMsg<BatchResponse>({ type: 'RUN_BATCH', topics, tabId, facts, iterate, coverImageUrls });
 }
 
 /** 批准整批:逐条门控发布(钉住的 tab)。draftOverrides 为人工编辑的草稿覆盖(按 itemId)。 */
@@ -76,27 +105,27 @@ export async function approveBatch(
   tabId: number,
   draftOverrides?: Record<string, import('@51publisher/shared').ContentDraft>,
 ): Promise<BatchResponse> {
-  return browser.runtime.sendMessage({ type: 'APPROVE_BATCH', tabId, ...(draftOverrides ? { draftOverrides } : {}) });
+  return sendMsg<BatchResponse>({ type: 'APPROVE_BATCH', tabId, ...(draftOverrides ? { draftOverrides } : {}) });
 }
 
 /** 急停:未发布项打到 aborted。 */
 export async function killBatch(): Promise<BatchResponse> {
-  return browser.runtime.sendMessage({ type: 'KILL_BATCH' });
+  return sendMsg<BatchResponse>({ type: 'KILL_BATCH' });
 }
 
 /** 人工退出某隔离项(needs-human-verification → aborted)。 */
 export async function releaseQuarantine(itemId: string): Promise<BatchResponse> {
-  return browser.runtime.sendMessage({ type: 'RELEASE_QUARANTINE', itemId });
+  return sendMsg<BatchResponse>({ type: 'RELEASE_QUARANTINE', itemId });
 }
 
 /** 运营商显式重试单条 error/aborted 条目。 */
 export async function retryBatchItemMsg(itemId: string): Promise<BatchResponse> {
-  return browser.runtime.sendMessage({ type: 'RETRY_BATCH_ITEM', itemId });
+  return sendMsg<BatchResponse>({ type: 'RETRY_BATCH_ITEM', itemId });
 }
 
 /** 读当前批次(加载即崩溃恢复)。 */
 export async function getBatchState(): Promise<BatchResponse> {
-  return browser.runtime.sendMessage({ type: 'GET_BATCH' });
+  return sendMsg<BatchResponse>({ type: 'GET_BATCH' });
 }
 
 /** 轻量漂移自检:让钉住 tab 的 content 查关键选择器是否缺失。 */
