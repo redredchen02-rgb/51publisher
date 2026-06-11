@@ -1,13 +1,23 @@
-import { useState } from 'react';
-import type { SafetyMode, FieldFillResult, ContentDraft, RejectionReason } from '@51publisher/shared';
-import { type Batch, type BatchItem, batchSummary, batchPhase } from '../../lib/batch';
-import { aggregateDegradeStats } from '../../lib/degrade-stats';
-import type { DriftReport } from '../../lib/selectors';
-import type { TrajectoryRecord } from '../../lib/trajectory';
-import { DraftPreview } from './DraftPreview';
-import { verifyLinks } from '../../lib/link-source';
-import { factUrls, FACT_ORDER, type FactsBlock } from '@51publisher/shared';
-import { evaluateGrounding } from '../../lib/grounding-gate';
+import type {
+	ContentDraft,
+	FieldFillResult,
+	RejectionReason,
+	SafetyMode,
+} from "@51publisher/shared";
+import { FACT_ORDER, type FactsBlock, factUrls } from "@51publisher/shared";
+import { useState } from "react";
+import {
+	type Batch,
+	type BatchItem,
+	batchPhase,
+	batchSummary,
+} from "../../lib/batch";
+import { aggregateDegradeStats } from "../../lib/degrade-stats";
+import { evaluateGrounding } from "../../lib/grounding-gate";
+import { verifyLinks } from "../../lib/link-source";
+import type { DriftReport } from "../../lib/selectors";
+import type { TrajectoryRecord } from "../../lib/trajectory";
+import { DraftPreview } from "./DraftPreview";
 
 /**
  * 源接地审核摘要(U6,程序化结构化生成):
@@ -16,101 +26,111 @@ import { evaluateGrounding } from '../../lib/grounding-gate';
  * - 硬闸:展示该条若 authorized 发布会否被拦(残留【待补】/无来源连结)。
  */
 function GroundingStrip({
-  draft,
-  facts,
-  onFixPlaceholder,
+	draft,
+	facts,
+	onFixPlaceholder,
 }: {
-  draft: ContentDraft;
-  facts?: FactsBlock;
-  onFixPlaceholder?: () => void;
+	draft: ContentDraft;
+	facts?: FactsBlock;
+	onFixPlaceholder?: () => void;
 }) {
-  const f = facts ?? {};
-  let links: { url: string; sourced: boolean }[] = [];
-  try {
-    links = verifyLinks(draft.body, factUrls(f));
-  } catch {
-    links = [];
-  }
-  const verdict = evaluateGrounding(draft, facts);
+	const f = facts ?? {};
+	let links: { url: string; sourced: boolean }[] = [];
+	try {
+		links = verifyLinks(draft.body, factUrls(f));
+	} catch {
+		links = [];
+	}
+	const verdict = evaluateGrounding(draft, facts);
 
-  return (
-    <div style={{ marginTop: 4, fontSize: 11 }}>
-      {/* 事实注入状态 */}
-      <div style={{ color: '#555' }}>
-        事实注入:
-        {FACT_ORDER.map((k) => {
-          const has = !!f[k]?.trim();
-          return (
-            <span key={k} style={{ marginRight: 6, color: has ? '#389e0d' : '#bbb' }}>
-              {has ? '✓' : '—'}
-              {k}
-            </span>
-          );
-        })}
-      </div>
-      {/* 明确列出缺失事实，避免审核者忽略 */}
-      {(() => {
-        const missing = FACT_ORDER.filter((k) => !f[k]?.trim());
-        if (missing.length > 0) {
-          return (
-            <div style={{ marginTop: 2, color: '#d46b08', fontWeight: 600 }}>
-              ⚠️ 缺失事实 (不会渲染): {missing.join('、')}
-            </div>
-          );
-        }
-        return null;
-      })()}
+	return (
+		<div style={{ marginTop: 4, fontSize: 11 }}>
+			{/* 事实注入状态 */}
+			<div style={{ color: "#555" }}>
+				事实注入:
+				{FACT_ORDER.map((k) => {
+					const has = !!f[k]?.trim();
+					return (
+						<span
+							key={k}
+							style={{ marginRight: 6, color: has ? "#389e0d" : "#bbb" }}
+						>
+							{has ? "✓" : "—"}
+							{k}
+						</span>
+					);
+				})}
+			</div>
+			{/* 明确列出缺失事实，避免审核者忽略 */}
+			{(() => {
+				const missing = FACT_ORDER.filter((k) => !f[k]?.trim());
+				if (missing.length > 0) {
+					return (
+						<div style={{ marginTop: 2, color: "#d46b08", fontWeight: 600 }}>
+							⚠️ 缺失事实 (不会渲染): {missing.join("、")}
+						</div>
+					);
+				}
+				return null;
+			})()}
 
-      {/* 连结来源(程式注入) */}
-      {links.length > 0 && (
-        <ul style={{ margin: '4px 0 0', padding: '0 0 0 12px' }}>
-          {links.map((l, i) => (
-            <li key={i} style={{ color: l.sourced ? '#389e0d' : '#cf1322' }}>
-              {l.sourced ? '✓ 程式注入(不可编造)' : '✗ 非来源(疑似编造)'}{' '}
-              <code style={{ wordBreak: 'break-all' }}>{l.url}</code>
-            </li>
-          ))}
-        </ul>
-      )}
+			{/* 连结来源(程式注入) */}
+			{links.length > 0 && (
+				<ul style={{ margin: "4px 0 0", padding: "0 0 0 12px" }}>
+					{links.map((l, i) => (
+						<li key={i} style={{ color: l.sourced ? "#389e0d" : "#cf1322" }}>
+							{l.sourced ? "✓ 程式注入(不可编造)" : "✗ 非来源(疑似编造)"}{" "}
+							<code style={{ wordBreak: "break-all" }}>{l.url}</code>
+						</li>
+					))}
+				</ul>
+			)}
 
-      {/* 发布前硬闸判定 */}
-      <div
-        style={{
-          marginTop: 2,
-          color: verdict.ok ? '#389e0d' : '#cf1322',
-          fontWeight: 600,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-        }}
-      >
-        {verdict.ok ? '✓ grounding 通过(authorized 可发)' : '⛔ authorized 会被拦:'}
-        {!verdict.ok && (draft.title.includes('【待补】') || draft.body.includes('【待补】')) && onFixPlaceholder && (
-          <button
-            onClick={onFixPlaceholder}
-            style={{
-              background: '#fa8c16',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 3,
-              padding: '2px 6px',
-              fontSize: 11,
-              cursor: 'pointer',
-            }}
-          >
-            ✏️ 一键填入【待补】
-          </button>
-        )}
-      </div>
-      {!verdict.ok && (
-        <ul style={{ margin: '2px 0 0', padding: '0 0 0 12px', color: '#cf1322' }}>
-          {verdict.reasons.map((r, i) => (
-            <li key={i}>{r}</li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
+			{/* 发布前硬闸判定 */}
+			<div
+				style={{
+					marginTop: 2,
+					color: verdict.ok ? "#389e0d" : "#cf1322",
+					fontWeight: 600,
+					display: "flex",
+					alignItems: "center",
+					gap: 6,
+				}}
+			>
+				{verdict.ok
+					? "✓ grounding 通过(authorized 可发)"
+					: "⛔ authorized 会被拦:"}
+				{!verdict.ok &&
+					(draft.title.includes("【待补】") ||
+						draft.body.includes("【待补】")) &&
+					onFixPlaceholder && (
+						<button
+							onClick={onFixPlaceholder}
+							style={{
+								background: "#fa8c16",
+								color: "#fff",
+								border: "none",
+								borderRadius: 3,
+								padding: "2px 6px",
+								fontSize: 11,
+								cursor: "pointer",
+							}}
+						>
+							✏️ 一键填入【待补】
+						</button>
+					)}
+			</div>
+			{!verdict.ok && (
+				<ul
+					style={{ margin: "2px 0 0", padding: "0 0 0 12px", color: "#cf1322" }}
+				>
+					{verdict.reasons.map((r, i) => (
+						<li key={i}>{r}</li>
+					))}
+				</ul>
+			)}
+		</div>
+	);
 }
 
 /**
@@ -119,760 +139,1021 @@ function GroundingStrip({
  * - 全部已填且无降级/跳过: 显示内联绿色打勾。
  * - 有跳过/降级: 显示可展开的三列计数 + 明细。
  */
-function FillStatusTable({ results }: { results: FieldFillResult[] | undefined }) {
-  const [open, setOpen] = useState(false);
-  if (!results || results.length === 0) return null;
+function FillStatusTable({
+	results,
+}: {
+	results: FieldFillResult[] | undefined;
+}) {
+	const [open, setOpen] = useState(false);
+	if (!results || results.length === 0) return null;
 
-  const filled = results.filter((r) => r.status === 'filled');
-  const skipped = results.filter((r) => r.status === 'skipped');
-  const degraded = results.filter((r) => r.status === 'degraded');
-  const allFilled = skipped.length === 0 && degraded.length === 0;
+	const filled = results.filter((r) => r.status === "filled");
+	const skipped = results.filter((r) => r.status === "skipped");
+	const degraded = results.filter((r) => r.status === "degraded");
+	const allFilled = skipped.length === 0 && degraded.length === 0;
 
-  if (allFilled) {
-    return <div style={{ marginTop: 4, fontSize: 11, color: '#389e0d' }}>✓ 全部字段已填</div>;
-  }
+	if (allFilled) {
+		return (
+			<div style={{ marginTop: 4, fontSize: 11, color: "#389e0d" }}>
+				✓ 全部字段已填
+			</div>
+		);
+	}
 
-  return (
-    <div style={{ marginTop: 4 }}>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        style={{
-          background: '#fafafa',
-          border: '1px solid #d9d9d9',
-          borderRadius: 3,
-          padding: '2px 6px',
-          fontSize: 11,
-          cursor: 'pointer',
-          color: '#555',
-        }}
-        aria-expanded={open}
-        aria-label="字段填充状态"
-      >
-        <span style={{ color: '#389e0d' }}>✓{filled.length}</span>{' '}
-        <span style={{ color: '#d46b08' }}>↷{skipped.length}</span>{' '}
-        <span style={{ color: '#cf1322' }}>⚠{degraded.length}</span> {open ? '▲' : '▼'}
-      </button>
-      {open && (
-        <ul style={{ margin: '4px 0 0', padding: '0 0 0 12px', fontSize: 11 }}>
-          {skipped.map((r) => (
-            <li key={r.field} style={{ color: '#d46b08' }}>
-              <strong>{r.field}</strong> 已跳过{r.note ? `：${r.note}` : ''}
-            </li>
-          ))}
-          {degraded.map((r) => (
-            <li key={r.field} style={{ color: '#cf1322' }}>
-              <strong>{r.field}</strong> 降级{r.note ? `：${r.note}` : '（innerHTML 兜底,格式可能丢失）'}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
+	return (
+		<div style={{ marginTop: 4 }}>
+			<button
+				onClick={() => setOpen((v) => !v)}
+				style={{
+					background: "#fafafa",
+					border: "1px solid #d9d9d9",
+					borderRadius: 3,
+					padding: "2px 6px",
+					fontSize: 11,
+					cursor: "pointer",
+					color: "#555",
+				}}
+				aria-expanded={open}
+				aria-label="字段填充状态"
+			>
+				<span style={{ color: "#389e0d" }}>✓{filled.length}</span>{" "}
+				<span style={{ color: "#d46b08" }}>↷{skipped.length}</span>{" "}
+				<span style={{ color: "#cf1322" }}>⚠{degraded.length}</span>{" "}
+				{open ? "▲" : "▼"}
+			</button>
+			{open && (
+				<ul style={{ margin: "4px 0 0", padding: "0 0 0 12px", fontSize: 11 }}>
+					{skipped.map((r) => (
+						<li key={r.field} style={{ color: "#d46b08" }}>
+							<strong>{r.field}</strong> 已跳过{r.note ? `：${r.note}` : ""}
+						</li>
+					))}
+					{degraded.map((r) => (
+						<li key={r.field} style={{ color: "#cf1322" }}>
+							<strong>{r.field}</strong> 降级
+							{r.note ? `：${r.note}` : "（innerHTML 兜底,格式可能丢失）"}
+						</li>
+					))}
+				</ul>
+			)}
+		</div>
+	);
 }
 
 /** 隔离释放时展示轨迹上下文:三态(有 URL / 无 URL / 无记录)。 */
-function QuarantineContext({ record }: { record: TrajectoryRecord | undefined }) {
-  const s: React.CSSProperties = { fontSize: 11, marginTop: 2 };
-  if (!record) {
-    return <div style={{ ...s, color: '#888' }}>无发布记录 — 可安全重试</div>;
-  }
-  if (record.publishUrl) {
-    return <div style={{ ...s, color: '#874d00' }}>可能已发布(未核实) — 请先点「查看帖子」确认后再撤出隔离</div>;
-  }
-  return <div style={{ ...s, color: '#874d00' }}>未收到发布确认 — 帖子可能未成功发布</div>;
+function QuarantineContext({
+	record,
+}: {
+	record: TrajectoryRecord | undefined;
+}) {
+	const s: React.CSSProperties = { fontSize: 11, marginTop: 2 };
+	if (!record) {
+		return <div style={{ ...s, color: "#888" }}>无发布记录 — 可安全重试</div>;
+	}
+	if (record.publishUrl) {
+		return (
+			<div style={{ ...s, color: "#874d00" }}>
+				可能已发布(未核实) — 请先点「查看帖子」确认后再撤出隔离
+			</div>
+		);
+	}
+	return (
+		<div style={{ ...s, color: "#874d00" }}>
+			未收到发布确认 — 帖子可能未成功发布
+		</div>
+	);
 }
 
 // 批量审核面板:专为"在窄面板里高效审 N 条"设计(评审 design-lens)。
 // 纯展示 + 受控:批次/档位/tab 健康由 props 传入,动作经回调上抛给 App(它接 messaging)。
 
 interface Props {
-  /** U4:操作者已展开过的条目 id 集合。 */
-  readItems?: Set<string>;
-  /** U4:条目展开时回调,标记为已读。 */
-  onItemRead?: (id: string) => void;
-  /** U3/U9:操作者否决单条 awaiting-approval 条目;rejectionReason 供后端统计用。 */
-  onDiscardItem?: (itemId: string, rejectionReason?: RejectionReason) => void;
-  /** U4:所有 awaiting-approval 条目已读时为 true,门控 approve 按钮。 */
-  allRead?: boolean;
-  batch: Batch;
-  safetyMode: SafetyMode;
-  /** 批次创建时记录的授权 host(字面展示供核对)。 */
-  authorizedHost: string;
-  /** 钉住的 tab 是否仍停在授权 host(false → 阻断式暂停)。 */
-  tabHealthy: boolean;
-  busy?: boolean;
-  driftResult?: DriftReport | null;
-  /** 轨迹上下文(item.id → TrajectoryRecord),用于隔离释放时展示发布结果。 */
-  trajectoryContext?: Map<string, TrajectoryRecord>;
-  /** 人工编辑覆盖(itemId → 编辑后草稿);awaiting-approval 条目显示可编辑字段。 */
-  draftOverrides?: Map<string, ContentDraft>;
-  /** 用户编辑某条草稿时回调(item id + 完整新草稿)。 */
-  onDraftChange?: (itemId: string, draft: ContentDraft) => void;
-  /** 运营商显式重试单条 error/aborted 条目。 */
-  onRetryItem?: (itemId: string) => void;
-  /** 标准批准(含漂移自检前置门)。 */
-  onApprove: () => void;
-  /** 跳过漂移自检直接批准(仅在自检失败后提供)。 */
-  onApproveBypass: () => void;
-  onKill: () => void;
-  onRelease: (itemId: string) => void;
-  onDriftCheck: () => void;
-  onResume: () => void;
-  /** 操作者手动修改了草稿后调用,用于直发率度量。 */
-  onItemEdited?: (itemId: string) => void;
-  /** 一键将已发布条目存为 few-shot 范例（R11）。 */
-  onSaveAsFewShot?: (itemId: string) => void;
+	/** U4:操作者已展开过的条目 id 集合。 */
+	readItems?: Set<string>;
+	/** U4:条目展开时回调,标记为已读。 */
+	onItemRead?: (id: string) => void;
+	/** U3/U9:操作者否决单条 awaiting-approval 条目;rejectionReason 供后端统计用。 */
+	onDiscardItem?: (itemId: string, rejectionReason?: RejectionReason) => void;
+	/** U4:所有 awaiting-approval 条目已读时为 true,门控 approve 按钮。 */
+	allRead?: boolean;
+	batch: Batch;
+	safetyMode: SafetyMode;
+	/** 批次创建时记录的授权 host(字面展示供核对)。 */
+	authorizedHost: string;
+	/** 钉住的 tab 是否仍停在授权 host(false → 阻断式暂停)。 */
+	tabHealthy: boolean;
+	busy?: boolean;
+	driftResult?: DriftReport | null;
+	/** 轨迹上下文(item.id → TrajectoryRecord),用于隔离释放时展示发布结果。 */
+	trajectoryContext?: Map<string, TrajectoryRecord>;
+	/** 人工编辑覆盖(itemId → 编辑后草稿);awaiting-approval 条目显示可编辑字段。 */
+	draftOverrides?: Map<string, ContentDraft>;
+	/** 用户编辑某条草稿时回调(item id + 完整新草稿)。 */
+	onDraftChange?: (itemId: string, draft: ContentDraft) => void;
+	/** 运营商显式重试单条 error/aborted 条目。 */
+	onRetryItem?: (itemId: string) => void;
+	/** 标准批准(含漂移自检前置门)。 */
+	onApprove: () => void;
+	/** 跳过漂移自检直接批准(仅在自检失败后提供)。 */
+	onApproveBypass: () => void;
+	onKill: () => void;
+	onRelease: (itemId: string) => void;
+	onDriftCheck: () => void;
+	onResume: () => void;
+	/** 操作者手动修改了草稿后调用,用于直发率度量。 */
+	onItemEdited?: (itemId: string) => void;
+	/** 一键将已发布条目存为 few-shot 范例（R11）。 */
+	onSaveAsFewShot?: (itemId: string) => void;
 }
 
-const box: React.CSSProperties = { borderRadius: 6, padding: '8px 10px', fontSize: 13, marginBottom: 10 };
+const box: React.CSSProperties = {
+	borderRadius: 6,
+	padding: "8px 10px",
+	fontSize: 13,
+	marginBottom: 10,
+};
 const btn: React.CSSProperties = {
-  padding: '6px 12px',
-  fontSize: 13,
-  border: 'none',
-  borderRadius: 4,
-  cursor: 'pointer',
+	padding: "6px 12px",
+	fontSize: 13,
+	border: "none",
+	borderRadius: 4,
+	cursor: "pointer",
 };
 
 // 档位视觉:authorized 必须一眼区别于 dry-run(评审 design-lens 安全关键)。
-const MODE_STYLE: Record<SafetyMode, { bg: string; border: string; color: string; label: string; icon: string }> = {
-  off: { bg: '#f5f5f5', border: '#d9d9d9', color: '#555', label: '关闭(只填充,不发布)', icon: '⏻' },
-  'dry-run': { bg: '#e6f4ff', border: '#91caff', color: '#0958d9', label: '预演(走流程不真发)', icon: '🧪' },
-  authorized: { bg: '#fff1f0', border: '#ffa39e', color: '#cf1322', label: '已授权·会真发布', icon: '🔴' },
+const MODE_STYLE: Record<
+	SafetyMode,
+	{ bg: string; border: string; color: string; label: string; icon: string }
+> = {
+	off: {
+		bg: "#f5f5f5",
+		border: "#d9d9d9",
+		color: "#555",
+		label: "关闭(只填充,不发布)",
+		icon: "⏻",
+	},
+	"dry-run": {
+		bg: "#e6f4ff",
+		border: "#91caff",
+		color: "#0958d9",
+		label: "预演(走流程不真发)",
+		icon: "🧪",
+	},
+	authorized: {
+		bg: "#fff1f0",
+		border: "#ffa39e",
+		color: "#cf1322",
+		label: "已授权·会真发布",
+		icon: "🔴",
+	},
 };
 
-const STATUS_LABEL: Record<BatchItem['status'], string> = {
-  queued: '排队',
-  generating: '生成中',
-  filled: '待审',
-  'gate-failed': '接地拦截',
-  'awaiting-approval': '待审',
-  'publish-dispatched': '发布中',
-  'publish-confirmed': '已发布',
-  'needs-human-verification': '待人工核',
-  aborted: '已停',
-  error: '失败',
+const STATUS_LABEL: Record<BatchItem["status"], string> = {
+	queued: "排队",
+	generating: "生成中",
+	filled: "待审",
+	"gate-failed": "接地拦截",
+	"awaiting-approval": "待审",
+	"publish-dispatched": "发布中",
+	"publish-confirmed": "已发布",
+	"needs-human-verification": "待人工核",
+	aborted: "已停",
+	error: "失败",
 };
 
 /** U9:拒绝原因选项(与 RejectionReason 枚举值对应)。 */
 const REJECTION_REASON_LABELS: Record<RejectionReason, string> = {
-  duplicate: '重复选题',
-  quality: '质量不达标',
-  topic_mismatch: '选题不符',
-  missing_facts: '事实缺失',
-  other: '其他',
+	duplicate: "重复选题",
+	quality: "质量不达标",
+	topic_mismatch: "选题不符",
+	missing_facts: "事实缺失",
+	other: "其他",
 };
 
 export function BatchReviewPanel(props: Props) {
-  const {
-    batch,
-    safetyMode,
-    authorizedHost,
-    tabHealthy,
-    busy,
-    driftResult,
-    trajectoryContext,
-    draftOverrides,
-    onDraftChange,
-    onRetryItem,
-    readItems,
-    onItemRead,
-    onDiscardItem,
-    allRead,
-  } = props;
-  const summary = batchSummary(batch);
-  const phase = batchPhase(batch);
-  const modeStyle = MODE_STYLE[safetyMode];
-  const [confirming, setConfirming] = useState(false);
-  const [typed, setTyped] = useState('');
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  // U9:否决流程 — 记录哪个条目正在选择拒绝原因。
-  const [discardPickerId, setDiscardPickerId] = useState<string | null>(null);
-  const [discardReason, setDiscardReason] = useState<RejectionReason>('other');
+	const {
+		batch,
+		safetyMode,
+		authorizedHost,
+		tabHealthy,
+		busy,
+		driftResult,
+		trajectoryContext,
+		draftOverrides,
+		onDraftChange,
+		onRetryItem,
+		readItems,
+		onItemRead,
+		onDiscardItem,
+		allRead,
+	} = props;
+	const summary = batchSummary(batch);
+	const phase = batchPhase(batch);
+	const modeStyle = MODE_STYLE[safetyMode];
+	const [confirming, setConfirming] = useState(false);
+	const [typed, setTyped] = useState("");
+	const [expanded, setExpanded] = useState<Set<string>>(new Set());
+	// U9:否决流程 — 记录哪个条目正在选择拒绝原因。
+	const [discardPickerId, setDiscardPickerId] = useState<string | null>(null);
+	const [discardReason, setDiscardReason] = useState<RejectionReason>("other");
 
-  const quarantined = batch.items.filter((it) => it.status === 'needs-human-verification');
-  const awaitingApprovalCount = batch.items.filter((it) => it.status === 'awaiting-approval').length;
-  // U4:有 awaiting-approval 条目时,需全部已读才可批准。
-  const readGateOk = awaitingApprovalCount === 0 || (allRead ?? false);
-  const canApprove =
-    phase === 'awaiting-approval' &&
-    awaitingApprovalCount > 0 &&
-    tabHealthy &&
-    (safetyMode === 'authorized' || safetyMode === 'dry-run') &&
-    !busy &&
-    readGateOk;
-  // authorized 才要求打字手势;dry-run 预演只需点确认。
-  const gestureOk = safetyMode !== 'authorized' || typed.trim().toLowerCase() === 'publish';
-  const ds = aggregateDegradeStats(batch.items);
+	const quarantined = batch.items.filter(
+		(it) => it.status === "needs-human-verification",
+	);
+	const awaitingApprovalCount = batch.items.filter(
+		(it) => it.status === "awaiting-approval",
+	).length;
+	// U4:有 awaiting-approval 条目时,需全部已读才可批准。
+	const readGateOk = awaitingApprovalCount === 0 || (allRead ?? false);
+	const canApprove =
+		phase === "awaiting-approval" &&
+		awaitingApprovalCount > 0 &&
+		tabHealthy &&
+		(safetyMode === "authorized" || safetyMode === "dry-run") &&
+		!busy &&
+		readGateOk;
+	// authorized 才要求打字手势;dry-run 预演只需点确认。
+	const gestureOk =
+		safetyMode !== "authorized" || typed.trim().toLowerCase() === "publish";
+	const ds = aggregateDegradeStats(batch.items);
 
-  function toggle(id: string) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      const willExpand = !next.has(id);
-      if (willExpand) {
-        next.add(id);
-        // U4:展开即视为已读(仅 awaiting-approval 条目需要门控)。
-        const item = batch.items.find((it) => it.id === id);
-        if (item?.status === 'awaiting-approval') {
-          onItemRead?.(id);
-        }
-      } else {
-        next.delete(id);
-      }
-      return next;
-    });
-  }
+	function toggle(id: string) {
+		setExpanded((prev) => {
+			const next = new Set(prev);
+			const willExpand = !next.has(id);
+			if (willExpand) {
+				next.add(id);
+				// U4:展开即视为已读(仅 awaiting-approval 条目需要门控)。
+				const item = batch.items.find((it) => it.id === id);
+				if (item?.status === "awaiting-approval") {
+					onItemRead?.(id);
+				}
+			} else {
+				next.delete(id);
+			}
+			return next;
+		});
+	}
 
-  function handleFixPlaceholder(itemId: string, currentDraft: ContentDraft) {
-    const newVal = prompt('请输入缺失的内容(将自动替换标题与正文中的【待补】):');
-    if (!newVal || !newVal.trim()) return;
-    const val = newVal.trim();
-    if (onDraftChange) {
-      onDraftChange(itemId, {
-        ...currentDraft,
-        title: currentDraft.title.replace(/【待补】/g, val),
-        body: currentDraft.body.replace(/【待补】/g, val),
-      });
-    }
-  }
+	function handleFixPlaceholder(itemId: string, currentDraft: ContentDraft) {
+		const newVal = prompt(
+			"请输入缺失的内容(将自动替换标题与正文中的【待补】):",
+		);
+		if (!newVal || !newVal.trim()) return;
+		const val = newVal.trim();
+		if (onDraftChange) {
+			onDraftChange(itemId, {
+				...currentDraft,
+				title: currentDraft.title.replace(/【待补】/g, val),
+				body: currentDraft.body.replace(/【待补】/g, val),
+			});
+		}
+	}
 
-  function confirmApprove() {
-    setConfirming(false);
-    setTyped('');
-    props.onApprove();
-  }
+	function confirmApprove() {
+		setConfirming(false);
+		setTyped("");
+		props.onApprove();
+	}
 
-  return (
-    <div>
-      {/* 档位 + host + tab 状态带(常驻) */}
-      <div
-        style={{ ...box, background: modeStyle.bg, border: `1px solid ${modeStyle.border}`, color: modeStyle.color }}
-      >
-        <div style={{ fontWeight: 600 }} aria-label={`发布档位 ${safetyMode}`}>
-          {modeStyle.icon} 档位:{modeStyle.label}
-        </div>
-        <div style={{ marginTop: 2 }}>
-          授权站点:<code>{authorizedHost || '(未记录)'}</code>
-        </div>
-        <div style={{ marginTop: 2 }}>{tabHealthy ? '✅ 目标标签页正常' : '⚠️ 目标标签页已离开授权站点'}</div>
-      </div>
+	return (
+		<div>
+			{/* 档位 + host + tab 状态带(常驻) */}
+			<div
+				style={{
+					...box,
+					background: modeStyle.bg,
+					border: `1px solid ${modeStyle.border}`,
+					color: modeStyle.color,
+				}}
+			>
+				<div style={{ fontWeight: 600 }} aria-label={`发布档位 ${safetyMode}`}>
+					{modeStyle.icon} 档位:{modeStyle.label}
+				</div>
+				<div style={{ marginTop: 2 }}>
+					授权站点:<code>{authorizedHost || "(未记录)"}</code>
+				</div>
+				<div style={{ marginTop: 2 }}>
+					{tabHealthy ? "✅ 目标标签页正常" : "⚠️ 目标标签页已离开授权站点"}
+				</div>
+			</div>
 
-      {/* tab 漂移 → 阻断式暂停(非一行 toast) */}
-      {!tabHealthy && (
-        <div role="alert" style={{ ...box, background: '#fff7e6', border: '1px solid #ffd591', color: '#874d00' }}>
-          批次已暂停:请切回授权 admin 标签页(<code>{authorizedHost}</code>)。在途条目不受影响。
-          <div style={{ marginTop: 6 }}>
-            <button onClick={props.onResume} style={{ ...btn, background: '#fa8c16', color: '#fff' }}>
-              我已切回,继续
-            </button>
-          </div>
-        </div>
-      )}
+			{/* tab 漂移 → 阻断式暂停(非一行 toast) */}
+			{!tabHealthy && (
+				<div
+					role="alert"
+					style={{
+						...box,
+						background: "#fff7e6",
+						border: "1px solid #ffd591",
+						color: "#874d00",
+					}}
+				>
+					批次已暂停:请切回授权 admin 标签页(<code>{authorizedHost}</code>
+					)。在途条目不受影响。
+					<div style={{ marginTop: 6 }}>
+						<button
+							onClick={props.onResume}
+							style={{ ...btn, background: "#fa8c16", color: "#fff" }}
+						>
+							我已切回,继续
+						</button>
+					</div>
+				</div>
+			)}
 
-      {/* 摘要带 */}
-      <div style={{ ...box, background: '#fafafa', border: '1px solid #eee', color: '#333' }}>
-        共 {summary.total} 条 · 待审 {summary.awaitingApproval} · 已发 {summary.confirmed} · 失败 {summary.errored}
-        {summary.quarantined > 0 && <strong style={{ color: '#cf1322' }}> · 待人工核 {summary.quarantined}</strong>}
-        {summary.aborted > 0 && <span> · 已停 {summary.aborted}</span>}
-        {(() => {
-          const optimized = batch.items.filter((i) => i.aiReviewTriggered === true).length;
-          return optimized > 0 ? <span style={{ color: '#8c8c8c' }}> · ✦ {optimized} 条自评已优化</span> : null;
-        })()}
-        {(() => {
-          return phase === 'done' && ds.itemsWithAnyDegrade > 0 ? (
-            <span
-              style={{
-                marginLeft: 6,
-                background: '#fa8c16',
-                color: '#fff',
-                borderRadius: 10,
-                padding: '1px 7px',
-                fontSize: 11,
-                fontWeight: 600,
-              }}
-            >
-              {ds.itemsWithAnyDegrade} 条降级
-            </span>
-          ) : null;
-        })()}
-      </div>
+			{/* 摘要带 */}
+			<div
+				style={{
+					...box,
+					background: "#fafafa",
+					border: "1px solid #eee",
+					color: "#333",
+				}}
+			>
+				共 {summary.total} 条 · 待审 {summary.awaitingApproval} · 已发{" "}
+				{summary.confirmed} · 失败 {summary.errored}
+				{summary.quarantined > 0 && (
+					<strong style={{ color: "#cf1322" }}>
+						{" "}
+						· 待人工核 {summary.quarantined}
+					</strong>
+				)}
+				{summary.aborted > 0 && <span> · 已停 {summary.aborted}</span>}
+				{(() => {
+					const optimized = batch.items.filter(
+						(i) => i.aiReviewTriggered === true,
+					).length;
+					return optimized > 0 ? (
+						<span style={{ color: "#8c8c8c" }}>
+							{" "}
+							· ✦ {optimized} 条自评已优化
+						</span>
+					) : null;
+				})()}
+				{(() => {
+					return phase === "done" && ds.itemsWithAnyDegrade > 0 ? (
+						<span
+							style={{
+								marginLeft: 6,
+								background: "#fa8c16",
+								color: "#fff",
+								borderRadius: 10,
+								padding: "1px 7px",
+								fontSize: 11,
+								fontWeight: 600,
+							}}
+						>
+							{ds.itemsWithAnyDegrade} 条降级
+						</span>
+					) : null;
+				})()}
+			</div>
 
-      {/* 降级汇总条(批次完成后展示) */}
-      {phase === 'done' &&
-        (() => {
-          if (ds.totalItemsWithResults === 0) return null;
-          const topSummary = ds.topFields.map((f) => `${f.field}（${f.count}x）`).join('，');
-          return ds.itemsWithAnyDegrade === 0 ? (
-            <div style={{ ...box, background: '#f6ffed', border: '1px solid #b7eb8f', color: '#389e0d', fontSize: 12 }}>
-              ✅ 本批次所有字段填充成功
-            </div>
-          ) : (
-            <div style={{ ...box, background: '#fff7e6', border: '1px solid #ffd591', color: '#874d00', fontSize: 12 }}>
-              ⚠️ 本批次 {ds.itemsWithAnyDegrade}/{ds.totalItemsWithResults} 条目有字段降级
-              {topSummary && <span> | 高频：{topSummary}</span>}
-            </div>
-          );
-        })()}
+			{/* 降级汇总条(批次完成后展示) */}
+			{phase === "done" &&
+				(() => {
+					if (ds.totalItemsWithResults === 0) return null;
+					const topSummary = ds.topFields
+						.map((f) => `${f.field}（${f.count}x）`)
+						.join("，");
+					return ds.itemsWithAnyDegrade === 0 ? (
+						<div
+							style={{
+								...box,
+								background: "#f6ffed",
+								border: "1px solid #b7eb8f",
+								color: "#389e0d",
+								fontSize: 12,
+							}}
+						>
+							✅ 本批次所有字段填充成功
+						</div>
+					) : (
+						<div
+							style={{
+								...box,
+								background: "#fff7e6",
+								border: "1px solid #ffd591",
+								color: "#874d00",
+								fontSize: 12,
+							}}
+						>
+							⚠️ 本批次 {ds.itemsWithAnyDegrade}/{ds.totalItemsWithResults}{" "}
+							条目有字段降级
+							{topSummary && <span> | 高频：{topSummary}</span>}
+						</div>
+					);
+				})()}
 
-      {/* 隔离态:醒目独立表示(安全关键) */}
-      {quarantined.length > 0 && (
-        <div role="alert" style={{ ...box, background: '#fff1f0', border: '2px solid #cf1322', color: '#cf1322' }}>
-          <div style={{ fontWeight: 700 }}>⚠ {quarantined.length} 条需人工核对</div>
-          <div style={{ fontSize: 12, margin: '4px 0' }}>
-            这些条目发布中断且无回执,可能已发也可能没发——请去后台核对后再处置,系统绝不自动重发。
-          </div>
-          {quarantined.map((it) => {
-            const traj = trajectoryContext?.get(it.id);
-            return (
-              <div key={it.id} style={{ marginTop: 8, paddingTop: 6, borderTop: '1px solid #ffa39e' }}>
-                <div style={{ fontWeight: 600 }}>「{it.topic}」</div>
-                <QuarantineContext record={traj} />
-                <div style={{ marginTop: 4, display: 'flex', gap: 6 }}>
-                  {traj?.publishUrl && (
-                    <a
-                      href={traj.publishUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        ...btn,
-                        background: '#fff',
-                        border: '1px solid #ffa39e',
-                        color: '#cf1322',
-                        padding: '2px 8px',
-                        fontSize: 12,
-                        textDecoration: 'none',
-                      }}
-                    >
-                      查看帖子
-                    </a>
-                  )}
-                  <button
-                    onClick={() => props.onRelease(it.id)}
-                    style={{ ...btn, background: '#cf1322', color: '#fff', padding: '2px 8px', fontSize: 12 }}
-                  >
-                    我已核对,撤出隔离
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+			{/* 隔离态:醒目独立表示(安全关键) */}
+			{quarantined.length > 0 && (
+				<div
+					role="alert"
+					style={{
+						...box,
+						background: "#fff1f0",
+						border: "2px solid #cf1322",
+						color: "#cf1322",
+					}}
+				>
+					<div style={{ fontWeight: 700 }}>
+						⚠ {quarantined.length} 条需人工核对
+					</div>
+					<div style={{ fontSize: 12, margin: "4px 0" }}>
+						这些条目发布中断且无回执,可能已发也可能没发——请去后台核对后再处置,系统绝不自动重发。
+					</div>
+					{quarantined.map((it) => {
+						const traj = trajectoryContext?.get(it.id);
+						return (
+							<div
+								key={it.id}
+								style={{
+									marginTop: 8,
+									paddingTop: 6,
+									borderTop: "1px solid #ffa39e",
+								}}
+							>
+								<div style={{ fontWeight: 600 }}>「{it.topic}」</div>
+								<QuarantineContext record={traj} />
+								<div style={{ marginTop: 4, display: "flex", gap: 6 }}>
+									{traj?.publishUrl && (
+										<a
+											href={traj.publishUrl}
+											target="_blank"
+											rel="noopener noreferrer"
+											style={{
+												...btn,
+												background: "#fff",
+												border: "1px solid #ffa39e",
+												color: "#cf1322",
+												padding: "2px 8px",
+												fontSize: 12,
+												textDecoration: "none",
+											}}
+										>
+											查看帖子
+										</a>
+									)}
+									<button
+										onClick={() => props.onRelease(it.id)}
+										style={{
+											...btn,
+											background: "#cf1322",
+											color: "#fff",
+											padding: "2px 8px",
+											fontSize: 12,
+										}}
+									>
+										我已核对,撤出隔离
+									</button>
+								</div>
+							</div>
+						);
+					})}
+				</div>
+			)}
 
-      {/* 条目列表(默认折叠) */}
-      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-        {batch.items.map((it) => (
-          <li key={it.id} style={{ border: '1px solid #f0f0f0', borderRadius: 4, marginBottom: 4 }}>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <button
-                onClick={() => toggle(it.id)}
-                aria-expanded={expanded.has(it.id)}
-                style={{
-                  ...btn,
-                  flex: 1,
-                  textAlign: 'left',
-                  background: '#fff',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  minWidth: 0,
-                }}
-              >
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                  {it.topic}
-                </span>
-                {/* U4:已读绿色徽章 */}
-                {it.status === 'awaiting-approval' && readItems?.has(it.id) && (
-                  <span aria-label="已读" style={{ marginLeft: 4, fontSize: 11, color: '#389e0d', flexShrink: 0 }}>
-                    ✓
-                  </span>
-                )}
-                {it.fillResults &&
-                  it.fillResults.length > 0 &&
-                  (() => {
-                    const degraded = it.fillResults.filter((r) => r.status === 'degraded').length;
-                    return degraded > 0 ? (
-                      <span style={{ marginLeft: 4, fontSize: 11, color: '#fa8c16', flexShrink: 0 }}>
-                        {degraded}/{it.fillResults.length} 降级
-                      </span>
-                    ) : null;
-                  })()}
-                {it.aiReviewTriggered === true && (
-                  <span style={{ marginLeft: 4, fontSize: 10, color: '#8c8c8c', flexShrink: 0 }}>✦ 已自评优化</span>
-                )}
-                <span
-                  aria-label={`状态 ${it.status}`}
-                  style={{ marginLeft: 8, fontSize: 12, color: '#555', flexShrink: 0 }}
-                >
-                  [{STATUS_LABEL[it.status]}]
-                </span>
-              </button>
-              {/* U9:否决按钮 + 拒绝原因选择器(仅 awaiting-approval 显示) */}
-              {it.status === 'awaiting-approval' &&
-                onDiscardItem &&
-                (discardPickerId === it.id ? (
-                  // 展示原因选择器
-                  <div
-                    style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 4, flexShrink: 0 }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <select
-                      aria-label="拒绝原因"
-                      value={discardReason}
-                      onChange={(e) => setDiscardReason(e.target.value as RejectionReason)}
-                      style={{ fontSize: 11, padding: '1px 2px', borderRadius: 3, border: '1px solid #d9d9d9' }}
-                    >
-                      {(Object.keys(REJECTION_REASON_LABELS) as RejectionReason[]).map((r) => (
-                        <option key={r} value={r}>
-                          {REJECTION_REASON_LABELS[r]}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      aria-label={`确认否决 ${it.topic}`}
-                      onClick={() => {
-                        setDiscardPickerId(null);
-                        onDiscardItem(it.id, discardReason);
-                      }}
-                      disabled={busy}
-                      style={{
-                        padding: '2px 6px',
-                        fontSize: 11,
-                        background: '#cf1322',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: 3,
-                        cursor: busy ? 'not-allowed' : 'pointer',
-                      }}
-                    >
-                      确认
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDiscardPickerId(null)}
-                      style={{
-                        padding: '2px 4px',
-                        fontSize: 11,
-                        background: '#f0f0f0',
-                        color: '#555',
-                        border: 'none',
-                        borderRadius: 3,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      取消
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    aria-label={`否决 ${it.topic}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDiscardReason('other');
-                      setDiscardPickerId(it.id);
-                    }}
-                    disabled={busy}
-                    style={{
-                      marginLeft: 4,
-                      padding: '2px 6px',
-                      fontSize: 11,
-                      background: '#fff1f0',
-                      color: '#cf1322',
-                      border: '1px solid #ffa39e',
-                      borderRadius: 3,
-                      cursor: busy ? 'not-allowed' : 'pointer',
-                      flexShrink: 0,
-                    }}
-                  >
-                    否决
-                  </button>
-                ))}
-            </div>
-            {expanded.has(it.id) && (
-              <div style={{ padding: '6px 10px', fontSize: 12, borderTop: '1px solid #f5f5f5' }}>
-                {/* U9:gate-failed — 接地闸门拦截,显示原因 + 重新生成按钮,不显示审批按钮 */}
-                {it.status === 'gate-failed' && (
-                  <div style={{ marginBottom: 6 }}>
-                    <span
-                      aria-label="接地拦截原因"
-                      style={{
-                        display: 'inline-block',
-                        background: '#fffbe6',
-                        border: '1px solid #ffe58f',
-                        color: '#874d00',
-                        borderRadius: 4,
-                        padding: '2px 8px',
-                        fontSize: 11,
-                        fontWeight: 600,
-                      }}
-                    >
-                      ⚠ 接地拦截:{it.gateFailReason ?? '未知原因'}
-                    </span>
-                    {onRetryItem && (
-                      <button
-                        type="button"
-                        onClick={() => onRetryItem(it.id)}
-                        disabled={busy}
-                        style={{
-                          ...btn,
-                          marginLeft: 6,
-                          padding: '2px 8px',
-                          fontSize: 11,
-                          background: '#fff7e6',
-                          border: '1px solid #ffd591',
-                          color: '#874d00',
-                        }}
-                      >
-                        重新生成
-                      </button>
-                    )}
-                  </div>
-                )}
-                {it.status === 'awaiting-approval' && it.draft && onDraftChange ? (
-                  // 待审状态:显示可编辑字段(title/tags/category/description;body 唯读)。
-                  <DraftPreview
-                    draft={draftOverrides?.get(it.id) ?? it.draft}
-                    onChange={(d) => onDraftChange(it.id, d)}
-                  />
-                ) : it.draft ? (
-                  <>
-                    <div>
-                      <strong>{it.draft.title || '(无标题)'}</strong>
-                    </div>
-                    <div style={{ color: '#666', maxHeight: 120, overflow: 'auto' }}>
-                      {it.draft.description || it.draft.body.replace(/<[^>]+>/g, ' ').slice(0, 200)}
-                    </div>
-                    {it.status === 'awaiting-approval' && props.onItemEdited && (
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 6, cursor: 'pointer' }}>
-                        <input
-                          type="checkbox"
-                          checked={it.userEdited ?? false}
-                          onChange={() => {
-                            if (!it.userEdited) props.onItemEdited!(it.id);
-                          }}
-                        />
-                        <span style={{ color: '#888' }}>已手动修改草稿</span>
-                      </label>
-                    )}
-                    {it.status === 'publish-confirmed' && props.onSaveAsFewShot && (
-                      <button
-                        type="button"
-                        onClick={() => props.onSaveAsFewShot!(it.id)}
-                        style={{
-                          ...btn,
-                          marginTop: 6,
-                          padding: '3px 8px',
-                          fontSize: 11,
-                          background: '#f6ffed',
-                          color: '#389e0d',
-                          border: '1px solid #b7eb8f',
-                        }}
-                      >
-                        存为范例
-                      </button>
-                    )}
-                  </>
-                ) : (
-                  <span style={{ color: '#999' }}>无草稿内容{it.error ? `(${it.error})` : ''}</span>
-                )}
-                {it.draft && (
-                  <GroundingStrip
-                    draft={draftOverrides?.get(it.id) ?? it.draft}
-                    facts={it.facts}
-                    onFixPlaceholder={
-                      onDraftChange
-                        ? () => handleFixPlaceholder(it.id, draftOverrides?.get(it.id) ?? it.draft!)
-                        : undefined
-                    }
-                  />
-                )}
-                <FillStatusTable results={it.fillResults} />
-                {/* U9:error 状态区分 — grounding-blocked 走橙色"内容审核失败";其余走红色"重试此条" */}
-                {it.status === 'error' && it.error?.startsWith('grounding-blocked:') ? (
-                  <div style={{ marginTop: 6 }}>
-                    <span
-                      aria-label="内容审核失败"
-                      style={{
-                        display: 'inline-block',
-                        background: '#fff7e6',
-                        border: '1px solid #ffa940',
-                        color: '#d46b08',
-                        borderRadius: 4,
-                        padding: '2px 8px',
-                        fontSize: 11,
-                        fontWeight: 600,
-                      }}
-                    >
-                      ⊘ 内容审核失败:{it.error.slice('grounding-blocked:'.length)}
-                    </span>
-                    {onRetryItem && (
-                      <button
-                        type="button"
-                        onClick={() => onRetryItem(it.id)}
-                        disabled={busy}
-                        style={{
-                          ...btn,
-                          marginLeft: 6,
-                          padding: '2px 8px',
-                          fontSize: 11,
-                          background: '#fff7e6',
-                          border: '1px solid #ffd591',
-                          color: '#874d00',
-                        }}
-                      >
-                        重新生成
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  (it.status === 'error' || it.status === 'aborted') &&
-                  onRetryItem && (
-                    <div style={{ marginTop: 6 }}>
-                      <button
-                        onClick={() => onRetryItem(it.id)}
-                        disabled={busy}
-                        style={{
-                          ...btn,
-                          padding: '2px 8px',
-                          fontSize: 11,
-                          background: '#fff7e6',
-                          border: '1px solid #ffd591',
-                          color: '#874d00',
-                        }}
-                      >
-                        重试此条
-                      </button>
-                    </div>
-                  )
-                )}
-              </div>
-            )}
-          </li>
-        ))}
-      </ul>
+			{/* 条目列表(默认折叠) */}
+			<ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+				{batch.items.map((it) => (
+					<li
+						key={it.id}
+						style={{
+							border: "1px solid #f0f0f0",
+							borderRadius: 4,
+							marginBottom: 4,
+						}}
+					>
+						<div style={{ display: "flex", alignItems: "center" }}>
+							<button
+								onClick={() => toggle(it.id)}
+								aria-expanded={expanded.has(it.id)}
+								style={{
+									...btn,
+									flex: 1,
+									textAlign: "left",
+									background: "#fff",
+									display: "flex",
+									justifyContent: "space-between",
+									alignItems: "center",
+									minWidth: 0,
+								}}
+							>
+								<span
+									style={{
+										overflow: "hidden",
+										textOverflow: "ellipsis",
+										whiteSpace: "nowrap",
+										flex: 1,
+									}}
+								>
+									{it.topic}
+								</span>
+								{/* U4:已读绿色徽章 */}
+								{it.status === "awaiting-approval" && readItems?.has(it.id) && (
+									<span
+										aria-label="已读"
+										style={{
+											marginLeft: 4,
+											fontSize: 11,
+											color: "#389e0d",
+											flexShrink: 0,
+										}}
+									>
+										✓
+									</span>
+								)}
+								{it.fillResults &&
+									it.fillResults.length > 0 &&
+									(() => {
+										const degraded = it.fillResults.filter(
+											(r) => r.status === "degraded",
+										).length;
+										return degraded > 0 ? (
+											<span
+												style={{
+													marginLeft: 4,
+													fontSize: 11,
+													color: "#fa8c16",
+													flexShrink: 0,
+												}}
+											>
+												{degraded}/{it.fillResults.length} 降级
+											</span>
+										) : null;
+									})()}
+								{it.aiReviewTriggered === true && (
+									<span
+										style={{
+											marginLeft: 4,
+											fontSize: 10,
+											color: "#8c8c8c",
+											flexShrink: 0,
+										}}
+									>
+										✦ 已自评优化
+									</span>
+								)}
+								<span
+									aria-label={`状态 ${it.status}`}
+									style={{
+										marginLeft: 8,
+										fontSize: 12,
+										color: "#555",
+										flexShrink: 0,
+									}}
+								>
+									[{STATUS_LABEL[it.status]}]
+								</span>
+							</button>
+							{/* U9:否决按钮 + 拒绝原因选择器(仅 awaiting-approval 显示) */}
+							{it.status === "awaiting-approval" &&
+								onDiscardItem &&
+								(discardPickerId === it.id ? (
+									// 展示原因选择器
+									<div
+										style={{
+											display: "flex",
+											alignItems: "center",
+											gap: 4,
+											marginLeft: 4,
+											flexShrink: 0,
+										}}
+										onClick={(e) => e.stopPropagation()}
+									>
+										<select
+											aria-label="拒绝原因"
+											value={discardReason}
+											onChange={(e) =>
+												setDiscardReason(e.target.value as RejectionReason)
+											}
+											style={{
+												fontSize: 11,
+												padding: "1px 2px",
+												borderRadius: 3,
+												border: "1px solid #d9d9d9",
+											}}
+										>
+											{(
+												Object.keys(
+													REJECTION_REASON_LABELS,
+												) as RejectionReason[]
+											).map((r) => (
+												<option key={r} value={r}>
+													{REJECTION_REASON_LABELS[r]}
+												</option>
+											))}
+										</select>
+										<button
+											type="button"
+											aria-label={`确认否决 ${it.topic}`}
+											onClick={() => {
+												setDiscardPickerId(null);
+												onDiscardItem(it.id, discardReason);
+											}}
+											disabled={busy}
+											style={{
+												padding: "2px 6px",
+												fontSize: 11,
+												background: "#cf1322",
+												color: "#fff",
+												border: "none",
+												borderRadius: 3,
+												cursor: busy ? "not-allowed" : "pointer",
+											}}
+										>
+											确认
+										</button>
+										<button
+											type="button"
+											onClick={() => setDiscardPickerId(null)}
+											style={{
+												padding: "2px 4px",
+												fontSize: 11,
+												background: "#f0f0f0",
+												color: "#555",
+												border: "none",
+												borderRadius: 3,
+												cursor: "pointer",
+											}}
+										>
+											取消
+										</button>
+									</div>
+								) : (
+									<button
+										type="button"
+										aria-label={`否决 ${it.topic}`}
+										onClick={(e) => {
+											e.stopPropagation();
+											setDiscardReason("other");
+											setDiscardPickerId(it.id);
+										}}
+										disabled={busy}
+										style={{
+											marginLeft: 4,
+											padding: "2px 6px",
+											fontSize: 11,
+											background: "#fff1f0",
+											color: "#cf1322",
+											border: "1px solid #ffa39e",
+											borderRadius: 3,
+											cursor: busy ? "not-allowed" : "pointer",
+											flexShrink: 0,
+										}}
+									>
+										否决
+									</button>
+								))}
+						</div>
+						{expanded.has(it.id) && (
+							<div
+								style={{
+									padding: "6px 10px",
+									fontSize: 12,
+									borderTop: "1px solid #f5f5f5",
+								}}
+							>
+								{/* U9:gate-failed — 接地闸门拦截,显示原因 + 重新生成按钮,不显示审批按钮 */}
+								{it.status === "gate-failed" && (
+									<div style={{ marginBottom: 6 }}>
+										<span
+											aria-label="接地拦截原因"
+											style={{
+												display: "inline-block",
+												background: "#fffbe6",
+												border: "1px solid #ffe58f",
+												color: "#874d00",
+												borderRadius: 4,
+												padding: "2px 8px",
+												fontSize: 11,
+												fontWeight: 600,
+											}}
+										>
+											⚠ 接地拦截:{it.gateFailReason ?? "未知原因"}
+										</span>
+										{onRetryItem && (
+											<button
+												type="button"
+												onClick={() => onRetryItem(it.id)}
+												disabled={busy}
+												style={{
+													...btn,
+													marginLeft: 6,
+													padding: "2px 8px",
+													fontSize: 11,
+													background: "#fff7e6",
+													border: "1px solid #ffd591",
+													color: "#874d00",
+												}}
+											>
+												重新生成
+											</button>
+										)}
+									</div>
+								)}
+								{it.status === "awaiting-approval" &&
+								it.draft &&
+								onDraftChange ? (
+									// 待审状态:显示可编辑字段(title/tags/category/description;body 唯读)。
+									<DraftPreview
+										draft={draftOverrides?.get(it.id) ?? it.draft}
+										onChange={(d) => onDraftChange(it.id, d)}
+									/>
+								) : it.draft ? (
+									<>
+										<div>
+											<strong>{it.draft.title || "(无标题)"}</strong>
+										</div>
+										<div
+											style={{
+												color: "#666",
+												maxHeight: 120,
+												overflow: "auto",
+											}}
+										>
+											{it.draft.description ||
+												it.draft.body.replace(/<[^>]+>/g, " ").slice(0, 200)}
+										</div>
+										{it.status === "awaiting-approval" &&
+											props.onItemEdited && (
+												<label
+													style={{
+														display: "flex",
+														alignItems: "center",
+														gap: 4,
+														marginTop: 6,
+														cursor: "pointer",
+													}}
+												>
+													<input
+														type="checkbox"
+														checked={it.userEdited ?? false}
+														onChange={() => {
+															if (!it.userEdited) props.onItemEdited!(it.id);
+														}}
+													/>
+													<span style={{ color: "#888" }}>已手动修改草稿</span>
+												</label>
+											)}
+										{it.status === "publish-confirmed" &&
+											props.onSaveAsFewShot && (
+												<button
+													type="button"
+													onClick={() => props.onSaveAsFewShot!(it.id)}
+													style={{
+														...btn,
+														marginTop: 6,
+														padding: "3px 8px",
+														fontSize: 11,
+														background: "#f6ffed",
+														color: "#389e0d",
+														border: "1px solid #b7eb8f",
+													}}
+												>
+													存为范例
+												</button>
+											)}
+									</>
+								) : (
+									<span style={{ color: "#999" }}>
+										无草稿内容{it.error ? `(${it.error})` : ""}
+									</span>
+								)}
+								{it.draft && (
+									<GroundingStrip
+										draft={draftOverrides?.get(it.id) ?? it.draft}
+										facts={it.facts}
+										onFixPlaceholder={
+											onDraftChange
+												? () =>
+														handleFixPlaceholder(
+															it.id,
+															draftOverrides?.get(it.id) ?? it.draft!,
+														)
+												: undefined
+										}
+									/>
+								)}
+								<FillStatusTable results={it.fillResults} />
+								{/* U9:error 状态区分 — grounding-blocked 走橙色"内容审核失败";其余走红色"重试此条" */}
+								{it.status === "error" &&
+								it.error?.startsWith("grounding-blocked:") ? (
+									<div style={{ marginTop: 6 }}>
+										<span
+											aria-label="内容审核失败"
+											style={{
+												display: "inline-block",
+												background: "#fff7e6",
+												border: "1px solid #ffa940",
+												color: "#d46b08",
+												borderRadius: 4,
+												padding: "2px 8px",
+												fontSize: 11,
+												fontWeight: 600,
+											}}
+										>
+											⊘ 内容审核失败:
+											{it.error.slice("grounding-blocked:".length)}
+										</span>
+										{onRetryItem && (
+											<button
+												type="button"
+												onClick={() => onRetryItem(it.id)}
+												disabled={busy}
+												style={{
+													...btn,
+													marginLeft: 6,
+													padding: "2px 8px",
+													fontSize: 11,
+													background: "#fff7e6",
+													border: "1px solid #ffd591",
+													color: "#874d00",
+												}}
+											>
+												重新生成
+											</button>
+										)}
+									</div>
+								) : (
+									(it.status === "error" || it.status === "aborted") &&
+									onRetryItem && (
+										<div style={{ marginTop: 6 }}>
+											<button
+												onClick={() => onRetryItem(it.id)}
+												disabled={busy}
+												style={{
+													...btn,
+													padding: "2px 8px",
+													fontSize: 11,
+													background: "#fff7e6",
+													border: "1px solid #ffd591",
+													color: "#874d00",
+												}}
+											>
+												重试此条
+											</button>
+										</div>
+									)
+								)}
+							</div>
+						)}
+					</li>
+				))}
+			</ul>
 
-      {/* 漂移自检结果 */}
-      {driftResult && (
-        <div
-          style={{
-            ...box,
-            marginTop: 8,
-            background: driftResult.ok ? '#f6ffed' : '#fff7e6',
-            border: `1px solid ${driftResult.ok ? '#b7eb8f' : '#ffd591'}`,
-          }}
-        >
-          {driftResult.ok ? (
-            '✅ 选择器自检通过'
-          ) : (
-            <>
-              <div>⚠️ 缺失:{driftResult.missing.join('、')}</div>
-              <div style={{ fontSize: 12, color: '#874d00', marginTop: 2 }}>
-                请在目标页确认表单已载入,或刷新页面后操作。
-              </div>
-              <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                <button
-                  onClick={props.onDriftCheck}
-                  disabled={busy}
-                  style={{ ...btn, padding: '3px 8px', fontSize: 12, background: '#fa8c16', color: '#fff' }}
-                >
-                  重新自检
-                </button>
-                <button
-                  onClick={props.onApproveBypass}
-                  disabled={busy}
-                  style={{ ...btn, padding: '3px 8px', fontSize: 12, background: '#f0f0f0', color: '#333' }}
-                >
-                  跳过检查继续批准
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
+			{/* 漂移自检结果 */}
+			{driftResult && (
+				<div
+					style={{
+						...box,
+						marginTop: 8,
+						background: driftResult.ok ? "#f6ffed" : "#fff7e6",
+						border: `1px solid ${driftResult.ok ? "#b7eb8f" : "#ffd591"}`,
+					}}
+				>
+					{driftResult.ok ? (
+						"✅ 选择器自检通过"
+					) : (
+						<>
+							<div>⚠️ 缺失:{driftResult.missing.join("、")}</div>
+							<div style={{ fontSize: 12, color: "#874d00", marginTop: 2 }}>
+								请在目标页确认表单已载入,或刷新页面后操作。
+							</div>
+							<div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+								<button
+									onClick={props.onDriftCheck}
+									disabled={busy}
+									style={{
+										...btn,
+										padding: "3px 8px",
+										fontSize: 12,
+										background: "#fa8c16",
+										color: "#fff",
+									}}
+								>
+									重新自检
+								</button>
+								<button
+									onClick={props.onApproveBypass}
+									disabled={busy}
+									style={{
+										...btn,
+										padding: "3px 8px",
+										fontSize: 12,
+										background: "#f0f0f0",
+										color: "#333",
+									}}
+								>
+									跳过检查继续批准
+								</button>
+							</div>
+						</>
+					)}
+				</div>
+			)}
 
-      {/* 动作区 */}
-      <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-        {canApprove && !confirming && (
-          <button
-            onClick={() => setConfirming(true)}
-            style={{ ...btn, background: safetyMode === 'authorized' ? '#cf1322' : '#1677ff', color: '#fff' }}
-          >
-            {safetyMode === 'authorized'
-              ? `批准发布 ${summary.awaitingApproval} 条`
-              : `预演 ${summary.awaitingApproval} 条`}
-          </button>
-        )}
-        <button onClick={props.onDriftCheck} disabled={busy} style={{ ...btn, background: '#f0f0f0', color: '#333' }}>
-          漂移自检
-        </button>
-        {phase !== 'done' && (
-          <button
-            onClick={props.onKill}
-            disabled={busy}
-            style={{ ...btn, background: '#fff1f0', color: '#cf1322', border: '1px solid #ffa39e' }}
-          >
-            急停
-          </button>
-        )}
-      </div>
+			{/* 动作区 */}
+			<div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+				{canApprove && !confirming && (
+					<button
+						onClick={() => setConfirming(true)}
+						style={{
+							...btn,
+							background: safetyMode === "authorized" ? "#cf1322" : "#1677ff",
+							color: "#fff",
+						}}
+					>
+						{safetyMode === "authorized"
+							? `批准发布 ${summary.awaitingApproval} 条`
+							: `预演 ${summary.awaitingApproval} 条`}
+					</button>
+				)}
+				<button
+					onClick={props.onDriftCheck}
+					disabled={busy}
+					style={{ ...btn, background: "#f0f0f0", color: "#333" }}
+				>
+					漂移自检
+				</button>
+				{phase !== "done" && (
+					<button
+						onClick={props.onKill}
+						disabled={busy}
+						style={{
+							...btn,
+							background: "#fff1f0",
+							color: "#cf1322",
+							border: "1px solid #ffa39e",
+						}}
+					>
+						急停
+					</button>
+				)}
+			</div>
 
-      {/* 二次确认:插值 count + host + 主动手势(authorized) */}
-      {confirming && (
-        <div
-          role="alertdialog"
-          aria-label="发布确认"
-          style={{ ...box, marginTop: 10, background: '#fff', border: '2px solid #cf1322' }}
-        >
-          <div style={{ fontWeight: 600, color: '#cf1322' }}>
-            {safetyMode === 'authorized'
-              ? `确定发布 ${summary.awaitingApproval} 条到 ${authorizedHost}?`
-              : `预演发布 ${summary.awaitingApproval} 条(不会真发)?`}
-          </div>
-          {safetyMode === 'authorized' && (
-            <div style={{ marginTop: 6 }}>
-              <div style={{ fontSize: 12, color: '#888' }}>
-                防误触:请输入 <code>publish</code> 确认
-              </div>
-              <input
-                aria-label="输入 publish 确认"
-                value={typed}
-                onChange={(e) => setTyped(e.target.value)}
-                style={{
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  padding: 5,
-                  marginTop: 4,
-                  border: '1px solid #d9d9d9',
-                  borderRadius: 4,
-                }}
-              />
-            </div>
-          )}
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <button
-              onClick={confirmApprove}
-              disabled={!gestureOk || !!busy}
-              style={{
-                ...btn,
-                background: gestureOk && !busy ? '#cf1322' : '#f5f5f5',
-                color: gestureOk && !busy ? '#fff' : '#bbb',
-              }}
-            >
-              确认
-            </button>
-            <button
-              onClick={() => {
-                setConfirming(false);
-                setTyped('');
-              }}
-              style={{ ...btn, background: '#f0f0f0', color: '#333' }}
-            >
-              取消
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+			{/* 二次确认:插值 count + host + 主动手势(authorized) */}
+			{confirming && (
+				<div
+					role="alertdialog"
+					aria-label="发布确认"
+					style={{
+						...box,
+						marginTop: 10,
+						background: "#fff",
+						border: "2px solid #cf1322",
+					}}
+				>
+					<div style={{ fontWeight: 600, color: "#cf1322" }}>
+						{safetyMode === "authorized"
+							? `确定发布 ${summary.awaitingApproval} 条到 ${authorizedHost}?`
+							: `预演发布 ${summary.awaitingApproval} 条(不会真发)?`}
+					</div>
+					{safetyMode === "authorized" && (
+						<div style={{ marginTop: 6 }}>
+							<div style={{ fontSize: 12, color: "#888" }}>
+								防误触:请输入 <code>publish</code> 确认
+							</div>
+							<input
+								aria-label="输入 publish 确认"
+								value={typed}
+								onChange={(e) => setTyped(e.target.value)}
+								style={{
+									width: "100%",
+									boxSizing: "border-box",
+									padding: 5,
+									marginTop: 4,
+									border: "1px solid #d9d9d9",
+									borderRadius: 4,
+								}}
+							/>
+						</div>
+					)}
+					<div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+						<button
+							onClick={confirmApprove}
+							disabled={!gestureOk || !!busy}
+							style={{
+								...btn,
+								background: gestureOk && !busy ? "#cf1322" : "#f5f5f5",
+								color: gestureOk && !busy ? "#fff" : "#bbb",
+							}}
+						>
+							确认
+						</button>
+						<button
+							onClick={() => {
+								setConfirming(false);
+								setTyped("");
+							}}
+							style={{ ...btn, background: "#f0f0f0", color: "#333" }}
+						>
+							取消
+						</button>
+					</div>
+				</div>
+			)}
+		</div>
+	);
 }

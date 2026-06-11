@@ -9,72 +9,80 @@
 
 /** 一条选题的结构化事实(全可选;缺的字段由模型在文中标【待补】)。 */
 export interface FactsBlock {
-  作品名?: string;
-  集数?: string;
-  制作?: string;
-  漢化?: string;
-  無修?: string;
-  题材?: string;
-  简介?: string;
+	作品名?: string;
+	集数?: string;
+	制作?: string;
+	漢化?: string;
+	無修?: string;
+	题材?: string;
+	简介?: string;
 }
 
 export type FactKey = keyof FactsBlock;
 
 /** 规范字段顺序(渲 prompt 时稳定输出)。 */
-export const FACT_ORDER: FactKey[] = ['作品名', '集数', '制作', '漢化', '無修', '题材', '简介'];
+export const FACT_ORDER: FactKey[] = [
+	"作品名",
+	"集数",
+	"制作",
+	"漢化",
+	"無修",
+	"题材",
+	"简介",
+];
 
 /** 输入 key 别名 → 规范键。比对前会 trim + 转小写(中文不受影响)。 */
 const KEY_ALIASES: Record<string, FactKey> = {
-  作品名: '作品名',
-  作品: '作品名',
-  名称: '作品名',
-  name: '作品名',
-  title: '作品名',
-  集数: '集数',
-  集數: '集数',
-  话数: '集数',
-  話數: '集数',
-  ep: '集数',
-  eps: '集数',
-  episodes: '集数',
-  制作: '制作',
-  製作: '制作',
-  原作: '制作',
-  studio: '制作',
-  author: '制作',
-  漢化: '漢化',
-  汉化: '漢化',
-  hanhua: '漢化',
-  cn: '漢化',
-  無修: '無修',
-  无修: '無修',
-  無修正: '無修',
-  无修正: '無修',
-  uncen: '無修',
-  uncensored: '無修',
-  题材: '题材',
-  題材: '题材',
-  标签: '题材',
-  標籤: '题材',
-  tags: '题材',
-  tag: '题材',
-  简介: '简介',
-  簡介: '简介',
-  描述: '简介',
-  desc: '简介',
-  description: '简介',
-  intro: '简介',
+	作品名: "作品名",
+	作品: "作品名",
+	名称: "作品名",
+	name: "作品名",
+	title: "作品名",
+	集数: "集数",
+	集數: "集数",
+	话数: "集数",
+	話數: "集数",
+	ep: "集数",
+	eps: "集数",
+	episodes: "集数",
+	制作: "制作",
+	製作: "制作",
+	原作: "制作",
+	studio: "制作",
+	author: "制作",
+	漢化: "漢化",
+	汉化: "漢化",
+	hanhua: "漢化",
+	cn: "漢化",
+	無修: "無修",
+	无修: "無修",
+	無修正: "無修",
+	无修正: "無修",
+	uncen: "無修",
+	uncensored: "無修",
+	题材: "题材",
+	題材: "题材",
+	标签: "题材",
+	標籤: "题材",
+	tags: "题材",
+	tag: "题材",
+	简介: "简介",
+	簡介: "简介",
+	描述: "简介",
+	desc: "简介",
+	description: "简介",
+	intro: "简介",
 };
 
 /** 含 URL 的事实字段(连结来源校验的允许集来自这些)。 */
-const URL_FIELDS: FactKey[] = ['漢化', '無修', '简介'];
+const URL_FIELDS: FactKey[] = ["漢化", "無修", "简介"];
 
-const TOPIC_FACTS_SEP = '||';
-const FIELD_SEP = '|';
+const TOPIC_FACTS_SEP = "||";
+const FIELD_SEP = "|";
 
 export interface ParsedTopic {
-  topic: string;
-  facts: FactsBlock;
+	topic: string;
+	facts: FactsBlock;
 }
 
 /**
@@ -84,45 +92,45 @@ export interface ParsedTopic {
  * - 宽容:未知 key 忽略;value 内含 `=` 只按首个 `=` 切;重复 key 后者覆盖。
  */
 export function parseTopicLine(line: string): ParsedTopic | null {
-  const trimmed = line.trim();
-  if (trimmed === '') return null;
+	const trimmed = line.trim();
+	if (trimmed === "") return null;
 
-  const sepIdx = trimmed.indexOf(TOPIC_FACTS_SEP);
-  if (sepIdx < 0) return { topic: trimmed, facts: {} };
+	const sepIdx = trimmed.indexOf(TOPIC_FACTS_SEP);
+	if (sepIdx < 0) return { topic: trimmed, facts: {} };
 
-  const topic = trimmed.slice(0, sepIdx).trim();
-  const factsPart = trimmed.slice(sepIdx + TOPIC_FACTS_SEP.length);
-  const facts: FactsBlock = {};
+	const topic = trimmed.slice(0, sepIdx).trim();
+	const factsPart = trimmed.slice(sepIdx + TOPIC_FACTS_SEP.length);
+	const facts: FactsBlock = {};
 
-  for (const seg of factsPart.split(FIELD_SEP)) {
-    const eq = seg.indexOf('=');
-    if (eq < 0) continue;
-    const rawKey = seg.slice(0, eq).trim().toLowerCase();
-    const value = seg.slice(eq + 1).trim();
-    if (value === '') continue;
-    const canon = KEY_ALIASES[rawKey];
-    if (canon) facts[canon] = value;
-  }
+	for (const seg of factsPart.split(FIELD_SEP)) {
+		const eq = seg.indexOf("=");
+		if (eq < 0) continue;
+		const rawKey = seg.slice(0, eq).trim().toLowerCase();
+		const value = seg.slice(eq + 1).trim();
+		if (value === "") continue;
+		const canon = KEY_ALIASES[rawKey];
+		if (canon) facts[canon] = value;
+	}
 
-  return { topic, facts };
+	return { topic, facts };
 }
 
 /** facts 是否一条都没有(用于"全【待补】不计入合格率"判断)。 */
 export function isEmptyFacts(facts: FactsBlock): boolean {
-  return FACT_ORDER.every((k) => !facts[k]);
+	return FACT_ORDER.every((k) => !facts[k]);
 }
 
 /** 收集 facts 里出现的所有 URL(连结来源校验的允许集)。 */
 export function factUrls(facts: FactsBlock): string[] {
-  const urls: string[] = [];
-  const urlRe = /https?:\/\/[^\s|]+/gi;
-  for (const k of URL_FIELDS) {
-    const v = facts[k];
-    if (!v) continue;
-    const m = v.match(urlRe);
-    if (m) urls.push(...m);
-  }
-  return urls;
+	const urls: string[] = [];
+	const urlRe = /https?:\/\/[^\s|]+/gi;
+	for (const k of URL_FIELDS) {
+		const v = facts[k];
+		if (!v) continue;
+		const m = v.match(urlRe);
+		if (m) urls.push(...m);
+	}
+	return urls;
 }
 
 /**
@@ -130,14 +138,16 @@ export function factUrls(facts: FactsBlock): string[] {
  * 零事实 → 明确指示"通篇【待补】、绝不编造"。
  */
 export function formatFactsForPrompt(facts: FactsBlock): string {
-  const lines = FACT_ORDER.filter((k) => facts[k]).map((k) => `- ${k}:${facts[k]}`);
-  if (lines.length === 0) {
-    return '【事实】(未提供任何事实——请通篇用「【待补】」占位,绝不编造任何作品名/集数/原作/连结)';
-  }
-  return [
-    '【事实】(只能使用以下事实;严禁新增或编造作品名/集数/原作/连结;缺的在文中写「【待补】」;连结只能原样使用下方给出的 URL):',
-    ...lines,
-  ].join('\n');
+	const lines = FACT_ORDER.filter((k) => facts[k]).map(
+		(k) => `- ${k}:${facts[k]}`,
+	);
+	if (lines.length === 0) {
+		return "【事实】(未提供任何事实——请通篇用「【待补】」占位,绝不编造任何作品名/集数/原作/连结)";
+	}
+	return [
+		"【事实】(只能使用以下事实;严禁新增或编造作品名/集数/原作/连结;缺的在文中写「【待补】」;连结只能原样使用下方给出的 URL):",
+		...lines,
+	].join("\n");
 }
 
 /**
@@ -145,21 +155,32 @@ export function formatFactsForPrompt(facts: FactsBlock): string {
  * 向后兼容:facts/fewShot 省略时,行为等同旧 buildPrompt(template, topic)。
  * 模板可含占位符 {{topic}} {{facts}} {{fewshot}};无占位符时按约定追加。
  */
-export function applyPromptTemplate(template: string, topic: string, facts?: FactsBlock, fewShot?: string): string {
-  let out = template.includes('{{topic}}') ? template.replaceAll('{{topic}}', topic) : `${template}\n主题:${topic}`;
+export function applyPromptTemplate(
+	template: string,
+	topic: string,
+	facts?: FactsBlock,
+	fewShot?: string,
+): string {
+	let out = template.includes("{{topic}}")
+		? template.replaceAll("{{topic}}", topic)
+		: `${template}\n主题:${topic}`;
 
-  if (facts !== undefined) {
-    const block = formatFactsForPrompt(facts);
-    out = out.includes('{{facts}}') ? out.replaceAll('{{facts}}', block) : `${out}\n\n${block}`;
-  } else {
-    out = out.replaceAll('{{facts}}', '');
-  }
+	if (facts !== undefined) {
+		const block = formatFactsForPrompt(facts);
+		out = out.includes("{{facts}}")
+			? out.replaceAll("{{facts}}", block)
+			: `${out}\n\n${block}`;
+	} else {
+		out = out.replaceAll("{{facts}}", "");
+	}
 
-  if (fewShot && fewShot.trim() !== '') {
-    out = out.includes('{{fewshot}}') ? out.replaceAll('{{fewshot}}', fewShot) : `${fewShot}\n\n${out}`;
-  } else {
-    out = out.replaceAll('{{fewshot}}', '');
-  }
+	if (fewShot && fewShot.trim() !== "") {
+		out = out.includes("{{fewshot}}")
+			? out.replaceAll("{{fewshot}}", fewShot)
+			: `${fewShot}\n\n${out}`;
+	} else {
+		out = out.replaceAll("{{fewshot}}", "");
+	}
 
-  return out.trim();
+	return out.trim();
 }

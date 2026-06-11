@@ -1,12 +1,12 @@
-import { pasteIntoQuill } from './quill-paste';
-import { resolveFrameForSelector } from './frame-resolve';
 import {
-  EVT_FILL_BODY,
-  EVT_BODY_FILLED,
-  EVT_BRIDGE_READY,
-  type FillBodyDetail,
-  type BodyFilledDetail,
-} from './body-bridge';
+	type BodyFilledDetail,
+	EVT_BODY_FILLED,
+	EVT_BRIDGE_READY,
+	EVT_FILL_BODY,
+	type FillBodyDetail,
+} from "./body-bridge";
+import { resolveFrameForSelector } from "./frame-resolve";
+import { pasteIntoQuill } from "./quill-paste";
 
 // 主世界端 responder(从 entrypoints/quill-bridge.content.ts 抽出)。
 // 抽成纯安装函数的两个理由:
@@ -24,35 +24,56 @@ type WinWithQuill = Parameters<PasteFn>[2];
  * win 用宽松类型 `{ Quill?: unknown }`,以兼容直接传入 `window`(Window 不声明 Quill)。
  */
 export function installBodyResponder(
-  target: EventTarget,
-  win: Window | { Quill?: unknown },
-  doc: Document,
-  paste: PasteFn = pasteIntoQuill,
+	target: EventTarget,
+	win: Window | { Quill?: unknown },
+	doc: Document,
+	paste: PasteFn = pasteIntoQuill,
 ): () => void {
-  const onFill = (e: Event) => {
-    const detail = (e as CustomEvent<FillBodyDetail>).detail;
-    if (!detail || typeof detail.html !== 'string' || typeof detail.selector !== 'string') return;
-    let result: BodyFilledDetail;
-    try {
-      // 编辑器可能在同源子 iframe(layuiAdmin):顶层找不到 #editor 时下钻一层,
-      // 用该 frame 的 window(取其 window.Quill)与 document 写入。主世界 + 同源 → 可访问 iframe.contentWindow.Quill。
-      const frame = resolveFrameForSelector(doc, detail.selector, win);
-      const res = paste(detail.html, detail.selector, frame.win as WinWithQuill, frame.doc);
-      result = { reqId: detail.reqId, ok: res.ok, error: res.error, degraded: res.degraded };
-    } catch {
-      result = { reqId: detail.reqId, ok: false, error: '正文写入异常,请手动粘贴。' };
-    }
-    // 回执也包进 try/catch:派发若抛出,隔离端只会干等到 3s 超时,失去明确错误。
-    try {
-      target.dispatchEvent(new CustomEvent<BodyFilledDetail>(EVT_BODY_FILLED, { detail: result }));
-    } catch {
-      /* 派发失败无从回执,隔离端会按超时降级处理 */
-    }
-  };
+	const onFill = (e: Event) => {
+		const detail = (e as CustomEvent<FillBodyDetail>).detail;
+		if (
+			!detail ||
+			typeof detail.html !== "string" ||
+			typeof detail.selector !== "string"
+		)
+			return;
+		let result: BodyFilledDetail;
+		try {
+			// 编辑器可能在同源子 iframe(layuiAdmin):顶层找不到 #editor 时下钻一层,
+			// 用该 frame 的 window(取其 window.Quill)与 document 写入。主世界 + 同源 → 可访问 iframe.contentWindow.Quill。
+			const frame = resolveFrameForSelector(doc, detail.selector, win);
+			const res = paste(
+				detail.html,
+				detail.selector,
+				frame.win as WinWithQuill,
+				frame.doc,
+			);
+			result = {
+				reqId: detail.reqId,
+				ok: res.ok,
+				error: res.error,
+				degraded: res.degraded,
+			};
+		} catch {
+			result = {
+				reqId: detail.reqId,
+				ok: false,
+				error: "正文写入异常,请手动粘贴。",
+			};
+		}
+		// 回执也包进 try/catch:派发若抛出,隔离端只会干等到 3s 超时,失去明确错误。
+		try {
+			target.dispatchEvent(
+				new CustomEvent<BodyFilledDetail>(EVT_BODY_FILLED, { detail: result }),
+			);
+		} catch {
+			/* 派发失败无从回执,隔离端会按超时降级处理 */
+		}
+	};
 
-  target.addEventListener(EVT_FILL_BODY, onFill);
-  // 就绪握手:隔离端可据此确认桥已加载。
-  target.dispatchEvent(new CustomEvent(EVT_BRIDGE_READY));
+	target.addEventListener(EVT_FILL_BODY, onFill);
+	// 就绪握手:隔离端可据此确认桥已加载。
+	target.dispatchEvent(new CustomEvent(EVT_BRIDGE_READY));
 
-  return () => target.removeEventListener(EVT_FILL_BODY, onFill);
+	return () => target.removeEventListener(EVT_FILL_BODY, onFill);
 }

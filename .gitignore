@@ -12,3 +12,7 @@ packages/backend/data
 packages/backend/logs
 packages/backend/.env
 .claude/worktrees/
+.pnpm-store
+.mimocode
+.omo
+.kilo

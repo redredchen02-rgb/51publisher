@@ -59,7 +59,7 @@ describe("sendAlert", () => {
 		expect(url).toBe(`https://api.telegram.org/bot${VALID_TOKEN}/sendMessage`);
 		expect(init.method).toBe("POST");
 		const body = JSON.parse(init.body as string);
-		expect(body).toEqual({ chat_id: VALID_CHAT_ID, text: "test message" });
+		expect(body).toEqual({ chat_id: VALID_CHAT_ID, text: "🟡 [WARNING] test message" });
 	});
 
 	it("does not call fetch when TG_ENABLED is absent", async () => {
@@ -113,7 +113,7 @@ describe("sendAlert", () => {
 		expect(fetchSpy).toHaveBeenCalledOnce();
 		const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
 		const body = JSON.parse(init.body as string);
-		expect(body.text).toBe("Error on [REDACTED]/path");
+		expect(body.text).toBe("🟡 [WARNING] Error on [REDACTED]/path");
 		expect(body.text).not.toContain(adminHost);
 		expect(warnSpy).toHaveBeenCalledWith(
 			expect.stringContaining("[telegram] admin domain redacted"),
@@ -134,7 +134,7 @@ describe("sendAlert", () => {
 
 		const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
 		const body = JSON.parse(init.body as string);
-		expect(body.text).toBe("plain alert with no domain");
+		expect(body.text).toBe("🟡 [WARNING] plain alert with no domain");
 		expect(warnSpy).not.toHaveBeenCalledWith(
 			expect.stringContaining("redacted"),
 		);

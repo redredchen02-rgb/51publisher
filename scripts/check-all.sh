@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
+echo "=> Running lint..."
+pnpm lint:ci
+
 echo "=> Running tests..."
 pnpm -r test
 
