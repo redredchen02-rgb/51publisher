@@ -10,6 +10,7 @@ export interface PendingTopic {
   rawContent?: { title: string; body: string; url: string; metadata?: Record<string, string> };
   facts: Record<string, string>;
   confidence: number;
+  qualityScore?: number;
   status: 'pending' | 'approved' | 'rejected';
   rejectedReason?: string;
   coverImageUrl?: string;
@@ -29,15 +30,27 @@ export interface PendingTopicResponse {
   error?: string;
 }
 
+export interface FetchPendingTopicsOptions {
+  status?: string;
+  sort_by?: 'score';
+  fold_threshold?: number;
+}
+
 /**
- * 拉取待审核选题列表。
+ * 拉取待审核选题列表。支持按质量分排序（sort_by='score'）和折叠阈值。
  */
 export async function fetchPendingTopics(
-  status?: string,
+  statusOrOpts?: string | FetchPendingTopicsOptions,
   fetchFn: typeof fetch = fetch,
   timeoutMs = 10_000,
 ): Promise<PendingTopic[]> {
-  const params = status ? `?status=${encodeURIComponent(status)}` : '';
+  const opts: FetchPendingTopicsOptions =
+    typeof statusOrOpts === 'string' ? { status: statusOrOpts } : (statusOrOpts ?? {});
+  const qp = new URLSearchParams();
+  if (opts.status) qp.set('status', opts.status);
+  if (opts.sort_by) qp.set('sort_by', opts.sort_by);
+  if (opts.fold_threshold !== undefined) qp.set('fold_threshold', String(opts.fold_threshold));
+  const params = qp.toString() ? `?${qp.toString()}` : '';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
