@@ -16,6 +16,8 @@ export type {
   GenerateDraftResponse,
   FillPageResponse,
   PublishPageResponse,
+  ReviewDimension,
+  ReviewResult,
 } from './types.js';
 
 export type { FactsBlock, FactKey, ParsedTopic } from './facts.js';

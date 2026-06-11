@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0.0] — 2026-06-11
+
+### Added
+
+- **AI 质量引擎 (Phase 3)**: 每条草稿生成后自动进行四维 AI 评审，不达标则定向重写，全程 fail-open 不阻断发布
+  - 四维评审标准：内容丰富度、社区口吻、标题质量、分类准确性（内置中文提示，可在设置页覆盖）
+  - 批次审核面板新增「✦ 已自评优化」badge，并在汇总行显示本批次优化条数
+  - 设置页新增「AI 评审标准」文本框，留空使用内置四维标准，填写自定义标准即时生效
+  - 评审/重写 token 用量独立记录于 `reviewCostTokens`，不计入生成用量
+  - 轨迹记录新增 `aiReviewTriggered`（`undefined`=未触发/fail-open，`false`=通过，`true`=重写成功）
+- **后端新路由**：`POST /api/v1/drafts/review` 和 `POST /api/v1/drafts/rewrite`，受 JWT 鉴权保护，LLM endpoint/key 固定于 env
+
 ## [0.3.0] — 2026-06-11
 
 ### Features

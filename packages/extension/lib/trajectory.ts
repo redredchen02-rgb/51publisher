@@ -32,6 +32,10 @@ export interface TrajectoryRecord {
   generationDurationMs?: number;
   /** AI 原稿与最终发布草稿的 slot 级 diff(R5b)。 */
   slotDiff?: SlotDiff;
+  /** AI 评审是否触发并改善草稿（Phase 3）。undefined=未触发；false=通过；true=重写成功。不加入 canonical。 */
+  aiReviewTriggered?: boolean;
+  /** AI 评审 LLM token 用量（Phase 3）；独立于生成用量记录。不加入 canonical。 */
+  reviewCostTokens?: { prompt: number; completion: number; estimated?: boolean };
 }
 
 export interface TrajectoryInput {
@@ -49,6 +53,8 @@ export interface TrajectoryInput {
   llmCostTokens?: { prompt: number; completion: number; estimated?: boolean };
   generationDurationMs?: number;
   slotDiff?: SlotDiff;
+  aiReviewTriggered?: boolean;
+  reviewCostTokens?: { prompt: number; completion: number; estimated?: boolean };
 }
 
 const GENESIS_HASH = '0';
@@ -108,6 +114,8 @@ export function buildRecord(input: TrajectoryInput, seq: number, prevHash: strin
     ...(input.llmCostTokens !== undefined ? { llmCostTokens: input.llmCostTokens } : {}),
     ...(input.generationDurationMs !== undefined ? { generationDurationMs: input.generationDurationMs } : {}),
     ...(input.slotDiff !== undefined ? { slotDiff: input.slotDiff } : {}),
+    ...(input.aiReviewTriggered !== undefined ? { aiReviewTriggered: input.aiReviewTriggered } : {}),
+    ...(input.reviewCostTokens !== undefined ? { reviewCostTokens: input.reviewCostTokens } : {}),
     seq,
   };
   const hash = fnv1a(prevHash + canonical(base));

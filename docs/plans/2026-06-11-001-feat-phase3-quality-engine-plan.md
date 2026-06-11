@@ -144,7 +144,7 @@ graph TB
 
 ---
 
-- [ ] **Unit 1: Groundwork — vitest 修复 + 类型地基 + run-sheet**
+- [x] **Unit 1: Groundwork — vitest 修复 + 类型地基 + run-sheet**
 
 **Goal:** 让 `pnpm test` 零失败；建立 Phase 3 所有新类型；提供首飞观察模板。
 
@@ -187,7 +187,7 @@ graph TB
 
 ---
 
-- [ ] **Unit 2: LLM proxy clients — reviewDraft, rewriteDraft（扩展层）+ 后端新路由**
+- [x] **Unit 2: LLM proxy clients — reviewDraft, rewriteDraft（扩展层）+ 后端新路由**
 
 **Goal:** ① 在扩展层 `packages/extension/lib/llm.ts` 实现 `reviewDraft`/`rewriteDraft` 薄代理客户端（调用新后端端点）；② 在后端 `packages/backend/src/` 实现对应路由（prompt 构建、LLM 调用、响应解析）；③ 实现 `mergeRewriteResult` 合并函数（可放扩展层，纯 JSON 操作无网络依赖）。
 
@@ -212,8 +212,11 @@ graph TB
 - 参照 `generateDraft` 的 Auth header + AbortController + 结构化错误返回模式
 
 **Approach（后端路由）:**
-- `drafts-review-route.ts`：接收 `{draft, criteriaPrompt, settings}`；构建四维评审 prompt（`criteriaPrompt` 为空时用内置默认）；调用后端 LLM client（参照 `/api/v1/drafts/generate` 的 handler 模式）；parse + 验证响应为 `ReviewResult`；返回 `{ok, result, reviewCostTokens?}`
-- `drafts-rewrite-route.ts`：接收 `{draft, failedDims, criteriaPrompt, settings}`；构建定向重写 prompt；调用 LLM；返回 `{ok, draft: ContentDraft, rewriteCostTokens?}`
+- 路由直接内联到 `packages/backend/src/index.ts`（参照 `/api/v1/drafts/generate` 的注册方式，第 106-157 行）
+- 两个路由均：读 `LLM_API_KEY`/`LLM_ENDPOINT` env；忽略 `settings.endpoint`（安全约束，与 generate 路由一致）；使用 `packages/backend/src/llm.ts` 的 `buildRequest`/`extractContent`/`parseContentJson`
+- **`POST /api/v1/drafts/review`**：接收 `{draft, criteriaPrompt, settings}`；构建四维评审 prompt（`criteriaPrompt` 为空时用内置默认）；调用 LLM；parse + 验证响应为 `ReviewResult`（含 `dimensions` 数组）；提取 `response.usage` 作为 `reviewCostTokens`；返回 `{ok, result, reviewCostTokens?}`
+- **`POST /api/v1/drafts/rewrite`**：接收 `{draft, failedDims, criteriaPrompt, settings}`；构建定向重写 prompt；调用 LLM；parse 响应为 `ContentDraft` 字段；返回 `{ok, draft: ContentDraft, rewriteCostTokens?}`
+- usage 提取：在 `packages/backend/src/llm.ts` 新增 `extractUsage(raw)` 兼容 `usage.prompt_tokens`/`completion_tokens`（OpenAI）和 `usage.inputTokens`/`outputTokens`（代理）
 
 **Test scenarios（扩展层——通过 fetchFn mock）:**
 - Happy path: `reviewDraft` — fetchFn 返回 `{ok:true, result:{dimensions:[...]}}` → 正确透传
@@ -234,7 +237,7 @@ graph TB
 
 ---
 
-- [ ] **Unit 3: batch.ts — markFilled 扩展**
+- [x] **Unit 3: batch.ts — markFilled 扩展**
 
 **Goal:** 扩展 `markFilled` 接受可选 `reviewMeta` 参数，实现评审结果的原子写入。
 
@@ -269,7 +272,7 @@ graph TB
 
 ---
 
-- [ ] **Unit 4: Settings UI — reviewCriteriaPrompt 文本框**
+- [x] **Unit 4: Settings UI — reviewCriteriaPrompt 文本框**
 
 **Goal:** 在 Settings 面板新增「评审标准 prompt」文本区域，让操作者可针对社区风格覆盖内置评审标准。
 
@@ -303,7 +306,7 @@ graph TB
 
 ---
 
-- [ ] **Unit 5: batch-orchestrator.ts + background.ts — 评审重写管道集成**
+- [x] **Unit 5: batch-orchestrator.ts + background.ts — 评审重写管道集成**
 
 **Goal:** ① 在 `RunBatchDeps` 接口新增 `reviewDraft?`/`rewriteDraft?` 可选注入；② 在 `runBatch()` 的 `gen.ok` 分支内插入评审→重写逻辑；③ `background.ts` 补充新 deps 的接线（调用扩展层客户端函数）。
 
@@ -353,7 +356,7 @@ graph TB
 
 ---
 
-- [ ] **Unit 6: Badge UI — 批次审核 badge**
+- [x] **Unit 6: Badge UI — 批次审核 badge**
 
 **Goal:** 在 `BatchReviewPanel` 对被重写的草稿显示低调 badge；在批次汇总条显示总计数。
 

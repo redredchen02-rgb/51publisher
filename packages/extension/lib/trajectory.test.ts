@@ -141,4 +141,44 @@ describe('trajectory', () => {
       expect(verifyTrajectory(list)).toBe(true);
     });
   });
+
+  describe('Phase-3 评审字段携带', () => {
+    it('aiReviewTriggered=true 写入 record', () => {
+      const { list } = appendRecord([], input({ aiReviewTriggered: true }));
+      expect(list[0]!.aiReviewTriggered).toBe(true);
+    });
+
+    it('aiReviewTriggered=false 写入 record', () => {
+      const { list } = appendRecord([], input({ aiReviewTriggered: false }));
+      expect(list[0]!.aiReviewTriggered).toBe(false);
+    });
+
+    it('aiReviewTriggered=undefined 时 record 不含该键（三态语义）', () => {
+      const { list } = appendRecord([], input());
+      expect('aiReviewTriggered' in list[0]!).toBe(false);
+    });
+
+    it('reviewCostTokens 写入 record', () => {
+      const costs = { prompt: 200, completion: 80 };
+      const { list } = appendRecord([], input({ reviewCostTokens: costs }));
+      expect(list[0]!.reviewCostTokens).toEqual(costs);
+    });
+
+    it('携带 Phase-3 字段后 hash 链仍可验证（新字段不影响 canonical）', () => {
+      let list: TrajectoryRecord[] = [];
+      list = appendRecord(
+        list,
+        input({ id: 'a', aiReviewTriggered: true, reviewCostTokens: { prompt: 200, completion: 80 } }),
+      ).list;
+      list = appendRecord(list, input({ id: 'b', aiReviewTriggered: false })).list;
+      expect(verifyTrajectory(list)).toBe(true);
+    });
+
+    it('旧记录（无 Phase-3 字段）verifyTrajectory 仍返回 true', () => {
+      // 模拟旧记录不含 aiReviewTriggered/reviewCostTokens
+      const oldRecord: TrajectoryRecord = buildRecord(input({ id: 'old' }), 1, '0').record;
+      expect('aiReviewTriggered' in oldRecord).toBe(false);
+      expect(verifyTrajectory([oldRecord])).toBe(true);
+    });
+  });
 });
