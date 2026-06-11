@@ -21,6 +21,7 @@ import { buildPrompt } from '../lib/messaging';
 import { computeSlotDiff } from '../lib/draft-diff';
 import { recordPublishedPost, type PublishedPostRecord } from '../lib/published-posts-client';
 import { runBatch, approveBatch, retryItem, discardBatchItem } from '../lib/batch-orchestrator';
+import { updatePendingStatus } from '../lib/pending-client';
 import { evaluateGrounding } from '../lib/grounding-gate';
 import { withBackendSync } from '../lib/batch-sync';
 import {
@@ -308,12 +309,22 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
     }
   }
 
-  async function handleDiscardBatchItem(itemId: string): Promise<Batch | null> {
+  async function handleDiscardBatchItem(
+    itemId: string,
+    rejectionReason?: import('@51publisher/shared').RejectionReason,
+  ): Promise<Batch | null> {
     const batch = await deps.getBatch();
     if (!batch) return null;
+    const item = batch.items.find((it) => it.id === itemId);
     try {
       const next = discardBatchItem(batch, itemId);
       await deps.saveBatch(next);
+      // fire-and-forget — 拒绝状态同步失败不影响 batch 本地状态
+      if (item?.pendingTopicId && rejectionReason) {
+        updatePendingStatus(item.pendingTopicId, 'rejected', rejectionReason).catch((err) =>
+          console.warn('[bg] updatePendingStatus failed:', err),
+        );
+      }
       return next;
     } catch {
       // Item may have already transitioned (concurrent approveBatch race). Treat as no-op.
@@ -463,7 +474,8 @@ export default defineBackground(() => {
     if (message?.type === 'RELEASE_QUARANTINE') return handlers.handleReleaseQuarantine(message.itemId);
     if (message?.type === 'MARK_ITEM_EDITED') return handlers.handleMarkItemEdited(message.itemId);
     if (message?.type === 'RETRY_BATCH_ITEM') return handlers.handleRetryBatchItem(message.itemId);
-    if (message?.type === 'DISCARD_BATCH_ITEM') return handlers.handleDiscardBatchItem(message.itemId);
+    if (message?.type === 'DISCARD_BATCH_ITEM')
+      return handlers.handleDiscardBatchItem(message.itemId, message.rejectionReason);
     if (message?.type === 'GET_BATCH') return getBatch();
     return undefined;
   });

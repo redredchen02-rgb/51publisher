@@ -154,7 +154,7 @@ export type RuntimeMessage =
   | { type: 'KILL_BATCH' }
   | { type: 'RELEASE_QUARANTINE'; itemId: string }
   | { type: 'RETRY_BATCH_ITEM'; itemId: string }
-  | { type: 'DISCARD_BATCH_ITEM'; itemId: string }
+  | { type: 'DISCARD_BATCH_ITEM'; itemId: string; rejectionReason?: RejectionReason }
   | { type: 'GET_BATCH' }
   // side panel → background:标记操作者已手动修改该条草稿(直发率度量)。
   | { type: 'MARK_ITEM_EDITED'; itemId: string }
