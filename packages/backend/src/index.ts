@@ -80,6 +80,7 @@ scraperConfig.addSiteConfig({
   adapterName: 'acgs51',
   // 必须是具体待抓取的作品详情页 URL;无默认值,启用时由 env-check 兜底校验。
   url: process.env.ACGS51_START_URL ?? '',
+  listUrl: process.env.ACGS51_LIST_URL || undefined,
   cron: process.env.ACGS51_CRON || '0 */6 * * *', // 默认每 6 小时
   enabled: process.env.ACGS51_ENABLED === 'true',
 });

@@ -308,9 +308,14 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
   async function handleDiscardBatchItem(itemId: string): Promise<Batch | null> {
     const batch = await deps.getBatch();
     if (!batch) return null;
-    const next = discardBatchItem(batch, itemId);
-    await deps.saveBatch(next);
-    return next;
+    try {
+      const next = discardBatchItem(batch, itemId);
+      await deps.saveBatch(next);
+      return next;
+    } catch {
+      // Item may have already transitioned (concurrent approveBatch race). Treat as no-op.
+      return batch;
+    }
   }
 
   return {
