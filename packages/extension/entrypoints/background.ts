@@ -19,7 +19,7 @@ import { abortBatch, releaseQuarantine, patchBatchDrafts, storeFillResults, type
 import { buildPrompt } from '../lib/messaging';
 import { computeSlotDiff } from '../lib/draft-diff';
 import { recordPublishedPost, type PublishedPostRecord } from '../lib/published-posts-client';
-import { runBatch, approveBatch, retryItem } from '../lib/batch-orchestrator';
+import { runBatch, approveBatch, retryItem, discardBatchItem } from '../lib/batch-orchestrator';
 import { evaluateGrounding } from '../lib/grounding-gate';
 import { withBackendSync } from '../lib/batch-sync';
 import {
@@ -305,6 +305,14 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
     }
   }
 
+  async function handleDiscardBatchItem(itemId: string): Promise<Batch | null> {
+    const batch = await deps.getBatch();
+    if (!batch) return null;
+    const next = discardBatchItem(batch, itemId);
+    await deps.saveBatch(next);
+    return next;
+  }
+
   return {
     handleGenerate,
     handlePublish,
@@ -314,6 +322,7 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
     handleReleaseQuarantine,
     handleMarkItemEdited,
     handleRetryBatchItem,
+    handleDiscardBatchItem,
     evaluateGate,
   };
 }
@@ -416,6 +425,7 @@ export default defineBackground(() => {
     if (message?.type === 'RELEASE_QUARANTINE') return handlers.handleReleaseQuarantine(message.itemId);
     if (message?.type === 'MARK_ITEM_EDITED') return handlers.handleMarkItemEdited(message.itemId);
     if (message?.type === 'RETRY_BATCH_ITEM') return handlers.handleRetryBatchItem(message.itemId);
+    if (message?.type === 'DISCARD_BATCH_ITEM') return handlers.handleDiscardBatchItem(message.itemId);
     if (message?.type === 'GET_BATCH') return getBatch();
     return undefined;
   });

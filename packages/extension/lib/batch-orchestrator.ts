@@ -25,6 +25,7 @@ import {
   quarantinedTopics,
   filterReentrantTopics,
   retryBatchItem,
+  transition,
 } from './batch';
 import { orchestratePublish } from './publish-orchestrator';
 import type { GroundingVerdict } from './grounding-gate';
@@ -309,6 +310,19 @@ export async function approveBatch(deps: ApproveBatchDeps): Promise<Batch | null
 
 function defaultSnapshotDropped(itemId: string): void {
   console.warn(`[batch-orchestrator] 轨迹快照含机密被丢弃(record 已落,无快照) itemId=${itemId}`);
+}
+
+// ---- DISCARD ITEM ----
+
+/**
+ * 操作者主动否决单条待审项(awaiting-approval → aborted)。
+ * 与 retryBatchItem 对称:唯一能将 awaiting-approval 打到 aborted 的路径。
+ */
+export function discardBatchItem(batch: Batch, itemId: string): Batch {
+  return transition(batch, itemId, 'awaiting-approval', {
+    status: 'aborted',
+    error: 'operator-discarded',
+  });
 }
 
 // ---- RETRY ITEM ----
