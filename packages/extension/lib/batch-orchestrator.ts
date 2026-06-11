@@ -12,6 +12,7 @@ import { mergeRewriteResult } from './llm';
 import type { GateDecision } from './publish-orchestrator';
 import type { TrajectoryInput } from './trajectory';
 import type { Batch } from './batch';
+import type { PublishedPostRecord } from './published-posts-client';
 import {
   createBatch,
   markGenerating,
@@ -177,6 +178,10 @@ export interface ApproveBatchDeps {
   clearTombstone?: (itemId: string) => Promise<void>;
   /** 发布前 grounding 硬闸(U4):仅 authorized 档拦截。返回 verdict;省略=不检查。 */
   checkGrounding?: (draft: ContentDraft, facts?: FactsBlock) => GroundingVerdict;
+  /** 发布确认后登记已发布帖子(best-effort fire-and-forget,省略=跳过)。 */
+  recordPost?: (record: PublishedPostRecord) => Promise<void>;
+  /** 当前时间戳生成器;省略=new Date().toISOString()。注入后测试可注入固定值。 */
+  now?: () => string;
 }
 
 /** 批量发布循环。返回最终 Batch;无批次 → null。 */
@@ -194,6 +199,8 @@ export async function approveBatch(deps: ApproveBatchDeps): Promise<Batch | null
     writeTombstone,
     clearTombstone,
     checkGrounding,
+    recordPost,
+    now = () => new Date().toISOString(),
   } = deps;
 
   const loaded = await getBatch();
@@ -262,6 +269,15 @@ export async function approveBatch(deps: ApproveBatchDeps): Promise<Batch | null
         if (r.dryRun) return; // dry-run 不落状态
         batch = r.ok ? markConfirmed(batch, item.id, r.url) : markPublishFailed(batch, item.id, r.error ?? 'unknown');
         await save(batch);
+        if (r.ok && recordPost) {
+          recordPost({
+            id: crypto.randomUUID(),
+            batchItemId: item.id,
+            sourceTitle: item.topic,
+            publishUrl: r.url ?? '',
+            publishedAt: now(),
+          }).catch((err) => console.warn('[batch-orchestrator] recordPost 失败(best-effort)', err));
+        }
       },
     });
 

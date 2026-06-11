@@ -374,6 +374,102 @@ describe('approveBatch dry-run report', () => {
 });
 
 // ================================================================
+// approveBatch — recordPost (U10)
+// ================================================================
+
+describe('approveBatch recordPost (U10)', () => {
+  it('publish-confirmed: recordPost 以正确字段被调用一次', async () => {
+    const batch = makeAwaitingBatch([TOPIC_A]);
+    const recordPost = vi.fn(async () => {});
+    const now = vi.fn(() => '2026-06-11T00:00:00.000Z');
+    const deps = makeApproveDeps({
+      getBatch: vi.fn(async () => batch),
+      sendGrant: vi.fn(async () => ({ ok: true, dryRun: false, url: 'https://dx-999-adm.ympxbys.xyz/post/1' })),
+      recordPost,
+      now,
+    });
+    await approveBatch(deps);
+    expect(recordPost).toHaveBeenCalledOnce();
+    expect(recordPost).toHaveBeenCalledWith(
+      expect.objectContaining({
+        batchItemId: 'item_0',
+        sourceTitle: TOPIC_A,
+        publishUrl: 'https://dx-999-adm.ympxbys.xyz/post/1',
+        publishedAt: '2026-06-11T00:00:00.000Z',
+      }),
+    );
+    // id 是 UUID 字符串(非空)
+    const record = recordPost.mock.calls[0]![0] as { id: string };
+    expect(typeof record.id).toBe('string');
+    expect(record.id.length).toBeGreaterThan(0);
+  });
+
+  it('recordPost 抛出: 不传播(fire-and-forget),approveBatch 正常返回', async () => {
+    const batch = makeAwaitingBatch([TOPIC_A]);
+    const recordPost = vi.fn(async () => {
+      throw new Error('backend-down');
+    });
+    const deps = makeApproveDeps({
+      getBatch: vi.fn(async () => batch),
+      recordPost,
+    });
+    await expect(approveBatch(deps)).resolves.not.toThrow();
+    const result = await approveBatch(
+      makeApproveDeps({ getBatch: vi.fn(async () => makeAwaitingBatch([TOPIC_A])), recordPost }),
+    );
+    expect(result!.items[0]!.status).toBe('publish-confirmed');
+  });
+
+  it('publishUrl 为空(sendGrant 未返回 url): recordPost 仍被调用,publishUrl 为空字符串', async () => {
+    const batch = makeAwaitingBatch([TOPIC_A]);
+    const recordPost = vi.fn(async () => {});
+    const deps = makeApproveDeps({
+      getBatch: vi.fn(async () => batch),
+      // sendGrant 返回成功但无 url 字段
+      sendGrant: vi.fn(async () => ({ ok: true, dryRun: false })),
+      recordPost,
+    });
+    await approveBatch(deps);
+    expect(recordPost).toHaveBeenCalledOnce();
+    expect(recordPost).toHaveBeenCalledWith(expect.objectContaining({ publishUrl: '' }));
+  });
+
+  it('now dep 注入: publishedAt 使用注入值而非系统时钟', async () => {
+    const batch = makeAwaitingBatch([TOPIC_A]);
+    const recordPost = vi.fn(async () => {});
+    const fixedTs = '2030-01-01T12:00:00.000Z';
+    const deps = makeApproveDeps({
+      getBatch: vi.fn(async () => batch),
+      recordPost,
+      now: () => fixedTs,
+    });
+    await approveBatch(deps);
+    expect(recordPost).toHaveBeenCalledWith(expect.objectContaining({ publishedAt: fixedTs }));
+  });
+
+  it('dry-run: recordPost 不被调用', async () => {
+    const batch = makeAwaitingBatch([TOPIC_A]);
+    const recordPost = vi.fn(async () => {});
+    const deps = makeApproveDeps({
+      getBatch: vi.fn(async () => batch),
+      evaluateGate: vi.fn(async () => ({ mode: 'dry-run' as const, allowed: false, host: HOST })),
+      sendFill: vi.fn(async () => ({ ok: true as const, results: [] })),
+      recordPost,
+    });
+    await approveBatch(deps);
+    expect(recordPost).not.toHaveBeenCalled();
+  });
+
+  it('recordPost 未注入(省略): 不报错,正常 publish-confirmed', async () => {
+    const batch = makeAwaitingBatch([TOPIC_A]);
+    const deps = makeApproveDeps({ getBatch: vi.fn(async () => batch) });
+    // 无 recordPost dep — 不应抛出
+    const result = await approveBatch(deps);
+    expect(result!.items[0]!.status).toBe('publish-confirmed');
+  });
+});
+
+// ================================================================
 // retryItem (U7)
 // ================================================================
 
