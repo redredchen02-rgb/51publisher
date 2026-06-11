@@ -965,3 +965,140 @@ describe("runBatch grounding gate (U4)", () => {
 		expect(result!.items[0]!.status).toBe("awaiting-approval");
 	});
 });
+
+// ================================================================
+// Unit 4: grounding gate bypass 修复 — 集成断言(R3)
+// 不 mock gate / mergeRewriteResult,走真实函数。
+// ================================================================
+
+import { evaluateGrounding } from "./grounding-gate";
+import { mergeRewriteResult } from "./llm";
+import { markFilled, markGateFailed, presentForApproval } from "./batch";
+
+describe("grounding gate bypass fix (Unit 4 integration)", () => {
+	// ① 零事实选题:AI 重写填掉【待补】后,gate 仍应拦截(读 snapshot 而非重写稿)
+	it("① 零事实+重写填掉占位符 → runBatch gate-failed(snapshot 拦截)", async () => {
+		const placeholderDraft: ContentDraft = {
+			...DRAFT,
+			title: "《【待补】》第1集",
+			body: "<p>精彩内容</p>",
+		};
+		const rewrittenDraft: ContentDraft = {
+			...DRAFT,
+			title: "《斗破苍穹》第1集",
+			body: "<p>精彩内容</p>",
+		};
+		let generateCalled = false;
+		const deps = makeRunDeps({
+			topics: [TOPIC_A],
+			generateDraft: vi.fn(async () => {
+				generateCalled = true;
+				return { ok: true as const, draft: { ...placeholderDraft } };
+			}),
+			// reviewDraft 触发重写(title_quality 是 mergeRewriteResult 合并 title 的维度名)
+			reviewDraft: vi.fn(async () => ({
+				ok: true as const,
+				result: { ok: true, dimensions: [{ name: "title_quality", pass: false }] },
+			})),
+			rewriteDraft: vi.fn(async () => ({
+				ok: true as const,
+				draft: { ...rewrittenDraft },
+			})),
+			// 不注入 evaluateGrounding → 使用真实函数
+		});
+		const result = await runBatch(deps);
+		expect(generateCalled).toBe(true);
+		expect(result).not.toBeNull();
+		// 重写后 item.draft 不含【待补】,但 snapshot 含 → gate 仍拦截
+		expect(result!.items[0]!.status).toBe("gate-failed");
+		// snapshot 保留原始占位
+		expect(result!.items[0]!.assembledDraftSnapshot?.title).toContain("【待补】");
+		// item.draft 是重写后的(发布时用)
+		expect(result!.items[0]!.draft?.title).not.toContain("【待补】");
+	});
+
+	// ② post-assembler 原稿确实含【待补】(守护 R2 前置假设)
+	it("② 零事实 generateDraft 产物含【待补】 → evaluateGrounding 判定 ok:false", () => {
+		const draft: ContentDraft = {
+			...DRAFT,
+			title: "《【待补】》第【待补】集",
+		};
+		const verdict = evaluateGrounding(draft, undefined);
+		expect(verdict.ok).toBe(false);
+		expect(verdict.reasons.length).toBeGreaterThan(0);
+	});
+
+	// ③ 持久化往返:snapshot 含【待补】,checkGrounding(snapshot) 仍拦
+	it("③ 持久化往返后 snapshot 仍含【待补】,checkGrounding 读快照仍拦截", () => {
+		const snapshotDraft: ContentDraft = {
+			...DRAFT,
+			title: "《【待补】》第1集",
+		};
+		const rewrittenDraft: ContentDraft = {
+			...DRAFT,
+			title: "《斗破苍穹》第1集",
+		};
+		// 模拟 markFilled 写入后序列化往返
+		let batch: Batch = {
+			id: "b1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "2026-06-04T00:00:00.000Z",
+			items: [
+				{
+					id: "item_0",
+					topic: TOPIC_A,
+					status: "generating" as const,
+				},
+			],
+		};
+		batch = markFilled(
+			batch,
+			"item_0",
+			rewrittenDraft,
+			undefined,
+			undefined,
+			undefined,
+			snapshotDraft,
+		);
+		// 序列化往返
+		const roundtripped = JSON.parse(JSON.stringify(batch));
+		const item = roundtripped.items[0];
+		// 往返后 snapshot 仍含【待补】
+		expect(item.assembledDraftSnapshot?.title).toContain("【待补】");
+		// checkGrounding(snapshot) 应拦截
+		const verdict = evaluateGrounding(item.assembledDraftSnapshot, item.facts);
+		expect(verdict.ok).toBe(false);
+	});
+
+	// ④ markGateFailed 后不被 presentForApproval 升格为 awaiting-approval
+	it("④ gate-failed 条目不被 presentForApproval 升格", () => {
+		let batch: Batch = {
+			id: "b1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "2026-06-04T00:00:00.000Z",
+			items: [
+				{
+					id: "item_0",
+					topic: TOPIC_A,
+					status: "generating" as const,
+				},
+				{
+					id: "item_1",
+					topic: TOPIC_B,
+					status: "generating" as const,
+				},
+			],
+		};
+		// item_0 走正常路径 → filled
+		batch = markFilled(batch, "item_0", { ...DRAFT });
+		// item_1 gate 失败 → gate-failed
+		batch = markFilled(batch, "item_1", { ...DRAFT });
+		batch = markGateFailed(batch, "item_1", "标题含【待补】");
+		// presentForApproval 只升格 filled
+		batch = presentForApproval(batch);
+		expect(batch.items[0]!.status).toBe("awaiting-approval");
+		expect(batch.items[1]!.status).toBe("gate-failed"); // 不得被升格
+	});
+});
