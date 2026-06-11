@@ -28,6 +28,8 @@ import {
 } from './batch';
 import { orchestratePublish } from './publish-orchestrator';
 import type { GroundingVerdict } from './grounding-gate';
+import { evaluateGrounding as defaultEvaluateGrounding } from './grounding-gate';
+import { markGateFailed } from './batch';
 
 // 批量编排逻辑(效果全注入,无 chrome/browser/* 直接依赖)。
 // 参照 lib/publish-orchestrator.ts 模式:background.ts 只做接线,逻辑在此可单测。
@@ -61,6 +63,11 @@ export interface RunBatchDeps {
   rewriteDraft?: (draft: ContentDraft, failedDims: string[]) => Promise<RewriteDraftResponse>;
   /** Phase 3 — 自定义评审标准 prompt;空=后端用内置四维标准。 */
   reviewCriteriaPrompt?: string;
+  /**
+   * Phase 5 (U4) — 备稿阶段 grounding gate;省略时使用默认 evaluateGrounding 实现。
+   * 可注入 mock 函数供测试隔离。fail-open:若抛出异常,视为通过,不拦截。
+   */
+  evaluateGrounding?: (draft: ContentDraft, facts?: FactsBlock) => GroundingVerdict;
 }
 
 /** 批量生成循环。返回最终 Batch 状态;host 解析失败或所有 topic 均被重入过滤 → null。 */
@@ -149,8 +156,25 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
 
     batch = markFilled(batch, item.id, draft, gen.llmCostTokens, undefined, reviewMeta);
     await save(batch);
+
+    // Phase 5 (U4) — 备稿阶段 grounding gate 预筛:
+    // filled → gate-failed(内容问题,可重试) 或 保留 filled(末尾 presentForApproval 批量升格)。
+    // fail-open:gate 函数抛出异常时视为通过,不拦截本条。
+    const gateCheck = deps.evaluateGrounding ?? defaultEvaluateGrounding;
+    let verdict: GroundingVerdict;
+    try {
+      verdict = gateCheck(draft, item.facts);
+    } catch {
+      verdict = { ok: true, reasons: [] }; // fail-open
+    }
+    if (!verdict.ok) {
+      batch = markGateFailed(batch, item.id, verdict.reasons.join(' '));
+      await save(batch);
+    }
   }
 
+  // presentForApproval 是 bulk 操作:仅将 filled 状态的 item 升格为 awaiting-approval。
+  // gate-failed items 已离开 filled 状态,自然不受此调用影响。
   batch = presentForApproval(batch);
   await save(batch);
   return batch;
