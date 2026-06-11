@@ -61,6 +61,12 @@ export interface BatchItem {
 	};
 	/** 接地闸门拦截原因（gate-failed 状态时写入;用户点"重新生成"后重置）。 */
 	gateFailReason?: string;
+	/**
+	 * post-assembler 原稿快照(重写前);grounding gate 的判定依据。
+	 * 只写一次(markFilled),只读不覆盖——重写/save 绝不碰它。
+	 * 旧批次缺此字段时 gate fail-safe 回落 item.draft。
+	 */
+	assembledDraftSnapshot?: ContentDraft;
 	/** 关联选题 ID（来自后端抓取的 pending_topics.id;handleRunBatch 写入）。 */
 	pendingTopicId?: string;
 }
@@ -169,12 +175,15 @@ export function markFilled(
 		triggered?: boolean;
 		reviewCostTokens?: BatchItem["reviewCostTokens"];
 	},
+	assembledDraftSnapshot?: ContentDraft,
 ): Batch {
 	return transition(batch, itemId, ["generating", "queued"], {
 		status: "filled",
 		draft,
-		// 快照 AI 原稿(shallow copy;ContentDraft 含 string[] 但 batch 操作始终替换整个字段)。
 		publishedDraft: { ...draft },
+		...(assembledDraftSnapshot !== undefined
+			? { assembledDraftSnapshot: { ...assembledDraftSnapshot } }
+			: {}),
 		...(llmCostTokens !== undefined ? { llmCostTokens } : {}),
 		...(generationDurationMs !== undefined ? { generationDurationMs } : {}),
 		// reviewMeta 为 undefined 时完全不写入，保持三态语义。

@@ -213,6 +213,7 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
 			gen.llmCostTokens,
 			undefined,
 			reviewMeta,
+			assembledDraft,
 		);
 		await save(batch);
 
@@ -306,7 +307,10 @@ export async function approveBatch(
 		if (checkGrounding) {
 			const gate = await evaluateGate();
 			if (gate.mode === "authorized") {
-				const verdict = checkGrounding(item.draft, item.facts);
+				const verdict = checkGrounding(
+				item.assembledDraftSnapshot ?? item.draft,
+				item.facts,
+			);
 				if (!verdict.ok) {
 					batch = markGenerateFailed(
 						batch,
@@ -500,7 +504,8 @@ export async function retryItem(
 	const draft = item.coverImageUrl
 		? { ...gen.draft, coverImageUrl: item.coverImageUrl }
 		: gen.draft;
-	batch = markFilled(batch, itemId, draft);
+	// retry 无重写流程,draft 即原稿;刷新快照使重试后新原稿成为 gate 判据。
+	batch = markFilled(batch, itemId, draft, undefined, undefined, undefined, draft);
 	batch = presentForApproval(batch);
 	await deps.save(batch); // flush approval-ready state
 	return batch;
