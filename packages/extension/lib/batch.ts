@@ -47,6 +47,8 @@ export interface BatchItem {
   generationDurationMs?: number;
   /** 发布时草稿快照(供 R5b slot-level diff 用)。 */
   publishedDraft?: ContentDraft;
+  /** AI 评审是否触发并改善草稿（Phase 3）。undefined=未触发/fail-open；false=通过无需重写；true=重写成功。 */
+  aiReviewTriggered?: boolean;
 }
 
 export interface Batch {
