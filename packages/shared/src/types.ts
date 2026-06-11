@@ -105,6 +105,8 @@ export interface Settings {
   fieldMapping: FieldMapping;
   /** 51publisher 后端 URL（http://localhost:3001 等）;空=不启用后端双写。 */
   backendUrl?: string;
+  /** AI 评审标准 prompt（Phase 3）;空时使用内置四维默认标准。 */
+  reviewCriteriaPrompt?: string;
 }
 
 // ---- 消息协议(side panel ↔ background ↔ content script) ----
@@ -167,6 +169,19 @@ export interface DryRunReport {
   batchId: string;
   ts: string;
   items: DryRunItemResult[];
+}
+
+/** AI 评审单维度结果。 */
+export interface ReviewDimension {
+  name: string;
+  pass: boolean;
+  reason?: string;
+}
+
+/** AI 评审 LLM 响应结果（Phase 3）。 */
+export interface ReviewResult {
+  ok: boolean;
+  dimensions?: ReviewDimension[];
 }
 
 export type GenerateDraftResponse =

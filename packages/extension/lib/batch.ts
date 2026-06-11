@@ -47,6 +47,10 @@ export interface BatchItem {
   generationDurationMs?: number;
   /** 发布时草稿快照(供 R5b slot-level diff 用)。 */
   publishedDraft?: ContentDraft;
+  /** AI 评审是否触发并改善草稿（Phase 3）。undefined=未触发/fail-open；false=通过无需重写；true=重写成功。 */
+  aiReviewTriggered?: boolean;
+  /** AI 评审 LLM token 用量（Phase 3）；独立于生成用量记录。 */
+  reviewCostTokens?: { prompt: number; completion: number; estimated?: boolean };
 }
 
 export interface Batch {
@@ -129,6 +133,7 @@ export function markFilled(
   draft: ContentDraft,
   llmCostTokens?: BatchItem['llmCostTokens'],
   generationDurationMs?: number,
+  reviewMeta?: { triggered?: boolean; reviewCostTokens?: BatchItem['reviewCostTokens'] },
 ): Batch {
   return transition(batch, itemId, ['generating', 'queued'], {
     status: 'filled',
@@ -137,6 +142,9 @@ export function markFilled(
     publishedDraft: { ...draft },
     ...(llmCostTokens !== undefined ? { llmCostTokens } : {}),
     ...(generationDurationMs !== undefined ? { generationDurationMs } : {}),
+    // reviewMeta 为 undefined 时完全不写入，保持三态语义。
+    ...(reviewMeta?.triggered !== undefined ? { aiReviewTriggered: reviewMeta.triggered } : {}),
+    ...(reviewMeta?.reviewCostTokens !== undefined ? { reviewCostTokens: reviewMeta.reviewCostTokens } : {}),
   });
 }
 

@@ -12,7 +12,7 @@ import {
   addPublishedTopics,
   refreshRemoteMappings,
 } from '../lib/storage';
-import { generateDraft } from '../lib/llm';
+import { generateDraft, reviewDraft, rewriteDraft } from '../lib/llm';
 import { canSubmit } from '../lib/safety-gate';
 import { orchestratePublish, type GateDecision } from '../lib/publish-orchestrator';
 import { abortBatch, releaseQuarantine, patchBatchDrafts, storeFillResults, type Batch } from '../lib/batch';
@@ -196,6 +196,9 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
         now: deps.now,
         persistentBlockedTopics: publishedTopics,
         bypassReentry: iterate,
+        reviewDraft: (draft, criteriaPrompt) => reviewDraft(draft, criteriaPrompt, { settings, apiKey }),
+        rewriteDraft: (draft, failedDims) => rewriteDraft(draft, failedDims, { settings, apiKey }),
+        reviewCriteriaPrompt: settings.reviewCriteriaPrompt,
       });
     } catch (err) {
       console.error('[bg] 批量生成失败', err);
@@ -276,7 +279,7 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
     if (!batch) return;
     const item = batch.items.find((it) => it.id === itemId);
     if (!item || item.userEdited) return; // 已标记则幂等跳过
-    const next = { ...batch, items: batch.items.map((it) => it.id === itemId ? { ...it, userEdited: true } : it) };
+    const next = { ...batch, items: batch.items.map((it) => (it.id === itemId ? { ...it, userEdited: true } : it)) };
     await deps.saveBatch(next);
   }
 

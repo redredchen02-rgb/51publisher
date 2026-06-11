@@ -286,3 +286,50 @@ describe('createBatch coverImageUrls', () => {
     expect(b.items.every((it) => !('coverImageUrl' in it))).toBe(true);
   });
 });
+
+// ================================================================
+// Phase-3 reviewMeta (markFilled 第六参数)
+// ================================================================
+
+describe('Phase-3 reviewMeta', () => {
+  it('triggered=true → aiReviewTriggered=true + reviewCostTokens 写入', () => {
+    let b = newBatch(['x']);
+    b = markGenerating(b, 'item_0');
+    b = markFilled(b, 'item_0', draftFor('item_0'), undefined, undefined, {
+      triggered: true,
+      reviewCostTokens: { prompt: 200, completion: 80 },
+    });
+    expect(b.items[0]!.aiReviewTriggered).toBe(true);
+    expect(b.items[0]!.reviewCostTokens).toEqual({ prompt: 200, completion: 80 });
+  });
+
+  it('triggered=false → aiReviewTriggered=false（通过无重写）', () => {
+    let b = newBatch(['x']);
+    b = markGenerating(b, 'item_0');
+    b = markFilled(b, 'item_0', draftFor('item_0'), undefined, undefined, { triggered: false });
+    expect(b.items[0]!.aiReviewTriggered).toBe(false);
+  });
+
+  it('reviewMeta=undefined → aiReviewTriggered 不写入（fail-open）', () => {
+    let b = newBatch(['x']);
+    b = markGenerating(b, 'item_0');
+    b = markFilled(b, 'item_0', draftFor('item_0'));
+    expect('aiReviewTriggered' in b.items[0]!).toBe(false);
+  });
+
+  it('triggered=undefined → aiReviewTriggered 不写入（三态语义）', () => {
+    let b = newBatch(['x']);
+    b = markGenerating(b, 'item_0');
+    b = markFilled(b, 'item_0', draftFor('item_0'), undefined, undefined, { triggered: undefined });
+    expect('aiReviewTriggered' in b.items[0]!).toBe(false);
+  });
+
+  it('现有调用方不传 reviewMeta → 向后兼容', () => {
+    let b = newBatch(['x']);
+    b = markGenerating(b, 'item_0');
+    b = markFilled(b, 'item_0', draftFor('item_0'), { prompt: 100, completion: 50 }, 500);
+    expect(b.items[0]!.llmCostTokens).toEqual({ prompt: 100, completion: 50 });
+    expect(b.items[0]!.generationDurationMs).toBe(500);
+    expect('aiReviewTriggered' in b.items[0]!).toBe(false);
+  });
+});

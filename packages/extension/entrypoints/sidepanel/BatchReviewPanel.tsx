@@ -331,6 +331,10 @@ export function BatchReviewPanel(props: Props) {
         {summary.quarantined > 0 && <strong style={{ color: '#cf1322' }}> · 待人工核 {summary.quarantined}</strong>}
         {summary.aborted > 0 && <span> · 已停 {summary.aborted}</span>}
         {(() => {
+          const optimized = batch.items.filter((i) => i.aiReviewTriggered === true).length;
+          return optimized > 0 ? <span style={{ color: '#8c8c8c' }}> · ✦ {optimized} 条自评已优化</span> : null;
+        })()}
+        {(() => {
           return phase === 'done' && ds.itemsWithAnyDegrade > 0 ? (
             <span
               style={{
@@ -441,6 +445,9 @@ export function BatchReviewPanel(props: Props) {
                     </span>
                   ) : null;
                 })()}
+              {it.aiReviewTriggered === true && (
+                <span style={{ marginLeft: 4, fontSize: 10, color: '#8c8c8c', flexShrink: 0 }}>✦ 已自评优化</span>
+              )}
               <span
                 aria-label={`状态 ${it.status}`}
                 style={{ marginLeft: 8, fontSize: 12, color: '#555', flexShrink: 0 }}
