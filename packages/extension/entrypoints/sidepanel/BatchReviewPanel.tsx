@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { SafetyMode, FieldFillResult, ContentDraft } from '@51publisher/shared';
+import type { SafetyMode, FieldFillResult, ContentDraft, RejectionReason } from '@51publisher/shared';
 import { type Batch, type BatchItem, batchSummary, batchPhase } from '../../lib/batch';
 import { aggregateDegradeStats } from '../../lib/degrade-stats';
 import type { DriftReport } from '../../lib/selectors';
@@ -186,6 +186,14 @@ function QuarantineContext({ record }: { record: TrajectoryRecord | undefined })
 // 纯展示 + 受控:批次/档位/tab 健康由 props 传入,动作经回调上抛给 App(它接 messaging)。
 
 interface Props {
+  /** U4:操作者已展开过的条目 id 集合。 */
+  readItems?: Set<string>;
+  /** U4:条目展开时回调,标记为已读。 */
+  onItemRead?: (id: string) => void;
+  /** U3/U9:操作者否决单条 awaiting-approval 条目;rejectionReason 供后端统计用。 */
+  onDiscardItem?: (itemId: string, rejectionReason?: RejectionReason) => void;
+  /** U4:所有 awaiting-approval 条目已读时为 true,门控 approve 按钮。 */
+  allRead?: boolean;
   batch: Batch;
   safetyMode: SafetyMode;
   /** 批次创建时记录的授权 host(字面展示供核对)。 */
@@ -236,12 +244,22 @@ const STATUS_LABEL: Record<BatchItem['status'], string> = {
   queued: '排队',
   generating: '生成中',
   filled: '待审',
+  'gate-failed': '接地拦截',
   'awaiting-approval': '待审',
   'publish-dispatched': '发布中',
   'publish-confirmed': '已发布',
   'needs-human-verification': '待人工核',
   aborted: '已停',
   error: '失败',
+};
+
+/** U9:拒绝原因选项(与 RejectionReason 枚举值对应)。 */
+const REJECTION_REASON_LABELS: Record<RejectionReason, string> = {
+  duplicate: '重复选题',
+  quality: '质量不达标',
+  topic_mismatch: '选题不符',
+  missing_facts: '事实缺失',
+  other: '其他',
 };
 
 export function BatchReviewPanel(props: Props) {
@@ -256,6 +274,10 @@ export function BatchReviewPanel(props: Props) {
     draftOverrides,
     onDraftChange,
     onRetryItem,
+    readItems,
+    onItemRead,
+    onDiscardItem,
+    allRead,
   } = props;
   const summary = batchSummary(batch);
   const phase = batchPhase(batch);
@@ -263,10 +285,20 @@ export function BatchReviewPanel(props: Props) {
   const [confirming, setConfirming] = useState(false);
   const [typed, setTyped] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // U9:否决流程 — 记录哪个条目正在选择拒绝原因。
+  const [discardPickerId, setDiscardPickerId] = useState<string | null>(null);
+  const [discardReason, setDiscardReason] = useState<RejectionReason>('other');
 
   const quarantined = batch.items.filter((it) => it.status === 'needs-human-verification');
+  const awaitingApprovalCount = batch.items.filter((it) => it.status === 'awaiting-approval').length;
+  // U4:有 awaiting-approval 条目时,需全部已读才可批准。
+  const readGateOk = awaitingApprovalCount === 0 || (allRead ?? false);
   const canApprove =
-    phase === 'awaiting-approval' && tabHealthy && (safetyMode === 'authorized' || safetyMode === 'dry-run') && !busy;
+    phase === 'awaiting-approval' &&
+    tabHealthy &&
+    (safetyMode === 'authorized' || safetyMode === 'dry-run') &&
+    !busy &&
+    readGateOk;
   // authorized 才要求打字手势;dry-run 预演只需点确认。
   const gestureOk = safetyMode !== 'authorized' || typed.trim().toLowerCase() === 'publish';
   const ds = aggregateDegradeStats(batch.items);
@@ -274,7 +306,17 @@ export function BatchReviewPanel(props: Props) {
   function toggle(id: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      const willExpand = !next.has(id);
+      if (willExpand) {
+        next.add(id);
+        // U4:展开即视为已读(仅 awaiting-approval 条目需要门控)。
+        const item = batch.items.find((it) => it.id === id);
+        if (item?.status === 'awaiting-approval') {
+          onItemRead?.(id);
+        }
+      } else {
+        next.delete(id);
+      }
       return next;
     });
   }
@@ -419,44 +461,173 @@ export function BatchReviewPanel(props: Props) {
       <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
         {batch.items.map((it) => (
           <li key={it.id} style={{ border: '1px solid #f0f0f0', borderRadius: 4, marginBottom: 4 }}>
-            <button
-              onClick={() => toggle(it.id)}
-              aria-expanded={expanded.has(it.id)}
-              style={{
-                ...btn,
-                width: '100%',
-                textAlign: 'left',
-                background: '#fff',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                {it.topic}
-              </span>
-              {it.fillResults &&
-                it.fillResults.length > 0 &&
-                (() => {
-                  const degraded = it.fillResults.filter((r) => r.status === 'degraded').length;
-                  return degraded > 0 ? (
-                    <span style={{ marginLeft: 4, fontSize: 11, color: '#fa8c16', flexShrink: 0 }}>
-                      {degraded}/{it.fillResults.length} 降级
-                    </span>
-                  ) : null;
-                })()}
-              {it.aiReviewTriggered === true && (
-                <span style={{ marginLeft: 4, fontSize: 10, color: '#8c8c8c', flexShrink: 0 }}>✦ 已自评优化</span>
-              )}
-              <span
-                aria-label={`状态 ${it.status}`}
-                style={{ marginLeft: 8, fontSize: 12, color: '#555', flexShrink: 0 }}
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <button
+                onClick={() => toggle(it.id)}
+                aria-expanded={expanded.has(it.id)}
+                style={{
+                  ...btn,
+                  flex: 1,
+                  textAlign: 'left',
+                  background: '#fff',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  minWidth: 0,
+                }}
               >
-                [{STATUS_LABEL[it.status]}]
-              </span>
-            </button>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                  {it.topic}
+                </span>
+                {/* U4:已读绿色徽章 */}
+                {it.status === 'awaiting-approval' && readItems?.has(it.id) && (
+                  <span aria-label="已读" style={{ marginLeft: 4, fontSize: 11, color: '#389e0d', flexShrink: 0 }}>
+                    ✓
+                  </span>
+                )}
+                {it.fillResults &&
+                  it.fillResults.length > 0 &&
+                  (() => {
+                    const degraded = it.fillResults.filter((r) => r.status === 'degraded').length;
+                    return degraded > 0 ? (
+                      <span style={{ marginLeft: 4, fontSize: 11, color: '#fa8c16', flexShrink: 0 }}>
+                        {degraded}/{it.fillResults.length} 降级
+                      </span>
+                    ) : null;
+                  })()}
+                {it.aiReviewTriggered === true && (
+                  <span style={{ marginLeft: 4, fontSize: 10, color: '#8c8c8c', flexShrink: 0 }}>✦ 已自评优化</span>
+                )}
+                <span
+                  aria-label={`状态 ${it.status}`}
+                  style={{ marginLeft: 8, fontSize: 12, color: '#555', flexShrink: 0 }}
+                >
+                  [{STATUS_LABEL[it.status]}]
+                </span>
+              </button>
+              {/* U9:否决按钮 + 拒绝原因选择器(仅 awaiting-approval 显示) */}
+              {it.status === 'awaiting-approval' &&
+                onDiscardItem &&
+                (discardPickerId === it.id ? (
+                  // 展示原因选择器
+                  <div
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 4, flexShrink: 0 }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <select
+                      aria-label="拒绝原因"
+                      value={discardReason}
+                      onChange={(e) => setDiscardReason(e.target.value as RejectionReason)}
+                      style={{ fontSize: 11, padding: '1px 2px', borderRadius: 3, border: '1px solid #d9d9d9' }}
+                    >
+                      {(Object.keys(REJECTION_REASON_LABELS) as RejectionReason[]).map((r) => (
+                        <option key={r} value={r}>
+                          {REJECTION_REASON_LABELS[r]}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      aria-label={`确认否决 ${it.topic}`}
+                      onClick={() => {
+                        setDiscardPickerId(null);
+                        onDiscardItem(it.id, discardReason);
+                      }}
+                      disabled={busy}
+                      style={{
+                        padding: '2px 6px',
+                        fontSize: 11,
+                        background: '#cf1322',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 3,
+                        cursor: busy ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      确认
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDiscardPickerId(null)}
+                      style={{
+                        padding: '2px 4px',
+                        fontSize: 11,
+                        background: '#f0f0f0',
+                        color: '#555',
+                        border: 'none',
+                        borderRadius: 3,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      取消
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    aria-label={`否决 ${it.topic}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDiscardReason('other');
+                      setDiscardPickerId(it.id);
+                    }}
+                    disabled={busy}
+                    style={{
+                      marginLeft: 4,
+                      padding: '2px 6px',
+                      fontSize: 11,
+                      background: '#fff1f0',
+                      color: '#cf1322',
+                      border: '1px solid #ffa39e',
+                      borderRadius: 3,
+                      cursor: busy ? 'not-allowed' : 'pointer',
+                      flexShrink: 0,
+                    }}
+                  >
+                    否决
+                  </button>
+                ))}
+            </div>
             {expanded.has(it.id) && (
               <div style={{ padding: '6px 10px', fontSize: 12, borderTop: '1px solid #f5f5f5' }}>
+                {/* U9:gate-failed — 接地闸门拦截,显示原因 + 重新生成按钮,不显示审批按钮 */}
+                {it.status === 'gate-failed' && (
+                  <div style={{ marginBottom: 6 }}>
+                    <span
+                      aria-label="接地拦截原因"
+                      style={{
+                        display: 'inline-block',
+                        background: '#fffbe6',
+                        border: '1px solid #ffe58f',
+                        color: '#874d00',
+                        borderRadius: 4,
+                        padding: '2px 8px',
+                        fontSize: 11,
+                        fontWeight: 600,
+                      }}
+                    >
+                      ⚠ 接地拦截:{it.gateFailReason ?? '未知原因'}
+                    </span>
+                    {onRetryItem && (
+                      <button
+                        type="button"
+                        onClick={() => onRetryItem(it.id)}
+                        disabled={busy}
+                        style={{
+                          ...btn,
+                          marginLeft: 6,
+                          padding: '2px 8px',
+                          fontSize: 11,
+                          background: '#fff7e6',
+                          border: '1px solid #ffd591',
+                          color: '#874d00',
+                        }}
+                      >
+                        重新生成
+                      </button>
+                    )}
+                  </div>
+                )}
                 {it.status === 'awaiting-approval' && it.draft && onDraftChange ? (
                   // 待审状态:显示可编辑字段(title/tags/category/description;body 唯读)。
                   <DraftPreview
@@ -516,23 +687,63 @@ export function BatchReviewPanel(props: Props) {
                   />
                 )}
                 <FillStatusTable results={it.fillResults} />
-                {(it.status === 'error' || it.status === 'aborted') && onRetryItem && (
+                {/* U9:error 状态区分 — grounding-blocked 走橙色"内容审核失败";其余走红色"重试此条" */}
+                {it.status === 'error' && it.error?.startsWith('grounding-blocked:') ? (
                   <div style={{ marginTop: 6 }}>
-                    <button
-                      onClick={() => onRetryItem(it.id)}
-                      disabled={busy}
+                    <span
+                      aria-label="内容审核失败"
                       style={{
-                        ...btn,
+                        display: 'inline-block',
+                        background: '#fff7e6',
+                        border: '1px solid #ffa940',
+                        color: '#d46b08',
+                        borderRadius: 4,
                         padding: '2px 8px',
                         fontSize: 11,
-                        background: '#fff7e6',
-                        border: '1px solid #ffd591',
-                        color: '#874d00',
+                        fontWeight: 600,
                       }}
                     >
-                      重试此条
-                    </button>
+                      ⊘ 内容审核失败:{it.error.slice('grounding-blocked:'.length)}
+                    </span>
+                    {onRetryItem && (
+                      <button
+                        type="button"
+                        onClick={() => onRetryItem(it.id)}
+                        disabled={busy}
+                        style={{
+                          ...btn,
+                          marginLeft: 6,
+                          padding: '2px 8px',
+                          fontSize: 11,
+                          background: '#fff7e6',
+                          border: '1px solid #ffd591',
+                          color: '#874d00',
+                        }}
+                      >
+                        重新生成
+                      </button>
+                    )}
                   </div>
+                ) : (
+                  (it.status === 'error' || it.status === 'aborted') &&
+                  onRetryItem && (
+                    <div style={{ marginTop: 6 }}>
+                      <button
+                        onClick={() => onRetryItem(it.id)}
+                        disabled={busy}
+                        style={{
+                          ...btn,
+                          padding: '2px 8px',
+                          fontSize: 11,
+                          background: '#fff7e6',
+                          border: '1px solid #ffd591',
+                          color: '#874d00',
+                        }}
+                      >
+                        重试此条
+                      </button>
+                    </div>
+                  )
                 )}
               </div>
             )}
