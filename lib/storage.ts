@@ -8,6 +8,7 @@ import { DEFAULT_FIELD_MAPPING } from './field-mapping';
 
 const SETTINGS_KEY = 'local:settings';
 const API_KEY = 'local:apiKey';
+const BACKEND_TOKEN_KEY = 'local:backendToken';
 const CURRENT_DRAFT_KEY = 'local:currentDraft';
 const SAFETY_MODE_KEY = 'local:safetyMode';
 const AUTHORIZED_HOSTS_KEY = 'local:authorizedHosts';
@@ -50,6 +51,15 @@ export async function getApiKey(): Promise<string> {
 
 export async function saveApiKey(key: string): Promise<void> {
   await storage.setItem(API_KEY, key);
+}
+
+/** 后端 JWT token（与 apiKey 分开存取）。 */
+export async function getBackendToken(): Promise<string> {
+  return (await storage.getItem<string>(BACKEND_TOKEN_KEY)) ?? '';
+}
+
+export async function saveBackendToken(token: string): Promise<void> {
+  await storage.setItem(BACKEND_TOKEN_KEY, token);
 }
 
 // 当前在编草稿的崩溃恢复(≠ 草稿库):side panel 重开/SW 回收/目标页刷新都可能丢失,

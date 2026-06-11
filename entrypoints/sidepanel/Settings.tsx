@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { DEFAULT_SETTINGS, getApiKey, getSettings, saveApiKey, saveSettings } from '../../lib/storage';
+import { DEFAULT_SETTINGS, getApiKey, getBackendToken, getSettings, saveApiKey, saveBackendToken, saveSettings } from '../../lib/storage';
 import type { FieldMapping, FieldType, FewShotPair } from '../../lib/types';
 import { FewShotPairEditor } from './components/FewShotPairEditor';
 
@@ -43,6 +43,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
   const [fallbackEndpoint, setFallbackEndpoint] = useState('');
   const [fallbackModel, setFallbackModel] = useState('');
   const [fallbackOpen, setFallbackOpen] = useState(false);
+  const [backendUrl, setBackendUrl] = useState('');
+  const [backendToken, setBackendToken] = useState('');
   const [fewShotPairs, setFewShotPairs] = useState<FewShotPair[]>([]);
   const [importBanner, setImportBanner] = useState('');
   const [importTruncated, setImportTruncated] = useState('');
@@ -51,12 +53,14 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     void (async () => {
-      const [s, key] = await Promise.all([getSettings(), getApiKey()]);
+      const [s, key, bToken] = await Promise.all([getSettings(), getApiKey(), getBackendToken()]);
       setEndpoint(s.endpoint);
       setModel(s.model);
       setPromptTemplate(s.promptTemplate);
       setMappingText(JSON.stringify(s.fieldMapping, null, 2));
       setApiKey(key);
+      setBackendUrl(s.backendUrl ?? '');
+      setBackendToken(bToken);
       if (s.fallbackModel) {
         setFallbackEndpoint(s.fallbackModel.endpoint);
         setFallbackModel(s.fallbackModel.model ?? '');
@@ -108,8 +112,10 @@ export function Settings({ onClose }: { onClose: () => void }) {
       fallbackModel: fbModel,
       fewShotPairs,
       fewShotExamples,
+      backendUrl: backendUrl || undefined,
     });
     await saveApiKey(apiKey);
+    await saveBackendToken(backendToken);
     setSaved(true);
   }
 
@@ -149,6 +155,12 @@ export function Settings({ onClose }: { onClose: () => void }) {
           </div>
         )}
       </div>
+
+      {/* 后端连接（可选，用于 published_posts 注册表双写） */}
+      <label style={labelStyle}>后端 URL（可选，http://localhost:3001）</label>
+      <input style={inputStyle} value={backendUrl} placeholder="http://localhost:3001" onChange={(e) => setBackendUrl(e.target.value)} />
+      <label style={labelStyle}>后端 JWT Token（可选）</label>
+      <input style={inputStyle} type="password" value={backendToken} onChange={(e) => setBackendToken(e.target.value)} />
 
       {/* Few-shot 范例编辑器 */}
       <div style={{ marginTop: 10 }}>

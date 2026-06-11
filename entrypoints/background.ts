@@ -30,6 +30,7 @@ import {
 } from '../lib/batch';
 import { buildPrompt } from '../lib/messaging';
 import { computeSlotDiff } from '../lib/draft-diff';
+import { recordPublishedPost, type PublishedPostRecord } from '../lib/published-posts-client';
 
 // Background service worker:调度中心 + 发布闸门。
 // - 点扩展图标打开 side panel
@@ -280,6 +281,18 @@ async function handleApproveBatch(tabId: number): Promise<Batch | null> {
           slotDiff,
         });
         if (snapshotDropped) console.warn('[bg] 轨迹快照含机密被丢弃(record 已落,无快照)');
+        // best-effort 后端双写（失败静默；trajectory 是本地 source of truth）
+        if (currentMode === 'authorized' && result.ok) {
+          void recordPublishedPost({
+            id: item.id,
+            batchItemId: item.id,
+            sourceTitle: item.topic,
+            publishUrl: result.url,
+            publishUrlSource: (result as unknown as Record<string, unknown>).urlSource as PublishedPostRecord['publishUrlSource'],
+            publishedAt: new Date().toISOString(),
+            outcome: 'publish-confirmed',
+          });
+        }
       }
 
       // dry-run / blocked:不推进条目(留在 awaiting-approval),让 UI 报告。
