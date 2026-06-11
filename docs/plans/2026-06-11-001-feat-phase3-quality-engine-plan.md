@@ -16,7 +16,7 @@ origin: docs/brainstorms/2026-06-11-phase-3-quality-engine-requirements.md
 
 ## Problem Frame
 
-Phase 2 建立了度量与学习地基（直发率追踪、few-shot 编辑器、trajectory 记录），但核心痛点未解决：AI 草稿四维质量普遍偏低（正文内容单薄、口吻/风格不对、标题不吸引、分类/标签错误），每条都需要大量手动改稿。Phase 3 在 `background.ts` 生成循环内插入评审→重写 pass，让操作者看到的草稿质量显著提升。（见 origin: docs/brainstorms/2026-06-11-phase-3-quality-engine-requirements.md）
+Phase 2 建立了度量与学习地基（直发率追踪、few-shot 编辑器、trajectory 记录），但核心痛点未解决：AI 草稿四维质量普遍偏低（正文内容单薄、口吻/风格不对、标题不吸引、分类/标签错误），每条都需要大量手动改稿。Phase 3 在 `packages/extension/lib/batch-orchestrator.ts` 的 `runBatch()` 函数中通过 `RunBatchDeps` 注入 `reviewDraft?`/`rewriteDraft?`，并在 `gen.ok` 分支内插入评审→重写 pass，让操作者看到的草稿质量显著提升。（见 origin: docs/brainstorms/2026-06-11-phase-3-quality-engine-requirements.md）
 
 ## Requirements Trace
 
@@ -26,8 +26,8 @@ Phase 2 建立了度量与学习地基（直发率追踪、few-shot 编辑器、
 - R3. 成本透明：`reviewCostTokens` 独立记录到 trajectory；`BatchItem.aiReviewTriggered?: boolean` 三态语义
 - R4. badge UI：`aiReviewTriggered === true` 时显示「✦ 已自评优化」徽章；批次汇总显示 N 条已优化
 - R5. 评审 prompt 可配置：`Settings.reviewCriteriaPrompt`，空时使用内置四维默认标准
-- R6. run-sheet 模板：`docs/run-sheet-首飞与基线.md`，五项首飞观察结构化表格
-- Success: `pnpm test` 零失败；`pnpm compile` 零错误；trajectory 中 `aiReviewTriggered` 可读；run-sheet 文件存在
+- R6. run-sheet 模板：补全 `docs/run-sheet-首飞与基线.md` 的待填观察条目（文件已存在，需确认内容完整性）
+- Success: `pnpm test` 零失败；`pnpm compile` 零错误；trajectory 中 `aiReviewTriggered` 可读；run-sheet 文件完整；**Phase 3 闸门**：≥10 篇 authorized 发布后直发率（`hasManualEdit===false`）≥70%
 
 ## Scope Boundaries
 
@@ -41,18 +41,18 @@ Phase 2 建立了度量与学习地基（直发率追踪、few-shot 编辑器、
 
 ### Relevant Code and Patterns
 
-- **`lib/llm.ts`**：`generateDraft()` 调用链 — `buildRequest()` → `fetchFn()` → `extractContent()` → `parseContentJson()` → `toDraft()`；评审调用完全平行此路径。错误全部结构化返回 `{ ok: false, kind }` 不 throw。
-- **`lib/batch.ts`**：`patchItem()` + `transition()` 不可变状态机；`markFilled(batch, id, draft, llmCostTokens?, genDurationMs?)` 接受 `['generating', 'queued']` 两个 from 状态。
-- **`lib/trajectory.ts`**：`buildRecord()` 使用 optional-spread 模式添加可选字段（`...(input.x !== undefined ? { x: input.x } : {})`）；`canonical()` 中的哈希字段列表**不可扩展**，否则旧记录验证失败。
-- **`entrypoints/background.ts`** 第 183–197 行：串行生成循环；Phase 3 评审调用插入 `gen.ok` 分支内、`markFilled` 之前。
-- **`parseContentJson`**（`lib/llm.ts` module-private）：已处理 ` ```json ``` ` 围栏剥离；`parseReviewResult` 必须复用此逻辑。
-- **`fallbackModel`**（`lib/types.ts` line 85）：`{ endpoint: string; model?: string }`，当前整个 codebase 无 call site，Phase 3 是第一个使用方。
+- **`packages/extension/lib/llm.ts`**：`generateDraft()` 是**后端代理客户端**——调用 `POST http://127.0.0.1:3001/api/v1/drafts/generate`，apiKey 字段留存仅为接口兼容、执行时被忽略。所有 LLM 调用必须经过本地后端，扩展层不直接调用 LLM。`reviewDraft`/`rewriteDraft` 同样需要作为薄代理客户端实现（调用新后端端点），参照 `generateDraft` 模式。
+- **`packages/extension/lib/batch-orchestrator.ts`**：`RunBatchDeps` 接口 + `runBatch()` 函数——生成循环在此（第 107–122 行）；Phase 3 评审调用插入 `gen.ok` 分支内、`markFilled` 之前。`reviewDraft?`/`rewriteDraft?` 需作为可选 deps 注入到 `RunBatchDeps` 接口。
+- **`packages/extension/lib/batch.ts`**：`patchItem()` + `transition()` 不可变状态机；`markFilled(batch, id, draft)` 当前调用只传 3 个参数（`llmCostTokens` 等可选参数可扩展但当前未使用）。
+- **`packages/extension/lib/trajectory.ts`**：`buildRecord()` 使用 optional-spread 模式添加可选字段（`...(input.x !== undefined ? { x: input.x } : {})`）；`canonical()` 中的哈希字段列表**不可扩展**，否则旧记录验证失败。
+- **`packages/shared/src/types.ts`**：共享类型库（`Settings`、`BatchItem`、`GenerateDraftResponse` 等）。`fallbackModel?: string`——仅为模型名称字符串，**无** `.endpoint` 属性（见 P0 架构决策）。
 
 ### Institutional Learnings
 
 - `canonical()` 哈希字段列表固定；新增 `reviewCostTokens`/`aiReviewTriggered` 到 `TrajectoryRecord` 时**不能**加入 `canonical()`。
-- `generateDraft` 的 `llmCostTokens` 字段当前永远返回 `undefined`（`lib/llm.ts` 不提取 `response.usage`）；Phase 3 作为 llmCostTokens 修复的载体一并修复。
-- 测试注入模式：`lib/llm.test.ts` 通过 `fetchFn` 参数 mock 网络调用；`lib/batch.test.ts` 直接对纯函数断言。
+- `generateDraft` 的 `llmCostTokens` 字段当前永远返回 `undefined`（扩展层 `packages/extension/lib/llm.ts` 是代理，不提取 `response.usage`；用量提取由后端处理，若后端在响应中返回则 extension 透传）；Phase 3 评审成本追踪以后端响应中的用量字段为准。
+- 测试注入模式：`packages/extension/lib/llm.test.ts` 通过 `fetchFn` 参数 mock 网络调用；`packages/extension/lib/batch.test.ts` 直接对纯函数断言。
+- `docs/eval/golden-set.md` 在本地文件系统中**不存在**（`docs/eval/` 目录未找到）；「内置 default criteria prompt 文字」需在实现时直接制定，或确认该文件正确路径后取材。
 
 ### External References
 
@@ -62,7 +62,7 @@ Phase 2 建立了度量与学习地基（直发率追踪、few-shot 编辑器、
 
 - **markFilled 扩展（而非独立 markReviewed()）**：评审发生在 `generating` 状态期间，不需要独立状态节点；扩展 `markFilled` 签名加可选 `reviewMeta?` 参数实现原子写入，避免 `aiReviewTriggered` 写入时机竞态（spec flow gap 1a）。（see origin 架构决策 4）
 - **aiReviewTriggered 四状态语义**：`undefined` = 评审未触发（fail-open 或 Phase 3 部署前）；`false` = 评审通过，无重写；`true` = 评审失败 + 重写**成功**；重写触发但失败视为 fail-open，同样设 `undefined`，确保 badge 只在真正改善时出现。
-- **fallbackModel fail-open（不双重回退）**：fallbackModel 未配置 → 用 main endpoint；fallbackModel 配置了但失败 → fail-open，不回退 main endpoint。原因：避免双重计费和语义歧义；失败成本（丢失评审）低于双重调用成本。
+- **fallbackModel fail-open（不双重回退）**：`fallbackModel` 是 `string?`（模型名称），未配置 → 后端使用默认模型；`fallbackModel` 已配置 → 在请求 body 中传给后端（如 `{ ..., settings }`），由后端决定调用哪个模型。后端调用失败 → fail-open，确保不阻塞 batch loop。原因：避免双重计费和语义歧义；失败成本（丢失评审）低于双重调用成本。（⚠️ `fallbackModel` 无 `.endpoint` 属性——见 P0 架构决策）
 - **rewrite 白名单合并**：`mergeRewriteResult(original, rewrite, failedDims)` 根据失败维度决定合并字段：`title_quality` → `title`；`body_richness` / `community_tone` → `body`；`category_accuracy` → `categories` + `tags`；`id`、`coverImageUrl`、`mediaId` 始终保留原草稿值。（see origin 架构决策 3）
 - **4 维度 canonical 名称**：`body_richness`、`community_tone`、`title_quality`、`category_accuracy`；评审 prompt 要求 LLM 以这些名称返回结构化 JSON，确保 failedDims 字符串与合并白名单一致。
 - **extractUsage 函数**：单独封装可测试函数，兼容 `usage.prompt_tokens`/`completion_tokens`（OpenAI 标准）和 `usage.inputTokens`/`outputTokens`（部分代理）两种格式；无法识别时返回 `undefined`（不是 `{ estimated: true }`），避免虚假数据。
@@ -127,15 +127,16 @@ markFilled(batch, id, finalDraft, totalTokens, genDurationMs,
 ```mermaid
 graph TB
   U1[U1: Groundwork\nvitest + types + run-sheet]
-  U2[U2: LLM functions\nreviewDraft + rewriteDraft]
+  U2[U2: LLM proxy clients\nreviewDraft + rewriteDraft\n+ 后端新路由]
   U3[U3: batch.ts\nmarkFilled extension]
   U4[U4: Settings UI\nreviewCriteriaPrompt]
-  U5[U5: background.ts\nintegration]
+  U5[U5: batch-orchestrator.ts\n+ background.ts 接线]
   U6[U6: Badge UI]
 
   U1 --> U2
   U1 --> U3
   U1 --> U4
+  U1 --> U5
   U2 --> U5
   U3 --> U5
   U5 --> U6
@@ -152,27 +153,27 @@ graph TB
 **Dependencies:** 无
 
 **Files:**
-- Modify: `vitest.config.ts`
+- Modify: `vitest.config.ts`（根目录，排除 packages/ 扫描）
 - Modify: `.gitignore`
-- Modify: `lib/types.ts`（Settings + BatchItem）
-- Modify: `lib/trajectory.ts`（TrajectoryRecord + TrajectoryInput + buildRecord）
-- Create: `docs/run-sheet-首飞与基线.md`
+- Modify: `packages/shared/src/types.ts`（`ReviewResult` 新类型 + `Settings.reviewCriteriaPrompt` + `BatchItem.aiReviewTriggered`）
+- Modify: `packages/extension/lib/trajectory.ts`（TrajectoryRecord + TrajectoryInput + buildRecord）
+- Verify / update: `docs/run-sheet-首飞与基线.md`（文件已存在，确认 5 行观察条目完整）
 
 **Approach:**
-- `vitest.config.ts`：`exclude` 数组末尾追加 `'packages/**'`（单行改动）
+- `vitest.config.ts`（根目录）：`exclude` 数组末尾追加 `'packages/**'`（单行改动）
 - `.gitignore`：追加 `packages/` 条目（长期方案，防止后续意外追踪）
-- `lib/types.ts`：
+- `packages/shared/src/types.ts`：
   - 新增 `ReviewResult` 类型：`{ ok: boolean; dimensions?: Array<{ name: string; pass: boolean; reason?: string }> }`（放在 `GenerateDraftResponse` 附近）
   - `BatchItem` 新增 `aiReviewTriggered?: boolean`（放在 `llmCostTokens` 后）
   - `Settings` 新增 `reviewCriteriaPrompt?: string`（放在 `fewShotPairs` 后）
-- `lib/trajectory.ts`：
+- `packages/extension/lib/trajectory.ts`：
   - `TrajectoryRecord` + `TrajectoryInput` 各新增：`reviewCostTokens?: { prompt: number; completion: number; estimated?: boolean }` 和 `aiReviewTriggered?: boolean`
   - `buildRecord()` 用 optional-spread 模式透传两个新字段（参照 `llmCostTokens` 的处理方式，**不加入 `canonical()`**）
-- `docs/run-sheet-首飞与基线.md`：建立 5 行观察表格（cover_url 类型、session 寿命、隐藏帖可见性、save 响应 URL、发布时间戳），每行含「待填」占位
+- `docs/run-sheet-首飞与基线.md`：确认 5 行观察表格存在（cover_url 类型、session 寿命、隐藏帖可见性、save 响应 URL、发布时间戳），如缺失则补全
 
 **Patterns to follow:**
-- `lib/trajectory.ts` 中 `llmCostTokens` 的 optional-spread 模式（第 106–108 行）
-- `lib/types.ts` 中 `BatchItem` 现有可选字段列表（`lib/types.ts` ~36 行）
+- `packages/extension/lib/trajectory.ts` 中 `llmCostTokens` 的 optional-spread 模式
+- `packages/shared/src/types.ts` 中 `BatchItem` 现有可选字段列表
 
 **Test scenarios:**
 - Happy path: `buildRecord({ aiReviewTriggered: true, reviewCostTokens: {...} })` → record 包含两个新字段
@@ -186,48 +187,49 @@ graph TB
 
 ---
 
-- [ ] **Unit 2: LLM functions — extractUsage, reviewDraft, rewriteDraft**
+- [ ] **Unit 2: LLM proxy clients — reviewDraft, rewriteDraft（扩展层）+ 后端新路由**
 
-**Goal:** 在 `lib/llm.ts` 实现评审与重写所需的全部 LLM 调用函数，并修复 `generateDraft` 不提取 `response.usage` 的长期 bug。
+**Goal:** ① 在扩展层 `packages/extension/lib/llm.ts` 实现 `reviewDraft`/`rewriteDraft` 薄代理客户端（调用新后端端点）；② 在后端 `packages/backend/src/` 实现对应路由（prompt 构建、LLM 调用、响应解析）；③ 实现 `mergeRewriteResult` 合并函数（可放扩展层，纯 JSON 操作无网络依赖）。
+
+> ⚠️ **P0 架构约束**：`packages/extension/lib/llm.ts` 是后端代理，apiKey 被忽略，不可直接调用 LLM。`reviewDraft`/`rewriteDraft` 必须 POST 到本地后端端点 `http://127.0.0.1:3001/api/v1/drafts/review` 与 `/api/v1/drafts/rewrite`，prompt 构建和 LLM 调用逻辑在后端实现。
+> ⚠️ **fallbackModel 类型**：`Settings.fallbackModel` 是 `string?`（模型名称），无 `.endpoint` 属性。评审调用通过 `settings` 对象传给后端，由后端决定使用哪个模型。
 
 **Requirements:** R1, R2, R3（token 提取部分）
 
 **Dependencies:** Unit 1（ReviewResult 类型）
 
 **Files:**
-- Modify: `lib/llm.ts`
-- Modify: `lib/llm.test.ts`
+- Modify: `packages/extension/lib/llm.ts`（新增 `reviewDraft`/`rewriteDraft`/`mergeRewriteResult` 薄客户端函数）
+- Modify: `packages/extension/lib/llm.test.ts`（通过 `fetchFn` mock 新函数）
+- Create: `packages/backend/src/routes/drafts-review-route.ts`（POST /api/v1/drafts/review）
+- Create: `packages/backend/src/routes/drafts-rewrite-route.ts`（POST /api/v1/drafts/rewrite）
+- Modify: `packages/backend/src/app.ts` 或路由注册入口（注册新路由）
 
-**Approach:**
-- **`extractUsage(raw: unknown)`（export）**：从 LLM 响应 `raw` 中提取 token 用量，兼容 `usage.prompt_tokens`/`completion_tokens`（OpenAI）和 `usage.inputTokens`/`outputTokens`（部分代理）；无法识别时返回 `undefined`（不伪造数据）
-- **`generateDraft` 修复**：在 `return { ok: true, draft }` 前调用 `extractUsage(raw)` 并填入 `llmCostTokens`
-- **`parseReviewResult(content: string): ReviewResult | null`**：内联 `parseContentJson` 的围栏剥离 + JSON.parse 逻辑，再验证返回对象包含 `dimensions` 数组（避免 export parseContentJson 扩大接口面）；维度名称按 canonical 集合验证（`body_richness` / `community_tone` / `title_quality` / `category_accuracy`）
-- **`buildReviewRequest(draft, criteriaPrompt, settings)`**：构建评审 LLM 请求；若 `criteriaPrompt` 为空字符串，使用内置 default criteria（四维）；若 `settings.fallbackModel` 已配置，使用其 endpoint + （`model ?? settings.model`）；否则用主 endpoint
-- **`reviewDraft(draft, criteriaPrompt, deps)`**：调用 `buildReviewRequest` → `fetchFn` → `extractContent` → `parseReviewResult`，全程结构化 `{ ok: false, kind }` 不 throw；成功时返回 `{ ok: true, result: ReviewResult, reviewCostTokens? }`
-- **`buildRewriteRequest(draft, failedDims, criteriaPrompt, settings)`**：构建重写请求，prompt 中明确说明只重写指定维度对应字段（`failedDims` → 白名单字段名），要求 LLM 返回完整 `ContentDraft` JSON；endpoint 使用同 `buildReviewRequest` 相同策略
-- **`mergeRewriteResult(original, rewrite, failedDims): ContentDraft`（export）**：白名单合并，`title_quality` → 取 `rewrite.title`；`body_richness`/`community_tone` → 取 `rewrite.body`；`category_accuracy` → 取 `rewrite.categories` + `rewrite.tags`；`id`/`coverImageUrl`/`mediaId` 始终保留 `original` 值；`rewrite` 中没有对应字段时保留 `original` 值
-- **`rewriteDraft(draft, failedDims, criteriaPrompt, deps)`**：调用重写 LLM → `toDraft` 解析 → `mergeRewriteResult`；失败时返回 `{ ok: false }`，不 throw
+**Approach（扩展层）:**
+- **`reviewDraft(draft, criteriaPrompt, deps: LlmDeps)`**：POST `{draft, criteriaPrompt, settings}` 到 `${BACKEND_BASE}/api/v1/drafts/review`；响应类型为 `{ ok: true, result: ReviewResult, reviewCostTokens? }` 或 `{ ok: false, kind, error }`；全程不 throw
+- **`rewriteDraft(draft, failedDims, criteriaPrompt, deps: LlmDeps)`**：POST `{draft, failedDims, criteriaPrompt, settings}` 到 `${BACKEND_BASE}/api/v1/drafts/rewrite`；响应为 `{ ok: true, draft: ContentDraft, rewriteCostTokens? }` 或 `{ ok: false }`；全程不 throw
+- **`mergeRewriteResult(original, rewrite, failedDims): ContentDraft`（export）**：白名单合并，`title_quality` → 取 `rewrite.title`；`body_richness`/`community_tone` → 取 `rewrite.body`；`category_accuracy` → 取 `rewrite.categories` + `rewrite.tags`；`id`/`coverImageUrl`/`mediaId` 始终保留 `original` 值
+- 参照 `generateDraft` 的 Auth header + AbortController + 结构化错误返回模式
+
+**Approach（后端路由）:**
+- `drafts-review-route.ts`：接收 `{draft, criteriaPrompt, settings}`；构建四维评审 prompt（`criteriaPrompt` 为空时用内置默认）；调用后端 LLM client（参照 `/api/v1/drafts/generate` 的 handler 模式）；parse + 验证响应为 `ReviewResult`；返回 `{ok, result, reviewCostTokens?}`
+- `drafts-rewrite-route.ts`：接收 `{draft, failedDims, criteriaPrompt, settings}`；构建定向重写 prompt；调用 LLM；返回 `{ok, draft: ContentDraft, rewriteCostTokens?}`
+
+**Test scenarios（扩展层——通过 fetchFn mock）:**
+- Happy path: `reviewDraft` — fetchFn 返回 `{ok:true, result:{dimensions:[...]}}` → 正确透传
+- Error path: `reviewDraft` — fetchFn throws / 返回 401 / 返回 500 → `{ ok: false, kind: 'network' }`
+- Happy path: `rewriteDraft` — fetchFn 返回合法 ContentDraft → `{ ok: true, draft }`
+- Error path: `rewriteDraft` — fetchFn 失败 → `{ ok: false }`
+- Happy path: `mergeRewriteResult` — failedDims 含 `title_quality` → `title` 来自 rewrite，`id`/`body` 保留 original
+- Happy path: `mergeRewriteResult` — failedDims 含 `body_richness` + `community_tone` → `body` 来自 rewrite
+- Edge case: `mergeRewriteResult` — rewrite 缺少某字段 → 保留 original 对应字段
 
 **Patterns to follow:**
-- `generateDraft` 的结构化错误返回模式（`lib/llm.ts` 第 94–144 行）
-- `fetchFn` + `LlmDeps` 依赖注入模式（用于测试 mock）
-
-**Test scenarios:**
-- Happy path: `extractUsage` 解析标准 OpenAI `usage.prompt_tokens`/`completion_tokens` → 正确对象
-- Happy path: `extractUsage` 解析代理格式 `inputTokens`/`outputTokens` → 正确对象
-- Edge case: `extractUsage(undefined)` / `extractUsage({})` → `undefined`
-- Happy path: `generateDraft` 成功后 `llmCostTokens` 已填入（验证修复生效）
-- Happy path: `reviewDraft` — fetchFn 返回所有维度 pass → `result.ok: true`, `result.result.dimensions` 均 pass
-- Happy path: `reviewDraft` — fetchFn 返回 `body_richness` fail → `result.result.dimensions` 包含一个 `pass: false` 的条目
-- Error path: `reviewDraft` — fetchFn throws → `{ ok: false, kind: 'network' }`
-- Error path: `reviewDraft` — fetchFn 返回 malformed JSON → `{ ok: false, kind: 'format' }`
-- Happy path: `mergeRewriteResult` — failedDims 含 `title_quality` → 返回 draft 的 `title` 来自 rewrite，`id`/`body` 保留 original
-- Happy path: `mergeRewriteResult` — failedDims 含 `body_richness` + `community_tone` → `body` 来自 rewrite，`title`/`categories` 保留 original
-- Happy path: `rewriteDraft` — 成功 → 返回 merged ContentDraft，必含全部 required 字段
-- Error path: `rewriteDraft` — fetchFn 失败 → `{ ok: false }`
+- `packages/extension/lib/llm.ts` 中 `generateDraft` 的代理模式（第 69–119 行）
+- `packages/backend/src/` 中 generate 路由 handler 的 LLM 调用模式
 
 **Verification:**
-- `lib/llm.test.ts` 全部测试绿；新增测试覆盖所有 happy path + error path
+- `packages/extension/lib/llm.test.ts` 全部测试绿
 - TypeScript 通过
 
 ---
@@ -241,8 +243,8 @@ graph TB
 **Dependencies:** Unit 1（`BatchItem.aiReviewTriggered` 类型）
 
 **Files:**
-- Modify: `lib/batch.ts`
-- Modify: `lib/batch.test.ts`
+- Modify: `packages/extension/lib/batch.ts`
+- Modify: `packages/extension/lib/batch.test.ts`
 
 **Approach:**
 - `markFilled` 签名增加可选第六参数 `reviewMeta?: { triggered?: boolean; reviewCostTokens?: BatchItem['llmCostTokens'] }`
@@ -251,7 +253,7 @@ graph TB
 - 现有调用方不传 `reviewMeta` → 行为完全不变（向后兼容）
 
 **Patterns to follow:**
-- `markFilled` 现有 patchItem 调用（`lib/batch.ts` 第 109–124 行）
+- `markFilled` 现有 patchItem 调用（`packages/extension/lib/batch.ts`）
 - Phase 2 中 `llmCostTokens` 字段的写入模式
 
 **Test scenarios:**
@@ -276,8 +278,8 @@ graph TB
 **Dependencies:** Unit 1（`Settings.reviewCriteriaPrompt` 类型）
 
 **Files:**
-- Modify: `entrypoints/sidepanel/Settings.tsx`
-- Modify: `entrypoints/sidepanel/Settings.test.tsx`
+- Modify: `packages/extension/entrypoints/sidepanel/Settings.tsx`
+- Modify: `packages/extension/entrypoints/sidepanel/Settings.test.tsx`
 
 **Approach:**
 - 在 `fewShotPairs` 编辑器之后新增一个 `<textarea>` 区域，label 为「评审标准 prompt（可选）」
@@ -286,7 +288,7 @@ graph TB
 - 样式参照 `promptTemplate` 文本区域的现有样式
 
 **Patterns to follow:**
-- `promptTemplate` 文本区域的读写模式（`Settings.tsx` 中的现有 textarea 实现）
+- `promptTemplate` 文本区域的读写模式（`packages/extension/entrypoints/sidepanel/Settings.tsx` 中的现有 textarea 实现）
 - 其他可选 Settings 字段的 save/load 模式
 
 **Test scenarios:**
@@ -301,41 +303,48 @@ graph TB
 
 ---
 
-- [ ] **Unit 5: background.ts — 评审重写管道集成**
+- [ ] **Unit 5: batch-orchestrator.ts + background.ts — 评审重写管道集成**
 
-**Goal:** 在 `handleRunBatch` 生成循环中插入评审→重写逻辑，将最终草稿和评审元数据写入 BatchItem 与 trajectory。
+**Goal:** ① 在 `RunBatchDeps` 接口新增 `reviewDraft?`/`rewriteDraft?` 可选注入；② 在 `runBatch()` 的 `gen.ok` 分支内插入评审→重写逻辑；③ `background.ts` 补充新 deps 的接线（调用扩展层客户端函数）。
 
 **Requirements:** R1, R2, R3
 
-**Dependencies:** Unit 2（reviewDraft, rewriteDraft, mergeRewriteResult）, Unit 3（markFilled 扩展）
+**Dependencies:** Unit 1（类型）, Unit 2（reviewDraft, rewriteDraft, mergeRewriteResult）, Unit 3（markFilled 扩展）
 
 **Files:**
-- Modify: `entrypoints/background.ts`
+- Modify: `packages/extension/lib/batch-orchestrator.ts`（主要修改：`RunBatchDeps` 接口 + `runBatch()` gen.ok 分支）
+- Modify: `packages/extension/entrypoints/background.ts`（薄接线：向 deps 传入 reviewDraft/rewriteDraft）
 
 **Approach:**
-- 在 `gen.ok` 分支内、原 `markFilled` 调用之前插入评审重写逻辑（按 High-Level Technical Design 流程图）：
-  1. 从 `settings.reviewCriteriaPrompt` 或内置 default 构造 `effectiveCriteriaPrompt`
-  2. 构造 `reviewDeps`：若 `settings.fallbackModel` 已配置，用其 endpoint；否则用主 endpoint；`apiKey` 相同
-  3. 调用 `reviewDraft(gen.draft, effectiveCriteriaPrompt, reviewDeps)`
-  4. 根据结果确定 `finalDraft`、`aiReviewTriggered`、`reviewCostTokens`（按四状态规则）
-  5. 若 `review.ok && failedDims.length > 0`：调用 `rewriteDraft(gen.draft, failedDims, effectiveCriteriaPrompt, reviewDeps)`
-  6. 调用 `markFilled(batch, item.id, finalDraft, gen.llmCostTokens, genDurationMs, { triggered: aiReviewTriggered, reviewCostTokens })`
+- **`RunBatchDeps` 扩展**（`batch-orchestrator.ts`）：新增两个可选注入：
+  ```
+  reviewDraft?: (draft: ContentDraft, criteriaPrompt: string, deps: LlmDeps) => Promise<ReviewDraftResponse>
+  rewriteDraft?: (draft: ContentDraft, failedDims: string[], criteriaPrompt: string, deps: LlmDeps) => Promise<RewriteDraftResponse>
+  ```
+- **`runBatch()` gen.ok 分支插入**（第 119 行之后、`markFilled` 之前）：
+  1. 若 `deps.reviewDraft` 已注入：从 `settings.reviewCriteriaPrompt`（或空字符串）构造 `effectiveCriteriaPrompt`
+  2. 调用 `reviewDraft(gen.draft, effectiveCriteriaPrompt, llmDeps)`
+  3. 根据结果确定 `finalDraft`、`aiReviewTriggered`、`reviewCostTokens`（按四状态规则）
+  4. 若 `review.ok && failedDims.length > 0` 且 `deps.rewriteDraft` 已注入：调用 `rewriteDraft(...)`
+  5. 调用 `markFilled(batch, item.id, finalDraft, gen.llmCostTokens, genDurationMs, { triggered: aiReviewTriggered, reviewCostTokens })`
+- **`background.ts` 接线**：在 `runBatch(deps)` 调用处，向 deps 传入 `reviewDraft: (d, c, llmDeps) => reviewDraftClient(d, c, llmDeps)` 和 `rewriteDraft: ...`（调用 Unit 2 的扩展层客户端函数）
 - `appendTrajectory` 调用中传入 `aiReviewTriggered` 和 `reviewCostTokens` 新字段
-- `reviewDraft` / `rewriteDraft` 必须在 per-item try-catch 内或采用 never-throw 封装，确保任一 item 失败不中断整个 batch loop
-- `reviewCostTokens` 独立于 `llmCostTokens`（生成成本）传入 trajectory
+- `reviewDraft`/`rewriteDraft` never-throw 保证由 Unit 2 提供；`runBatch` 本身不需要额外 try-catch，失败路径已结构化
 
 **Patterns to follow:**
-- 现有 `handleRunBatch` 循环结构（`background.ts` 第 183–197 行）
-- `appendTrajectory` 现有调用位置和 input 结构
+- `RunBatchDeps` 现有可选 deps（`bypassReentry?`、`persistentBlockedTopics?`）的注入模式
+- `background.ts` 现有 `runBatch(deps)` 接线位置
+- `approveBatch` 中 `appendTrajectory` 调用的 `TrajectoryInput` 构建方式（同文件 ~250 行）
 
 **Test scenarios:**
-- Integration: reviewDraft 全维度通过 → `item.aiReviewTriggered === false`，`item.draft` 是 gen.draft，`item.reviewCostTokens` 有值
-- Integration: reviewDraft 失败一个维度，rewriteDraft 成功 → `item.aiReviewTriggered === true`，`item.draft` 是 merged draft
+- Integration: `deps.reviewDraft` 未注入（deps 不含该字段） → 流程与 Phase 2 完全一致，`aiReviewTriggered === undefined`，无任何 review 调用
+- Integration: reviewDraft 全维度通过 → `item.aiReviewTriggered === false`，`item.draft` 是 gen.draft
+- Integration: reviewDraft 失败一个维度（`failedDims.length > 0`），rewriteDraft 成功 → `item.aiReviewTriggered === true`，`item.draft` 是 mergeRewriteResult 结果
 - Error path: reviewDraft 返回 `{ ok: false }` → `item.aiReviewTriggered === undefined`，`item.draft` 是 gen.draft，loop 继续（下一个 item 不受影响）
 - Error path: reviewDraft 通过但 rewriteDraft 失败 → `item.aiReviewTriggered === undefined`，`item.draft` 是 gen.draft
-- Integration: trajectory record 包含 `aiReviewTriggered` 和 `reviewCostTokens` 字段
-- Edge case: `settings.reviewCriteriaPrompt === ''` → 使用内置 default criteria（不传空字符串给 LLM）
-- Edge case: `settings.fallbackModel` 未配置 → `reviewDeps` 使用主 endpoint（不崩溃）
+- Integration: trajectory record（`appendTrajectory` 调用）包含 `aiReviewTriggered` 和 `reviewCostTokens` 字段
+- Edge case: `settings.reviewCriteriaPrompt === ''` → 向 reviewDraft 传空字符串；后端用内置 default（不传空字符串直接给 LLM 是后端责任）
+- Edge case: `settings.fallbackModel` 未配置 → settings 照常传给后端，后端自行使用默认模型，orchestrator 不崩溃
 
 **Verification:**
 - `pnpm test` 全绿
@@ -353,8 +362,8 @@ graph TB
 **Dependencies:** Unit 5（`aiReviewTriggered` 字段被实际设置）
 
 **Files:**
-- Modify: `entrypoints/sidepanel/BatchReviewPanel.tsx`
-- Modify: `entrypoints/sidepanel/BatchReviewPanel.test.tsx`
+- Modify: `packages/extension/entrypoints/sidepanel/BatchReviewPanel.tsx`
+- Modify: `packages/extension/entrypoints/sidepanel/BatchReviewPanel.test.tsx`
 
 **Approach:**
 - 在每个 BatchItem 卡片标题区域，当 `item.aiReviewTriggered === true` 时渲染 `<span>✦ 已自评优化</span>` badge（灰色调，低调不抢眼）
@@ -362,7 +371,7 @@ graph TB
 - `aiReviewTriggered === false` 或 `undefined` 时不渲染任何 badge
 
 **Patterns to follow:**
-- 现有 `degrade` 徽章的 inline badge 渲染模式（`BatchReviewPanel.tsx` 第 159–161 行）
+- 现有 `degrade` 徽章的 inline badge 渲染模式（`packages/extension/entrypoints/sidepanel/BatchReviewPanel.tsx`）
 - 批次汇总条的现有统计展示格式
 
 **Test scenarios:**
@@ -381,12 +390,12 @@ graph TB
 
 ## System-Wide Impact
 
-- **Interaction graph:** `handleRunBatch` 现在在每个 item 的生成之后增加最多 2 次 LLM 调用（review + optional rewrite）；`markFilled` 签名扩展但向后兼容；`appendTrajectory` 新增两个可选字段
-- **Error propagation:** `reviewDraft` / `rewriteDraft` 永不 throw，所有失败转为结构化 `{ ok: false }`；per-item 失败不阻塞 batch loop
+- **Interaction graph:** `packages/extension/lib/batch-orchestrator.ts` 的 `runBatch()` 在每个 item 的生成之后通过注入的 `reviewDraft?`/`rewriteDraft?` 增加最多 2 次后端代理调用；`markFilled` 签名扩展但向后兼容；`appendTrajectory` 新增两个可选字段
+- **Error propagation:** `reviewDraft` / `rewriteDraft` 薄代理客户端永不 throw，所有失败转为结构化 `{ ok: false }`；per-item 失败不阻塞 batch loop
 - **State lifecycle risks:** `aiReviewTriggered` 通过 `markFilled` 原子写入，避免写入竞态；trajectory `canonical()` 不变，旧记录验证不受影响
-- **Performance:** 每个 item 处理时间由 ~3s 增至约 6–12s（+review LLM call + optional rewrite call）；service worker 30s idle timeout 对 5+ item batch 存在风险（记录于 Deferred to Implementation）
-- **Integration coverage:** Unit 5 的集成测试覆盖 review+rewrite 的四条路径（see Unit 5 test scenarios）；`lib/llm.test.ts` 通过 `fetchFn` mock 覆盖无网络环境
-- **Unchanged invariants:** `BatchItem` 现有字段（`draft`、`userEdited`、`llmCostTokens`、`fillResults`）行为不变；`markFilled` 无 reviewMeta 时 behavior identical；trajectory `canonical()` 不变
+- **Performance:** 每个 item 处理时间由 ~3s 增至约 6–12s（+review 后端调用 + optional rewrite 后端调用）；service worker 30s idle timeout 对 5+ item batch 存在风险（记录于 Deferred to Implementation）
+- **Integration coverage:** Unit 5 的集成测试覆盖 review+rewrite 的四条路径（see Unit 5 test scenarios）；`packages/extension/lib/llm.test.ts` 通过 `fetchFn` mock 覆盖无网络环境
+- **Unchanged invariants:** `BatchItem` 现有字段（`draft`、`userEdited`、`llmCostTokens`、`fillResults`）行为不变；`markFilled` 无 reviewMeta 时 behavior identical；trajectory `canonical()` 不变；后端新路由对外是新端点，不影响现有 `/api/v1/drafts/generate`
 
 ## Risks & Dependencies
 
@@ -408,8 +417,10 @@ graph TB
 ## Sources & References
 
 - **Origin document:** [docs/brainstorms/2026-06-11-phase-3-quality-engine-requirements.md](../brainstorms/2026-06-11-phase-3-quality-engine-requirements.md)
-- Core LLM pattern: `lib/llm.ts` — `generateDraft`, `parseContentJson`, `LlmDeps`
-- State machine pattern: `lib/batch.ts` — `markFilled`, `patchItem`, `transition`
-- Trajectory pattern: `lib/trajectory.ts` — `buildRecord`, `canonical`, optional-spread
-- Golden set (for default criteria prompt text): `docs/eval/golden-set.md`
+- Core LLM proxy pattern: `packages/extension/lib/llm.ts` — `generateDraft`（代理模式范本），`LlmDeps`，`BACKEND_BASE`
+- Batch-orchestrator + RunBatchDeps: `packages/extension/lib/batch-orchestrator.ts` — `runBatch`, `RunBatchDeps`（注入接口）
+- State machine pattern: `packages/extension/lib/batch.ts` — `markFilled`, `patchItem`, `transition`
+- Trajectory pattern: `packages/extension/lib/trajectory.ts` — `buildRecord`, `canonical`, optional-spread
+- Shared types: `packages/shared/src/types.ts` — `Settings`, `BatchItem`, `GenerateDraftResponse`
+- Golden set (default criteria prompt 参考文本，需确认路径): `docs/eval/golden-set.md`（⚠️ 文件当前不存在，实现时需创建或确认正确路径）
 - Baseline definition: `docs/baselines/direct-publish-rate.md`
