@@ -45,6 +45,8 @@ await server.register(rateLimit, {
 
 await registerAuthRoutes(server);
 
+server.get('/api/v1/healthz', async () => ({ ok: true }));
+
 server.addHook('preHandler', async (request, reply) => {
   const url = request.url.split('?')[0];
   if (PUBLIC_ROUTES.has(url)) return;
