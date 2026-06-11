@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.5.0.0] — 2026-06-11
+
+### Added
+
+- **今日一键备稿**：在待审选题池点击「今日一键备稿」，自动抓取质量分最高的 top-3 选题直接生成批次草稿，全程无需手动选择
+- **逐篇审读闸门**：批次审批前必须展开逐篇阅读每份草稿；已读进度实时显示「已读 N/M 篇」，未读完则发布按钮置灰
+- **否决单条草稿**：审核面板新增「否决」按钮，可对单条草稿执行拒绝操作（`awaiting-approval → aborted`），不影响其他草稿
+- **已发布帖子注册表**：每次成功发布后记录 `published_posts` 表，支持按 `source_title` 查询历史发布记录，防止重复发帖
+- **发布健康监控**：revisit job 定期回查已发布帖子的在线状态（HTTP HEAD check），发现离线或删除时更新 `outcome` 并触发 Telegram 告警
+- **内容抓取管线升级**：
+  - 列表发现模式（`ACGS51_LIST_URL`）：适配器支持 `fetchList()` 批量抓取作品列表，单次 cron 周期最多发现 `ACGS51_LIST_BUDGET`（默认 20）条新选题
+  - 质量分 API：选题池支持 `sort_by=score`（综合字段完整度 × 新鲜度衰减 × 已发布惩罚）和 `fold_threshold` 折叠低分选题
+  - 结构化拒绝原因：`RejectionReason` enum 约束拒绝字段，防止自由文本污染
+  - 重复检测：`source_url` 唯一索引，`savePendingTopic` 返回是否重复
+- **Telegram 告警客户端**：抓取连续失败 3 次或健康监控异常时自动推送 Telegram 通知，支持 SSRF guard 和管理员域名脱敏
+- **macOS launchd 自动启动**：`scripts/launchd/` 提供后端 daemon plist 及安装/卸载脚本，开机自动启动后端
+- **`/healthz` 健康检查端点**：无需鉴权，返回 `{ok:true}`，供 launchd 和监控探针使用
+- **选题质量排序 API**：`GET /api/v1/pending-topics?sort_by=score&fold_threshold=0.5`
+
+### Fixed
+
+- **published-posts upsert 重复行**：`publish_url` 作为 upsert key 时，修复了使用新生成 id 而非现有记录 id 导致的重复行插入问题
+- **ACGS51_LIST_URL 未传入 addSiteConfig**：`env-check` 校验通过但列表发现模式静默失效；现已正确写入站点配置
+- **discardBatchItem 并发崩溃**：`handleDiscardBatchItem` 缺少 try/catch，并发 approveBatch 竞争时 Service Worker 会因未处理异常崩溃；现改为捕获异常并返回原批次
+
 ## [0.4.0.0] — 2026-06-11
 
 ### Added
