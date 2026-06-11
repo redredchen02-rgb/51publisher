@@ -4,7 +4,7 @@ const MAX_PAIRS = 8;
 
 const taStyle: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box', padding: '4px 6px',
-  fontSize: 12, border: '1px solid #d9d9d9', borderRadius: 3,
+  fontSize: 13, border: '1px solid #d9d9d9', borderRadius: 3,
   resize: 'vertical', minHeight: 48,
 };
 const btnSm: React.CSSProperties = {
@@ -59,15 +59,15 @@ export function FewShotPairEditor({ pairs, onChange, importBanner, onImport }: P
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
             <span style={{ fontSize: 11, color: '#888' }}>范例 {i + 1}</span>
             <div style={{ display: 'flex', gap: 4 }}>
-              <button type="button" disabled={i === 0} onClick={() => movePair(i, -1)} style={btnSm} aria-label="上移">↑</button>
-              <button type="button" disabled={i === pairs.length - 1} onClick={() => movePair(i, 1)} style={btnSm} aria-label="下移">↓</button>
+              <button type="button" disabled={i === 0} onClick={() => movePair(i, -1)} style={{ ...btnSm, ...(i === 0 ? { opacity: 0.4, cursor: 'not-allowed' } : {}) }} aria-label="上移">↑</button>
+              <button type="button" disabled={i === pairs.length - 1} onClick={() => movePair(i, 1)} style={{ ...btnSm, ...(i === pairs.length - 1 ? { opacity: 0.4, cursor: 'not-allowed' } : {}) }} aria-label="下移">↓</button>
               <button type="button" onClick={() => deletePair(i)} style={{ ...btnSm, color: '#cf1322', borderColor: '#ffa39e' }} aria-label="删除">✕</button>
             </div>
           </div>
-          <label style={{ fontSize: 11, color: '#555', display: 'block', marginBottom: 2 }}>输入上下文</label>
-          <textarea style={taStyle} value={pair.input} placeholder="topic + facts…" onChange={(e) => updatePair(i, 'input', e.target.value)} />
-          <label style={{ fontSize: 11, color: '#555', display: 'block', margin: '4px 0 2px' }}>范例输出</label>
-          <textarea style={taStyle} value={pair.output} placeholder="期望的 AI 输出正文…" onChange={(e) => updatePair(i, 'output', e.target.value)} />
+          <label htmlFor={`fsp-input-${i}`} style={{ fontSize: 11, color: '#555', display: 'block', marginBottom: 2 }}>输入上下文</label>
+          <textarea id={`fsp-input-${i}`} style={taStyle} value={pair.input} placeholder="topic + facts…" onChange={(e) => updatePair(i, 'input', e.target.value)} />
+          <label htmlFor={`fsp-output-${i}`} style={{ fontSize: 11, color: '#555', display: 'block', margin: '4px 0 2px' }}>范例输出</label>
+          <textarea id={`fsp-output-${i}`} style={taStyle} value={pair.output} placeholder="期望的 AI 输出正文…" onChange={(e) => updatePair(i, 'output', e.target.value)} />
         </div>
       ))}
 

@@ -103,7 +103,7 @@ function transition(
 }
 
 export function markGenerating(batch: Batch, itemId: string): Batch {
-  return transition(batch, itemId, 'queued', { status: 'generating' });
+  return transition(batch, itemId, 'queued', { status: 'generating', userEdited: false });
 }
 
 export function markFilled(

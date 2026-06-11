@@ -288,7 +288,7 @@ async function handleApproveBatch(tabId: number): Promise<Batch | null> {
             batchItemId: item.id,
             sourceTitle: item.topic,
             publishUrl: result.url,
-            publishUrlSource: (result as unknown as Record<string, unknown>).urlSource as PublishedPostRecord['publishUrlSource'],
+            publishUrlSource: result.urlSource,
             publishedAt: new Date().toISOString(),
             outcome: 'publish-confirmed',
           });

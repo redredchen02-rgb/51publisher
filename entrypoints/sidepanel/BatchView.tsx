@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { browser } from '#imports';
 import type { SafetyMode } from '../../lib/types';
 import type { Batch } from '../../lib/batch';
@@ -32,6 +32,7 @@ export function BatchView({ onBack }: { onBack: () => void }) {
   const [trajectory, setTrajectory] = useState<TrajectoryRecord[]>([]);
   const [error, setError] = useState('');
   const [toast, setToast] = useState<{ message: string; undoable: boolean } | null>(null);
+  const savingItems = useRef(new Set<string>());
 
   const refresh = useCallback(async () => {
     const [b, mode, traj] = await Promise.all([getBatchState(), getSafetyMode(), getTrajectory()]);
@@ -72,16 +73,22 @@ export function BatchView({ onBack }: { onBack: () => void }) {
   }
 
   async function handleSaveAsFewShot(itemId: string) {
+    if (savingItems.current.has(itemId)) return;
     const b = batch;
     if (!b) return;
     const item = b.items.find((it) => it.id === itemId);
     if (!item?.draft) return;
-    const result = await addFewShotPair({ input: item.topic, output: item.draft.body });
-    if (!result.ok) {
-      showToast('范例已满（8/8），请先在设置中删除旧条目', false);
-      return;
+    savingItems.current.add(itemId);
+    try {
+      const result = await addFewShotPair({ input: item.topic, output: item.draft.body });
+      if (!result.ok) {
+        showToast('范例已满（8/8），请先在设置中删除旧条目', false);
+        return;
+      }
+      showToast('已保存为范例', true);
+    } finally {
+      savingItems.current.delete(itemId);
     }
-    showToast('已保存为范例', true);
   }
 
   async function handleUndoFewShot() {
@@ -119,7 +126,7 @@ export function BatchView({ onBack }: { onBack: () => void }) {
       {error && <p role="alert" style={{ color: '#cf1322', fontSize: 13 }}>{error}</p>}
 
       {toast && (
-        <div style={{ background: toast.undoable ? '#f6ffed' : '#fff7e6', border: `1px solid ${toast.undoable ? '#b7eb8f' : '#ffd591'}`, borderRadius: 4, padding: '6px 10px', fontSize: 12, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div role="status" aria-live="polite" style={{ background: toast.undoable ? '#f6ffed' : '#fff7e6', border: `1px solid ${toast.undoable ? '#b7eb8f' : '#ffd591'}`, borderRadius: 4, padding: '6px 10px', fontSize: 12, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>{toast.message}</span>
           {toast.undoable && (
             <button type="button" onClick={() => void handleUndoFewShot()} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: '#1677ff', padding: '0 4px' }}>撤销</button>

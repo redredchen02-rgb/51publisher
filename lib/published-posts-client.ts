@@ -17,10 +17,10 @@ export interface PublishedPostRecord {
  */
 export async function recordPublishedPost(record: PublishedPostRecord): Promise<void> {
   try {
-    const settings = await getSettings();
+    const [settings, token] = await Promise.all([getSettings(), getBackendToken()]);
     if (!settings.backendUrl) return;
-    const token = await getBackendToken();
     if (!token) return;
+    if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(settings.backendUrl)) return;
     await fetch(`${settings.backendUrl}/api/v1/published-posts`, {
       method: 'POST',
       headers: {

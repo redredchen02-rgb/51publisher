@@ -63,6 +63,7 @@ export function BatchReviewPanel(props: Props) {
     phase === 'awaiting-approval' && tabHealthy && (safetyMode === 'authorized' || safetyMode === 'dry-run') && !busy;
   // authorized 才要求打字手势;dry-run 预演只需点确认。
   const gestureOk = safetyMode !== 'authorized' || typed.trim().toLowerCase() === 'publish';
+  const ds = aggregateDegradeStats(batch.items);
 
   function toggle(id: string) {
     setExpanded((prev) => {
@@ -109,7 +110,6 @@ export function BatchReviewPanel(props: Props) {
         {summary.quarantined > 0 && <strong style={{ color: '#cf1322' }}> · 待人工核 {summary.quarantined}</strong>}
         {summary.aborted > 0 && <span> · 已停 {summary.aborted}</span>}
         {(() => {
-          const ds = aggregateDegradeStats(batch.items);
           return phase === 'done' && ds.itemsWithAnyDegrade > 0
             ? <span style={{ marginLeft: 6, background: '#fa8c16', color: '#fff', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 600 }}>{ds.itemsWithAnyDegrade} 条降级</span>
             : null;
@@ -118,7 +118,6 @@ export function BatchReviewPanel(props: Props) {
 
       {/* 降级汇总条(批次完成后展示) */}
       {phase === 'done' && (() => {
-        const ds = aggregateDegradeStats(batch.items);
         if (ds.totalItemsWithResults === 0) return null;
         const topSummary = ds.topFields.map((f) => `${f.field}（${f.count}x）`).join('，');
         return ds.itemsWithAnyDegrade === 0
@@ -161,7 +160,7 @@ export function BatchReviewPanel(props: Props) {
                   ? <span style={{ marginLeft: 4, fontSize: 11, color: '#fa8c16', flexShrink: 0 }}>{degraded}/{it.fillResults.length} 降级</span>
                   : null;
               })()}
-              <span aria-label={`状态 ${it.status}`} style={{ marginLeft: 8, fontSize: 12, color: '#888', flexShrink: 0 }}>
+              <span aria-label={`状态 ${it.status}`} style={{ marginLeft: 8, fontSize: 12, color: '#555', flexShrink: 0 }}>
                 [{STATUS_LABEL[it.status]}]
               </span>
             </button>
@@ -244,7 +243,7 @@ export function BatchReviewPanel(props: Props) {
             </div>
           )}
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <button onClick={confirmApprove} disabled={!gestureOk} style={{ ...btn, background: gestureOk ? '#cf1322' : '#f5f5f5', color: gestureOk ? '#fff' : '#bbb' }}>
+            <button onClick={confirmApprove} disabled={!gestureOk || !!busy} style={{ ...btn, background: gestureOk && !busy ? '#cf1322' : '#f5f5f5', color: gestureOk && !busy ? '#fff' : '#bbb' }}>
               确认
             </button>
             <button onClick={() => { setConfirming(false); setTyped(''); }} style={{ ...btn, background: '#f0f0f0', color: '#333' }}>

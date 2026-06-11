@@ -101,6 +101,10 @@ export function Settings({ onClose }: { onClose: () => void }) {
       setError(mapErr);
       return;
     }
+    if (backendUrl && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(backendUrl)) {
+      setError('后端 URL 必须是 localhost 或 127.0.0.1 地址（例：http://localhost:3001）。');
+      return;
+    }
     setError('');
     const fbModel = fallbackEndpoint
       ? { endpoint: fallbackEndpoint, ...(fallbackModel ? { model: fallbackModel } : {}) }
@@ -140,6 +144,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
       <div style={{ marginTop: 10, border: '1px solid #e8e8e8', borderRadius: 4, padding: '6px 8px' }}>
         <button
           type="button"
+          aria-expanded={fallbackOpen}
           onClick={() => setFallbackOpen((v) => !v)}
           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#555', padding: 0, width: '100%', textAlign: 'left' }}
         >

@@ -3,7 +3,7 @@ import type { ContentDraft } from './types';
 export interface SlotDiff {
   changedSlots: string[];
   totalSlots: number;
-  /** aiDraft が undefined だった場合（旧レコード / pre-Phase2）に true。 */
+  /** aiDraft 为 undefined（旧记录 / pre-Phase2）时为 true。 */
   unknown?: true;
 }
 
