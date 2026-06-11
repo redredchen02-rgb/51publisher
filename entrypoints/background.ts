@@ -29,6 +29,7 @@ import {
   filterReentrantTopics,
 } from '../lib/batch';
 import { buildPrompt } from '../lib/messaging';
+import { computeSlotDiff } from '../lib/draft-diff';
 
 // Background service worker:调度中心 + 发布闸门。
 // - 点扩展图标打开 side panel
@@ -261,6 +262,9 @@ async function handleApproveBatch(tabId: number): Promise<Batch | null> {
           : result.error === 'blocked'
             ? 'fill-completed'
             : (itemStatus(batch, item.id) ?? 'unknown');
+        const slotDiff = currentMode === 'authorized'
+          ? computeSlotDiff(freshItem?.publishedDraft, item.draft)
+          : undefined;
         const { snapshotDropped } = await appendTrajectory({
           id: item.id,
           topic: item.topic,
@@ -273,6 +277,7 @@ async function handleApproveBatch(tabId: number): Promise<Batch | null> {
           hasManualEdit: currentMode === 'authorized' ? (freshItem?.userEdited ?? false) : undefined,
           llmCostTokens: freshItem?.llmCostTokens,
           generationDurationMs: freshItem?.generationDurationMs,
+          slotDiff,
         });
         if (snapshotDropped) console.warn('[bg] 轨迹快照含机密被丢弃(record 已落,无快照)');
       }

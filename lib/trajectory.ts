@@ -1,4 +1,5 @@
 import type { FieldFillResult, SafetyMode } from './types';
+import type { SlotDiff } from './draft-diff';
 import { scrubSnapshot } from './secret-scrub';
 
 // 填充/发布轨迹(工作区即状态,借 Webwright 理念)。每条发布落盘可审计记录,
@@ -29,6 +30,8 @@ export interface TrajectoryRecord {
   llmCostTokens?: { prompt: number; completion: number; estimated?: boolean };
   /** 草稿生成耗时(ms)。 */
   generationDurationMs?: number;
+  /** AI 原稿与最终发布草稿的 slot 级 diff(R5b)。 */
+  slotDiff?: SlotDiff;
 }
 
 export interface TrajectoryInput {
@@ -45,6 +48,7 @@ export interface TrajectoryInput {
   hasManualEdit?: boolean;
   llmCostTokens?: { prompt: number; completion: number; estimated?: boolean };
   generationDurationMs?: number;
+  slotDiff?: SlotDiff;
 }
 
 const GENESIS_HASH = '0';
@@ -103,6 +107,7 @@ export function buildRecord(input: TrajectoryInput, seq: number, prevHash: strin
     ...(input.hasManualEdit !== undefined ? { hasManualEdit: input.hasManualEdit } : {}),
     ...(input.llmCostTokens !== undefined ? { llmCostTokens: input.llmCostTokens } : {}),
     ...(input.generationDurationMs !== undefined ? { generationDurationMs: input.generationDurationMs } : {}),
+    ...(input.slotDiff !== undefined ? { slotDiff: input.slotDiff } : {}),
     seq,
   };
   const hash = fnv1a(prevHash + canonical(base));

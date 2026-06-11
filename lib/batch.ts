@@ -116,6 +116,8 @@ export function markFilled(
   return transition(batch, itemId, ['generating', 'queued'], {
     status: 'filled',
     draft,
+    // 快照 AI 原稿(shallow copy;ContentDraft 含 string[] 但 batch 操作始终替换整个字段)。
+    publishedDraft: { ...draft },
     ...(llmCostTokens !== undefined ? { llmCostTokens } : {}),
     ...(generationDurationMs !== undefined ? { generationDurationMs } : {}),
   });
