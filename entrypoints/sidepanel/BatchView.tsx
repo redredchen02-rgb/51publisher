@@ -33,6 +33,7 @@ export function BatchView({ onBack }: { onBack: () => void }) {
   const [error, setError] = useState('');
   const [toast, setToast] = useState<{ message: string; undoable: boolean } | null>(null);
   const savingItems = useRef(new Set<string>());
+  const toastTimer = useRef<ReturnType<typeof window.setTimeout> | null>(null);
 
   const refresh = useCallback(async () => {
     const [b, mode, traj] = await Promise.all([getBatchState(), getSafetyMode(), getTrajectory()]);
@@ -68,8 +69,9 @@ export function BatchView({ onBack }: { onBack: () => void }) {
   }
 
   function showToast(message: string, undoable: boolean) {
+    if (toastTimer.current !== null) clearTimeout(toastTimer.current);
     setToast({ message, undoable });
-    window.setTimeout(() => setToast(null), 5000);
+    toastTimer.current = window.setTimeout(() => setToast(null), 5000);
   }
 
   async function handleSaveAsFewShot(itemId: string) {

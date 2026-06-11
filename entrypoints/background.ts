@@ -284,7 +284,7 @@ async function handleApproveBatch(tabId: number): Promise<Batch | null> {
         // best-effort 后端双写（失败静默；trajectory 是本地 source of truth）
         if (currentMode === 'authorized' && result.ok) {
           void recordPublishedPost({
-            id: item.id,
+            id: `${batch.id}:${item.id}`,
             batchItemId: item.id,
             sourceTitle: item.topic,
             publishUrl: result.url,

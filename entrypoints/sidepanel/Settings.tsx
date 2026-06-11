@@ -79,7 +79,10 @@ export function Settings({ onClose }: { onClose: () => void }) {
     const raw = s.fewShotExamples ?? '';
     const blocks = raw.split(/\n\n+/).filter(Boolean);
     const truncated = blocks.length > MAX_PAIRS;
-    const taken = blocks.slice(0, MAX_PAIRS).map((b) => ({ input: '', output: b }));
+    const taken = blocks.slice(0, MAX_PAIRS).map((b) => {
+      const sep = b.indexOf('\n---\n');
+      return sep !== -1 ? { input: b.slice(0, sep), output: b.slice(sep + 5) } : { input: '', output: b };
+    });
     setFewShotPairs(taken);
     setImportBanner('');
     if (truncated) setImportTruncated(`检测到 ${blocks.length} 块，已截取前 ${MAX_PAIRS} 条，请检查并补全 input 字段`);

@@ -8,9 +8,10 @@ export interface SlotDiff {
 }
 
 // 可编辑内容字段（排除元数据 id/status/createdAt）。
+// postStatus/publishedAt/mediaId 由人工填写非 AI 生成，排除以避免污染 AI 编辑信号。
 const CONTENT_SLOTS: ReadonlyArray<keyof ContentDraft> = [
   'title', 'subtitle', 'category', 'coverImageUrl', 'body',
-  'tags', 'description', 'postStatus', 'publishedAt', 'mediaId',
+  'tags', 'description',
 ];
 
 function slotsEqual(a: unknown, b: unknown): boolean {
