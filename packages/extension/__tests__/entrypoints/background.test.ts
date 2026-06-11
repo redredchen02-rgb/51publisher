@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fakeBrowser } from 'wxt/testing';
-import { createHandlers, buildConstraintSuffix, type BackgroundHandlerDeps } from '../../entrypoints/background';
+import {
+  createHandlers,
+  buildConstraintSuffix,
+  runStartupGeneratingRecovery,
+  type BackgroundHandlerDeps,
+} from '../../entrypoints/background';
 import type { Batch } from '../../lib/batch';
 import type { ContentDraft, Settings } from '@51publisher/shared';
 
@@ -325,5 +330,105 @@ describe('buildConstraintSuffix', () => {
     const [calledPrompt] = (deps.generateDraftFn as ReturnType<typeof vi.fn>).mock.calls[0] as [string];
     expect(calledPrompt).toContain('分类约束');
     expect(calledPrompt).toContain('校園');
+  });
+});
+
+// ================================================================
+// runStartupGeneratingRecovery
+// ================================================================
+
+function makeRecoveryDeps(batch: Batch | null) {
+  return {
+    getBatch: vi.fn(async () => batch),
+    saveBatch: vi.fn(async () => {}),
+  };
+}
+
+describe('runStartupGeneratingRecovery', () => {
+  it('no batch → silent, saveBatch not called', async () => {
+    const deps = makeRecoveryDeps(null);
+    await runStartupGeneratingRecovery(deps);
+    expect(deps.saveBatch).not.toHaveBeenCalled();
+  });
+
+  it('batch with 1 generating item → item becomes error with descriptive message', async () => {
+    const batch: Batch = {
+      id: 'b1',
+      tabId: 1,
+      authorizedHost: HOST,
+      createdAt: '',
+      items: [{ id: 'item_0', topic: 'topic-a', status: 'generating' }],
+    };
+    const deps = makeRecoveryDeps(batch);
+    await runStartupGeneratingRecovery(deps);
+    expect(deps.saveBatch).toHaveBeenCalledOnce();
+    const saved = (deps.saveBatch as ReturnType<typeof vi.fn>).mock.calls[0][0] as Batch;
+    expect(saved.items[0]!.status).toBe('error');
+    expect(saved.items[0]!.error).toBeTypeOf('string');
+    expect(saved.items[0]!.error!.length).toBeGreaterThan(0);
+  });
+
+  it('mixed batch: only generating items are changed, others untouched', async () => {
+    const batch: Batch = {
+      id: 'b1',
+      tabId: 1,
+      authorizedHost: HOST,
+      createdAt: '',
+      items: [
+        { id: 'item_0', topic: 'topic-a', status: 'generating' },
+        { id: 'item_1', topic: 'topic-b', status: 'queued' },
+        { id: 'item_2', topic: 'topic-c', status: 'filled' },
+        { id: 'item_3', topic: 'topic-d', status: 'error' },
+      ],
+    };
+    const deps = makeRecoveryDeps(batch);
+    await runStartupGeneratingRecovery(deps);
+    expect(deps.saveBatch).toHaveBeenCalledOnce();
+    const saved = (deps.saveBatch as ReturnType<typeof vi.fn>).mock.calls[0][0] as Batch;
+    expect(saved.items[0]!.status).toBe('error'); // generating → error
+    expect(saved.items[1]!.status).toBe('queued'); // unchanged
+    expect(saved.items[2]!.status).toBe('filled'); // unchanged
+    expect(saved.items[3]!.status).toBe('error'); // was already error, unchanged
+  });
+
+  it('all items are gate-failed (needs-human-verification) → no changes, saveBatch not called', async () => {
+    const batch: Batch = {
+      id: 'b1',
+      tabId: 1,
+      authorizedHost: HOST,
+      createdAt: '',
+      items: [
+        { id: 'item_0', topic: 'topic-a', status: 'needs-human-verification' },
+        { id: 'item_1', topic: 'topic-b', status: 'needs-human-verification' },
+      ],
+    };
+    const deps = makeRecoveryDeps(batch);
+    await runStartupGeneratingRecovery(deps);
+    expect(deps.saveBatch).not.toHaveBeenCalled();
+  });
+
+  it('getBatch throws → swallows error, saveBatch not called', async () => {
+    const deps = {
+      getBatch: vi.fn(async () => {
+        throw new Error('storage-failure');
+      }),
+      saveBatch: vi.fn(async () => {}),
+    };
+    await expect(runStartupGeneratingRecovery(deps)).resolves.toBeUndefined();
+    expect(deps.saveBatch).not.toHaveBeenCalled();
+  });
+
+  it('error item has error field set to a non-empty string', async () => {
+    const batch: Batch = {
+      id: 'b1',
+      tabId: 1,
+      authorizedHost: HOST,
+      createdAt: '',
+      items: [{ id: 'item_0', topic: 'topic-a', status: 'generating' }],
+    };
+    const deps = makeRecoveryDeps(batch);
+    await runStartupGeneratingRecovery(deps);
+    const saved = (deps.saveBatch as ReturnType<typeof vi.fn>).mock.calls[0][0] as Batch;
+    expect(saved.items[0]!.error).toBe('SW restarted during generation');
   });
 });

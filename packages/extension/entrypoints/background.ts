@@ -318,6 +318,34 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
   };
 }
 
+/**
+ * SW 启动恢复:将上次 SW 被杀时卡在 generating 状态的条目标记为 error,
+ * 让操作者可以重试。gate-failed 类终态不受影响。
+ * 失败时只 warn,绝不阻断 SW 启动。
+ */
+export async function runStartupGeneratingRecovery(
+  deps: {
+    getBatch: () => Promise<import('../lib/batch').Batch | null>;
+    saveBatch: (b: import('../lib/batch').Batch) => Promise<void>;
+  } = { getBatch: getBatchRaw, saveBatch },
+): Promise<void> {
+  try {
+    const batch = await deps.getBatch();
+    if (!batch) return;
+    let changed = false;
+    for (const item of batch.items) {
+      if (item.status === 'generating') {
+        item.status = 'error';
+        item.error = 'SW restarted during generation';
+        changed = true;
+      }
+    }
+    if (changed) await deps.saveBatch(batch);
+  } catch (e) {
+    console.warn('[bg] generating recovery scan 失败', e);
+  }
+}
+
 async function runStartupTombstoneScan(): Promise<void> {
   try {
     const [batch, tombstones] = await Promise.all([getBatchRaw(), getFillTombstones()]);
@@ -352,6 +380,8 @@ export default defineBackground(() => {
 
   // SW 启动扫描:检测上次 fill 飞行中 SW 被回收的残留 tombstone → 设隔离通知。
   void runStartupTombstoneScan();
+  // SW 启动恢复:将上次 SW 被杀时卡在 generating 状态的条目标记为 error,让操作者可以重试。
+  void runStartupGeneratingRecovery();
 
   // 启动时拉取后端最新字段映射(选择器配置热更新)。
   // 后端不可达时 fail-closed,不覆盖本地已有映射。
