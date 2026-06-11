@@ -12,10 +12,12 @@ import {
   approveBatch,
   killBatch,
   releaseQuarantine,
+  markItemEdited,
   checkSelectors,
   retryBatchItemMsg,
   resolveAdminTabId,
 } from '../../lib/messaging';
+import { addFewShotPair, removeLastFewShotPair } from '../../lib/storage';
 import { BatchReviewPanel } from './BatchReviewPanel';
 import { DryRunReport } from './DryRunReport';
 import { HistoryPanel } from './HistoryPanel';
@@ -41,6 +43,9 @@ export function BatchView({ onBack }: { onBack: () => void }) {
   const [quarantineAlert, setQuarantineAlert] = useState(0);
   // 人工编辑覆盖(transient;panel reload 后丢失,属已知可接受行为)。
   const [draftOverrides, setDraftOverrides] = useState<Map<string, ContentDraft>>(new Map());
+  const [toast, setToast] = useState<{ message: string; undoable: boolean } | null>(null);
+  const savingItems = useRef(new Set<string>());
+  const toastTimer = useRef<number | null>(null);
 
   const refresh = useCallback(async () => {
     const [b, mode, alertCount] = await Promise.all([getBatchState(), getSafetyMode(), getPendingQuarantineAlert()]);
@@ -88,6 +93,36 @@ export function BatchView({ onBack }: { onBack: () => void }) {
     } finally {
       setBusy(false);
     }
+  }
+
+  function showToast(message: string, undoable: boolean) {
+    if (toastTimer.current !== null) clearTimeout(toastTimer.current);
+    setToast({ message, undoable });
+    toastTimer.current = window.setTimeout(() => setToast(null), 5000);
+  }
+
+  async function handleSaveAsFewShot(itemId: string) {
+    if (savingItems.current.has(itemId)) return;
+    const b = batch;
+    if (!b) return;
+    const item = b.items.find((it) => it.id === itemId);
+    if (!item?.draft) return;
+    savingItems.current.add(itemId);
+    try {
+      const result = await addFewShotPair({ input: item.topic, output: item.draft.body });
+      if (!result.ok) {
+        showToast('范例已满（8/8），请先在设置中删除旧条目', false);
+        return;
+      }
+      showToast('已保存为范例', true);
+    } finally {
+      savingItems.current.delete(itemId);
+    }
+  }
+
+  async function handleUndoFewShot() {
+    await removeLastFewShotPair();
+    setToast(null);
   }
 
   async function handleStart() {
@@ -169,6 +204,42 @@ export function BatchView({ onBack }: { onBack: () => void }) {
         <p role="alert" style={{ color: '#cf1322', fontSize: 13 }}>
           {error}
         </p>
+      )}
+
+      {toast && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            background: toast.undoable ? '#f6ffed' : '#fff7e6',
+            border: `1px solid ${toast.undoable ? '#b7eb8f' : '#ffd591'}`,
+            borderRadius: 4,
+            padding: '6px 10px',
+            fontSize: 12,
+            marginBottom: 8,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <span>{toast.message}</span>
+          {toast.undoable && (
+            <button
+              type="button"
+              onClick={() => void handleUndoFewShot()}
+              style={{
+                border: 'none',
+                background: 'none',
+                cursor: 'pointer',
+                fontSize: 12,
+                color: '#1677ff',
+                padding: '0 4px',
+              }}
+            >
+              撤销
+            </button>
+          )}
+        </div>
       )}
 
       {quarantineAlert > 0 && (
@@ -267,6 +338,15 @@ export function BatchView({ onBack }: { onBack: () => void }) {
             })
           }
           onResume={() => void refresh()}
+          onItemEdited={(itemId) => {
+            void (async () => {
+              await markItemEdited(itemId);
+              await refresh();
+            })();
+          }}
+          onSaveAsFewShot={(itemId) => {
+            void handleSaveAsFewShot(itemId);
+          }}
         />
       )}
 

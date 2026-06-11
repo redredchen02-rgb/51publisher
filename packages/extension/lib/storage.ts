@@ -9,6 +9,7 @@ import { fetchRemoteMappings } from './config-client';
 
 const SETTINGS_KEY = 'local:settings';
 const API_KEY = 'local:apiKey';
+const BACKEND_TOKEN_KEY = 'local:backendToken';
 const CURRENT_DRAFT_KEY = 'local:currentDraft';
 const SAFETY_MODE_KEY = 'local:safetyMode';
 const AUTHORIZED_HOSTS_KEY = 'local:authorizedHosts';
@@ -76,11 +77,18 @@ export const DEFAULT_SETTINGS: Settings = {
 export async function getSettings(): Promise<Settings> {
   const stored = await storage.getItem<Partial<Settings>>(SETTINGS_KEY);
   if (!stored) return structuredClone(DEFAULT_SETTINGS);
-  return {
+  const merged: Settings = {
     ...DEFAULT_SETTINGS,
     ...stored,
     fieldMapping: { ...DEFAULT_SETTINGS.fieldMapping, ...(stored.fieldMapping ?? {}) },
   };
+  // fewShotPairs is the source of truth for fewShotExamples; when pairs are
+  // explicitly stored as empty, clear fewShotExamples instead of falling back
+  // to the DEFAULT_SETTINGS example string.
+  if (stored.fewShotPairs !== undefined && stored.fewShotPairs.length === 0) {
+    merged.fewShotExamples = undefined;
+  }
+  return merged;
 }
 
 export async function saveSettings(settings: Settings): Promise<void> {
@@ -94,6 +102,15 @@ export async function getApiKey(): Promise<string> {
 
 export async function saveApiKey(key: string): Promise<void> {
   await storage.setItem(API_KEY, key);
+}
+
+/** 后端 JWT token（与 apiKey 分开存取）。 */
+export async function getBackendToken(): Promise<string> {
+  return (await storage.getItem<string>(BACKEND_TOKEN_KEY)) ?? '';
+}
+
+export async function saveBackendToken(token: string): Promise<void> {
+  await storage.setItem(BACKEND_TOKEN_KEY, token);
 }
 
 // 当前在编草稿的崩溃恢复(≠ 草稿库):side panel 重开/SW 回收/目标页刷新都可能丢失,
@@ -179,6 +196,43 @@ export async function appendTrajectory(input: TrajectoryInput): Promise<{ snapsh
 
 export async function clearTrajectory(): Promise<void> {
   await storage.removeItem(TRAJECTORY_KEY);
+}
+
+// ---- Few-shot 范例（R11 一键存为范例）----
+
+function deriveFewShotExamples(pairs: FewShotPair[]): string {
+  return pairs.map((p) => `${p.input}\n---\n${p.output}`).join('\n\n');
+}
+
+const MAX_FEW_SHOT = 8;
+
+/**
+ * 追加一条 few-shot 范例到末尾（双写 fewShotPairs + fewShotExamples）。
+ * 返回 { ok: false, reason: 'full' } 当已达上限，不写入。
+ */
+export async function addFewShotPair(pair: FewShotPair): Promise<{ ok: boolean; reason?: 'full' }> {
+  const settings = await getSettings();
+  const current = settings.fewShotPairs ?? [];
+  if (current.length >= MAX_FEW_SHOT) return { ok: false, reason: 'full' };
+  const next = [...current, pair];
+  await saveSettings({ ...settings, fewShotPairs: next, fewShotExamples: deriveFewShotExamples(next) });
+  return { ok: true };
+}
+
+/**
+ * 移除末尾一条 few-shot 范例（LIFO 撤销；不影响其他条目）。
+ * 空列表时幂等跳过。
+ */
+export async function removeLastFewShotPair(): Promise<void> {
+  const settings = await getSettings();
+  const current = settings.fewShotPairs ?? [];
+  if (current.length === 0) return;
+  const next = current.slice(0, -1);
+  await saveSettings({
+    ...settings,
+    fewShotPairs: next,
+    fewShotExamples: next.length > 0 ? deriveFewShotExamples(next) : undefined,
+  });
 }
 
 // ---- 跨 session 选题去重 ----

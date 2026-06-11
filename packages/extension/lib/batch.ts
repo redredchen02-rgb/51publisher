@@ -39,6 +39,14 @@ export interface BatchItem {
   error?: string;
   /** 表单填充结果(填充完成后写入);用于展示降级警告。 */
   fillResults?: FieldFillResult[];
+  /** 操作者在批量审核界面是否手动编辑了草稿(直发率分母判断依据)。 */
+  userEdited?: boolean;
+  /** LLM 实际 token 用量(来自 response.usage;不可得时为估算,estimated=true)。 */
+  llmCostTokens?: { prompt: number; completion: number; estimated?: boolean };
+  /** 草稿生成耗时(ms)。 */
+  generationDurationMs?: number;
+  /** 发布时草稿快照(供 R5b slot-level diff 用)。 */
+  publishedDraft?: ContentDraft;
 }
 
 export interface Batch {
@@ -112,11 +120,29 @@ function transition(
 }
 
 export function markGenerating(batch: Batch, itemId: string): Batch {
-  return transition(batch, itemId, 'queued', { status: 'generating' });
+  return transition(batch, itemId, 'queued', { status: 'generating', userEdited: false });
 }
 
-export function markFilled(batch: Batch, itemId: string, draft: ContentDraft): Batch {
-  return transition(batch, itemId, ['generating', 'queued'], { status: 'filled', draft });
+export function markFilled(
+  batch: Batch,
+  itemId: string,
+  draft: ContentDraft,
+  llmCostTokens?: BatchItem['llmCostTokens'],
+  generationDurationMs?: number,
+): Batch {
+  return transition(batch, itemId, ['generating', 'queued'], {
+    status: 'filled',
+    draft,
+    // 快照 AI 原稿(shallow copy;ContentDraft 含 string[] 但 batch 操作始终替换整个字段)。
+    publishedDraft: { ...draft },
+    ...(llmCostTokens !== undefined ? { llmCostTokens } : {}),
+    ...(generationDurationMs !== undefined ? { generationDurationMs } : {}),
+  });
+}
+
+/** 记录填充结果(degrade 聚合数据源)。不改变状态,仅 patch fillResults。别名: markFillResultsRecorded。 */
+export function storeFillResults(batch: Batch, itemId: string, fillResults: FieldFillResult[]): Batch {
+  return patchItem(batch, itemId, { fillResults });
 }
 
 export function markGenerateFailed(batch: Batch, itemId: string, error: string): Batch {

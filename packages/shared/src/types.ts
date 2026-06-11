@@ -103,6 +103,8 @@ export interface Settings {
   recommendedTags?: string[];
   /** 字段映射(可在设置页编辑)。 */
   fieldMapping: FieldMapping;
+  /** 51publisher 后端 URL（http://localhost:3001 等）;空=不启用后端双写。 */
+  backendUrl?: string;
 }
 
 // ---- 消息协议(side panel ↔ background ↔ content script) ----
@@ -123,6 +125,8 @@ export interface PublishResult {
   error?: string;
   /** 是否 dry-run(走完流程但未真正提交)。 */
   dryRun: boolean;
+  /** URL 来源:save 响应直取 / ID 推导 / 不可得。 */
+  urlSource?: 'from_save' | 'derived_id' | 'not_available';
 }
 
 export type RuntimeMessage =
@@ -147,6 +151,8 @@ export type RuntimeMessage =
   | { type: 'RELEASE_QUARANTINE'; itemId: string }
   | { type: 'RETRY_BATCH_ITEM'; itemId: string }
   | { type: 'GET_BATCH' }
+  // side panel → background:标记操作者已手动修改该条草稿(直发率度量)。
+  | { type: 'MARK_ITEM_EDITED'; itemId: string }
   // side panel → content:轻量选择器漂移自检(R6 轻量)。
   | { type: 'CHECK_SELECTORS' };
 
@@ -164,7 +170,7 @@ export interface DryRunReport {
 }
 
 export type GenerateDraftResponse =
-  | { ok: true; draft: ContentDraft }
+  | { ok: true; draft: ContentDraft; llmCostTokens?: { prompt: number; completion: number; estimated?: boolean } }
   | { ok: false; error: string; kind?: 'no-key' | 'network' | 'format' };
 
 export type FillPageResponse = { ok: true; results: FieldFillResult[] } | { ok: false; error: string };

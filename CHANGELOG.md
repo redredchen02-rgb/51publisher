@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.3.0] — 2026-06-11
+
+### Features
+
+- **学习与度量 (Phase 2)**: 发布后质量追踪基础架构
+  - `degrade-stats`: 批次级别退化统计聚合（退化率、字段分布、平均信心分）
+  - `draft-diff`: AI 草稿 vs 人工编辑的 slot 级差异检测，`userEdited` 信号精准识别
+  - `published-posts-client`: 发布记录注册表，记录 batchItemId → publishedUrl + aiDraft 快照
+  - `FewShotPairEditor`: 侧边栏 Few-shot 样例对编辑器（增删排序、输入/输出文本域）
+  - 轨迹扩展：`slots` 字段记录每个发布步骤的字段级 diff
+- **可靠性修复**: confirm 按钮 busy 状态防重复提交、published_posts PK 改为 `${batchId}:${itemId}` 防冲突
+- **安全**: backendUrl SSRF 验证扩展至 published-posts-client，URL scheme 白名单（localhost/127.0.0.1 only）
+- **无障碍**: FewShotPairEditor 移动按钮 aria-label、textarea label/id 绑定、toast aria-live
+
+### Fixes
+
+- `urlSource` 赋值路径修复（从 `from_save` / `derived_id` 正确传递）
+- import 圆回测试：few-shot 导入的 `---` 分隔符解析修复，防止数据丢失
+- `aggregateDegradeStats` 提升至组件顶层，避免条件式 hook 违规
+- `CONTENT_SLOTS` 排除 `postStatus`/`publishedAt`/`mediaId` 等非 AI 字段，避免污染编辑信号
+
+### Architecture
+
+- Phase 2 迁移至 monorepo 结构 (`packages/extension/` + `@51publisher/shared`)
+- `toastTimer` 类型修正为 `number | null`（WXT 浏览器环境兼容）
+
 ## [0.2.0] — 2026-06-09
 
 ### Features
