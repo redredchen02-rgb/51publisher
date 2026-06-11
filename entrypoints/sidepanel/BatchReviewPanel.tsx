@@ -23,6 +23,8 @@ interface Props {
   onResume: () => void;
   /** 操作者手动修改了草稿后调用,用于直发率度量。 */
   onItemEdited?: (itemId: string) => void;
+  /** 一键将已发布条目存为 few-shot 范例（R11）。 */
+  onSaveAsFewShot?: (itemId: string) => void;
 }
 
 const box: React.CSSProperties = { borderRadius: 6, padding: '8px 10px', fontSize: 13, marginBottom: 10 };
@@ -178,6 +180,15 @@ export function BatchReviewPanel(props: Props) {
                         />
                         <span style={{ color: '#888' }}>已手动修改草稿</span>
                       </label>
+                    )}
+                    {it.status === 'publish-confirmed' && props.onSaveAsFewShot && (
+                      <button
+                        type="button"
+                        onClick={() => props.onSaveAsFewShot!(it.id)}
+                        style={{ ...btn, marginTop: 6, padding: '3px 8px', fontSize: 11, background: '#f6ffed', color: '#389e0d', border: '1px solid #b7eb8f' }}
+                      >
+                        存为范例
+                      </button>
                     )}
                   </>
                 ) : (

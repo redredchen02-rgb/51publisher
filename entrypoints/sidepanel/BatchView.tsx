@@ -16,6 +16,7 @@ import {
   markItemEdited,
   checkSelectors,
 } from '../../lib/messaging';
+import { addFewShotPair, removeLastFewShotPair } from '../../lib/storage';
 import { BatchReviewPanel } from './BatchReviewPanel';
 
 const btn: React.CSSProperties = { padding: '6px 12px', fontSize: 13, border: 'none', borderRadius: 4, cursor: 'pointer' };
@@ -30,6 +31,7 @@ export function BatchView({ onBack }: { onBack: () => void }) {
   const [drift, setDrift] = useState<DriftReport | null>(null);
   const [trajectory, setTrajectory] = useState<TrajectoryRecord[]>([]);
   const [error, setError] = useState('');
+  const [toast, setToast] = useState<{ message: string; undoable: boolean } | null>(null);
 
   const refresh = useCallback(async () => {
     const [b, mode, traj] = await Promise.all([getBatchState(), getSafetyMode(), getTrajectory()]);
@@ -64,6 +66,29 @@ export function BatchView({ onBack }: { onBack: () => void }) {
     }
   }
 
+  function showToast(message: string, undoable: boolean) {
+    setToast({ message, undoable });
+    window.setTimeout(() => setToast(null), 5000);
+  }
+
+  async function handleSaveAsFewShot(itemId: string) {
+    const b = batch;
+    if (!b) return;
+    const item = b.items.find((it) => it.id === itemId);
+    if (!item?.draft) return;
+    const result = await addFewShotPair({ input: item.topic, output: item.draft.body });
+    if (!result.ok) {
+      showToast('范例已满（8/8），请先在设置中删除旧条目', false);
+      return;
+    }
+    showToast('已保存为范例', true);
+  }
+
+  async function handleUndoFewShot() {
+    await removeLastFewShotPair();
+    setToast(null);
+  }
+
   async function handleStart() {
     const list = topics.split('\n').map((t) => t.trim()).filter(Boolean);
     if (list.length === 0) {
@@ -93,6 +118,15 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 
       {error && <p role="alert" style={{ color: '#cf1322', fontSize: 13 }}>{error}</p>}
 
+      {toast && (
+        <div style={{ background: toast.undoable ? '#f6ffed' : '#fff7e6', border: `1px solid ${toast.undoable ? '#b7eb8f' : '#ffd591'}`, borderRadius: 4, padding: '6px 10px', fontSize: 12, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>{toast.message}</span>
+          {toast.undoable && (
+            <button type="button" onClick={() => void handleUndoFewShot()} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: '#1677ff', padding: '0 4px' }}>撤销</button>
+          )}
+        </div>
+      )}
+
       {batch && batchPhase(batch) !== 'empty' && (
         <BatchReviewPanel
           batch={batch}
@@ -107,6 +141,7 @@ export function BatchView({ onBack }: { onBack: () => void }) {
           onDriftCheck={() => void withBusy(async () => { setDrift(await checkSelectors(batch.tabId)); })}
           onResume={() => void refresh()}
           onItemEdited={(itemId) => { void (async () => { await markItemEdited(itemId); await refresh(); })(); }}
+          onSaveAsFewShot={(itemId) => { void handleSaveAsFewShot(itemId); }}
         />
       )}
 

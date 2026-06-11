@@ -1,5 +1,5 @@
 import { storage } from '#imports';
-import type { ContentDraft, SafetyMode, Settings } from './types';
+import type { ContentDraft, FewShotPair, SafetyMode, Settings } from './types';
 import type { Batch } from './batch';
 import { recoverBatch } from './batch';
 import type { TrajectoryRecord, TrajectoryInput } from './trajectory';
@@ -135,4 +135,41 @@ export async function appendTrajectory(input: TrajectoryInput): Promise<{ snapsh
 
 export async function clearTrajectory(): Promise<void> {
   await storage.removeItem(TRAJECTORY_KEY);
+}
+
+// ---- Few-shot 范例（R11 一键存为范例）----
+
+function deriveFewShotExamples(pairs: FewShotPair[]): string {
+  return pairs.map((p) => `${p.input}\n---\n${p.output}`).join('\n\n');
+}
+
+const MAX_FEW_SHOT = 8;
+
+/**
+ * 追加一条 few-shot 范例到末尾（双写 fewShotPairs + fewShotExamples）。
+ * 返回 { ok: false, reason: 'full' } 当已达上限，不写入。
+ */
+export async function addFewShotPair(pair: FewShotPair): Promise<{ ok: boolean; reason?: 'full' }> {
+  const settings = await getSettings();
+  const current = settings.fewShotPairs ?? [];
+  if (current.length >= MAX_FEW_SHOT) return { ok: false, reason: 'full' };
+  const next = [...current, pair];
+  await saveSettings({ ...settings, fewShotPairs: next, fewShotExamples: deriveFewShotExamples(next) });
+  return { ok: true };
+}
+
+/**
+ * 移除末尾一条 few-shot 范例（LIFO 撤销；不影响其他条目）。
+ * 空列表时幂等跳过。
+ */
+export async function removeLastFewShotPair(): Promise<void> {
+  const settings = await getSettings();
+  const current = settings.fewShotPairs ?? [];
+  if (current.length === 0) return;
+  const next = current.slice(0, -1);
+  await saveSettings({
+    ...settings,
+    fewShotPairs: next,
+    fewShotExamples: next.length > 0 ? deriveFewShotExamples(next) : undefined,
+  });
 }
