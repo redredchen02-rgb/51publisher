@@ -163,9 +163,9 @@ BatchReviewPanel (per item)
   │    → 显示 gateFailReason（哪个检查失败）
   │    → "重新生成" 按钮 → retry → queued
   │
-  └─ 否决 → REJECT_BATCH_ITEM(itemId, rejectionReason)
+  └─ 否决 → DISCARD_BATCH_ITEM(itemId, rejectionReason)
        → item.status = aborted
-       → updatePendingStatus(topicId, 'rejected', reason)
+       → updatePendingStatus(topicId, 'rejected', reason)  [若 pendingTopicId 存在]
 ```
 
 ## Implementation Units
@@ -178,7 +178,7 @@ graph TB
   U4[U4: eager gate in runBatch]
   U5[U5: generating→error SW recovery]
   U6[U6: readItems storage]
-  U7[U7: REJECT_BATCH_ITEM action]
+  U7[U7: extend DISCARD_BATCH_ITEM with reject]
   U8[U8: TodayBatchView]
   U9[U9: BatchReviewPanel Phase 5 enhancements]
   U10[U10: wire recordPublishedPost]
@@ -244,6 +244,7 @@ graph TB
 **Approach:**
 - `BatchItemStatus` 加 `'gate-failed'`
 - `BatchItem` 加可选字段 `gateFailReason?: string` 和 `pendingTopicId?: string`（U7 需要，在此一并加入）
+- **`RUN_BATCH` 消息类型扩展**：加 `topicIds?: string[]`（与 `topics: string[]` 平行数组，相同下标对应相同话题），`handleRunBatch` 在调用 `createBatch` 时将 `topicIds[i]` 写入 `items[i].pendingTopicId`；若调用方不传 `topicIds`（向后兼容旧路径），`pendingTopicId` 保持 `undefined`
 - `ALLOWED_TRANSITIONS`：`filled → gate-failed`；`gate-failed → queued`（retry）
 - `abortBatch` 的 `ABORTABLE` 集合加入 `gate-failed`（否则急停操作 KILL_BATCH 不会终止 gate-failed items，留下状态残留）
 - `batchPhase` 函数的 `awaiting-approval` 分支同时检查 `gate-failed`（否则含 gate-failed item 的 batch 会被错误识别为 `done` phase，导致 TodayBatchView 的"起飞视图"被错误展示）
@@ -260,7 +261,8 @@ graph TB
 - Edge case: `transition({status:'awaiting-approval'}, 'gate-failed')` → 保持原状（不允许）
 - Edge case: `gateFailReason` 字段不影响其他状态的 transition
 - Edge case: `abortBatch` 对 `gate-failed` item 执行 → item 变为 `aborted`（验证 ABORTABLE 集合生效）
-- Edge case: `batchPhase` 对含 gate-failed item 的 batch → 返回 `awaiting-approval`（不返回 `done`）
+- Edge case: `batchPhase` 对含 gate-failed item（同时有 awaiting-approval items）的 batch → 返回 `awaiting-approval`（不返回 `done`）
+- Edge case: `batchPhase` 对**全部 items 均为 gate-failed** 的 batch → 返回 `awaiting-approval`（不返回 `done`；gate-failed 不是 terminal 状态，仍需操作者处理）
 - Integration (backend): `PATCH /api/v1/batches/:id/items/:itemId` with `{status:'gate-failed'}` from `filled` → 200；`{status:'queued'}` from `gate-failed` → 200
 
 **Verification:**
@@ -280,7 +282,7 @@ graph TB
 
 **Files:**
 - Modify: `packages/extension/lib/pending-client.ts`
-- Modify: `packages/shared/src/types.ts` 或 `packages/extension/lib/settings.ts` (加 `dailyBatchSize?: number`)
+- Modify: `packages/shared/src/types.ts`（`Settings` 接口加 `dailyBatchSize?: number`；**必须改 shared types，不能只改 settings.ts**；`Settings` 定义在 `packages/shared/src/types.ts:86-110`，`settings.ts` 只是存取封装）
 - Test: `packages/extension/lib/pending-client.test.ts` (若存在) 或新建
 
 **Approach:**
@@ -317,8 +319,9 @@ graph TB
 
 **Approach:**
 - `runBatch()` 的每个 item 循环中，`markFilled(...)` 之后，调用 `evaluateGrounding(draft, facts)`
-- 通过 → `presentForApproval()`（现有逻辑不变）
-- 失败 → `transition(item, 'gate-failed')` + 写 `gateFailReason`（verdict.reason 的字符串摘要）
+- **通过**：不做任何额外操作，item 保持 `filled` 状态；循环结束后调用现有的 `presentForApproval()`（bulk 函数，一次性将所有 `filled` 状态的 item 转为 `awaiting-approval`，不改动此调用）
+- **失败**：`transition(item, 'gate-failed')` + 写 `gateFailReason`（verdict.reason 的字符串摘要）；该 item 不再是 `filled` 状态，因此末尾的 `presentForApproval()` 不会影响它
+- **重要**：`presentForApproval` 是 bulk 操作，**仅保留原有的末尾一次调用**，切勿在循环内 per-item 调用；gate 失败的 item 在 `markFilled` 后被 transition 出 `filled`，自然从 bulk promote 中排除
 - `approveBatch()` 中的 grounding gate 保持不变，**失败仍走 `markGenerateFailed → error`（不改为 gate-failed）**：到 approve 阶段遭遇内容 gate 失败意味着上游预筛有疏漏，`error` 允许重试是正确语义；`gate-failed` 只表示"备稿阶段提前分流的内容问题"。这一语义区分需在 U9 的 BatchReviewPanel 中体现：`error` 状态若含 `gateFailReason` 前缀（如 `'grounding-blocked: ...'`）应以独立样式展示，避免操作者混淆
 - `RunBatchDeps` 注入 `evaluateGrounding` 函数（可选，有默认 import），方便 mock 测试（遵循 deps injection 模式）
 
@@ -350,19 +353,19 @@ graph TB
 - Test: `packages/extension/entrypoints/background.test.ts` 或 `packages/extension/lib/batch-recovery.test.ts`
 
 **Approach:**
-- background.ts 启动时（`browser.runtime.onStartup` 及 SW 被激活的首次执行）：调用 `getBatch()`，扫描所有 items
-- 找到 `status === 'generating'` 的 item → `transition(item, 'error')`（`error → queued` 可重试）
-- 写回 batch storage
+- 挂载点：**`defineBackground(() => { ... })` 顶层同步代码**（即 SW 每次被激活时运行的 top-level 代码）——这是正确的"SW 重新激活"触发点。`browser.runtime.onStartup` 只在浏览器冷启动时触发，覆盖不到最常见的"mid-session SW kill 后被下一条消息激活"场景；background.ts 中也没有注册 `onStartup` 监听器。在现有的 `runStartupTombstoneScan()` 调用旁（或紧随其后）加入 generating→error 恢复
+- 调用 `getBatch()` → 扫描所有 items → `status === 'generating'` → `transition(item, 'error')` → `saveBatch()`
 - 此逻辑与现有 tombstone 协议（填充阶段）并存，不冲突
 
 **Patterns to follow:**
-- background.ts 中 `browser.runtime.onStartup` 的现有注册模式
+- background.ts 顶层中现有的 `runStartupTombstoneScan()` 调用模式（直接位于 `defineBackground` 的 top-level 代码块内）
 - `getBatch()` + `saveBatch()` 存储模式
 
 **Test scenarios:**
 - Happy path: 启动时无 generating items → batch 不变
 - Happy path: 启动时有 1 个 generating item → 该 item 变为 error，其余不变
 - Edge case: batch 不存在（null）→ 静默跳过
+- Edge case: 所有 items 均为 gate-failed → 无 generating items → batch 不变（gate-failed 不是崩溃态，不恢复）
 - Integration: transition to error 后，`retryBatchItem` 可将 error → queued
 
 **Verification:**
@@ -386,7 +389,8 @@ graph TB
 - `storage.local.readItems: string[]`（itemId 数组）
 - 暴露：`markItemRead(itemId: string): Promise<void>` 和 `isItemRead(itemId: string): Promise<boolean>` / `getReadItems(): Promise<Set<string>>`
 - **清空时机：在 background.ts 的 `handleRunBatch` 开头（`runBatch(...)` 调用前）清空 readItems**（而非 UI 侧）；原因：background.ts 是 batch 状态的单一权威，readItems 生命周期应跟随 batch 生命周期在同一侧管理，避免 UI 侧 race condition
-- BatchView / BatchReviewPanel 读取 readItems 决定发布按钮是否可用
+- **单一数据源**：`BatchView.tsx` 中现有的 `useState<Set<string>>` 存储 `readItems` 的 React state 需被**移除并替换**为从 `getReadItems()` 加载；组件挂载时调用 `getReadItems()` 初始化；监听 `storage.watch('local:readItems', ...)` 响应 background 清空事件，触发重新加载（避免 background 清空后 React 侧还持有旧 ids）
+- `markItemRead` 写入 storage 后通过 `storage.watch` 通知同一 UI 实例，不需要 React state 双写
 
 **Patterns to follow:**
 - `packages/extension/lib/storage.ts` 中其他 `local:*` 存储键的模式
@@ -463,7 +467,7 @@ graph TB
 - 显示：可用选题数 / 折叠选题数 / top-N 预览（title + score badge）
 - 三种空态：① 0 条 available & 0 条 folded → "待审池为空，触发一次抓取？" ② 0 条 available & >0 条 folded → "高分候选不足，展开折叠区捞回" ③ available < dailyBatchSize → "仅有 X 条可用，将全部纳入批次"
 - "跑今日批次"按钮：disabled 时 = 0 条 available or batch in progress
-- 点击后：`resolveAdminTabId()`（此时已挂载过，用缓存结果）→ `sendMsg({type:'RUN_BATCH', topics: top-N, tabId, ...})` → `onBatchStarted()`
+- 点击后：`resolveAdminTabId()`（此时已挂载过，用缓存结果）→ `sendMsg({type:'RUN_BATCH', topics: top-N 的 title 数组, topicIds: top-N 的 id 数组, tabId, ...})` → `onBatchStarted()`；`topicIds` 与 `topics` 平行数组，是 P0-3 修复所必须的（U2 扩展了 RUN_BATCH 消息类型和 handleRunBatch 写 pendingTopicId 的逻辑）
 - 在 Settings 页加 `dailyBatchSize` 数字输入（1-20，标注"每次批次选题数"）
 - **提前预检（挂载时调用 resolveAdminTabId）**：组件挂载时（而非等到点击按钮时）立即调用 `resolveAdminTabId()`；若 admin tab 不存在，挂载时即显示警告横幅"未检测到后台管理页，请先打开后台"；点击按钮时 reuse 已有结果，而非重新查询；原因：把错误发现从"点击后 0.5s"提前到"视图打开即刻"，避免操作者填好意图后才看到错误
 
@@ -478,6 +482,7 @@ graph TB
 - Edge case: 0 条 available → 按钮 disabled，显示引导文案
 - Edge case: 全部 folded → 显示"展开折叠区"引导
 - Edge case: batch in progress → 按钮 disabled，显示"批次进行中"
+- Edge case: 挂载时 admin tab 未找到 → 警告横幅显示；警告的有效范围是"本次组件生命周期"（组件销毁后重新挂载才重查）；操作者打开后台后须重新导航至 TodayBatchView 才能清除警告（此限制已知，无需修复）
 - Integration: 点击按钮后，App 视图切换到 BatchView
 
 **Verification:**
@@ -504,13 +509,14 @@ graph TB
 - 挂载时 `getReadItems()` 加载已读集合
 - 每条 `awaiting-approval` item：
   - 展示草稿 HTML 预览（现有）+ gate 结果 + AI diff（若 `aiReviewTriggered`）
-  - 显示"未读"指示器；操作者展开/滚到底部 → `markItemRead(itemId)` → 发布按钮解锁
+  - 显示"未读"指示器；**读标记触发时机：操作者展开该条 item（toggle 展开事件）时调用 `markItemRead(itemId)`**（与现有 BatchReviewPanel.tsx 的 `onItemRead` 触发点一致，是 UX 层面的"必展开才能发布"约束，而非滚动至底部的强制保障；Phase 5 接受此设计，不引入滚动检测）→ 发布按钮解锁
   - 解锁后显示：发布 / 改稿后发布 / 否决 三个按钮
 - 每条 `gate-failed` item：
   - 显示 `gateFailReason` 摘要（"内容含未填写占位符"/"正文链接来源缺失"）
   - 显示"重新生成"按钮 → `sendMsg({type:'RETRY_BATCH_ITEM', itemId})` → `gate-failed → queued`
-- 否决按钮 → 弹出 RejectionReason 选择器 → `sendMsg({type:'REJECT_BATCH_ITEM', itemId, rejectionReason})` 
+- 否决按钮 → 弹出 RejectionReason 选择器 → `sendMsg({type:'DISCARD_BATCH_ITEM', itemId, rejectionReason})` 
 - 未读状态下发布/改稿按钮 disabled，tooltip 显示"请先阅读草稿"
+- **`error` 状态区分渲染**：若 `item.status === 'error'` 且 `item.error?.startsWith('grounding-blocked:')` → 渲染为"内容审核失败"样式（橙色 badge + 摘要文案 + 重新生成按钮），而非普通"系统错误"样式（红色 badge + 重试按钮）；两种错误来源不同，操作指引不同，不可混用同一 UI
 
 **Patterns to follow:**
 - `BatchReviewPanel.tsx` 现有的 draft 展示和 approve 触发模式
@@ -519,7 +525,7 @@ graph TB
 **Test scenarios:**
 - Happy path: 未读 item → 发布按钮 disabled
 - Happy path: 调用 `markItemRead(itemId)` → 发布按钮启用
-- Happy path: 点击否决 → 选择 RejectionReason → REJECT_BATCH_ITEM 消息发出
+- Happy path: 点击否决 → 选择 RejectionReason → `DISCARD_BATCH_ITEM`（含 `rejectionReason`）消息发出
 - Happy path: gate-failed item 显示 gateFailReason 和重新生成按钮
 - Edge case: 点击"重新生成" → item 状态变 queued，UI 更新为 queued 状态
 - Edge case: 所有 items 均为 publish-confirmed → 批次完成提示
@@ -544,7 +550,11 @@ graph TB
 - Test: `packages/extension/entrypoints/background.test.ts`
 
 **Approach:**
-- `handleApproveBatch()` 处理 `writeConfirmed` 回调（每条 item publish-confirmed 后）：调用 `recordPublishedPost({ sourceTitle: item.topic, publishUrl: item.publishUrl ?? '', ... })` fire-and-forget（失败不影响主流程）
+- `handleApproveBatch()` 处理 `writeConfirmed` 回调（每条 item publish-confirmed 后）：调用 `recordPublishedPost({ id: crypto.randomUUID(), batchItemId: item.id, sourceTitle: item.topic, publishUrl: item.publishUrl ?? '', publishedAt: deps.now() })` fire-and-forget（失败不影响主流程）
+- `id`：使用 `crypto.randomUUID()` 生成（MV3 扩展 service worker 中可用，无需 polyfill）
+- `batchItemId`：`item.id`（`PublishedPostRecord` 的必填字段，确保与 batch item 关联；实现前先读 `published-posts-client.ts:PublishedPostRecord` 确认字段名）
+- `publishedAt`：使用 `deps.now()`（返回类型为 `string`，即 `new Date().toISOString()` 格式；与 `PublishedPostRecord.publishedAt: string` 一致）；`ApproveBatchDeps` 加 `now?: () => string`，默认值 `() => new Date().toISOString()`；可在测试中注入固定时间戳
+- **注意**：`now` 已在 `RunBatchDeps` 等处定义，确认类型是否为 `string`（ISO datetime）或 `number`（epoch ms）后再决定签名；若有已有 `now` 字段，复用其类型而非新增
 - `recordPublishedPost` 已在 `published-posts-client.ts` 中，只需调用
 - `publishUrl`：从 `item.publishUrl` 取（PATCH batch item 时已写入）；若为空字符串，仍调用（后端 upsert 会处理）
 
@@ -566,7 +576,7 @@ graph TB
 
 - **Interaction graph**：
   - `BatchItemStatus` union 修改影响所有消费此类型的组件：`BatchView`、`BatchReviewPanel`、`batch-routes.ts` 的 `ALLOWED_TRANSITIONS`、`recoverBatch()`、消费 batch 状态的任何条件渲染；实现前需 grep 确认影响面
-  - `background.ts` 新增 `REJECT_BATCH_ITEM` handler → `RuntimeMessage` union 需同步更新
+  - `background.ts` 扩展 `DISCARD_BATCH_ITEM` handler → `RuntimeMessage` union 加 `rejectionReason?` 可选字段
   - `runBatch` 内新增 grounding gate 调用 → `RunBatchDeps` 接口扩展（向后兼容，`evaluateGrounding` 有默认 import，可作可选 dep）
   
 - **Error propagation**：
@@ -577,7 +587,7 @@ graph TB
 - **State lifecycle risks**：
   - `readItems` 清空时机：新批次启动时清空（而非 batch 完成后），防止操作者重开侧边栏后"已读状态"因旧批次而错误继承
   - `gate-failed` items 在 `recoverBatch()` 中不应被错误地转入 `needs-human-verification`（需确认 `recoverBatch` 只对 `publish-dispatched` 超时处理）
-  - `pendingTopicId` 字段：若 BatchItem 不存在此字段，U7 的 reject → topic update 链路断裂
+  - `pendingTopicId` 字段：U2 加字段类型、U8 在 RUN_BATCH 消息中传 `topicIds`、`handleRunBatch` 写入 `item.pendingTopicId`，三处必须同步实现，链路才能端到端通畅（任一缺失，U7 reject 静默忽略 topic update）
   
 - **API surface parity**：
   - `RuntimeMessage` union 须在 shared types 中更新，确保 content/background/sidepanel 三端类型一致
@@ -601,7 +611,7 @@ graph TB
 | `BatchItemStatus` 扩展影响面未充分 grep | U2 实现前先 grep `BatchItemStatus` 和 `batch.status` 所有消费点；后端 ALLOWED_TRANSITIONS 与扩展侧人工同步 |
 | `generating → error` 恢复误触正常进行中的批次 | 恢复逻辑仅在 SW 重启时触发（`onStartup`），正常运行中不执行；`generating` 时间窗口内 SW 重启才触发 |
 | `readItems` 清空时机错误导致"已读"标记错误继承 | 在 `runBatch` 开始时（非 batch 完成后）清空 readItems；加单测覆盖清空时机 |
-| `pendingTopicId` 字段缺失导致 reject → topic update 链路断裂 | U7 中先验证 BatchItem 是否有此字段；若无，同步添加并在 `runBatch` 创建 batch 时赋值 |
+| `pendingTopicId` 字段缺失导致 reject → topic update 链路断裂 | U2 加字段 + U8 传 `topicIds` + `handleRunBatch` 写入，三处同步实现；实现前 grep 确认 `RUN_BATCH` 消息类型和 `createBatch` 签名 |
 | 10 条批次生成仍可能触发 SW kill（alarm 周期内 30s 静默） | SW keepalive alarm 已注册；U5 的 error 恢复允许操作者重试 generating 失败的 items；Phase 5 为"到场一键"，操作者在场可立即重试 |
 | `recordPublishedPost` 写入失败导致已发布话题被重选 | fire-and-forget 设计接受此 best-effort 语义；score-based fold_threshold=0.5 作为降级保障（published 话题 score ≤ 0.2）|
 
