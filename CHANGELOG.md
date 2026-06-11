@@ -15,7 +15,7 @@
   - 结构化拒绝原因：`RejectionReason` enum 约束拒绝字段，防止自由文本污染
   - 重复检测：`source_url` 唯一索引，`savePendingTopic` 返回是否重复
 - **Telegram 告警客户端**：抓取连续失败 3 次或健康监控异常时自动推送 Telegram 通知，支持 SSRF guard 和管理员域名脱敏
-- **macOS launchd 自动启动**：`scripts/launchd/` 提供后端 daemon plist 及安装/卸载脚本，开机自动启动后端
+- **macOS launchd 自动启动**：`scripts/launchd/` 提供后端 daemon plist 及安装/卸载脚本，运行 `bash scripts/launchd/install.sh` 即可让后端开机自启
 - **`/healthz` 健康检查端点**：无需鉴权，返回 `{ok:true}`，供 launchd 和监控探针使用
 - **选题质量排序 API**：`GET /api/v1/pending-topics?sort_by=score&fold_threshold=0.5`
 
