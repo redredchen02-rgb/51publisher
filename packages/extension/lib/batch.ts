@@ -51,6 +51,8 @@ export interface BatchItem {
   aiReviewTriggered?: boolean;
   /** AI 评审 LLM token 用量（Phase 3）；独立于生成用量记录。 */
   reviewCostTokens?: { prompt: number; completion: number; estimated?: boolean };
+  /** 关联的后端 pending topic ID（U2）；有值时丢弃可同步拒绝状态。 */
+  pendingTopicId?: string;
 }
 
 export interface Batch {
@@ -235,6 +237,14 @@ export function releaseQuarantine(batch: Batch, itemId: string): Batch {
  */
 export function retryBatchItem(batch: Batch, itemId: string): Batch {
   return patchItem(batch, itemId, { status: 'queued', error: undefined, fillResults: undefined });
+}
+
+/**
+ * 操作者显式丢弃单条条目 → aborted 终态。
+ * 与 abortBatch 不同:只针对指定 id,且可从任何非终态（含 needs-human-verification）转入。
+ */
+export function discardBatchItem(batch: Batch, itemId: string): Batch {
+  return patchItem(batch, itemId, { status: 'aborted' });
 }
 
 /** 已隔离项的选题集合(新批次须排除,防自动重入同选题)。 */
