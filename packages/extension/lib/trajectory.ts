@@ -1,4 +1,5 @@
-import type { FieldFillResult } from '@51publisher/shared';
+import type { FieldFillResult, SafetyMode } from '@51publisher/shared';
+import type { SlotDiff } from './draft-diff';
 import { scrubSnapshot } from './secret-scrub';
 
 // 填充/发布轨迹(工作区即状态,借 Webwright 理念)。每条发布落盘可审计记录,
@@ -21,6 +22,16 @@ export interface TrajectoryRecord {
   /** 序号 + hash 链:篡改可检。 */
   seq: number;
   hash: string;
+  /** 发布档位(R6a 全档位度量)。旧记录无此字段。 */
+  mode?: SafetyMode;
+  /** 发布时是否手动改稿(直发率判断依据)。 */
+  hasManualEdit?: boolean;
+  /** LLM token 用量(R6b);不可得时为估算,estimated=true。 */
+  llmCostTokens?: { prompt: number; completion: number; estimated?: boolean };
+  /** 草稿生成耗时(ms)。 */
+  generationDurationMs?: number;
+  /** AI 原稿与最终发布草稿的 slot 级 diff(R5b)。 */
+  slotDiff?: SlotDiff;
 }
 
 export interface TrajectoryInput {
@@ -33,6 +44,11 @@ export interface TrajectoryInput {
   status: string;
   ts: string;
   publishedAsDraft?: boolean;
+  mode?: SafetyMode;
+  hasManualEdit?: boolean;
+  llmCostTokens?: { prompt: number; completion: number; estimated?: boolean };
+  generationDurationMs?: number;
+  slotDiff?: SlotDiff;
 }
 
 const GENESIS_HASH = '0';
@@ -87,6 +103,11 @@ export function buildRecord(input: TrajectoryInput, seq: number, prevHash: strin
     status: input.status,
     ts: input.ts,
     ...(input.publishedAsDraft !== undefined ? { publishedAsDraft: input.publishedAsDraft } : {}),
+    ...(input.mode !== undefined ? { mode: input.mode } : {}),
+    ...(input.hasManualEdit !== undefined ? { hasManualEdit: input.hasManualEdit } : {}),
+    ...(input.llmCostTokens !== undefined ? { llmCostTokens: input.llmCostTokens } : {}),
+    ...(input.generationDurationMs !== undefined ? { generationDurationMs: input.generationDurationMs } : {}),
+    ...(input.slotDiff !== undefined ? { slotDiff: input.slotDiff } : {}),
     seq,
   };
   const hash = fnv1a(prevHash + canonical(base));

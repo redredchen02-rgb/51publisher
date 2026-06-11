@@ -15,8 +15,10 @@ import {
 import { generateDraft } from '../lib/llm';
 import { canSubmit } from '../lib/safety-gate';
 import { orchestratePublish, type GateDecision } from '../lib/publish-orchestrator';
-import { abortBatch, releaseQuarantine, patchBatchDrafts, type Batch } from '../lib/batch';
+import { abortBatch, releaseQuarantine, patchBatchDrafts, storeFillResults, type Batch } from '../lib/batch';
 import { buildPrompt } from '../lib/messaging';
+import { computeSlotDiff } from '../lib/draft-diff';
+import { recordPublishedPost, type PublishedPostRecord } from '../lib/published-posts-client';
 import { runBatch, approveBatch, retryItem } from '../lib/batch-orchestrator';
 import { evaluateGrounding } from '../lib/grounding-gate';
 import { withBackendSync } from '../lib/batch-sync';
@@ -269,6 +271,15 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
     return next;
   }
 
+  async function handleMarkItemEdited(itemId: string): Promise<void> {
+    const batch = await deps.getBatch();
+    if (!batch) return;
+    const item = batch.items.find((it) => it.id === itemId);
+    if (!item || item.userEdited) return; // 已标记则幂等跳过
+    const next = { ...batch, items: batch.items.map((it) => it.id === itemId ? { ...it, userEdited: true } : it) };
+    await deps.saveBatch(next);
+  }
+
   async function handleRetryBatchItem(itemId: string): Promise<Batch | null> {
     try {
       const [settings, apiKey] = await Promise.all([deps.getSettings(), deps.getApiKey()]);
@@ -298,6 +309,7 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
     handleApproveBatch,
     handleKillBatch,
     handleReleaseQuarantine,
+    handleMarkItemEdited,
     handleRetryBatchItem,
     evaluateGate,
   };
@@ -399,6 +411,7 @@ export default defineBackground(() => {
     if (message?.type === 'APPROVE_BATCH') return handlers.handleApproveBatch(message.tabId, message.draftOverrides);
     if (message?.type === 'KILL_BATCH') return handlers.handleKillBatch();
     if (message?.type === 'RELEASE_QUARANTINE') return handlers.handleReleaseQuarantine(message.itemId);
+    if (message?.type === 'MARK_ITEM_EDITED') return handlers.handleMarkItemEdited(message.itemId);
     if (message?.type === 'RETRY_BATCH_ITEM') return handlers.handleRetryBatchItem(message.itemId);
     if (message?.type === 'GET_BATCH') return getBatch();
     return undefined;

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { SafetyMode, FieldFillResult, ContentDraft } from '@51publisher/shared';
 import { type Batch, type BatchItem, batchSummary, batchPhase } from '../../lib/batch';
+import { aggregateDegradeStats } from '../../lib/degrade-stats';
 import type { DriftReport } from '../../lib/selectors';
 import type { TrajectoryRecord } from '../../lib/trajectory';
 import { DraftPreview } from './DraftPreview';
@@ -14,7 +15,15 @@ import { evaluateGrounding } from '../../lib/grounding-gate';
  * - 连结:正文每条 URL 标「程式注入」(✓)或「非来源·疑似编造」(✗,组装后应不出现)。
  * - 硬闸:展示该条若 authorized 发布会否被拦(残留【待补】/无来源连结)。
  */
-function GroundingStrip({ draft, facts, onFixPlaceholder }: { draft: ContentDraft; facts?: FactsBlock; onFixPlaceholder?: () => void }) {
+function GroundingStrip({
+  draft,
+  facts,
+  onFixPlaceholder,
+}: {
+  draft: ContentDraft;
+  facts?: FactsBlock;
+  onFixPlaceholder?: () => void;
+}) {
   const f = facts ?? {};
   let links: { url: string; sourced: boolean }[] = [];
   try {
@@ -41,7 +50,7 @@ function GroundingStrip({ draft, facts, onFixPlaceholder }: { draft: ContentDraf
       </div>
       {/* 明确列出缺失事实，避免审核者忽略 */}
       {(() => {
-        const missing = FACT_ORDER.filter(k => !f[k]?.trim());
+        const missing = FACT_ORDER.filter((k) => !f[k]?.trim());
         if (missing.length > 0) {
           return (
             <div style={{ marginTop: 2, color: '#d46b08', fontWeight: 600 }}>
@@ -65,7 +74,16 @@ function GroundingStrip({ draft, facts, onFixPlaceholder }: { draft: ContentDraf
       )}
 
       {/* 发布前硬闸判定 */}
-      <div style={{ marginTop: 2, color: verdict.ok ? '#389e0d' : '#cf1322', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div
+        style={{
+          marginTop: 2,
+          color: verdict.ok ? '#389e0d' : '#cf1322',
+          fontWeight: 600,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+        }}
+      >
         {verdict.ok ? '✓ grounding 通过(authorized 可发)' : '⛔ authorized 会被拦:'}
         {!verdict.ok && (draft.title.includes('【待补】') || draft.body.includes('【待补】')) && onFixPlaceholder && (
           <button
@@ -77,7 +95,7 @@ function GroundingStrip({ draft, facts, onFixPlaceholder }: { draft: ContentDraf
               borderRadius: 3,
               padding: '2px 6px',
               fontSize: 11,
-              cursor: 'pointer'
+              cursor: 'pointer',
             }}
           >
             ✏️ 一键填入【待补】
@@ -192,6 +210,10 @@ interface Props {
   onRelease: (itemId: string) => void;
   onDriftCheck: () => void;
   onResume: () => void;
+  /** 操作者手动修改了草稿后调用,用于直发率度量。 */
+  onItemEdited?: (itemId: string) => void;
+  /** 一键将已发布条目存为 few-shot 范例（R11）。 */
+  onSaveAsFewShot?: (itemId: string) => void;
 }
 
 const box: React.CSSProperties = { borderRadius: 6, padding: '8px 10px', fontSize: 13, marginBottom: 10 };
@@ -247,6 +269,7 @@ export function BatchReviewPanel(props: Props) {
     phase === 'awaiting-approval' && tabHealthy && (safetyMode === 'authorized' || safetyMode === 'dry-run') && !busy;
   // authorized 才要求打字手势;dry-run 预演只需点确认。
   const gestureOk = safetyMode !== 'authorized' || typed.trim().toLowerCase() === 'publish';
+  const ds = aggregateDegradeStats(batch.items);
 
   function toggle(id: string) {
     setExpanded((prev) => {
@@ -307,7 +330,41 @@ export function BatchReviewPanel(props: Props) {
         共 {summary.total} 条 · 待审 {summary.awaitingApproval} · 已发 {summary.confirmed} · 失败 {summary.errored}
         {summary.quarantined > 0 && <strong style={{ color: '#cf1322' }}> · 待人工核 {summary.quarantined}</strong>}
         {summary.aborted > 0 && <span> · 已停 {summary.aborted}</span>}
+        {(() => {
+          return phase === 'done' && ds.itemsWithAnyDegrade > 0 ? (
+            <span
+              style={{
+                marginLeft: 6,
+                background: '#fa8c16',
+                color: '#fff',
+                borderRadius: 10,
+                padding: '1px 7px',
+                fontSize: 11,
+                fontWeight: 600,
+              }}
+            >
+              {ds.itemsWithAnyDegrade} 条降级
+            </span>
+          ) : null;
+        })()}
       </div>
+
+      {/* 降级汇总条(批次完成后展示) */}
+      {phase === 'done' &&
+        (() => {
+          if (ds.totalItemsWithResults === 0) return null;
+          const topSummary = ds.topFields.map((f) => `${f.field}（${f.count}x）`).join('，');
+          return ds.itemsWithAnyDegrade === 0 ? (
+            <div style={{ ...box, background: '#f6ffed', border: '1px solid #b7eb8f', color: '#389e0d', fontSize: 12 }}>
+              ✅ 本批次所有字段填充成功
+            </div>
+          ) : (
+            <div style={{ ...box, background: '#fff7e6', border: '1px solid #ffd591', color: '#874d00', fontSize: 12 }}>
+              ⚠️ 本批次 {ds.itemsWithAnyDegrade}/{ds.totalItemsWithResults} 条目有字段降级
+              {topSummary && <span> | 高频：{topSummary}</span>}
+            </div>
+          );
+        })()}
 
       {/* 隔离态:醒目独立表示(安全关键) */}
       {quarantined.length > 0 && (
@@ -368,10 +425,26 @@ export function BatchReviewPanel(props: Props) {
                 background: '#fff',
                 display: 'flex',
                 justifyContent: 'space-between',
+                alignItems: 'center',
               }}
             >
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.topic}</span>
-              <span aria-label={`状态 ${it.status}`} style={{ marginLeft: 8, fontSize: 12, color: '#888' }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                {it.topic}
+              </span>
+              {it.fillResults &&
+                it.fillResults.length > 0 &&
+                (() => {
+                  const degraded = it.fillResults.filter((r) => r.status === 'degraded').length;
+                  return degraded > 0 ? (
+                    <span style={{ marginLeft: 4, fontSize: 11, color: '#fa8c16', flexShrink: 0 }}>
+                      {degraded}/{it.fillResults.length} 降级
+                    </span>
+                  ) : null;
+                })()}
+              <span
+                aria-label={`状态 ${it.status}`}
+                style={{ marginLeft: 8, fontSize: 12, color: '#555', flexShrink: 0 }}
+              >
                 [{STATUS_LABEL[it.status]}]
               </span>
             </button>
@@ -391,6 +464,35 @@ export function BatchReviewPanel(props: Props) {
                     <div style={{ color: '#666', maxHeight: 120, overflow: 'auto' }}>
                       {it.draft.description || it.draft.body.replace(/<[^>]+>/g, ' ').slice(0, 200)}
                     </div>
+                    {it.status === 'awaiting-approval' && props.onItemEdited && (
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 6, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={it.userEdited ?? false}
+                          onChange={() => {
+                            if (!it.userEdited) props.onItemEdited!(it.id);
+                          }}
+                        />
+                        <span style={{ color: '#888' }}>已手动修改草稿</span>
+                      </label>
+                    )}
+                    {it.status === 'publish-confirmed' && props.onSaveAsFewShot && (
+                      <button
+                        type="button"
+                        onClick={() => props.onSaveAsFewShot!(it.id)}
+                        style={{
+                          ...btn,
+                          marginTop: 6,
+                          padding: '3px 8px',
+                          fontSize: 11,
+                          background: '#f6ffed',
+                          color: '#389e0d',
+                          border: '1px solid #b7eb8f',
+                        }}
+                      >
+                        存为范例
+                      </button>
+                    )}
                   </>
                 ) : (
                   <span style={{ color: '#999' }}>无草稿内容{it.error ? `(${it.error})` : ''}</span>
@@ -399,7 +501,11 @@ export function BatchReviewPanel(props: Props) {
                   <GroundingStrip
                     draft={draftOverrides?.get(it.id) ?? it.draft}
                     facts={it.facts}
-                    onFixPlaceholder={onDraftChange ? () => handleFixPlaceholder(it.id, draftOverrides?.get(it.id) ?? it.draft!) : undefined}
+                    onFixPlaceholder={
+                      onDraftChange
+                        ? () => handleFixPlaceholder(it.id, draftOverrides?.get(it.id) ?? it.draft!)
+                        : undefined
+                    }
                   />
                 )}
                 <FillStatusTable results={it.fillResults} />

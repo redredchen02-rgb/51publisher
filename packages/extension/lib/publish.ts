@@ -120,7 +120,8 @@ export async function executePublish(deps: PublishDeps = {}): Promise<PublishRes
   // 数组 typeof 也是 'object' → 显式排除,避免误读为响应对象(评审 kieran-ts/correctness)。
   const obj = (data && typeof data === 'object' && !Array.isArray(data) ? data : {}) as Record<string, unknown>;
   if (obj.code === 0) {
-    return { ok: true, dryRun: false, url: extractUrl(obj) };
+    const url = extractUrl(obj);
+    return { ok: true, dryRun: false, url };
   }
   const rawMsg = typeof obj.msg === 'string' ? obj.msg : 'save-failed';
   return { ok: false, dryRun: false, error: rawMsg.slice(0, MAX_ERROR_MSG_LEN) };

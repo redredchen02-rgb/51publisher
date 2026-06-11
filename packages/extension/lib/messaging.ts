@@ -89,6 +89,11 @@ export async function releaseQuarantine(itemId: string): Promise<BatchResponse> 
   return browser.runtime.sendMessage({ type: 'RELEASE_QUARANTINE', itemId });
 }
 
+/** 标记该条草稿已被操作者手动修改(直发率度量置位)。 */
+export async function markItemEdited(itemId: string): Promise<void> {
+  return browser.runtime.sendMessage({ type: 'MARK_ITEM_EDITED', itemId });
+}
+
 /** 运营商显式重试单条 error/aborted 条目。 */
 export async function retryBatchItemMsg(itemId: string): Promise<BatchResponse> {
   return browser.runtime.sendMessage({ type: 'RETRY_BATCH_ITEM', itemId });
