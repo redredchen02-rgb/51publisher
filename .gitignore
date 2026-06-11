@@ -5,3 +5,9 @@ stats.html
 *.log
 .DS_Store
 .context
+dist
+*.tsbuildinfo
+coverage
+packages/backend/data
+packages/backend/logs
+packages/backend/.env

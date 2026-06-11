@@ -1,0 +1,32 @@
+# Active CI for the GitLab remote. Mirrors the fresh-clone acceptance:
+# install -> build shared dist -> type-check all packages -> run unit tests.
+# Requires a runner available to the namespace; if none is configured the
+# pipeline stays pending (see plan U6 fallback: local fresh-clone verification).
+stages:
+  - verify
+
+variables:
+  PNPM_VERSION: '9'
+  NODE_VERSION: '20'
+
+verify:
+  stage: verify
+  image: node:20
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  before_script:
+    - corepack enable
+    - corepack prepare pnpm@${PNPM_VERSION} --activate
+    - pnpm config set store-dir .pnpm-store
+  script:
+    - pnpm install --frozen-lockfile
+    - pnpm --filter @51publisher/shared build
+    - pnpm -r compile
+    - pnpm -r test
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'

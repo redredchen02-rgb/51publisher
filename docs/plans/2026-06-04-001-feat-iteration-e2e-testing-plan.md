@@ -1,5 +1,5 @@
 ---
-title: "feat: 迭代节奏与核心填充路径 e2e 测试"
+title: 'feat: 迭代节奏与核心填充路径 e2e 测试'
 type: feat
 status: completed
 date: 2026-06-04
@@ -96,7 +96,7 @@ origin: docs/brainstorms/2026-06-04-iteration-and-e2e-testing-requirements.md
 
 ## High-Level Technical Design
 
-> *以下示意「e2e 如何在单 jsdom realm 内跑桥的 round-trip」,是评审用的方向性说明,不是实现规格。实现 agent 应当作上下文,而非照抄的代码。*
+> _以下示意「e2e 如何在单 jsdom realm 内跑桥的 round-trip」,是评审用的方向性说明,不是实现规格。实现 agent 应当作上下文,而非照抄的代码。_
 >
 > ⚠️ **诚实的边界(评审拈出)**:生产里隔离世界与 MAIN 世界**真隔离**、不能共享 EventTarget,正是因此才用页面 DOM 上的 CustomEvent 通信。本 e2e 把两端挂在**同一个** jsdom document 上,**测的是「同一 realm 内的桥 round-trip」,不是真正的跨世界隔离/detail 序列化/跨世界时序**——那部分仍无任何测试覆盖。且这个同 realm round-trip 现有 `lib/body-bridge.test.ts` 已覆盖,本 e2e 的 reqId/超时是「复用」而非新增覆盖;e2e 的净新价值在「真 Quill + 真实字段 DOM」,不在桥往返本身。
 
@@ -144,6 +144,7 @@ graph TB
 **Dependencies:** 无
 
 **Files:**
+
 - Create: `tests/e2e/fixtures/webarticle-add.html`(结构忠实、零机密;顶部注释记录抓取日期/来源/版本线索 + 关键选择器清单占位)
 - Create: `tests/e2e/helpers/zero-submit.ts`(`installSubmitSpy(form, doc)` → 返回 `{ submitCount(), publishClickCount() }`,spy `HTMLFormElement.prototype.submit`/`requestSubmit` + `submit` 事件 + 发布按钮 `click`)
 - Create: `tests/e2e/helpers/quill-fixture.ts`(加载 fixture HTML 进 jsdom、`import Quill from 'quill'`、`window.Quill = Quill`、`new Quill('#editor')`,返回 `{ window, document, quill }`)
@@ -152,6 +153,7 @@ graph TB
 - Modify: `vitest.config.ts`(`exclude` 加 `tests/e2e/**`,使 `pnpm test` 不跑 e2e)
 
 **Approach:**
+
 - **先做 spike(软门,有明确通过判据)**:验证 `new Quill('#editor')` 不抛 + `Quill.find(node).clipboard.dangerouslyPasteHTML('<p>x</p>')` 后 **flush 一个 microtask 再读** `.ql-editor` 含粘贴内容。⚠️ 信心检查确认:jsdom 29 提供了 Quill 所需全部原语(`getSelection`/`Range`/`MutationObserver`/`createRange` 都实现了,构造不会因缺 API 抛错),**但 jsdom 的 `MutationObserver` 是异步(微任务)触发、`getBoundingClientRect` 返回全 0**。所以「同步写入」不成立——断言前必须 `await Promise.resolve()` 刷一拍微任务。spike 判据 = 构造不抛 + flush 后 `.ql-editor` 内容已变。判据不过 → 回退 `happy-dom`(改 e2e config environment),仍不过才考虑 Vitest browser mode(回到用户确认,因触碰 Scope Boundary)。Quill 确实尚未是依赖、`node_modules/quill` 不存在,故这是该路径首次真实执行,spike 是**真软门**不是走过场。
 - fixture 用 `docs/field-mapping-guide.md` 的真实选择器手工构造:`<form>` 内含 `input[name="title"]`、`input[name="subtitle"]`、`select[name="type"]`(option 2/4)、`textarea[name="description"]`、`input[name="media_id"]`、`select[name="status"]`、`input[name="published_at"]`、`div.tags-container` 内若干 `input[name="tags[]"]`+`label`、`#editor`(Quill 容器)、以及一个发布按钮。**不含**任何 token/cookie/隐藏鉴权字段/真实数据。
 - 零提交 helper 必须能区分「`form.submit()` 程序提交」「`submit` 事件」「发布按钮被 click」三种,断言全为 0。
@@ -159,6 +161,7 @@ graph TB
 **Patterns to follow:** `lib/quill-paste.test.ts`(mock window.Quill 的范式,这里换成真 Quill);`vitest.config.ts`(WxtVitest 插件用法)。
 
 **Test scenarios:**
+
 - Happy path: `quill-fixture.ts` 加载后 `document.querySelector('#editor .ql-editor')` 存在且 `window.Quill` 为函数、`new Quill` 返回带 `clipboard.dangerouslyPasteHTML` 的实例。
 - Happy path: `installSubmitSpy` 在未发生任何提交时 `submitCount()===0`、`publishClickCount()===0`;手工 `form.requestSubmit()` 后 `submitCount()===1`(证明 spy 真的在计数,避免「假绿」)。
 - Edge case: fixture 里 `select[name="type"]` 仅有 option `2`/`4`,`status` 仅 `0`/`1` —— 断言选项集合与勘查一致。
@@ -176,6 +179,7 @@ graph TB
 **Dependencies:** 无(可与 U1 并行)
 
 **Files:**
+
 - Modify: `lib/body-bridge.ts`(`BodyFilledDetail` 加 `degraded?: boolean`;`BodyFillOutcome` 加 `degraded?: boolean`;`requestBodyFill` 的 `onFilled` 把 `detail.degraded` 带进 outcome)
 - Create: `lib/body-responder.ts`(`installBodyResponder(target, win, doc, paste=pasteIntoQuill)`:监听 `EVT_FILL_BODY` → 调 `paste` → 回 `EVT_BODY_FILLED` 含 `degraded`;并 dispatch `EVT_BRIDGE_READY`。供 entrypoint 与 e2e 共用)
 - Modify: `entrypoints/quill-bridge.content.ts`(改为在 `main()` 里调 `installBodyResponder(document, window, document)`,删除内嵌逻辑)。⚠️ **WXT 纪律(信心检查标记)**:必须保留 `export default defineContentScript({ world:'MAIN', ... })` 默认导出不变,只把 `installBodyResponder` 从 `main()` 内部调用;**不要**把 `defineContentScript` 搬进 `lib/`(`lib/` 是普通模块,WXT 全局只在 entrypoint 有效)。抽出的函数只收 `target/win/doc/paste` 参数、不依赖任何 WXT 全局,才能在单 jsdom realm 里被 e2e 复用。
@@ -183,6 +187,7 @@ graph TB
 - Test: `lib/body-bridge.test.ts`(扩充)、`lib/body-responder.test.ts`(新增)
 
 **Approach:**
+
 - `installBodyResponder` 保持「入站事件按不可信处理、只写正文、不收发机密」的现有注释约束。
 - `content.ts` 的 status 语义:`ok && !degraded → 'filled'`;`ok && degraded → 'degraded'`(兜底写入,note 提示「质量较差,建议手动粘贴」);`!ok → 'degraded'`(写入失败,note 提示「请手动粘贴」)。两种 degraded 的 note 文案不同,便于运营区分。
 
@@ -191,6 +196,7 @@ graph TB
 **Patterns to follow:** `lib/body-bridge.ts` 现有协议与超时设计;`entrypoints/quill-bridge.content.ts` 的不可信入站注释。
 
 **Test scenarios:**
+
 - Happy path: `installBodyResponder` 收到 `EVT_FILL_BODY`,`paste` 返回 `{ok:true}` → 回 `EVT_BODY_FILLED` 含 `ok:true, degraded:undefined`。
 - Happy path(降级): `paste` 返回 `{ok:true, degraded:true}` → 回 `EVT_BODY_FILLED` 含 `degraded:true`;`requestBodyFill` resolve 的 outcome 含 `degraded:true`。
 - Error path: `paste` 抛异常 → 回 `{ok:false}`,outcome `ok:false`,note 为手动粘贴提示。
@@ -210,10 +216,12 @@ graph TB
 **Dependencies:** U1(fixture/helper/config)、U2(桥 responder 安装函数)
 
 **Files:**
+
 - Create: `tests/e2e/fill-core-path.test.ts`
 - Use: `tests/e2e/helpers/quill-fixture.ts`、`tests/e2e/helpers/zero-submit.ts`、`lib/fillers.ts`、`lib/body-bridge.ts`、`lib/body-responder.ts`、`lib/sanitize.ts`、默认 `fieldMapping`(`lib/storage.ts` 的 `DEFAULT_SETTINGS`)
 
 **Approach:**
+
 - 固定 `ContentDraft`:title/subtitle/category(`2`)/description/tags(选 fixture 里存在的 2 个标签)/body(含 `<p><strong>` 等会过 Quill 规范化的标签)/status/publishedAt/mediaId。
 - 流程:`installBodyResponder(document, window, document)` → `installSubmitSpy(form, document)` → `fillDraft(draft, mapping, document)` → `requestBodyFill(sanitizeBody(draft.body), '#editor', 3000, document)`。
 - **正文断言前先 flush microtask**(`await Promise.resolve()` / `await requestBodyFill` 自然已 await,但 Quill 的 MutationObserver 在 jsdom 异步,读 `.ql-editor` 前再保险刷一拍)——信心检查指出 jsdom 下不可即写即读。
@@ -222,6 +230,7 @@ graph TB
 **Patterns to follow:** `lib/fillers.test.ts` 的字段断言风格;`lib/body-bridge.test.ts` 的往返等待。
 
 **Test scenarios:**
+
 - Happy path: `input[name="title"].value` === draft.title;`subtitle`、`description`、`media_id`、`published_at` 同理。
 - Happy path: `select[name="type"]` 选中 value `2`;`select[name="status"]` 选中 draft.postStatus。
 - Happy path: draft.tags 对应的 `input[name="tags[]"]` 被 `checked`,未列出的保持未选。
@@ -243,10 +252,12 @@ graph TB
 **Dependencies:** U1、U2(degraded 透传)、U3(共用同一 spec 文件)
 
 **Files:**
+
 - Modify: `tests/e2e/fill-core-path.test.ts`(**评审拈出:不另起文件**,把降级路径作为同一 spec 里的一个 `describe('降级路径')` 追加——与 U3 共用 fixture/helper/桥往返,只差「删 `window.Quill`」一处 setup,另起文件只会复制样板)
 - Use: 同 U3 的 helper + `lib/body-responder.ts`
 
 **Approach:**
+
 - 加载 fixture 但**不**设 `window.Quill`(或删之),`#editor` 仍含 `.ql-editor` 空容器。
 - 经 `installBodyResponder` + `requestBodyFill` 往返 → 断言 outcome `degraded:true`、`.ql-editor` 收到兜底 innerHTML。
 - 同时挂零提交 spy,断言降级路径也零提交。
@@ -254,6 +265,7 @@ graph TB
 **Patterns to follow:** `lib/quill-paste.test.ts` 的 tier② 用例(这里端到端化)。
 
 **Test scenarios:**
+
 - Happy path(降级): 无 `window.Quill` → `requestBodyFill` outcome `ok:true, degraded:true`;`.ql-editor.innerHTML` 含正文。
 - Integration: 经 `handleFill` 风格组装时 body 结果 `status==='degraded'`(消费 U2 的透传)。
 - Integration(零提交): 降级路径后 `submitCount()===0`、`publishClickCount()===0`。
@@ -272,11 +284,13 @@ graph TB
 **Dependencies:** U1(fixture 存在)
 
 **Files:**
+
 - Modify: `tests/e2e/fixtures/webarticle-add.html`(顶部注释补全 `<!-- CONTRACT-SELECTORS: ... -->` 清单)
 - Create: `tests/e2e/fixtures/selectors.ts`(`KEY_SELECTORS` **从 `lib/storage.ts` 的 `DEFAULT_SETTINGS.fieldMapping` 派生**——`Object.values(fieldMapping).map(d => d.selector)`,外加发布按钮选择器,而非手抄一份)
 - Create: `tests/e2e/fixture-contract.test.ts`
 
 **Approach:**
+
 - **关键(评审拈出):`KEY_SELECTORS` 必须从生产的 `DEFAULT_SETTINGS.fieldMapping` 派生,不能手抄**。否则它和 fixture 由同一人同一刻手写、会一起静默漂移,contract 沦为自证。派生后,contract 验证的是「fixture 是否兑现**生产真正用的**那套选择器」,且选择器只有一处可编辑(`storage.ts`)。
 - contract 测试遍历 `KEY_SELECTORS` 断言每个在 fixture DOM 中 `querySelector` 命中;缺失时明确输出「缺失:`select[name="type"]`」——对应 R9「点名哪个选择器死了」。
 - 与 U3 分工注释:contract 只查存在性(诊断哪个没了),U3 查「真能填进去」。
@@ -284,11 +298,13 @@ graph TB
 **Patterns to follow:** U1 的 fixture 加载 helper。
 
 **Test scenarios:**
+
 - Happy path: 当前 fixture 下所有 `KEY_SELECTORS`(派生自 `DEFAULT_SETTINGS`)命中,测试全绿。
 - Error path(防假绿): 从 fixture 临时删一个字段(测试内构造 DOM 变体)→ contract 对该选择器断言失败且报出名字。
 - Integration: 若 `DEFAULT_SETTINGS.fieldMapping` 改了某 selector 但 fixture 没跟上 → contract 红(派生带来的额外好处:映射与 fixture 不一致也能抓)。
 
 **Verification:** `pnpm test:e2e` 含 contract;故意从 fixture 删 `select[name="type"]` 会让 contract 红并点名。
+
 > ⚠️ **诚实的边界(评审拈出)**:contract 绿只代表「fixture 兑现了**冻结快照**那套选择器」,**不**代表「真后台当前选择器仍是这套」。`故意改坏选择器→变红` 验的是**自伤改动**(fixture 内的改动),不是真后台漂移;真后台漂移仍只能靠人工重抓时被 contract 抓到(被动)。
 
 ---
@@ -302,6 +318,7 @@ graph TB
 **Dependencies:** U1(fixture 路径)、U5(选择器清单)
 
 **Files:**
+
 - Create: `docs/e2e-and-iteration-guide.md`(重抓快照步骤、脱敏清单、人工冒烟 checklist、fixture 路线已知局限、快/慢循环图)
 - Create: `scripts/check-fixture-secrets.sh`(**allowlist 为主、denylist 为辅**的脱敏闸门,见 Approach;含自检样本)
 - Create: `tests/e2e/fixtures/.poisoned-sample.html`(投毒样本:含假 Bearer token / Set-Cookie / hex 串,**必须**被闸门拒绝——闸门的自检)
@@ -311,6 +328,7 @@ graph TB
 - Modify: `docs/field-mapping-guide.md`(补一句「改版修复后回到本指南更新选择器」闭环指引)
 
 **Approach:**
+
 - **脱敏闸门改 allowlist 语义(评审拈出,安全边界要 fail-closed)**:denylist(只拦 `csrf`/`_token`/`session`/`Bearer`/`Set-Cookie`/长 hex-base64/内部路径)是 fail-open——拦不住没枚举到的字段名(`_wpnonce`、`x-auth`、厂商私有 session key、短不透明 ID)。改为:闸门**剥/清空所有 hidden input 的 `value`、所有不在 allowlist 上的属性**,只放行「可见表单结构 + 合成占位值 + Quill 容器」;任何 allowlist 外的非占位 input 值 → **拒绝**。denylist 正则保留作**二次 tripwire**,不作主边界。文档明说「denylist 没命中 ≠ 安全」。
 - **强制而非可选(评审拈出)**:闸门挂 git pre-commit hook(挡提交),有 CI 时再加一道 blocking job。**不**把它当「可选的 test:e2e 前置」——安全闸门的位置是设计决策,不是按成本后议;故从 Deferred 移出。
 - **重抓步骤(R8)**:① 登录真后台打开添加弹层;② **存到仓库外的 scratch 路径**(gitignore 或 `/tmp`),**不**把 DevTools「另存」整页 / HAR / 截图直接进仓库;③ 在 scratch 副本上**跑脱敏**(allowlist 剥洗,真实用户/媒体数据→合成);④ `pnpm check:fixtures` 必须绿;⑤ 才覆盖仓库 fixture、更新顶部注释抓取日期;⑥ 删 scratch 产物。
@@ -323,6 +341,7 @@ graph TB
 **Patterns to follow:** `docs/field-mapping-guide.md` 的结构与中文风格;README 现有「开发」章节。
 
 **Test scenarios:**
+
 - **闸门自检(必须,安全控制不能无自检)**:`.poisoned-sample.html`(含假 Bearer / Set-Cookie / hex 串)→ `check:fixtures` **必须**非零退出;干净 fixture → 退 0。这条自检接进 git hook / CI,闸门若变 no-op 会大声失败。
 - Test expectation(文档部分): none —— guide 与 checklist 是文档,无 vitest。
 
@@ -339,15 +358,15 @@ graph TB
 
 ## Risks & Dependencies
 
-| Risk | Mitigation |
-|------|------------|
-| 真 Quill 在 jsdom 跑不起来,被迫上重型 runner(碰 Scope Boundary) | U1 先 spike;探针已倾向能跑。退路:happy-dom → 仍不行才回到用户确认 browser mode。must-have(零提交+字段)不依赖真 Quill,可降级保住核心价值 |
+| Risk                                                                 | Mitigation                                                                                                                                                                                         |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 真 Quill 在 jsdom 跑不起来,被迫上重型 runner(碰 Scope Boundary)      | U1 先 spike;探针已倾向能跑。退路:happy-dom → 仍不行才回到用户确认 browser mode。must-have(零提交+字段)不依赖真 Quill,可降级保住核心价值                                                            |
 | committed fixture 夹带真后台机密进 git 历史(进 git 历史几乎不可撤回) | 初始 fixture **合成无机密**(首次 commit 结构性安全);未来每次真抓靠 U6 的**allowlist fail-closed 闸门 + pre-commit 强制 + 投毒样本自检**把守。⚠️ 不对称:仅首次安全靠构造,此后全靠闸门——已在 U6 写明 |
-| 抓取期副产物(HAR/截图/scratch dump)泄密,闸门看不到 | U6 文档强制:抓到仓库外 scratch、副产物不进仓库不喂 AI、抽完即删 |
-| PII(真实用户/媒体数据)denylist 抓不到 | allowlist 剥洗把非占位值一律拒绝;冒烟 checklist 含「真实数据已换合成」一项 |
-| U2 改 degraded 语义导致现有行为回归 | 先写失败测试锁契约;保留「fail 也标 degraded」兼容;跑全量 56 单测确认不回归 |
-| contract/e2e 假绿(选择器改错却不红) | U3/U5 各含一条「故意改错应变红」的反向验证场景 |
-| 漂移仍只能事后发现(设计性局限) | 已在 brainstorm 拍板接受;U6 文档诚实写明边界,不夸大「主动预警」 |
+| 抓取期副产物(HAR/截图/scratch dump)泄密,闸门看不到                   | U6 文档强制:抓到仓库外 scratch、副产物不进仓库不喂 AI、抽完即删                                                                                                                                    |
+| PII(真实用户/媒体数据)denylist 抓不到                                | allowlist 剥洗把非占位值一律拒绝;冒烟 checklist 含「真实数据已换合成」一项                                                                                                                         |
+| U2 改 degraded 语义导致现有行为回归                                  | 先写失败测试锁契约;保留「fail 也标 degraded」兼容;跑全量 56 单测确认不回归                                                                                                                         |
+| contract/e2e 假绿(选择器改错却不红)                                  | U3/U5 各含一条「故意改错应变红」的反向验证场景                                                                                                                                                     |
+| 漂移仍只能事后发现(设计性局限)                                       | 已在 brainstorm 拍板接受;U6 文档诚实写明边界,不夸大「主动预警」                                                                                                                                    |
 
 ## Documentation / Operational Notes
 
