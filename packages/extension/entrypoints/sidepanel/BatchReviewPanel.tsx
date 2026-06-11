@@ -833,6 +833,27 @@ export function BatchReviewPanel(props: Props) {
 										>
 											⚠ 接地拦截:{it.gateFailReason ?? "未知原因"}
 										</span>
+										{/* 展示原稿快照(含【待补】)让操作者知道缺哪些事实 */}
+										{it.assembledDraftSnapshot && (
+											<div
+												style={{
+													marginTop: 6,
+													padding: "4px 8px",
+													background: "#fff8f0",
+													border: "1px solid #ffd591",
+													borderRadius: 4,
+													fontSize: 11,
+													color: "#5c3c00",
+												}}
+											>
+												<div style={{ fontWeight: 600, marginBottom: 2 }}>
+													原稿(含缺失事实):
+												</div>
+												<div style={{ wordBreak: "break-all" }}>
+													{it.assembledDraftSnapshot.title || "(无标题)"}
+												</div>
+											</div>
+										)}
 										{onRetryItem && (
 											<button
 												type="button"
