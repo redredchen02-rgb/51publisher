@@ -18,6 +18,12 @@ export interface PendingTopic {
   updatedAt: string;
 }
 
+export interface FetchPendingTopicsOptions {
+  status?: string;
+  sort_by?: 'score';
+  fold_threshold?: number;
+}
+
 export interface PendingTopicsResponse {
   ok: boolean;
   topics?: PendingTopic[];
@@ -28,12 +34,6 @@ export interface PendingTopicResponse {
   ok: boolean;
   topic?: PendingTopic;
   error?: string;
-}
-
-export interface FetchPendingTopicsOptions {
-  status?: string;
-  sort_by?: 'score';
-  fold_threshold?: number;
 }
 
 /**
