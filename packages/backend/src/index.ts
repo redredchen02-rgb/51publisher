@@ -12,6 +12,7 @@ import { registerBatchRoutes } from './batch-routes.js';
 import { registerScraperRoutes } from './scraper/scraper-routes.js';
 import { registerPendingRoutes } from './scraper/pending-routes.js';
 import { registerPromptRoutes } from './scraper/prompt-routes.js';
+import { registerPublishedPostsRoutes } from './published-posts-routes.js';
 import { registerAuthRoutes } from './auth-routes.js';
 import { PUBLIC_ROUTES, requireAuth } from './auth-middleware.js';
 import { scraperConfig } from './scraper/scraper-config.js';
@@ -60,6 +61,8 @@ await registerScraperRoutes(server);
 // 注册 Pending Topics 路由(待审核选题池)
 await registerPendingRoutes(server);
 await registerPromptRoutes(server);
+// 注册已发布帖子注册表路由(R8 endpoint + 回访数据源)
+await registerPublishedPostsRoutes(server);
 
 // 初始化 Scraper:注册适配器与站点配置
 scraperConfig.registerAdapter(demoAdapter);

@@ -31,6 +31,20 @@ CREATE TABLE IF NOT EXISTS config_store (
   key    TEXT PRIMARY KEY,
   value  TEXT NOT NULL
 );`,
+  '003-published-posts.sql': `\
+CREATE TABLE IF NOT EXISTS published_posts (
+  id                 TEXT PRIMARY KEY,
+  batch_item_id      TEXT,
+  source_title       TEXT,
+  publish_url        TEXT UNIQUE,
+  publish_url_source TEXT,
+  published_at       TEXT,
+  outcome            TEXT DEFAULT NULL,
+  last_checked_at    TEXT DEFAULT NULL,
+  created_at         TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_published_publish_url ON published_posts(publish_url);
+CREATE INDEX IF NOT EXISTS idx_published_outcome ON published_posts(outcome);`,
 };
 
 export function runMigrations(dbPath: string): void {
