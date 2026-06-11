@@ -1,5 +1,11 @@
 // 三层(side panel / background / content script)共享的类型定义。
 
+/** Few-shot 范例对(结构化版)。source of truth；fewShotExamples 由此派生。 */
+export interface FewShotPair {
+  input: string;
+  output: string;
+}
+
 /** 草稿在本插件内的生命周期状态(注意与后台表单的"显示/隐藏"状态 postStatus 区分)。 */
 export type DraftStatus = 'draft' | 'filled' | 'published';
 
@@ -77,6 +83,13 @@ export interface Settings {
   fieldMapping: FieldMapping;
   /** 备用 LLM 端点(主端点失败时回退;undefined = 不启用 fallback)。 */
   fallbackModel?: { endpoint: string; model?: string };
+  /**
+   * Few-shot 范例原始字符串(后端 prompt 注入用)。
+   * @deprecated 使用 fewShotPairs 作为编辑源；保存时由 fewShotPairs 派生此字段。
+   */
+  fewShotExamples?: string;
+  /** 结构化 few-shot 范例列表；与 fewShotExamples 并存，fewShotPairs 为编辑源。 */
+  fewShotPairs?: FewShotPair[];
 }
 
 // ---- 消息协议(side panel ↔ background ↔ content script) ----

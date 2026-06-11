@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
 import { DEFAULT_SETTINGS, getApiKey, getSettings, saveApiKey, saveSettings } from '../../lib/storage';
-import type { FieldMapping, FieldType } from '../../lib/types';
+import type { FieldMapping, FieldType, FewShotPair } from '../../lib/types';
+import { FewShotPairEditor } from './components/FewShotPairEditor';
+
+const MAX_PAIRS = 8;
+
+/** 从 fewShotPairs 派生 fewShotExamples 字符串(每条 input\n---\noutput，条间 \n\n 分隔)。 */
+export function deriveFewShotExamples(pairs: FewShotPair[]): string {
+  return pairs.map((p) => `${p.input}\n---\n${p.output}`).join('\n\n');
+}
 
 const FIELD_TYPES: FieldType[] = ['text', 'textarea', 'quill', 'native-select', 'checkbox-multi', 'date', 'custom-dropdown', 'tag-input'];
 const inputStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '4px 6px', fontSize: 13, border: '1px solid #d9d9d9', borderRadius: 4 };
@@ -35,6 +43,9 @@ export function Settings({ onClose }: { onClose: () => void }) {
   const [fallbackEndpoint, setFallbackEndpoint] = useState('');
   const [fallbackModel, setFallbackModel] = useState('');
   const [fallbackOpen, setFallbackOpen] = useState(false);
+  const [fewShotPairs, setFewShotPairs] = useState<FewShotPair[]>([]);
+  const [importBanner, setImportBanner] = useState('');
+  const [importTruncated, setImportTruncated] = useState('');
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
 
@@ -51,8 +62,25 @@ export function Settings({ onClose }: { onClose: () => void }) {
         setFallbackModel(s.fallbackModel.model ?? '');
         setFallbackOpen(true);
       }
+      const pairs = s.fewShotPairs ?? [];
+      setFewShotPairs(pairs);
+      if (s.fewShotExamples && pairs.length === 0) {
+        setImportBanner('检测到旧格式范例，点击导入→结构化编辑器');
+      }
     })();
   }, []);
+
+  async function handleImport() {
+    const s = await getSettings();
+    const raw = s.fewShotExamples ?? '';
+    const blocks = raw.split(/\n\n+/).filter(Boolean);
+    const truncated = blocks.length > MAX_PAIRS;
+    const taken = blocks.slice(0, MAX_PAIRS).map((b) => ({ input: '', output: b }));
+    setFewShotPairs(taken);
+    setImportBanner('');
+    if (truncated) setImportTruncated(`检测到 ${blocks.length} 块，已截取前 ${MAX_PAIRS} 条，请检查并补全 input 字段`);
+    else setImportTruncated('');
+  }
 
   async function handleSave() {
     setSaved(false);
@@ -73,7 +101,14 @@ export function Settings({ onClose }: { onClose: () => void }) {
     const fbModel = fallbackEndpoint
       ? { endpoint: fallbackEndpoint, ...(fallbackModel ? { model: fallbackModel } : {}) }
       : undefined;
-    await saveSettings({ endpoint, model, promptTemplate, fieldMapping: JSON.parse(mappingText) as FieldMapping, fallbackModel: fbModel });
+    const fewShotExamples = fewShotPairs.length > 0 ? deriveFewShotExamples(fewShotPairs) : undefined;
+    await saveSettings({
+      endpoint, model, promptTemplate,
+      fieldMapping: JSON.parse(mappingText) as FieldMapping,
+      fallbackModel: fbModel,
+      fewShotPairs,
+      fewShotExamples,
+    });
     await saveApiKey(apiKey);
     setSaved(true);
   }
@@ -113,6 +148,23 @@ export function Settings({ onClose }: { onClose: () => void }) {
             <input style={inputStyle} value={fallbackModel} onChange={(e) => setFallbackModel(e.target.value)} />
           </div>
         )}
+      </div>
+
+      {/* Few-shot 范例编辑器 */}
+      <div style={{ marginTop: 10 }}>
+        <div style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
+          Few-shot 范例
+          <span style={{ fontSize: 11, fontWeight: 400, color: '#888' }}>({fewShotPairs.length}/{MAX_PAIRS})</span>
+        </div>
+        {importTruncated && (
+          <p role="alert" style={{ fontSize: 11, color: '#fa8c16', margin: '0 0 4px' }}>{importTruncated}</p>
+        )}
+        <FewShotPairEditor
+          pairs={fewShotPairs}
+          onChange={setFewShotPairs}
+          importBanner={importBanner || undefined}
+          onImport={() => void handleImport()}
+        />
       </div>
 
       <label style={labelStyle}>Prompt 模板(用 {'{{topic}}'} 注入主题)</label>
