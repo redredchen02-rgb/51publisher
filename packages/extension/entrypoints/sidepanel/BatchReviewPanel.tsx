@@ -295,6 +295,7 @@ export function BatchReviewPanel(props: Props) {
   const readGateOk = awaitingApprovalCount === 0 || (allRead ?? false);
   const canApprove =
     phase === 'awaiting-approval' &&
+    awaitingApprovalCount > 0 &&
     tabHealthy &&
     (safetyMode === 'authorized' || safetyMode === 'dry-run') &&
     !busy &&
