@@ -756,3 +756,89 @@ describe('runBatch coverImageUrls', () => {
     expect(result!.items[0]!.draft?.title).toBe(DRAFT.title); // 原草稿保留
   });
 });
+
+// ================================================================
+// runBatch — Phase 5 (U4) eager grounding gate
+// ================================================================
+
+describe('runBatch grounding gate (U4)', () => {
+  it('happy path: gate 通过 → item 最终状态为 awaiting-approval', async () => {
+    const deps = makeRunDeps({
+      topics: [TOPIC_A],
+      evaluateGrounding: vi.fn(() => ({ ok: true, reasons: [] })),
+    });
+    const result = await runBatch(deps);
+    expect(result).not.toBeNull();
+    expect(result!.items[0]!.status).toBe('awaiting-approval');
+  });
+
+  it('gate 失败(含【待补】): item 状态为 gate-failed, gateFailReason 非空', async () => {
+    const reason = '标题仍含【待补】(缺作品名),请补全或编辑后再发。';
+    const deps = makeRunDeps({
+      topics: [TOPIC_A],
+      evaluateGrounding: vi.fn(() => ({ ok: false, reasons: [reason] })),
+    });
+    const result = await runBatch(deps);
+    expect(result).not.toBeNull();
+    expect(result!.items[0]!.status).toBe('gate-failed');
+    expect(result!.items[0]!.gateFailReason).toBe(reason);
+  });
+
+  it('gate 失败(无来源链接): item 状态为 gate-failed', async () => {
+    const reason = '正文含无来源连结(疑似编造 URL),请核实。';
+    const deps = makeRunDeps({
+      topics: [TOPIC_A],
+      evaluateGrounding: vi.fn(() => ({ ok: false, reasons: [reason] })),
+    });
+    const result = await runBatch(deps);
+    expect(result!.items[0]!.status).toBe('gate-failed');
+    expect(result!.items[0]!.gateFailReason).toContain('无来源');
+  });
+
+  it('gate 抛出异常 → fail-open,item 最终状态为 awaiting-approval', async () => {
+    const deps = makeRunDeps({
+      topics: [TOPIC_A],
+      evaluateGrounding: vi.fn(() => {
+        throw new Error('gate-system-error');
+      }),
+    });
+    const result = await runBatch(deps);
+    expect(result).not.toBeNull();
+    expect(result!.items[0]!.status).toBe('awaiting-approval');
+  });
+
+  it('混合结果: 第1条 gate 失败, 第2条通过 → gate-failed + awaiting-approval', async () => {
+    let call = 0;
+    const deps = makeRunDeps({
+      topics: [TOPIC_A, TOPIC_B],
+      evaluateGrounding: vi.fn(() => {
+        call += 1;
+        if (call === 1) return { ok: false, reasons: ['标题含【待补】'] };
+        return { ok: true, reasons: [] };
+      }),
+    });
+    const result = await runBatch(deps);
+    expect(result).not.toBeNull();
+    expect(result!.items[0]!.status).toBe('gate-failed');
+    expect(result!.items[1]!.status).toBe('awaiting-approval');
+  });
+
+  it('gate-failed items 被 presentForApproval 自然跳过(不升格为 awaiting-approval)', async () => {
+    const deps = makeRunDeps({
+      topics: [TOPIC_A, TOPIC_B],
+      evaluateGrounding: vi.fn(() => ({ ok: false, reasons: ['占位符未填'] })),
+    });
+    const result = await runBatch(deps);
+    // 两条都 gate-failed — presentForApproval 只促升 filled,gate-failed 留原状
+    expect(result!.items.every((it) => it.status === 'gate-failed')).toBe(true);
+  });
+
+  it('gate 未注入时使用默认 evaluateGrounding(不报错,正常生成)', async () => {
+    // DRAFT.title='T', body='<p>body</p>',均无【待补】和无来源链接 → 应通过
+    const deps = makeRunDeps({ topics: [TOPIC_A] });
+    // 不注入 evaluateGrounding
+    const result = await runBatch(deps);
+    expect(result).not.toBeNull();
+    expect(result!.items[0]!.status).toBe('awaiting-approval');
+  });
+});
