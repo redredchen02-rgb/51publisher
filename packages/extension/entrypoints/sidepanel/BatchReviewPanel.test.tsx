@@ -320,4 +320,41 @@ describe('Phase-2 degrade badge + few-shot (新增行为)', () => {
     fireEvent.click(screen.getByText('A'));
     expect(screen.queryByText('存为范例')).toBeNull();
   });
+
+  // ================================================================
+  // Phase-3 badge UI
+  // ================================================================
+
+  it('aiReviewTriggered===true → 卡片显示「✦ 已自评优化」badge', () => {
+    let b = awaitingBatch(['A']);
+    b = { ...b, items: b.items.map((it) => ({ ...it, aiReviewTriggered: true as const })) };
+    render(<BatchReviewPanel {...defaultProps(b)} />);
+    expect(screen.getByText('✦ 已自评优化')).toBeTruthy();
+  });
+
+  it('aiReviewTriggered===false → 无 badge', () => {
+    let b = awaitingBatch(['A']);
+    b = { ...b, items: b.items.map((it) => ({ ...it, aiReviewTriggered: false as const })) };
+    render(<BatchReviewPanel {...defaultProps(b)} />);
+    expect(screen.queryByText('✦ 已自评优化')).toBeNull();
+  });
+
+  it('aiReviewTriggered===undefined → 无 badge', () => {
+    const b = awaitingBatch(['A']);
+    render(<BatchReviewPanel {...defaultProps(b)} />);
+    expect(screen.queryByText('✦ 已自评优化')).toBeNull();
+  });
+
+  it('2 条 aiReviewTriggered===true → 摘要带显示「✦ 2 条自评已优化」', () => {
+    let b = awaitingBatch(['A', 'B']);
+    b = { ...b, items: b.items.map((it) => ({ ...it, aiReviewTriggered: true as const })) };
+    render(<BatchReviewPanel {...defaultProps(b)} />);
+    expect(screen.getByText(/2 条自评已优化/)).toBeTruthy();
+  });
+
+  it('零条 aiReviewTriggered===true → 摘要带不显示自评计数', () => {
+    const b = awaitingBatch(['A', 'B']);
+    render(<BatchReviewPanel {...defaultProps(b)} />);
+    expect(screen.queryByText(/条自评已优化/)).toBeNull();
+  });
 });
