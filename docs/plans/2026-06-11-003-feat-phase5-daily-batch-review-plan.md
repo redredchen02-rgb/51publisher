@@ -403,7 +403,7 @@ graph TB
 
 ---
 
-- [ ] **U7: 单条 `REJECT_BATCH_ITEM` 操作**
+- [ ] **U7: 扩展 `DISCARD_BATCH_ITEM` 支持否决语义**
 
 **Goal:** 操作者可对单条草稿执行否决，BatchItem → aborted，PendingTopic → rejected
 
@@ -411,32 +411,36 @@ graph TB
 
 **Dependencies:** 无（独立）
 
+**架构决策：扩展现有 `DISCARD_BATCH_ITEM`，而非新建 `REJECT_BATCH_ITEM`**
+
+`DISCARD_BATCH_ITEM` 已在 background.ts 中存在，逻辑为 `transition(item, 'aborted')`。否决操作的本质是"丢弃单条 + 可选地标记来源 topic 为 rejected"，与 discard 语义完全重叠，仅增加两个可选参数。新建消息类型会造成两个几乎相同的 handler 并存，违反 DRY 原则。
+
 **Files:**
-- Modify: `packages/shared/src/types.ts` (`RuntimeMessage` union 加 `REJECT_BATCH_ITEM`)
-- Modify: `packages/extension/entrypoints/background.ts` (注册 handler)
-- Modify: `packages/extension/lib/messaging.ts` (SW_TIMEOUT 表，若需单独注册)
+- Modify: `packages/shared/src/types.ts` (`DISCARD_BATCH_ITEM` 消息类型加 `rejectionReason?: RejectionReason`)
+- Modify: `packages/extension/entrypoints/background.ts` (`handleDiscardBatchItem` 扩展：若 item 有 `pendingTopicId` 且传了 `rejectionReason`，fire-and-forget 调用 `updatePendingStatus`)
 - Test: `packages/extension/entrypoints/background.test.ts`
 
 **Approach:**
-- `REJECT_BATCH_ITEM: { type: 'REJECT_BATCH_ITEM', itemId: string, rejectionReason?: RejectionReason }`
-- handler：① `getBatch()` → 找 item → `transition(item, 'aborted')` → `saveBatch()` ② 查 batch item 的 `pendingTopicId`（或从 topic title 反查）→ `updatePendingStatus(topicId, 'rejected', reason)` fire-and-forget
-- `REJECT_BATCH_ITEM` 默认 30s timeout（操作轻量）
+- `DISCARD_BATCH_ITEM` 消息加可选字段 `rejectionReason?: RejectionReason`
+- `BatchItem` 已在 U2 中加入 `pendingTopicId?: string`，此处直接使用（无需再加）
+- handler 新逻辑：`transition(item, 'aborted')` → `saveBatch()` → if `item.pendingTopicId && rejectionReason`：`updatePendingStatus(topicId, 'rejected', reason)` fire-and-forget
+- 无 `pendingTopicId` 或无 `rejectionReason` 时，仅做 discard，不调用 `updatePendingStatus`（向后兼容现有调用方）
 
 **Patterns to follow:**
-- background.ts 中 `RELEASE_QUARANTINE` 的 handler 模式（单条 item 操作）
+- background.ts 中现有 `handleDiscardBatchItem` 函数（找到该函数后在末尾扩展）
 - `updatePendingStatus` 已在 `pending-client.ts` 中
 
 **Test scenarios:**
-- Happy path: reject `awaiting-approval` item → status → `aborted`
-- Happy path: `updatePendingStatus` 被调用，参数含 `rejected` 和 rejectionReason
+- Happy path: discard `awaiting-approval` item（无 rejectionReason）→ status → `aborted`；`updatePendingStatus` 不调用
+- Happy path: discard 含 `pendingTopicId` 的 item + 传 `rejectionReason` → status → `aborted`；`updatePendingStatus` 被调用，参数含 `rejected` 和 rejectionReason
 - Error path: itemId 不存在 → handler 静默忽略（不 throw）
 - Error path: `updatePendingStatus` 失败 → 不影响 batch item 状态变更（fire-and-forget）
+- Edge case: 无 `pendingTopicId` 但传了 `rejectionReason` → 仅 discard，不调用 `updatePendingStatus`
 
 **Verification:**
-- 发送 `REJECT_BATCH_ITEM` 消息后，batch item 为 `aborted`
+- 发送含 `rejectionReason` 的 `DISCARD_BATCH_ITEM` 消息后，batch item 为 `aborted`
 - 对应 PendingTopic 的 `status` 变为 `rejected`（可通过 GET /api/v1/pending-topics 验证）
-
-**注意**：`BatchItem` 需要存储 `pendingTopicId` 才能反查 topic。若当前 BatchItem 中没有此字段，需在 U7 中同步添加（`pendingTopicId?: string`）并在 `runBatch` 创建 batch 时写入（topic 的 `id` 字段）。
+- 不含 `rejectionReason` 的现有调用行为不变（向后兼容）
 
 ---
 
@@ -459,8 +463,9 @@ graph TB
 - 显示：可用选题数 / 折叠选题数 / top-N 预览（title + score badge）
 - 三种空态：① 0 条 available & 0 条 folded → "待审池为空，触发一次抓取？" ② 0 条 available & >0 条 folded → "高分候选不足，展开折叠区捞回" ③ available < dailyBatchSize → "仅有 X 条可用，将全部纳入批次"
 - "跑今日批次"按钮：disabled 时 = 0 条 available or batch in progress
-- 点击后：`resolveAdminTabId()` → `sendMsg({type:'RUN_BATCH', topics: top-N, tabId, ...})` → `onBatchStarted()`
+- 点击后：`resolveAdminTabId()`（此时已挂载过，用缓存结果）→ `sendMsg({type:'RUN_BATCH', topics: top-N, tabId, ...})` → `onBatchStarted()`
 - 在 Settings 页加 `dailyBatchSize` 数字输入（1-20，标注"每次批次选题数"）
+- **提前预检（挂载时调用 resolveAdminTabId）**：组件挂载时（而非等到点击按钮时）立即调用 `resolveAdminTabId()`；若 admin tab 不存在，挂载时即显示警告横幅"未检测到后台管理页，请先打开后台"；点击按钮时 reuse 已有结果，而非重新查询；原因：把错误发现从"点击后 0.5s"提前到"视图打开即刻"，避免操作者填好意图后才看到错误
 
 **Patterns to follow:**
 - `PendingTopicsView.tsx` 的选题触发模式
