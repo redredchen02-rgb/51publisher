@@ -126,8 +126,9 @@ describe('POST /api/v1/scraper/trigger — SSRF allowlist', () => {
         url: 'https://test-site.example.com/article/999',
       },
     });
-    // 主机名一致，SSRF 检查通过；extractFacts 已 mock，应成功
-    expect(res.statusCode).not.toBe(400);
+    // 主机名一致，SSRF 检查通过；extractFacts 已 mock，应成功返回 200
+    expect(res.statusCode).toBe(200);
+    expect(res.json().ok).toBe(true);
     delete process.env.LLM_ENDPOINT;
     delete process.env.LLM_API_KEY;
   });

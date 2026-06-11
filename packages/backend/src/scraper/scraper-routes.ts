@@ -5,8 +5,6 @@ import { extractFacts } from './fact-extractor.js';
 import { savePendingTopic, type PendingTopic } from './pending-store.js';
 import { loadSSRFAllowlist, isHostAllowed } from './ssrf-allowlist.js';
 
-const ssrfConfig = loadSSRFAllowlist();
-
 interface TriggerBody {
   siteName: string;
   url?: string;
@@ -59,7 +57,7 @@ export async function registerScraperRoutes(app: FastifyInstance): Promise<void>
           .send({ ok: false, error: `URL protocol not allowed for site ${siteName}: ${parsed.protocol}` });
       }
 
-      if (!isHostAllowed(parsed, ssrfConfig)) {
+      if (!isHostAllowed(parsed, loadSSRFAllowlist())) {
         return reply
           .status(403)
           .send({ ok: false, error: `URL hostname blocked by SSRF allowlist: ${parsed.hostname}` });
