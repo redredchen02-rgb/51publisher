@@ -95,7 +95,7 @@ bash scripts/launchd/install.sh      # 注册 launchd daemon,开机自启
 bash scripts/launchd/uninstall.sh
 ```
 
-后端日志写入 `/tmp/51publisher-backend.log`。`GET /healthz`(无需鉴权)可供监控探针使用。
+后端日志写入 `/tmp/51publisher-backend.log`。`GET /api/v1/healthz`(无需鉴权)可供监控探针使用。
 
 ### Telegram 告警
 
