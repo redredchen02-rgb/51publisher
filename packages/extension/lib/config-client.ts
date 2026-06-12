@@ -36,7 +36,8 @@ export async function fetchRemoteMappings(
 		};
 		if (token) headers.Authorization = `Bearer ${token}`;
 
-		const res = await fetchFn(`${await getBackendUrl()}/api/v1/config/mappings`, {
+		const backendUrl = await getBackendUrl();
+		const res = await fetchFn(`${backendUrl}/api/v1/config/mappings`, {
 			headers,
 			signal: controller.signal,
 		});
@@ -53,6 +54,7 @@ export async function fetchRemoteMappings(
 
 		const data = (await res.json()) as MappingsResponse;
 		if (data.ok && data.mappings) {
+			console.log(
 				"[config-client] 成功拉取远程映射 (version=%d)",
 				data.version,
 			);
@@ -102,8 +104,9 @@ export async function syncBatchItemStatus(
 		};
 		if (token) headers.Authorization = `Bearer ${token}`;
 
+		const backendUrl = await getBackendUrl();
 		const res = await fetchFn(
-			`${await getBackendUrl()}/api/v1/batches/${encodeURIComponent(batchId)}/items/${encodeURIComponent(itemId)}`,
+			`${backendUrl}/api/v1/batches/${encodeURIComponent(batchId)}/items/${encodeURIComponent(itemId)}`,
 			{
 				method: "PATCH",
 				headers,
@@ -155,8 +158,9 @@ export async function fetchBatchState(
 		};
 		if (token) headers.Authorization = `Bearer ${token}`;
 
+		const backendUrl = await getBackendUrl();
 		const res = await fetchFn(
-			`${await getBackendUrl()}/api/v1/batches/${encodeURIComponent(batchId)}`,
+			`${backendUrl}/api/v1/batches/${encodeURIComponent(batchId)}`,
 			{
 				headers,
 				signal: controller.signal,
@@ -205,7 +209,8 @@ export async function createRemoteBatch(
 		};
 		if (token) headers.Authorization = `Bearer ${token}`;
 
-		const res = await fetchFn(`${await getBackendUrl()}/api/v1/batches`, {
+		const backendUrl = await getBackendUrl();
+		const res = await fetchFn(`${backendUrl}/api/v1/batches`, {
 			method: "POST",
 			headers,
 			body: JSON.stringify(payload),

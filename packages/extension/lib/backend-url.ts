@@ -11,7 +11,9 @@ export async function getBackendUrl(): Promise<string> {
 	if (cachedUrl !== undefined) return cachedUrl;
 
 	try {
-		const settings = await storage.getItem<{ backendUrl?: string }>(SETTINGS_KEY);
+		const settings = await storage.getItem<{ backendUrl?: string }>(
+			SETTINGS_KEY,
+		);
 		cachedUrl = settings?.backendUrl || DEFAULT_BACKEND;
 	} catch {
 		cachedUrl = DEFAULT_BACKEND;

@@ -17,6 +17,7 @@ import { DraftPreview } from "./DraftPreview";
 import { FillResultPanel } from "./FillResultPanel";
 import { useAutoSave } from "./hooks/useAutoSave";
 import { useErrorHandler } from "./hooks/useErrorHandler";
+import { useErrorLogger } from "./hooks/useErrorLogger";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useLoadingState } from "./hooks/useLoadingState";
 import { Loading } from "./Loading";

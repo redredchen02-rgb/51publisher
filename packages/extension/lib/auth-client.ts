@@ -11,7 +11,8 @@ export interface LoginResult {
 
 export async function login(password: string): Promise<LoginResult> {
 	try {
-		const res = await fetch(`${await getBackendUrl()}/api/v1/auth/login`, {
+		const backendUrl = await getBackendUrl();
+		const res = await fetch(`${backendUrl}/api/v1/auth/login`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ password }),

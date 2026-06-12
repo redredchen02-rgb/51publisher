@@ -24,10 +24,7 @@ declare const chrome: any;
 
 function isStorageAvailable(): boolean {
 	try {
-		return (
-			typeof chrome !== "undefined" &&
-			chrome?.storage?.local != null
-		);
+		return typeof chrome !== "undefined" && chrome?.storage?.local != null;
 	} catch {
 		return false;
 	}

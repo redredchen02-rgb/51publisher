@@ -207,31 +207,64 @@ export interface EnrichDeps {
 	maxQueries?: number;
 	fetchFn?: typeof fetch;
 	timeoutMs?: number;
+	/** 最大并发数（默认 2，防止触发限流）。 */
+	maxConcurrency?: number;
+}
+
+/** 执行单个搜索任务。 */
+async function executeSearchTask(
+	task: { type: "artist" | "work"; query: string },
+	fetchFn: typeof fetch,
+	timeoutMs: number,
+): Promise<{ query: string; results: SearchResult[] }> {
+	let results: SearchResult[];
+	if (task.type === "artist") {
+		results = await fetchPixivByArtist(task.query, fetchFn, timeoutMs);
+	} else {
+		results = await fetchPixivByWork(task.query, fetchFn, timeoutMs);
+	}
+	return { query: task.query, results };
 }
 
 /** 主入口：根据事实执行搜索富化，返回结构化上下文。 */
 export async function enrichContext(
 	deps: EnrichDeps,
 ): Promise<EnrichedContext> {
-	const { facts, maxQueries = 3, fetchFn = fetch, timeoutMs = 15_000 } = deps;
+	const {
+		facts,
+		maxQueries = 3,
+		fetchFn = fetch,
+		timeoutMs = 15_000,
+		maxConcurrency = 2,
+	} = deps;
 
 	const tasks = buildSearchTasks(facts, maxQueries);
+	if (tasks.length === 0) {
+		return { queryResults: [], collectedAt: new Date().toISOString() };
+	}
+
+	// 并行执行搜索任务（受并发数限制）
 	const queryResults: EnrichedContext["queryResults"] = [];
 
-	for (const task of tasks) {
-		let results: SearchResult[];
+	if (tasks.length <= maxConcurrency) {
+		// 任务数 ≤ 并发限制，全部并行
+		const results = await Promise.all(
+			tasks.map((task) => executeSearchTask(task, fetchFn, timeoutMs)),
+		);
+		queryResults.push(...results);
+	} else {
+		// 分批并行执行
+		for (let i = 0; i < tasks.length; i += maxConcurrency) {
+			const batch = tasks.slice(i, i + maxConcurrency);
+			const results = await Promise.all(
+				batch.map((task) => executeSearchTask(task, fetchFn, timeoutMs)),
+			);
+			queryResults.push(...results);
 
-		if (task.type === "artist") {
-			results = await fetchPixivByArtist(task.query, fetchFn, timeoutMs);
-		} else {
-			results = await fetchPixivByWork(task.query, fetchFn, timeoutMs);
-		}
-
-		queryResults.push({ query: task.query, results });
-
-		// 搜索间隔，避免触发限流
-		if (tasks.indexOf(task) < tasks.length - 1) {
-			await sleep(800 + Math.random() * 400);
+			// 批次间延迟，避免触发限流
+			if (i + maxConcurrency < tasks.length) {
+				await sleep(500 + Math.random() * 300);
+			}
 		}
 	}
 

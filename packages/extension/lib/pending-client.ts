@@ -128,8 +128,9 @@ export async function patchPendingTopic(
 		};
 		if (token) headers.Authorization = `Bearer ${token}`;
 
+		const backendUrl = await getBackendUrl();
 		const res = await fetchFn(
-			`${await getBackendUrl()}/api/v1/pending-topics/${encodeURIComponent(id)}`,
+			`${backendUrl}/api/v1/pending-topics/${encodeURIComponent(id)}`,
 			{
 				method: "PATCH",
 				headers,
@@ -167,12 +168,16 @@ export async function triggerScrape(
 		};
 		if (token) headers.Authorization = `Bearer ${token}`;
 
-		const res = await fetchFn(`${await getBackendUrl()}/api/v1/scraper/trigger`, {
-			method: "POST",
-			headers,
-			body: JSON.stringify({ siteName }),
-			signal: controller.signal,
-		});
+		const backendUrl = await getBackendUrl();
+		const res = await fetchFn(
+			`${backendUrl}/api/v1/scraper/trigger`,
+			{
+				method: "POST",
+				headers,
+				body: JSON.stringify({ siteName }),
+				signal: controller.signal,
+			},
+		);
 		if (res.status === 401) {
 			await clearToken();
 			return false;
@@ -244,8 +249,9 @@ export async function updatePendingStatus(
 		};
 		if (token) headers.Authorization = `Bearer ${token}`;
 
+		const backendUrl = await getBackendUrl();
 		const res = await fetchFn(
-			`${await getBackendUrl()}/api/v1/pending-topics/${encodeURIComponent(id)}`,
+			`${backendUrl}/api/v1/pending-topics/${encodeURIComponent(id)}`,
 			{
 				method: "PATCH",
 				headers,

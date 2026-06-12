@@ -109,6 +109,35 @@ TG_CHAT_ID=<你的 chat id>
 
 抓取管线连续失败 3 次或发布健康监控发现帖子离线/删除时,自动推送 Telegram 通知。
 
+## 高级功能
+
+### Web 搜索富化
+
+从 51acgs.com 抓取作品后,自动搜索 pixiv 补充作者信息和作品描述,让生成的文章更丰富。
+
+配置:
+```bash
+ENRICHMENT_ENABLED=true
+ENRICHMENT_MAX_QUERIES=3
+```
+
+### 质量门禁
+
+生成的草稿自动经过 5 维度质量评估:
+- 正文长度 (≥150 字)
+- 事实完整性 (≥50%)
+- 标题质量 (无占位符)
+- 社区口吻 (口语化词汇)
+- 标签准确性 (2-10 个)
+
+查看质量统计: `GET /api/v1/healthz`
+
+### 自动批量生成
+
+从待审选题池自动批量生成草稿,减少人工干预。
+
+详见 [`docs/auto-generate-guide.md`](docs/auto-generate-guide.md)
+
 ## 局限
 
 - 仅适配 51publisher 当前后台(Quill 2.0.2、layui 弹层表单)。后台若更换富文本编辑器或大改表单结构,需改代码而非仅改字段映射(见指南的 Tier 分级)。

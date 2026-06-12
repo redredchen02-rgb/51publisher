@@ -40,7 +40,8 @@ export async function listModels(
 		};
 		if (token) headers.Authorization = `Bearer ${token}`;
 
-		const res = await fetchFn(`${await getBackendUrl()}/api/v1/models`, {
+		const backendUrl = await getBackendUrl();
+		const res = await fetchFn(`${backendUrl}/api/v1/models`, {
 			headers,
 			signal: controller.signal,
 		});
@@ -96,7 +97,8 @@ export async function generateDraft(
 		};
 		if (token) headers.Authorization = `Bearer ${token}`;
 
-		const res = await fetchFn(`${await getBackendUrl()}/api/v1/drafts/generate`, {
+		const backendUrl = await getBackendUrl();
+		const res = await fetchFn(`${backendUrl}/api/v1/drafts/generate`, {
 			method: "POST",
 			headers,
 			body: JSON.stringify({
@@ -172,7 +174,8 @@ export async function reviewDraft(
 			"Content-Type": "application/json",
 		};
 		if (token) headers.Authorization = `Bearer ${token}`;
-		const res = await fetchFn(`${await getBackendUrl()}/api/v1/drafts/review`, {
+		const backendUrl = await getBackendUrl();
+		const res = await fetchFn(`${backendUrl}/api/v1/drafts/review`, {
 			method: "POST",
 			headers,
 			body: JSON.stringify({ draft, criteriaPrompt, settings: deps.settings }),
@@ -217,7 +220,8 @@ export async function rewriteDraft(
 			"Content-Type": "application/json",
 		};
 		if (token) headers.Authorization = `Bearer ${token}`;
-		const res = await fetchFn(`${await getBackendUrl()}/api/v1/drafts/rewrite`, {
+		const backendUrl = await getBackendUrl();
+		const res = await fetchFn(`${backendUrl}/api/v1/drafts/rewrite`, {
 			method: "POST",
 			headers,
 			body: JSON.stringify({ draft, failedDims, settings: deps.settings }),

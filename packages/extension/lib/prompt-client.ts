@@ -41,7 +41,8 @@ export async function fetchPrompts(
 	const timer = setTimeout(() => controller.abort(), timeoutMs);
 	try {
 		const headers = await authHeaders();
-		const res = await fetchFn(`${await getBackendUrl()}/api/v1/prompts`, {
+		const backendUrl = await getBackendUrl();
+		const res = await fetchFn(`${backendUrl}/api/v1/prompts`, {
 			headers,
 			signal: controller.signal,
 		});
@@ -71,7 +72,8 @@ export async function createPrompt(
 ): Promise<{ ok: boolean; error?: string }> {
 	try {
 		const headers = await authHeaders();
-		const res = await fetchFn(`${await getBackendUrl()}/api/v1/prompts`, {
+		const backendUrl = await getBackendUrl();
+		const res = await fetchFn(`${backendUrl}/api/v1/prompts`, {
 			method: "POST",
 			headers,
 			body: JSON.stringify(data),
@@ -101,7 +103,8 @@ export async function updatePrompt(
 ): Promise<{ ok: boolean; error?: string }> {
 	try {
 		const headers = await authHeaders();
-		const res = await fetchFn(`${await getBackendUrl()}/api/v1/prompts/${id}`, {
+		const backendUrl = await getBackendUrl();
+		const res = await fetchFn(`${backendUrl}/api/v1/prompts/${id}`, {
 			method: "PUT",
 			headers,
 			body: JSON.stringify(data),

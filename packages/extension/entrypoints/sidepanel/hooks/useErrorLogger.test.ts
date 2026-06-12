@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, renderHook, act } from "@testing-library/react";
+import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useErrorLogger } from "./useErrorLogger";
 
