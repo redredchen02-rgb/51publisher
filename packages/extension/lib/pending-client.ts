@@ -87,13 +87,10 @@ export async function fetchPendingTopics(
 		if (token) headers.Authorization = `Bearer ${token}`;
 
 		const backendUrl = await getBackendUrl();
-		const res = await fetchWithTimeout(
-			`${backendUrl}/api/v1/pending-topics${params}`,
-			{
-				headers,
-				timeoutMs: timeoutMs ?? 10_000,
-			},
-		);
+		const url = `${backendUrl}/api/v1/pending-topics${params}`;
+		const res = fetchFn
+			? await fetchFn(url, { headers })
+			: await fetchWithTimeout(url, { headers, timeoutMs: timeoutMs ?? 10_000 });
 		if (res.status === 401) {
 			await clearToken();
 			return [];
@@ -213,12 +210,8 @@ export async function updatePendingStatus(
 	id: string,
 	status: "pending" | "approved" | "rejected",
 	rejectedReason?: string,
-	fetchFn: typeof fetch = fetch,
 	timeoutMs = 10_000,
 ): Promise<boolean> {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-
 	try {
 		const token = await getToken();
 		const headers: Record<string, string> = {
@@ -227,7 +220,7 @@ export async function updatePendingStatus(
 		if (token) headers.Authorization = `Bearer ${token}`;
 
 		const backendUrl = await getBackendUrl();
-		const res = await fetchFn(
+		const res = await fetchWithTimeout(
 			`${backendUrl}/api/v1/pending-topics/${encodeURIComponent(id)}`,
 			{
 				method: "PATCH",
@@ -236,7 +229,7 @@ export async function updatePendingStatus(
 					status,
 					...(rejectedReason ? { rejectedReason } : {}),
 				}),
-				signal: controller.signal,
+				timeoutMs,
 			},
 		);
 		if (res.status === 401) {
@@ -246,7 +239,5 @@ export async function updatePendingStatus(
 		return res.ok;
 	} catch {
 		return false;
-	} finally {
-		clearTimeout(timer);
 	}
 }
