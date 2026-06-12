@@ -25,6 +25,7 @@ import {
 import { getMetrics } from "./services/metrics.js";
 import { startRevisitJob } from "./services/revisit-job.js";
 import { err } from "./utils/error-response.js";
+import { getLlmConfig, validateLlmConfig } from "./utils/llm-config.js";
 import {
 	GenerateDraftBody as GenerateDraftBodySchema,
 	GenerateDraftResponse,
@@ -122,16 +123,12 @@ interface GenerateDraftBody {
 
 export function registerDraftRoutes(app: FastifyInstance): void {
 	app.get("/api/v1/models", async (request, reply) => {
-		const apiKey = process.env.LLM_API_KEY || "";
-		const endpoint = process.env.LLM_ENDPOINT || "";
-		if (!apiKey || !endpoint)
-			return err(
-				reply,
-				500,
-				"Backend is not fully configured (missing LLM_API_KEY or LLM_ENDPOINT in env).",
-			);
+		const config = getLlmConfig();
+		const validation = validateLlmConfig(config);
+		if (!validation.valid)
+			return err(reply, 500, validation.error!);
 		try {
-			return await listModels(endpoint, apiKey);
+			return await listModels(config.endpoint, config.apiKey);
 		} catch (e) {
 			request.log.error(e, "Failed to fetch models list");
 			return err(reply, 500, "Failed to fetch models from the LLM service.");
@@ -148,31 +145,19 @@ export function registerDraftRoutes(app: FastifyInstance): void {
 		},
 		async (request, reply) => {
 			const { prompt, settings, facts, enrichment } = request.body;
-			const apiKey = process.env.LLM_API_KEY || "";
-			if (!apiKey)
-				return err(
-					reply,
-					500,
-					"Backend is not configured with an LLM_API_KEY. Please check .env file.",
-					"no-key",
-				);
-			const backendEndpoint = process.env.LLM_ENDPOINT || "";
-			if (!backendEndpoint)
-				return err(
-					reply,
-					500,
-					"Backend is not configured with an LLM_ENDPOINT. Please check .env file.",
-				);
-			const backendModel = (process.env.LLM_MODEL || settings.model).trim();
+			const config = getLlmConfig(settings);
+			const validation = validateLlmConfig(config);
+			if (!validation.valid)
+				return err(reply, 500, validation.error!, "no-key");
 			const resolvedSettings = {
 				...settings,
-				endpoint: backendEndpoint.trim(),
-				model: backendModel,
+				endpoint: config.endpoint.trim(),
+				model: config.model,
 			};
 			try {
 				const result = await generateDraft(prompt, {
 					settings: resolvedSettings,
-					apiKey,
+					apiKey: config.apiKey,
 					facts,
 					enrichment,
 				});
@@ -205,22 +190,18 @@ export function registerDraftRoutes(app: FastifyInstance): void {
 		},
 		async (request, reply) => {
 			const { draft, criteriaPrompt, settings } = request.body;
-			const apiKey = process.env.LLM_API_KEY || "";
-			const backendEndpoint = process.env.LLM_ENDPOINT || "";
-			if (!apiKey || !backendEndpoint)
-				return err(
-					reply,
-					500,
-					"Backend not configured (LLM_API_KEY/LLM_ENDPOINT missing).",
-				);
+			const config = getLlmConfig(settings);
+			const validation = validateLlmConfig(config);
+			if (!validation.valid)
+				return err(reply, 500, validation.error!);
 			const resolvedSettings = {
 				...settings,
-				endpoint: backendEndpoint,
-				model: process.env.LLM_MODEL || settings.model,
+				endpoint: config.endpoint,
+				model: config.model,
 			};
 			const result = await reviewDraftLlm(draft, criteriaPrompt, {
 				settings: resolvedSettings,
-				apiKey,
+				apiKey: config.apiKey,
 			});
 			if (!result.ok) return err(reply, 422, result.error);
 			return result;
@@ -242,24 +223,20 @@ export function registerDraftRoutes(app: FastifyInstance): void {
 		},
 		async (request, reply) => {
 			const { draft, failedDims, settings } = request.body;
-			const apiKey = process.env.LLM_API_KEY || "";
-			const backendEndpoint = process.env.LLM_ENDPOINT || "";
-			if (!apiKey || !backendEndpoint)
-				return err(
-					reply,
-					500,
-					"Backend not configured (LLM_API_KEY/LLM_ENDPOINT missing).",
-				);
+			const config = getLlmConfig(settings);
+			const validation = validateLlmConfig(config);
+			if (!validation.valid)
+				return err(reply, 500, validation.error!);
 			if (failedDims.length === 0)
 				return err(reply, 400, "failedDims must be a non-empty array.");
 			const resolvedSettings = {
 				...settings,
-				endpoint: backendEndpoint,
-				model: process.env.LLM_MODEL || settings.model,
+				endpoint: config.endpoint,
+				model: config.model,
 			};
 			const result = await rewriteDraftLlm(draft, failedDims, {
 				settings: resolvedSettings,
-				apiKey,
+				apiKey: config.apiKey,
 			});
 			if (!result.ok) return err(reply, 422, result.error);
 			return result;
