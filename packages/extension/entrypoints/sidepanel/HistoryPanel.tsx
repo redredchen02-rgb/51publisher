@@ -10,11 +10,9 @@ export function HistoryPanel() {
 	const [page, setPage] = useState(1);
 
 	useEffect(() => {
-		getTrajectory().then((r) => setRecords([...r].reverse())); // newest-first
+		getTrajectory().then((r) => setRecords([...r].reverse()));
 	}, []);
 
-	// records は newest-first;verifyTrajectory / rollbackTargets は oldest-first を期待。
-	// records が変わるときだけ再計算する(Hook は early return の前に置く)。
 	const oldestFirst = useMemo(() => [...records].reverse(), [records]);
 	const intact = useMemo(() => verifyTrajectory(oldestFirst), [oldestFirst]);
 	const rollbackSet = useMemo(
@@ -24,8 +22,10 @@ export function HistoryPanel() {
 
 	if (records.length === 0) {
 		return (
-			<section style={{ paddingTop: 10, fontSize: 13 }}>
-				<p style={{ color: "#888", margin: 0 }}>暂无发布记录。</p>
+			<section style={{ paddingTop: "var(--space-lg)" }}>
+				<p className="text-muted" style={{ margin: 0 }}>
+					暂无发布记录。
+				</p>
 			</section>
 		);
 	}
@@ -34,40 +34,37 @@ export function HistoryPanel() {
 	const hasMore = records.length > page * PAGE_SIZE;
 
 	return (
-		<section style={{ paddingTop: 10 }}>
+		<section style={{ paddingTop: "var(--space-lg)" }}>
 			<div
-				style={{
-					fontSize: 12,
-					marginBottom: 6,
-					color: intact ? "#389e0d" : "#cf1322",
-				}}
+				className={intact ? "text-success" : "text-error"}
+				style={{ fontSize: "var(--font-sm)", marginBottom: "var(--space-lg)" }}
 			>
 				{intact ? "✓ 链完整" : "⚠ 链异常(疑被篡改)"}
-				<span style={{ color: "#888", marginLeft: 8 }}>
+				<span className="text-muted" style={{ marginLeft: "var(--space-md)" }}>
 					共 {records.length} 条
 				</span>
 			</div>
-			<ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: 12 }}>
+			<ul
+				style={{
+					listStyle: "none",
+					padding: 0,
+					margin: 0,
+					fontSize: "var(--font-sm)",
+				}}
+			>
 				{visible.map((r) => (
 					<li
 						key={r.id}
+						className="surface-elevated"
 						style={{
-							marginBottom: 6,
-							padding: "5px 8px",
-							background: "#fafafa",
-							borderRadius: 4,
+							marginBottom: "var(--space-lg)",
+							padding: "5px var(--space-md)",
 						}}
 					>
-						<div
-							style={{
-								display: "flex",
-								justifyContent: "space-between",
-								alignItems: "center",
-							}}
-						>
+						<div className="flex-between">
 							<span
+								className="font-semibold"
 								style={{
-									fontWeight: 600,
 									overflow: "hidden",
 									textOverflow: "ellipsis",
 									whiteSpace: "nowrap",
@@ -76,16 +73,16 @@ export function HistoryPanel() {
 							>
 								「{r.topic}」
 							</span>
-							<span style={{ fontSize: 11, color: "#888" }}>
+							<span className="text-xs text-muted">
 								{new Date(r.ts).toLocaleString()}
 							</span>
 						</div>
 						<div
 							style={{
-								marginTop: 2,
+								marginTop: "var(--space-xs)",
 								display: "flex",
 								alignItems: "center",
-								gap: 6,
+								gap: "var(--space-lg)",
 								flexWrap: "wrap",
 							}}
 						>
@@ -95,17 +92,21 @@ export function HistoryPanel() {
 									href={r.publishUrl}
 									target="_blank"
 									rel="noopener noreferrer"
-									style={{ color: "#1677ff", fontSize: 11 }}
+									className="text-info"
+									style={{ fontSize: "var(--font-xs)" }}
 								>
 									查看帖子
 								</a>
 							) : null}
 							{rollbackSet.has(r.id) && (
-								<span style={{ fontSize: 11, color: "#888" }}>可撤下</span>
+								<span className="text-xs text-muted">可撤下</span>
 							)}
 						</div>
 						{r.fields?.some((f) => f.status === "degraded") && (
-							<div style={{ fontSize: 11, color: "#d46b08", marginTop: 2 }}>
+							<div
+								className="text-xs text-warning"
+								style={{ marginTop: "var(--space-xs)" }}
+							>
 								⚠ {r.fields.filter((f) => f.status === "degraded").length}{" "}
 								个字段降级
 							</div>
@@ -117,15 +118,8 @@ export function HistoryPanel() {
 				<button
 					type="button"
 					onClick={() => setPage((p) => p + 1)}
-					style={{
-						marginTop: 6,
-						fontSize: 12,
-						padding: "3px 10px",
-						border: "1px solid #d9d9d9",
-						borderRadius: 4,
-						cursor: "pointer",
-						background: "#fff",
-					}}
+					className="btn btn-plain btn-sm"
+					style={{ marginTop: "var(--space-lg)" }}
 				>
 					加载更多
 				</button>
@@ -135,12 +129,16 @@ export function HistoryPanel() {
 }
 
 function StatusBadge({ status }: { status: string }) {
-	const colors: Record<string, string> = {
-		"publish-confirmed": "#389e0d",
-		"needs-human-verification": "#cf1322",
-		error: "#d46b08",
-		aborted: "#888",
+	const colorMap: Record<string, string> = {
+		"publish-confirmed": "var(--color-success)",
+		"needs-human-verification": "var(--color-error)",
+		error: "var(--color-warning)",
+		aborted: "var(--color-text-muted)",
 	};
-	const color = colors[status] ?? "#555";
-	return <span style={{ fontSize: 11, color, fontWeight: 600 }}>{status}</span>;
+	const color = colorMap[status] ?? "var(--color-text-secondary)";
+	return (
+		<span className="text-xs font-semibold" style={{ color }}>
+			{status}
+		</span>
+	);
 }

@@ -288,16 +288,19 @@ export function Settings({ onClose }: { onClose: () => void }) {
 						aria-expanded={fallbackOpen}
 						onClick={() => setFallbackOpen((v) => !v)}
 						className="btn-icon text-secondary"
-						style={{ width: "100%", textAlign: "left", fontSize: "var(--font-sm)", padding: 0 }}
+						style={{
+							width: "100%",
+							textAlign: "left",
+							fontSize: "var(--font-sm)",
+							padding: 0,
+						}}
 					>
 						{fallbackOpen ? "▼" : "▶"} 备用 LLM 模型
 						{fallbackModel ? " (已配置)" : " (可选)"}
 					</button>
 					{fallbackOpen && (
 						<div style={{ marginTop: "var(--space-lg)" }}>
-							<p className="field-hint">
-								主模型失败时自动回退。留空即不启用。
-							</p>
+							<p className="field-hint">主模型失败时自动回退。留空即不启用。</p>
 							<div className="field-group">
 								<label className="field-label">备用模型名(可选)</label>
 								<input
@@ -315,7 +318,9 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			<div className="card">
 				<div className="section-header">后端连接（可选）</div>
 				<div className="field-group">
-					<label className="field-label">后端 URL（http://localhost:3001）</label>
+					<label className="field-label">
+						后端 URL（http://localhost:3001）
+					</label>
 					<input
 						className="field-input"
 						value={backendUrl}
@@ -350,7 +355,10 @@ export function Settings({ onClose }: { onClose: () => void }) {
 				<div className="field-group">
 					<label className="field-label">
 						Few-shot 范例
-						<span className="font-normal text-muted" style={{ marginLeft: "var(--space-sm)" }}>
+						<span
+							className="font-normal text-muted"
+							style={{ marginLeft: "var(--space-sm)" }}
+						>
 							({fewShotPairs.length}/{MAX_PAIRS})
 						</span>
 					</label>
@@ -390,7 +398,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
 					/>
 				</div>
 				<p className="field-hint">
-					源接地:AI 只用 {"{{facts}}"} 里给的事实润色,缺的标【待补】,连结只用给定
+					源接地:AI 只用 {"{{facts}}"}{" "}
+					里给的事实润色,缺的标【待补】,连结只用给定
 					URL——防止编造作品事实/连结。
 				</p>
 
@@ -422,7 +431,9 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			{/* 标签 & 评审标准 */}
 			<div className="card">
 				<div className="field-group">
-					<label className="field-label">推荐标签清单 (每行一个或逗号分隔)</label>
+					<label className="field-label">
+						推荐标签清单 (每行一个或逗号分隔)
+					</label>
 					<textarea
 						className="field-input"
 						style={{ minHeight: 80 }}
@@ -436,7 +447,9 @@ export function Settings({ onClose }: { onClose: () => void }) {
 				</p>
 
 				<div className="field-group">
-					<label className="field-label">AI 评审标准（Phase 3，留空使用内置四维标准）</label>
+					<label className="field-label">
+						AI 评审标准（Phase 3，留空使用内置四维标准）
+					</label>
 					<textarea
 						className="field-input"
 						style={{ minHeight: 80 }}
@@ -491,9 +504,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 					>
 						保存到后端
 					</button>
-					{promptStatus && (
-						<p className="field-hint">{promptStatus}</p>
-					)}
+					{promptStatus && <p className="field-hint">{promptStatus}</p>}
 				</div>
 
 				<div className="field-group">
@@ -513,7 +524,11 @@ export function Settings({ onClose }: { onClose: () => void }) {
 					</label>
 					<textarea
 						className="field-input"
-						style={{ minHeight: 140, fontFamily: "monospace", fontSize: "var(--font-xs)" }}
+						style={{
+							minHeight: 140,
+							fontFamily: "monospace",
+							fontSize: "var(--font-xs)",
+						}}
 						value={mappingText}
 						onChange={(e) => setMappingText(e.target.value)}
 					/>
@@ -521,7 +536,9 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			</div>
 
 			{error && (
-				<p role="alert" className="text-error text-sm">{error}</p>
+				<p role="alert" className="text-error text-sm">
+					{error}
+				</p>
 			)}
 			{saved && <p className="text-success text-sm">已保存。</p>}
 

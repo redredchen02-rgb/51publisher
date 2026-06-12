@@ -1,23 +1,6 @@
 import { useState } from "react";
 import { login } from "../../lib/auth-client";
 
-const inputStyle: React.CSSProperties = {
-	width: "100%",
-	boxSizing: "border-box",
-	padding: "4px 6px",
-	fontSize: 13,
-	border: "1px solid #d9d9d9",
-	borderRadius: 4,
-};
-
-const labelStyle: React.CSSProperties = {
-	fontSize: 12,
-	fontWeight: 600,
-	color: "#555",
-	display: "block",
-	margin: "8px 0 2px",
-};
-
 export function AuthView({ onLogin }: { onLogin: () => void }) {
 	const [password, setPassword] = useState("");
 	const [loading, setLoading] = useState(false);
@@ -41,13 +24,15 @@ export function AuthView({ onLogin }: { onLogin: () => void }) {
 	}
 
 	return (
-		<div style={{ padding: 24, textAlign: "center" }}>
-			<h2 style={{ fontSize: 16, margin: "0 0 12px" }}>登录</h2>
+		<div style={{ padding: "var(--space-2xl)", textAlign: "center" }}>
+			<h2 style={{ fontSize: "var(--font-xl)", margin: "0 0 var(--space-xl)" }}>
+				登录
+			</h2>
 			<form onSubmit={handleSubmit}>
-				<div style={labelStyle}>密码</div>
+				<div className="field-label">密码</div>
 				<input
 					type="password"
-					style={inputStyle}
+					className="field-input"
 					value={password}
 					disabled={loading}
 					onChange={(e) => setPassword(e.target.value)}
@@ -55,7 +40,8 @@ export function AuthView({ onLogin }: { onLogin: () => void }) {
 				{error && (
 					<p
 						role="alert"
-						style={{ color: "#cf1322", fontSize: 13, margin: "8px 0 0" }}
+						className="text-error text-base"
+						style={{ margin: "var(--space-md) 0 0" }}
 					>
 						{error}
 					</p>
@@ -63,17 +49,8 @@ export function AuthView({ onLogin }: { onLogin: () => void }) {
 				<button
 					type="submit"
 					disabled={loading}
-					style={{
-						marginTop: 16,
-						padding: "6px 20px",
-						fontSize: 13,
-						background: "#1677ff",
-						color: "#fff",
-						border: "none",
-						borderRadius: 4,
-						cursor: loading ? "not-allowed" : "pointer",
-						opacity: loading ? 0.7 : 1,
-					}}
+					className="btn btn-primary"
+					style={{ marginTop: "var(--space-xl)" }}
 				>
 					{loading ? "登录中…" : "登录"}
 				</button>

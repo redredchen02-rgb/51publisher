@@ -19,15 +19,6 @@ interface Props {
 	onError: (msg: string) => void;
 }
 
-const btn: React.CSSProperties = {
-	padding: "6px 12px",
-	fontSize: 13,
-	border: "none",
-	borderRadius: 4,
-	cursor: "pointer",
-};
-
-// FactsBlock 的固定字段（顺序决定展示顺序）。
 const FACTS_KEYS = [
 	"作品名",
 	"集数",
@@ -75,7 +66,7 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 
 	function initLocalFacts(id: string, facts: Record<string, string>) {
 		setLocalFacts((prev) => {
-			if (prev[id] !== undefined) return prev; // 已有编辑，不覆盖
+			if (prev[id] !== undefined) return prev;
 			return { ...prev, [id]: { ...facts } };
 		});
 	}
@@ -102,7 +93,6 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 		try {
 			const selectedTopics = topics.filter((t) => selected.has(t.id));
 
-			// 1. PATCH any edited facts first, then update status.
 			await Promise.all(
 				selectedTopics.map(async (t) => {
 					const edited = localFacts[t.id];
@@ -111,8 +101,6 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 				}),
 			);
 
-			// 2. 定位后台发帖页 tab(按 host 全窗口找,不赌「当前活动标签」——
-			//    side panel 自身/DevTools/别的标签抢焦点时,active tab 会钉错 → runBatch 静默流产)
 			const adminTabId = await resolveAdminTabId();
 			if (adminTabId == null) {
 				onError("未找到后台发帖页标签——请先在浏览器打开后台发帖页。");
@@ -120,7 +108,6 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 				return;
 			}
 
-			// 3. Start batch with approved topics (use edited facts if available)
 			const topicList = selectedTopics.map((t) => t.title || t.sourceUrl);
 			const factsList = selectedTopics.map((t) => localFacts[t.id] ?? t.facts);
 			const coverUrls = selectedTopics.map((t) => t.coverImageUrl ?? "");
@@ -222,28 +209,21 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 
 	return (
 		<main
-			style={{ fontFamily: "system-ui, sans-serif", padding: 12, fontSize: 14 }}
+			className="fade-in"
+			style={{
+				fontFamily: "system-ui, sans-serif",
+				padding: "var(--space-lg)",
+				fontSize: "var(--font-md)",
+			}}
 		>
-			<div
-				style={{
-					display: "flex",
-					justifyContent: "space-between",
-					alignItems: "center",
-					marginBottom: 8,
-				}}
-			>
-				<h1 style={{ fontSize: 16, margin: 0 }}>待审核选题</h1>
-				<div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+			<nav className="flex-between mb-md">
+				<h1 style={{ fontSize: "var(--font-xl)", margin: 0 }}>待审核选题</h1>
+				<div className="flex gap-sm" style={{ alignItems: "center" }}>
 					<button
 						type="button"
 						disabled={busy || adapters.length === 0}
 						onClick={() => void handleQuickDraft()}
-						style={{
-							...btn,
-							background: busy || adapters.length === 0 ? "#f0f0f0" : "#1677ff",
-							color: busy || adapters.length === 0 ? "#bbb" : "#fff",
-							padding: "4px 10px",
-						}}
+						className="btn btn-primary btn-sm"
 					>
 						{quickDraftStatus === "备稿中…" ? "备稿中…" : "今日一键备稿"}
 					</button>
@@ -252,7 +232,6 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 						disabled={busy || adapters.length === 0}
 						onClick={() => {
 							void (async () => {
-								// 优先使用 acgs51（自动指向网站列表页发现模式），否则取第一个可用适配器。
 								const site = adapters.includes("acgs51")
 									? "acgs51"
 									: (adapters[0] ?? null);
@@ -265,11 +244,14 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 								}, 2000);
 							})();
 						}}
+						className="btn btn-sm"
 						style={{
-							...btn,
-							background: adapters.length > 0 ? "#fa8c16" : "#f0f0f0",
-							color: adapters.length > 0 ? "#fff" : "#bbb",
-							padding: "4px 10px",
+							background:
+								adapters.length > 0
+									? "var(--color-warning)"
+									: "var(--color-border-lighter)",
+							color:
+								adapters.length > 0 ? "#fff" : "var(--color-text-disabled)",
 						}}
 					>
 						⚡ 立即抓取
@@ -277,41 +259,39 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 					<button
 						type="button"
 						onClick={() => void refresh()}
-						style={{
-							...btn,
-							background: "#f0f0f0",
-							color: "#333",
-							padding: "4px 10px",
-						}}
+						className="btn btn-plain btn-sm"
 					>
 						↻ 刷新
 					</button>
 					<button
 						type="button"
 						onClick={onBack}
-						style={{
-							...btn,
-							background: "#f0f0f0",
-							color: "#333",
-							padding: "4px 10px",
-						}}
+						className="btn btn-plain btn-sm"
 					>
 						← 返回
 					</button>
 				</div>
-			</div>
+			</nav>
 			{scrapeStatus && (
-				<div style={{ fontSize: 12, color: "#fa8c16", marginBottom: 4 }}>
+				<div
+					className="text-warning"
+					style={{
+						fontSize: "var(--font-sm)",
+						marginBottom: "var(--space-sm)",
+					}}
+				>
 					{scrapeStatus}
 				</div>
 			)}
 
 			{quickDraftStatus && !quickDraftConfirm && (
 				<div
+					className={
+						quickDraftStatus.startsWith("待审池") ? "text-muted" : "text-info"
+					}
 					style={{
-						fontSize: 12,
-						color: quickDraftStatus.startsWith("待审池") ? "#888" : "#1677ff",
-						marginBottom: 4,
+						fontSize: "var(--font-sm)",
+						marginBottom: "var(--space-sm)",
 					}}
 				>
 					{quickDraftStatus}
@@ -320,39 +300,40 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 
 			{quickDraftConfirm && (
 				<div
-					style={{
-						border: "1px solid #1677ff",
-						borderRadius: 6,
-						padding: "10px 12px",
-						marginBottom: 8,
-						background: "#f0f7ff",
-						fontSize: 13,
-					}}
+					className="banner-info"
+					style={{ marginBottom: "var(--space-md)" }}
 				>
-					<div style={{ fontWeight: 600, marginBottom: 6 }}>
+					<div
+						className="font-semibold"
+						style={{ marginBottom: "var(--space-lg)" }}
+					>
 						将生成 {quickDraftConfirm.topics.length} 篇草稿：
 					</div>
-					<ul style={{ margin: "0 0 8px 0", paddingLeft: 16 }}>
+					<ul
+						style={{
+							margin: "0 0 var(--space-md) 0",
+							paddingLeft: "var(--space-xl)",
+						}}
+					>
 						{quickDraftConfirm.topics.map((t) => (
 							<li
 								key={t.id}
-								style={{ marginBottom: 2, fontSize: 12, color: "#333" }}
+								style={{
+									marginBottom: "var(--space-xs)",
+									fontSize: "var(--font-sm)",
+									color: "var(--color-text)",
+								}}
 							>
 								{t.title || t.sourceUrl}
 							</li>
 						))}
 					</ul>
-					<div style={{ display: "flex", gap: 8 }}>
+					<div style={{ display: "flex", gap: "var(--space-md)" }}>
 						<button
 							type="button"
 							onClick={() => void handleQuickDraftConfirm()}
 							disabled={busy}
-							style={{
-								...btn,
-								background: "#1677ff",
-								color: "#fff",
-								padding: "4px 12px",
-							}}
+							className="btn btn-primary btn-sm"
 						>
 							确认生成
 						</button>
@@ -363,12 +344,7 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 								setQuickDraftStatus("");
 							}}
 							disabled={busy}
-							style={{
-								...btn,
-								background: "#f0f0f0",
-								color: "#333",
-								padding: "4px 12px",
-							}}
+							className="btn btn-plain btn-sm"
 						>
 							取消
 						</button>
@@ -376,19 +352,21 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 				</div>
 			)}
 
-			{loading && <div style={{ color: "#888", fontSize: 13 }}>加载中…</div>}
+			{loading && <div className="text-muted">加载中…</div>}
 
 			{!loading && topics.length === 0 && (
 				<div
-					style={{
-						color: "#888",
-						fontSize: 13,
-						marginTop: 16,
-						textAlign: "center",
-					}}
+					className="text-center text-muted"
+					style={{ marginTop: "var(--space-xl)" }}
 				>
 					暂无待审核选题。
-					<div style={{ marginTop: 8, fontSize: 12, color: "#aaa" }}>
+					<div
+						style={{
+							marginTop: "var(--space-md)",
+							fontSize: "var(--font-sm)",
+							color: "var(--color-text-disabled)",
+						}}
+					>
 						可通过后端 POST /api/v1/scraper/trigger 抓取新内容。
 					</div>
 				</div>
@@ -396,7 +374,10 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 
 			{topics.length > 0 && (
 				<>
-					<div style={{ marginBottom: 8, fontSize: 12, color: "#888" }}>
+					<div
+						className="text-sm text-muted"
+						style={{ marginBottom: "var(--space-md)" }}
+					>
 						{topics.length} 条待审核 · 已选 {selected.size} 条
 					</div>
 
@@ -405,30 +386,30 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 							<li
 								key={t.id}
 								style={{
-									border: "1px solid #f0f0f0",
-									borderRadius: 4,
-									marginBottom: 4,
+									border: "1px solid var(--color-border-lighter)",
+									borderRadius: "var(--radius-md)",
+									marginBottom: "var(--space-sm)",
 								}}
 							>
 								<div
 									style={{
 										display: "flex",
 										alignItems: "center",
-										padding: "6px 8px",
+										padding: "var(--space-lg) var(--space-md)",
 									}}
 								>
 									<input
 										type="checkbox"
 										checked={selected.has(t.id)}
 										onChange={() => toggleSelect(t.id)}
-										style={{ marginRight: 8 }}
+										style={{ marginRight: "var(--space-md)" }}
 										disabled={busy}
 									/>
 									<div style={{ flex: 1, minWidth: 0 }}>
 										<div
+											className="font-semibold"
 											style={{
-												fontWeight: 600,
-												fontSize: 13,
+												fontSize: "var(--font-base)",
 												overflow: "hidden",
 												textOverflow: "ellipsis",
 												whiteSpace: "nowrap",
@@ -436,7 +417,10 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 										>
 											{t.title || t.sourceUrl}
 										</div>
-										<div style={{ fontSize: 11, color: "#888", marginTop: 1 }}>
+										<div
+											className="text-xs text-muted"
+											style={{ marginTop: "var(--space-xs)" }}
+										>
 											{t.siteName} · 置信度:{Math.round(t.confidence * 100)}% ·{" "}
 											{t.sourceUrl.slice(0, 60)}
 										</div>
@@ -445,13 +429,7 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 										type="button"
 										onClick={() => toggleExpand(t.id, t.facts)}
 										aria-expanded={expanded.has(t.id)}
-										style={{
-											...btn,
-											padding: "2px 8px",
-											fontSize: 11,
-											background: "#f5f5f5",
-											color: "#555",
-										}}
+										className="btn btn-plain btn-sm text-secondary"
 									>
 										{expanded.has(t.id) ? "收起" : "详情"}
 									</button>
@@ -459,10 +437,11 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 
 								{expanded.has(t.id) && (
 									<div
+										className="expand-enter"
 										style={{
-											padding: "6px 10px",
-											fontSize: 12,
-											borderTop: "1px solid #f5f5f5",
+											padding: "var(--space-lg) var(--space-xl)",
+											fontSize: "var(--font-sm)",
+											borderTop: "1px solid var(--color-border-lighter)",
 										}}
 									>
 										{t.coverImageUrl && (
@@ -471,9 +450,9 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 												alt="封面"
 												style={{
 													maxHeight: 60,
-													marginBottom: 6,
+													marginBottom: "var(--space-lg)",
 													objectFit: "cover",
-													borderRadius: 2,
+													borderRadius: "var(--radius-sm)",
 												}}
 											/>
 										)}
@@ -481,38 +460,32 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 											<strong>事实（可编辑）:</strong>
 											<div
 												style={{
-													marginTop: 4,
+													marginTop: "var(--space-sm)",
 													display: "grid",
 													gridTemplateColumns: "4em 1fr",
-													gap: "3px 6px",
+													gap: "3px var(--space-lg)",
 													alignItems: "center",
 												}}
 											>
 												{FACTS_KEYS.map((key) => (
 													<React.Fragment key={key}>
 														<div
-															style={{
-																fontSize: 11,
-																color: "#888",
-																textAlign: "right",
-															}}
+															className="text-xs text-muted"
+															style={{ textAlign: "right" }}
 														>
 															{key}
 														</div>
 														<input
 															type="text"
+															className="field-input"
 															value={(localFacts[t.id] ?? t.facts)[key] ?? ""}
 															onChange={(e) =>
 																setFactField(t.id, key, e.target.value)
 															}
 															disabled={busy}
 															style={{
-																fontSize: 11,
-																padding: "1px 4px",
-																border: "1px solid #d9d9d9",
-																borderRadius: 2,
-																width: "100%",
-																boxSizing: "border-box",
+																fontSize: "var(--font-xs)",
+																padding: "1px var(--space-sm)",
 															}}
 														/>
 													</React.Fragment>
@@ -522,15 +495,15 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 										{t.rawContent?.body && (
 											<div
 												style={{
-													marginTop: 6,
+													marginTop: "var(--space-lg)",
 													maxHeight: 120,
 													overflow: "auto",
-													color: "#888",
-													fontSize: 11,
+													color: "var(--color-text-muted)",
+													fontSize: "var(--font-xs)",
 												}}
 											>
 												<strong>原始内容(前300字):</strong>
-												<div style={{ marginTop: 2 }}>
+												<div style={{ marginTop: "var(--space-xs)" }}>
 													{t.rawContent.body.slice(0, 300)}…
 												</div>
 											</div>
@@ -541,16 +514,18 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 						))}
 					</ul>
 
-					<div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+					<div
+						style={{
+							display: "flex",
+							gap: "var(--space-md)",
+							marginTop: "var(--space-xl)",
+						}}
+					>
 						<button
 							type="button"
 							onClick={() => void handleApproveSelected()}
 							disabled={selected.size === 0 || busy}
-							style={{
-								...btn,
-								background: selected.size > 0 && !busy ? "#1677ff" : "#f5f5f5",
-								color: selected.size > 0 && !busy ? "#fff" : "#bbb",
-							}}
+							className="btn btn-primary"
 						>
 							{busy ? "处理中…" : `批准 (${selected.size}) → 批量`}
 						</button>
@@ -558,11 +533,13 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 							type="button"
 							onClick={() => void handleRejectSelected()}
 							disabled={selected.size === 0 || busy}
+							className="btn btn-plain"
 							style={{
-								...btn,
-								background: selected.size > 0 && !busy ? "#f0f0f0" : "#fafafa",
-								color: selected.size > 0 && !busy ? "#cf1322" : "#ccc",
-								border: "1px solid #d9d9d9",
+								borderColor: "var(--color-border)",
+								color:
+									selected.size > 0 && !busy
+										? "var(--color-error)"
+										: "var(--color-text-disabled)",
 							}}
 						>
 							拒绝

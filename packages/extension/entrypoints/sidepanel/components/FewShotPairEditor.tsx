@@ -2,29 +2,9 @@ import type { FewShotPair } from "@51publisher/shared";
 
 const MAX_PAIRS = 8;
 
-const taStyle: React.CSSProperties = {
-	width: "100%",
-	boxSizing: "border-box",
-	padding: "4px 6px",
-	fontSize: 13,
-	border: "1px solid #d9d9d9",
-	borderRadius: 3,
-	resize: "vertical",
-	minHeight: 48,
-};
-const btnSm: React.CSSProperties = {
-	padding: "2px 7px",
-	fontSize: 11,
-	border: "1px solid #d9d9d9",
-	borderRadius: 3,
-	cursor: "pointer",
-	background: "#fafafa",
-};
-
 interface Props {
 	pairs: FewShotPair[];
 	onChange: (pairs: FewShotPair[]) => void;
-	/** 显示导入提示 banner（旧格式 fewShotExamples 非空且 pairs 空时）。 */
 	importBanner?: string;
 	onImport?: () => void;
 }
@@ -65,24 +45,15 @@ export function FewShotPairEditor({
 	return (
 		<div>
 			{importBanner && onImport && (
-				<div
-					style={{
-						background: "#fffbe6",
-						border: "1px solid #ffe58f",
-						borderRadius: 4,
-						padding: "6px 10px",
-						marginBottom: 8,
-						fontSize: 12,
-					}}
-				>
+				<div className="banner-warning">
 					{importBanner}
 					<button
 						type="button"
 						onClick={onImport}
+						className="btn btn-sm"
 						style={{
-							...btnSm,
-							marginLeft: 8,
-							background: "#fa8c16",
+							marginLeft: "var(--space-md)",
+							background: "var(--color-warning)",
 							color: "#fff",
 							border: "none",
 						}}
@@ -95,11 +66,10 @@ export function FewShotPairEditor({
 			{pairs.map((pair, i) => (
 				<div
 					key={pair.input}
+					className="card"
 					style={{
-						border: "1px solid #e8e8e8",
-						borderRadius: 4,
-						padding: "6px 8px",
-						marginBottom: 6,
+						padding: "var(--space-lg)",
+						marginBottom: "var(--space-lg)",
 					}}
 				>
 					<div
@@ -107,19 +77,16 @@ export function FewShotPairEditor({
 							display: "flex",
 							justifyContent: "space-between",
 							alignItems: "center",
-							marginBottom: 4,
+							marginBottom: "var(--space-sm)",
 						}}
 					>
-						<span style={{ fontSize: 11, color: "#888" }}>范例 {i + 1}</span>
-						<div style={{ display: "flex", gap: 4 }}>
+						<span className="text-xs text-muted">范例 {i + 1}</span>
+						<div style={{ display: "flex", gap: "var(--space-sm)" }}>
 							<button
 								type="button"
 								disabled={i === 0}
 								onClick={() => movePair(i, -1)}
-								style={{
-									...btnSm,
-									...(i === 0 ? { opacity: 0.4, cursor: "not-allowed" } : {}),
-								}}
+								className="btn btn-plain btn-sm"
 								aria-label="上移"
 							>
 								↑
@@ -128,12 +95,7 @@ export function FewShotPairEditor({
 								type="button"
 								disabled={i === pairs.length - 1}
 								onClick={() => movePair(i, 1)}
-								style={{
-									...btnSm,
-									...(i === pairs.length - 1
-										? { opacity: 0.4, cursor: "not-allowed" }
-										: {}),
-								}}
+								className="btn btn-plain btn-sm"
 								aria-label="下移"
 							>
 								↓
@@ -141,7 +103,8 @@ export function FewShotPairEditor({
 							<button
 								type="button"
 								onClick={() => deletePair(i)}
-								style={{ ...btnSm, color: "#cf1322", borderColor: "#ffa39e" }}
+								className="btn btn-plain btn-sm text-error"
+								style={{ borderColor: "var(--color-error-border)" }}
 								aria-label="删除"
 							>
 								✕
@@ -150,36 +113,33 @@ export function FewShotPairEditor({
 					</div>
 					<label
 						htmlFor={`fsp-input-${i}`}
-						style={{
-							fontSize: 11,
-							color: "#555",
-							display: "block",
-							marginBottom: 2,
-						}}
+						className="text-xs text-secondary"
+						style={{ display: "block", marginBottom: "var(--space-xs)" }}
 					>
 						输入上下文
 					</label>
 					<textarea
 						id={`fsp-input-${i}`}
-						style={taStyle}
+						className="field-input"
+						style={{ resize: "vertical", minHeight: 48 }}
 						value={pair.input}
 						placeholder="topic + facts…"
 						onChange={(e) => updatePair(i, "input", e.target.value)}
 					/>
 					<label
 						htmlFor={`fsp-output-${i}`}
+						className="text-xs text-secondary"
 						style={{
-							fontSize: 11,
-							color: "#555",
 							display: "block",
-							margin: "4px 0 2px",
+							margin: "var(--space-sm) 0 var(--space-xs)",
 						}}
 					>
 						范例输出
 					</label>
 					<textarea
 						id={`fsp-output-${i}`}
-						style={taStyle}
+						className="field-input"
+						style={{ resize: "vertical", minHeight: 48 }}
 						value={pair.output}
 						placeholder="期望的 AI 输出正文…"
 						onChange={(e) => updatePair(i, "output", e.target.value)}
@@ -191,12 +151,18 @@ export function FewShotPairEditor({
 				type="button"
 				onClick={addPair}
 				disabled={pairs.length >= MAX_PAIRS}
+				className="btn btn-plain btn-sm"
 				style={{
-					...btnSm,
 					width: "100%",
-					marginTop: 4,
-					color: pairs.length >= MAX_PAIRS ? "#bbb" : "#1677ff",
-					borderColor: pairs.length >= MAX_PAIRS ? "#e8e8e8" : "#91caff",
+					marginTop: "var(--space-sm)",
+					color:
+						pairs.length >= MAX_PAIRS
+							? "var(--color-text-disabled)"
+							: "var(--color-info)",
+					borderColor:
+						pairs.length >= MAX_PAIRS
+							? "var(--color-border-light)"
+							: "var(--color-info-border)",
 				}}
 			>
 				{pairs.length >= MAX_PAIRS

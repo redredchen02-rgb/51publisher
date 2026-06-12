@@ -30,15 +30,6 @@ import { BatchResultSummary } from "./components/BatchResultSummary";
 import { DryRunReport } from "./DryRunReport";
 import { HistoryPanel } from "./HistoryPanel";
 
-const btn: React.CSSProperties = {
-	padding: "6px 12px",
-	fontSize: 13,
-	border: "none",
-	borderRadius: 4,
-	cursor: "pointer",
-};
-
-// 容器:持有批次状态 + 接 messaging;展示交给 BatchReviewPanel(已单测)。
 export function BatchView({ onBack }: { onBack: () => void }) {
 	const [batch, setBatch] = useState<Batch | null>(null);
 	const [safetyMode, setSafetyMode] = useState<SafetyMode>("off");
@@ -49,7 +40,6 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 	const [error, setError] = useState("");
 	const [view, setView] = useState<"batch" | "history">("batch");
 	const [quarantineAlert, setQuarantineAlert] = useState(0);
-	// 人工编辑覆盖(transient;panel reload 后丢失,属已知可接受行为)。
 	const [draftOverrides, setDraftOverrides] = useState<
 		Map<string, ContentDraft>
 	>(new Map());
@@ -57,7 +47,6 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 		message: string;
 		undoable: boolean;
 	} | null>(null);
-	// U4 已读门控:记录操作者已展开过的 awaiting-approval 条目 id。
 	const [readItems, setReadItems] = useState<Set<string>>(new Set());
 	const savingItems = useRef(new Set<string>());
 	const toastTimer = useRef<number | null>(null);
@@ -75,7 +64,6 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 		setBatch(b);
 		setQuarantineAlert(alertCount);
 		if (b) {
-			// tab 健康:钉住的 tab 是否仍停在记录的授权 host。
 			try {
 				const tab = await browser.tabs.get(b.tabId);
 				const host = tab?.url ? new URL(tab.url).hostname : "";
@@ -91,7 +79,6 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 	useEffect(() => {
 		void refresh();
 
-		// storage.watch: background 每次 save(batch) 后推送变更 → 实时更新 UI,无需轮询。
 		const unwatch = storage.watch<import("../../lib/batch").Batch | null>(
 			"local:batch",
 			(newBatch) => {
@@ -180,7 +167,6 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 	);
 
 	async function handleStart() {
-		// 每行解析"选题 || 事实块"(源接地);按 topic 去重保序,facts 与 topics 同序平行。
 		const byTopic = new Map<string, FactsBlock>();
 		for (const line of topics.split("\n")) {
 			const p = parseTopicLine(line);
@@ -193,7 +179,6 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 			return;
 		}
 		await withBusy(async () => {
-			// 按 host 全窗口定位发帖页,不赌「当前活动标签」(side panel/DevTools 抢焦点会钉错 tab)。
 			const adminTabId = await resolveAdminTabId();
 			if (adminTabId == null) {
 				setError("未找到后台发帖页标签——请先打开后台发帖页。");
@@ -205,7 +190,6 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 		});
 	}
 
-	// R8 迭代:改 prompt/few-shot 后,用当前批次的题目+事实"只生成不发"重跑(绕重入闸)。
 	async function handleIterate() {
 		if (!batch) return;
 		await withBusy(async () => {
@@ -222,7 +206,6 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 	const batchActive =
 		batch && batchPhase(batch) !== "done" && batchPhase(batch) !== "empty";
 
-	// U4 已读门控:只在 awaiting-approval 阶段生效。
 	const awaitingApprovalItems = batch
 		? batch.items.filter((it) => it.status === "awaiting-approval")
 		: [];
@@ -235,61 +218,38 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 
 	return (
 		<main
-			style={{ fontFamily: "system-ui, sans-serif", padding: 12, fontSize: 14 }}
+			className="fade-in"
+			style={{
+				fontFamily: "system-ui, sans-serif",
+				padding: "var(--space-lg)",
+				fontSize: "var(--font-md)",
+			}}
 		>
-			<div
-				style={{
-					display: "flex",
-					justifyContent: "space-between",
-					alignItems: "center",
-					marginBottom: 8,
-				}}
-			>
-				<div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-					<h1 style={{ fontSize: 16, margin: 0 }}>批量发布</h1>
+			<nav className="flex-between mb-md">
+				<div className="flex gap-sm" style={{ alignItems: "center" }}>
+					<h1 style={{ fontSize: "var(--font-xl)", margin: 0 }}>批量发布</h1>
 					<button
 						type="button"
 						onClick={() => setView("batch")}
-						style={{
-							...btn,
-							padding: "2px 8px",
-							fontSize: 12,
-							background: view === "batch" ? "#1677ff" : "#f0f0f0",
-							color: view === "batch" ? "#fff" : "#333",
-						}}
+						className={`tab-btn ${view === "batch" ? "active" : ""}`}
 					>
 						批次{batchActive ? " •" : ""}
 					</button>
 					<button
 						type="button"
 						onClick={() => setView("history")}
-						style={{
-							...btn,
-							padding: "2px 8px",
-							fontSize: 12,
-							background: view === "history" ? "#1677ff" : "#f0f0f0",
-							color: view === "history" ? "#fff" : "#333",
-						}}
+						className={`tab-btn ${view === "history" ? "active" : ""}`}
 					>
 						历史
 					</button>
 				</div>
-				<button
-					type="button"
-					onClick={onBack}
-					style={{
-						...btn,
-						background: "#f0f0f0",
-						color: "#333",
-						padding: "4px 10px",
-					}}
-				>
+				<button type="button" onClick={onBack} className="btn btn-plain btn-sm">
 					← 单条
 				</button>
-			</div>
+			</nav>
 
 			{error && (
-				<p role="alert" style={{ color: "#cf1322", fontSize: 13 }}>
+				<p role="alert" className="text-error">
 					{error}
 				</p>
 			)}
@@ -298,13 +258,8 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 				<div
 					role="status"
 					aria-live="polite"
+					className={toast.undoable ? "banner-success" : "banner-warning"}
 					style={{
-						background: toast.undoable ? "#f6ffed" : "#fff7e6",
-						border: `1px solid ${toast.undoable ? "#b7eb8f" : "#ffd591"}`,
-						borderRadius: 4,
-						padding: "6px 10px",
-						fontSize: 12,
-						marginBottom: 8,
 						display: "flex",
 						justifyContent: "space-between",
 						alignItems: "center",
@@ -315,13 +270,10 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 						<button
 							type="button"
 							onClick={() => void handleUndoFewShot()}
+							className="btn-icon text-info"
 							style={{
-								border: "none",
-								background: "none",
-								cursor: "pointer",
-								fontSize: 12,
-								color: "#1677ff",
-								padding: "0 4px",
+								fontSize: "var(--font-sm)",
+								padding: "0 var(--space-sm)",
 							}}
 						>
 							撤销
@@ -331,21 +283,14 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 			)}
 
 			{quarantineAlert > 0 && (
-				<div
-					role="alert"
-					style={{
-						background: "#fff7e6",
-						border: "1px solid #ffd591",
-						borderRadius: 6,
-						padding: "8px 10px",
-						marginBottom: 8,
-						fontSize: 13,
-					}}
-				>
-					<div style={{ color: "#874d00", fontWeight: 600 }}>
+				<div className="banner-warning" role="alert">
+					<div className="text-warning-deep font-semibold">
 						⚠ {quarantineAlert} 条帖子在上次关机时状态不确定
 					</div>
-					<div style={{ color: "#874d00", fontSize: 12, marginTop: 2 }}>
+					<div
+						className="text-warning-deep"
+						style={{ fontSize: "var(--font-sm)", marginTop: "var(--space-xs)" }}
+					>
 						请前往「历史」面板核对后再继续。
 					</div>
 					<button
@@ -354,14 +299,11 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 							clearPendingQuarantineAlert().catch(() => {});
 							setQuarantineAlert(0);
 						}}
+						className="btn btn-plain btn-sm"
 						style={{
-							...btn,
-							marginTop: 6,
-							padding: "2px 8px",
-							fontSize: 12,
-							background: "#fff",
-							border: "1px solid #ffd591",
-							color: "#874d00",
+							marginTop: "var(--space-lg)",
+							borderColor: "var(--color-warning-border)",
+							color: "var(--color-warning-deep)",
 						}}
 					>
 						我知道了
@@ -376,10 +318,10 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 					{batchPhase(batch) === "awaiting-approval" &&
 						awaitingApprovalItems.length > 0 && (
 							<div
+								className={allRead ? "text-success" : "text-warning-deep"}
 								style={{
-									fontSize: 12,
-									color: allRead ? "#389e0d" : "#874d00",
-									marginBottom: 6,
+									fontSize: "var(--font-sm)",
+									marginBottom: "var(--space-lg)",
 								}}
 							>
 								{allRead
@@ -407,7 +349,6 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 						}}
 						onApprove={() =>
 							void withBusy(async () => {
-								// 批准前先做选择器漂移自检(U2):任何关键选择器缺失 → 阻断并展示警告,等人工处理。
 								const report = await checkSelectors(batch.tabId);
 								setDrift(report);
 								if (!report.ok) {
@@ -480,19 +421,13 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 			{view === "batch" &&
 				batch &&
 				batchPhase(batch) === "awaiting-approval" && (
-					<div style={{ marginTop: 8 }}>
+					<div style={{ marginTop: "var(--space-md)" }}>
 						<button
 							type="button"
 							onClick={() => void handleIterate()}
 							disabled={busy}
 							title="改了 Settings 的 prompt/few-shot 后,用同批题目重跑生成(只生成不发,可对比效果)"
-							style={{
-								...btn,
-								background: "#f0f0f0",
-								color: "#333",
-								fontSize: 12,
-								padding: "4px 10px",
-							}}
+							className="btn btn-plain btn-sm"
 						>
 							{busy ? "重跑中…" : "↻ 重跑生成(改 prompt 后对比)"}
 						</button>
@@ -502,21 +437,17 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 			{view === "batch" && safetyMode === "dry-run" && <DryRunReport />}
 
 			{showStarter && (
-				<div style={{ marginTop: 12 }}>
-					<div style={{ fontSize: 13, color: "#555", marginBottom: 4 }}>
+				<div style={{ marginTop: "var(--space-xl)" }}>
+					<div
+						className="text-secondary"
+						style={{ marginBottom: "var(--space-sm)" }}
+					>
 						选题(每行一条);可附事实防幻觉:
 						<code>选题 || 作品名=… | 集数=… | 漢化=… | 無修=…</code>
 					</div>
 					<textarea
-						style={{
-							width: "100%",
-							boxSizing: "border-box",
-							minHeight: 80,
-							padding: 6,
-							fontSize: 13,
-							border: "1px solid #d9d9d9",
-							borderRadius: 4,
-						}}
+						className="field-input"
+						style={{ minHeight: 80 }}
 						placeholder={
 							"某里番作品介绍 || 作品名=◯◯◯ | 集数=6 | 漢化=https://… | 無修=https://…\n某新番看点(纯选题也行,缺的会标【待补】)"
 						}
@@ -528,12 +459,8 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 						type="button"
 						onClick={() => void handleStart()}
 						disabled={busy}
-						style={{
-							...btn,
-							background: "#1677ff",
-							color: "#fff",
-							marginTop: 8,
-						}}
+						className="btn btn-primary"
+						style={{ marginTop: "var(--space-md)" }}
 					>
 						{busy ? "生成中…" : "开始批量(生成+填充)"}
 					</button>

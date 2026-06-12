@@ -51,9 +51,8 @@ export function App() {
 	const loadingState = useLoadingState();
 	const { saveDraft } = useAutoSave();
 	const promptTemplateRef = useRef("");
-	const genTokenRef = useRef(0); // 取消用:递增后旧请求结果作废
+	const genTokenRef = useRef(0);
 
-	// 挂载:载入 prompt 模板 + 恢复上一条未完成草稿(崩溃恢复) + 检查登录状态。
 	useEffect(() => {
 		void (async () => {
 			const [s, saved] = await Promise.all([getSettings(), getCurrentDraft()]);
@@ -91,7 +90,7 @@ export function App() {
 			const res = await requestGenerate(
 				buildPrompt(promptTemplateRef.current, topic),
 			);
-			if (token !== genTokenRef.current) return; // 已取消
+			if (token !== genTokenRef.current) return;
 			if (res.ok) {
 				updateDraft(res.draft);
 				setMode("draft");
@@ -103,7 +102,6 @@ export function App() {
 				handleError(errMsg);
 				setMode(draft ? "draft" : "empty");
 				loadingState.completeLoading();
-				// 记录错误日志
 				void logError(new Error(errMsg), { topic, action: "generate" });
 				void recordOperation({
 					type: "generate",
@@ -113,7 +111,6 @@ export function App() {
 				});
 			}
 		} catch (err) {
-			// 处理未预期的异常（如网络超时、SW 崩溃等）
 			const errMsg = err instanceof Error ? err.message : "生成失败";
 			handleError(errMsg);
 			setMode(draft ? "draft" : "empty");
@@ -153,7 +150,6 @@ export function App() {
 			handleError(res.error);
 			setMode("draft");
 			setToast({ message: res.error, type: "error" });
-			// 记录错误日志
 			void logError(new Error(res.error), { action: "fill" });
 		}
 	}
@@ -226,97 +222,89 @@ export function App() {
 
 	return (
 		<Wrap>
-			<div
-				style={{
-					display: "flex",
-					justifyContent: "space-between",
-					alignItems: "center",
-					marginBottom: 8,
-				}}
-			>
-				<h1 style={{ fontSize: 16, margin: 0 }}>51publisher 填充助手</h1>
-				<div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+			<header className="app-header">
+				<div className="app-title-row">
+					<div>
+						<h1 style={{ fontSize: "var(--font-xl)", margin: 0 }}>
+							51publisher 填充助手
+						</h1>
+						<div className="text-sm text-secondary" style={{ marginTop: 3 }}>
+							从选题到审核发布的一体化工作台
+						</div>
+					</div>
+					<div className="app-actions">
+						<button
+							type="button"
+							onClick={() => {
+								if (!authenticated) setView("auth");
+							}}
+							className={`status-pill ${authenticated ? "success" : "error"}`}
+							style={{
+								cursor: authenticated ? "default" : "pointer",
+								userSelect: "none",
+							}}
+						>
+							{authenticated ? "已登录" : "未登录"}
+						</button>
+						<button
+							type="button"
+							onClick={() => setView("settings")}
+							className="btn btn-plain btn-sm"
+							aria-label="设置"
+						>
+							⚙ 设置
+						</button>
+						<KeyboardShortcutsHelp />
+						<button
+							type="button"
+							onClick={() => {
+								setShowLogs(!showLogs);
+								if (!showLogs) void retrieveLogs();
+							}}
+							className="btn btn-plain btn-sm"
+							aria-label="错误日志"
+						>
+							📋 日志
+						</button>
+					</div>
+				</div>
+
+				<nav className="workflow-grid" aria-label="主要工作流">
 					<button
 						type="button"
-						onClick={() => {
-							if (!authenticated) setView("auth");
-						}}
-						onKeyDown={(e) => {
-							if (!authenticated && (e.key === "Enter" || e.key === " ")) {
-								setView("auth");
-							}
-						}}
-						style={{
-							fontSize: 11,
-							color: authenticated ? "#389e0d" : "#cf1322",
-							cursor: authenticated ? "default" : "pointer",
-							userSelect: "none",
-							background: "none",
-							border: "none",
-							padding: 0,
-							fontFamily: "inherit",
-						}}
+						onClick={() => setView("today")}
+						className="workflow-card primary"
 					>
-						{authenticated ? "已登录" : "未登录"}
+						<span className="workflow-card-title">今日流水线</span>
+						<span className="workflow-card-desc">
+							自动取高分待审选题，生成草稿，逐篇审读后发布
+						</span>
 					</button>
 					<button
 						type="button"
 						onClick={() => setView("pending")}
-						className="btn btn-plain"
-						aria-label="待审核"
+						className="workflow-card"
 					>
-						◎ 待审
-					</button>
-					<button
-						type="button"
-						onClick={() => setView("today")}
-						className="btn btn-plain"
-						aria-label="今日备稿"
-					>
-						☀ 今日
+						<span className="workflow-card-title">待审池</span>
+						<span className="workflow-card-desc">
+							抓取选题、补事实、挑选进入批量生成
+						</span>
 					</button>
 					<button
 						type="button"
 						onClick={() => setView("batch")}
-						className="btn btn-plain"
-						aria-label="批量"
+						className="workflow-card"
 					>
-						≣ 批量
+						<span className="workflow-card-title">批量审核</span>
+						<span className="workflow-card-desc">
+							查看当前批次、处理异常、重跑或人工放行
+						</span>
 					</button>
-					<button
-						type="button"
-						onClick={() => setView("settings")}
-						className="btn btn-plain"
-						aria-label="设置"
-					>
-						⚙ 设置
-					</button>
-					<KeyboardShortcutsHelp />
-					<button
-						type="button"
-						onClick={() => {
-							setShowLogs(!showLogs);
-							if (!showLogs) void retrieveLogs();
-						}}
-						className="btn btn-plain"
-						aria-label="错误日志"
-					>
-						📋 日志
-					</button>
-				</div>
-			</div>
+				</nav>
+			</header>
 
-			<div
-				role="note"
-				style={{
-					background: "#fff7e6",
-					border: "1px solid #ffd591",
-					borderRadius: 6,
-					padding: "8px 10px",
-					fontSize: 13,
-					marginBottom: 12,
-				}}
-			>
+			{/* Warning banner */}
+			<div className="banner-warning" role="note">
 				⚠️ 插件不会自动发布,请人工审核后手动发布。
 			</div>
 
@@ -340,51 +328,35 @@ export function App() {
 
 			{showLogs && (
 				<div
+					className="card surface-muted"
 					style={{
-						background: "#f5f5f5",
-						border: "1px solid #d9d9d9",
-						borderRadius: 6,
-						padding: 12,
-						marginBottom: 12,
 						maxHeight: 200,
 						overflowY: "auto",
+						marginBottom: "var(--space-lg)",
 					}}
 				>
 					<div
-						style={{
-							display: "flex",
-							justifyContent: "space-between",
-							marginBottom: 8,
-						}}
+						className="flex-between"
+						style={{ marginBottom: "var(--space-md)" }}
 					>
-						<span style={{ fontWeight: 600 }}>错误日志</span>
-						<div style={{ display: "flex", gap: 8 }}>
+						<span className="font-semibold">错误日志</span>
+						<div style={{ display: "flex", gap: "var(--space-md)" }}>
 							<button
 								type="button"
 								onClick={() => {
 									const exported = exportLogs();
 									void navigator.clipboard?.writeText(exported);
 								}}
-								style={{
-									border: "none",
-									background: "none",
-									cursor: "pointer",
-									fontSize: 12,
-									color: "#1677ff",
-								}}
+								className="btn-icon text-info"
+								style={{ fontSize: "var(--font-sm)" }}
 							>
 								导出
 							</button>
 							<button
 								type="button"
 								onClick={() => void clearLogs()}
-								style={{
-									border: "none",
-									background: "none",
-									cursor: "pointer",
-									fontSize: 12,
-									color: "#ff4d4f",
-								}}
+								className="btn-icon text-error"
+								style={{ fontSize: "var(--font-sm)" }}
 							>
 								清空
 							</button>
@@ -392,24 +364,28 @@ export function App() {
 					</div>
 
 					{logs.length === 0 ? (
-						<div style={{ fontSize: 13, color: "#8c8c8c" }}>暂无错误日志</div>
+						<div className="text-muted">暂无错误日志</div>
 					) : (
-						<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+						<div
+							style={{
+								display: "flex",
+								flexDirection: "column",
+								gap: "var(--space-md)",
+							}}
+						>
 							{logs.map((log) => (
 								<div
 									key={log.id}
-									style={{
-										background: "white",
-										border: "1px solid #d9d9d9",
-										borderRadius: 4,
-										padding: 8,
-										fontSize: 12,
-									}}
+									className="surface-elevated"
+									style={{ padding: "var(--space-md)" }}
 								>
-									<div style={{ color: "#cf1322", marginBottom: 4 }}>
+									<div
+										className="text-error"
+										style={{ marginBottom: "var(--space-sm)" }}
+									>
 										{log.message}
 									</div>
-									<div style={{ color: "#8c8c8c" }}>
+									<div className="text-muted text-xs">
 										{new Date(log.timestamp).toLocaleString()}
 									</div>
 								</div>
@@ -422,17 +398,10 @@ export function App() {
 			{(mode === "empty" ||
 				mode === "generating" ||
 				(mode === "draft" && !draft)) && (
-				<div style={{ marginBottom: 12 }}>
+				<div style={{ marginBottom: "var(--space-lg)" }}>
 					<textarea
-						style={{
-							width: "100%",
-							boxSizing: "border-box",
-							minHeight: 60,
-							padding: 6,
-							fontSize: 13,
-							border: "1px solid #d9d9d9",
-							borderRadius: 4,
-						}}
+						className="field-input"
+						style={{ minHeight: 60, padding: "var(--space-lg)" }}
 						placeholder="输入选题/主题,例如:介绍某部新番的看点"
 						value={topic}
 						disabled={busy}
@@ -442,7 +411,7 @@ export function App() {
 			)}
 
 			{mode === "generating" && (
-				<div style={{ marginBottom: 12 }}>
+				<div style={{ marginBottom: "var(--space-lg)" }}>
 					<ProgressBar
 						progress={loadingState.progress}
 						label={loadingState.message}
@@ -450,8 +419,8 @@ export function App() {
 					<button
 						type="button"
 						onClick={cancelGenerate}
-						className="btn btn-plain"
-						style={{ padding: "2px 8px", marginTop: 6 }}
+						className="btn btn-plain btn-sm"
+						style={{ marginTop: "var(--space-lg)" }}
 					>
 						取消
 					</button>
@@ -463,9 +432,12 @@ export function App() {
 			)}
 
 			{mode === "filling" && (
-				<div aria-live="polite" style={{ marginBottom: 8 }}>
+				<div aria-live="polite" style={{ marginBottom: "var(--space-md)" }}>
 					<ProgressBar progress={0} indeterminate />
-					<div style={{ fontSize: 13, color: "#555", marginTop: 4 }}>
+					<div
+						className="text-secondary"
+						style={{ marginTop: "var(--space-sm)" }}
+					>
 						正在填充到当前页…
 					</div>
 				</div>
@@ -484,11 +456,20 @@ export function App() {
 			)}
 
 			{mode === "partial" && (
-				<div style={{ marginTop: 8, fontSize: 12 }}>
-					<button type="button" onClick={copyBody} className="btn btn-plain">
+				<div
+					style={{ marginTop: "var(--space-md)", fontSize: "var(--font-sm)" }}
+				>
+					<button
+						type="button"
+						onClick={copyBody}
+						className="btn btn-plain btn-sm"
+					>
 						复制正文
 					</button>
-					<span style={{ color: "var(--text-muted)", marginLeft: 8 }}>
+					<span
+						className="text-muted"
+						style={{ marginLeft: "var(--space-md)" }}
+					>
 						正文可能需手动粘贴到编辑器。
 					</span>
 				</div>
@@ -497,29 +478,36 @@ export function App() {
 			{confirmNext && (
 				<div
 					role="alert"
-					style={{ marginTop: 8, fontSize: 12, color: "#cf1322" }}
+					className="text-error"
+					style={{ marginTop: "var(--space-md)", fontSize: "var(--font-sm)" }}
 				>
 					正文尚未确认填入,确定进入下一条?
 					<button
 						type="button"
 						onClick={handleNext}
-						className="btn btn-plain"
-						style={{ padding: "2px 8px", marginLeft: 6 }}
+						className="btn btn-plain btn-sm"
+						style={{ marginLeft: "var(--space-lg)" }}
 					>
 						确定
 					</button>
 					<button
 						type="button"
 						onClick={() => setConfirmNext(false)}
-						className="btn btn-plain"
-						style={{ padding: "2px 8px", marginLeft: 4 }}
+						className="btn btn-plain btn-sm"
+						style={{ marginLeft: "var(--space-sm)" }}
 					>
 						取消
 					</button>
 				</div>
 			)}
 
-			<div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+			<div
+				style={{
+					display: "flex",
+					gap: "var(--space-md)",
+					marginTop: "var(--space-xl)",
+				}}
+			>
 				{(mode === "empty" || mode === "generating" || mode === "draft") && (
 					<button
 						type="button"
@@ -559,8 +547,8 @@ export function App() {
 function Wrap({ children }: { children: React.ReactNode }) {
 	return (
 		<main
-			className="glass-panel"
-			style={{ padding: 16, margin: "12px auto", maxWidth: 480 }}
+			className="glass-panel fade-in"
+			style={{ padding: "var(--space-xl)", margin: "12px auto", maxWidth: 480 }}
 		>
 			{children}
 		</main>

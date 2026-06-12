@@ -21,20 +21,13 @@ export function KeyboardShortcutsHelp() {
 				type="button"
 				aria-label="快捷键帮助"
 				onClick={() => setIsOpen(true)}
-				style={{
-					border: "none",
-					background: "none",
-					cursor: "pointer",
-					fontSize: 12,
-					color: "#666",
-					padding: "0 4px",
-				}}
+				className="btn-icon text-close"
+				style={{ fontSize: "var(--font-sm)", padding: "0 var(--space-sm)" }}
 			>
 				?
 			</button>
 
 			{isOpen && (
-				// eslint-disable-next-line jsx-a11y/no-static-element-interactions
 				<div
 					role="dialog"
 					style={{
@@ -61,52 +54,49 @@ export function KeyboardShortcutsHelp() {
 					}}
 				>
 					<div
+						className="glass-panel"
 						style={{
-							background: "white",
-							borderRadius: 8,
-							padding: 16,
+							padding: "var(--space-xl)",
 							maxWidth: 400,
 							width: "100%",
 						}}
 					>
 						<div
-							style={{
-								display: "flex",
-								justifyContent: "space-between",
-								alignItems: "center",
-								marginBottom: 12,
-							}}
+							className="flex-between"
+							style={{ marginBottom: "var(--space-lg)" }}
 						>
-							<h3 style={{ margin: 0, fontSize: 16 }}>快捷键帮助</h3>
+							<h3 className="text-xl" style={{ margin: 0 }}>
+								快捷键帮助
+							</h3>
 							<button
 								type="button"
 								aria-label="关闭"
 								onClick={() => setIsOpen(false)}
-								style={{
-									border: "none",
-									background: "none",
-									cursor: "pointer",
-									fontSize: 16,
-									color: "#666",
-								}}
+								className="btn-icon text-close"
+								style={{ fontSize: "var(--font-xl)" }}
 							>
 								×
 							</button>
 						</div>
 
-						<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+						<div
+							style={{
+								display: "flex",
+								flexDirection: "column",
+								gap: "var(--space-md)",
+							}}
+						>
 							{shortcuts.map((shortcut) => (
 								<div
 									key={shortcut.keys}
+									className="flex-between"
 									style={{
-										display: "flex",
-										justifyContent: "space-between",
-										padding: "8px 0",
-										borderBottom: "1px solid #f0f0f0",
+										padding: "var(--space-md) 0",
+										borderBottom: "1px solid var(--color-border-lighter)",
 									}}
 								>
-									<span style={{ fontWeight: 500 }}>{shortcut.keys}</span>
-									<span style={{ color: "#666" }}>{shortcut.description}</span>
+									<span className="font-medium">{shortcut.keys}</span>
+									<span className="text-secondary">{shortcut.description}</span>
 								</div>
 							))}
 						</div>

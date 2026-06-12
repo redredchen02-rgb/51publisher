@@ -19,12 +19,20 @@ vi.mock("../../lib/pending-client", () => ({
 }));
 
 vi.mock("../../lib/messaging", () => ({
+	approveSingleItem: vi.fn(async () => null),
+	getBatchState: vi.fn(async () => null),
 	resolveAdminTabId: vi.fn(async () => 1),
+	retryBatchItemMsg: vi.fn(async () => null),
 	runBatch: vi.fn(async () => null),
 }));
 
 vi.mock("../../lib/storage", () => ({
 	getSettings: vi.fn(async () => ({ dailyBatchSize: 5 })),
+}));
+
+vi.mock("../../lib/read-tracker", () => ({
+	getReadItems: vi.fn(async () => new Set<string>()),
+	markItemRead: vi.fn(async () => undefined),
 }));
 
 import { resolveAdminTabId, runBatch } from "../../lib/messaging";
@@ -94,9 +102,9 @@ describe("U8 — TodayBatchView", () => {
 
 		render(<TodayBatchView onBack={vi.fn()} />);
 
-		// Wait for async effect to fully resolve — batch size text confirms settings loaded
+		// Wait for async effect to resolve and the primary action to become visible.
 		await waitFor(() => {
-			expect(screen.getByText("5")).toBeTruthy();
+			expect(screen.getByText("一键备稿")).toBeTruthy();
 		});
 
 		fireEvent.click(screen.getByText("一键备稿"));

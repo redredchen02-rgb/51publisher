@@ -29,7 +29,10 @@ export class ErrorBoundary extends Component<Props, State> {
 						<p style={{ fontSize: 14, fontWeight: 600, margin: "0 0 8px" }}>
 							发生了错误
 						</p>
-						<p style={{ fontSize: 12, color: "#888", margin: 0 }}>
+						<p
+							className="text-muted"
+							style={{ fontSize: "var(--font-sm)", margin: 0 }}
+						>
 							{this.state.error?.message}
 						</p>
 						<button

@@ -18,16 +18,7 @@ export function ErrorDisplay({
 	const [showDetails, setShowDetails] = useState(false);
 
 	return (
-		<div
-			role="alert"
-			style={{
-				background: "#fff1f0",
-				border: "1px solid #ffa39e",
-				borderRadius: 6,
-				padding: "12px 16px",
-				marginBottom: 12,
-			}}
-		>
+		<div className="banner-error" role="alert">
 			<div
 				style={{
 					display: "flex",
@@ -36,29 +27,27 @@ export function ErrorDisplay({
 				}}
 			>
 				<div>
-					<div style={{ fontWeight: 600, color: "#cf1322", marginBottom: 4 }}>
+					<div
+						className="text-error font-semibold"
+						style={{ marginBottom: "var(--space-sm)" }}
+					>
 						{message}
 					</div>
 					{solution && (
-						<div style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 4 }}>
+						<div
+							className="text-muted"
+							style={{ marginBottom: "var(--space-sm)" }}
+						>
 							{solution}
 						</div>
 					)}
 				</div>
-				<div style={{ display: "flex", gap: 8 }}>
+				<div style={{ display: "flex", gap: "var(--space-md)" }}>
 					{onRetry && (
 						<button
 							type="button"
 							onClick={onRetry}
-							style={{
-								border: "none",
-								background: "#ff7875",
-								color: "white",
-								padding: "4px 12px",
-								borderRadius: 4,
-								cursor: "pointer",
-								fontSize: 12,
-							}}
+							className="btn btn-danger btn-sm"
 						>
 							重试
 						</button>
@@ -68,13 +57,8 @@ export function ErrorDisplay({
 							type="button"
 							onClick={onDismiss}
 							aria-label="关闭"
-							style={{
-								border: "none",
-								background: "none",
-								cursor: "pointer",
-								fontSize: 12,
-								color: "#8c8c8c",
-							}}
+							className="btn-icon text-muted"
+							style={{ fontSize: "var(--font-sm)" }}
 						>
 							关闭
 						</button>
@@ -83,30 +67,21 @@ export function ErrorDisplay({
 			</div>
 
 			{details && (
-				<div style={{ marginTop: 8 }}>
+				<div style={{ marginTop: "var(--space-md)" }}>
 					<button
 						type="button"
 						onClick={() => setShowDetails(!showDetails)}
-						style={{
-							border: "none",
-							background: "none",
-							cursor: "pointer",
-							fontSize: 12,
-							color: "#1677ff",
-							padding: 0,
-						}}
+						className="btn-icon text-info"
+						style={{ fontSize: "var(--font-sm)", padding: 0 }}
 					>
 						{showDetails ? "隐藏详情" : "显示详情"}
 					</button>
 					{showDetails && (
 						<pre
+							className="banner-warning"
 							style={{
-								background: "#fff7e6",
-								border: "1px solid #ffd591",
-								borderRadius: 4,
-								padding: 8,
-								marginTop: 4,
-								fontSize: 11,
+								marginTop: "var(--space-sm)",
+								fontSize: "var(--font-xs)",
 								overflowX: "auto",
 								whiteSpace: "pre-wrap",
 							}}

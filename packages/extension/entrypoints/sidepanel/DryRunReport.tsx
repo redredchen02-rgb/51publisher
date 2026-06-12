@@ -2,16 +2,6 @@ import type { DryRunReport as DryRunReportType } from "@51publisher/shared";
 import { useEffect, useState } from "react";
 import { clearDryRunReport, getDryRunReport } from "../../lib/storage";
 
-const btn: React.CSSProperties = {
-	padding: "4px 10px",
-	fontSize: 12,
-	border: "1px solid #91caff",
-	borderRadius: 4,
-	cursor: "pointer",
-	background: "#e6f4ff",
-	color: "#0958d9",
-};
-
 export function DryRunReport() {
 	const [report, setReport] = useState<DryRunReportType | null>(null);
 
@@ -28,24 +18,33 @@ export function DryRunReport() {
 
 	return (
 		<section
-			style={{ marginTop: 14, borderTop: "1px solid #91caff", paddingTop: 10 }}
+			className="banner-info"
+			style={{ marginTop: "var(--space-xl)", borderTop: "none" }}
 		>
-			<div
-				style={{
-					display: "flex",
-					justifyContent: "space-between",
-					alignItems: "center",
-					marginBottom: 6,
-				}}
-			>
-				<h2 style={{ fontSize: 14, margin: 0, color: "#0958d9" }}>
+			<div className="flex-between" style={{ marginBottom: "var(--space-lg)" }}>
+				<h2
+					className="text-info"
+					style={{ fontSize: "var(--font-md)", margin: 0 }}
+				>
 					🧪 预演填充报告（{report.items.length} 条）
 				</h2>
-				<button type="button" onClick={() => void handleClear()} style={btn}>
+				<button
+					type="button"
+					onClick={() => void handleClear()}
+					className="btn btn-plain btn-sm text-info"
+					style={{ borderColor: "var(--color-info-border)" }}
+				>
 					清除报告
 				</button>
 			</div>
-			<ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: 12 }}>
+			<ul
+				style={{
+					listStyle: "none",
+					padding: 0,
+					margin: 0,
+					fontSize: "var(--font-sm)",
+				}}
+			>
 				{report.items.map((item) => {
 					const filled = item.fillResults.filter(
 						(r) => r.status === "filled",
@@ -59,29 +58,37 @@ export function DryRunReport() {
 					return (
 						<li
 							key={item.itemId}
-							style={{
-								marginBottom: 6,
-								padding: "5px 8px",
-								background: "#f0f7ff",
-								borderRadius: 4,
-							}}
+							className="banner-info"
+							style={{ marginBottom: "var(--space-lg)", borderTop: "none" }}
 						>
-							<div style={{ fontWeight: 600, marginBottom: 2 }}>
+							<div
+								className="font-semibold"
+								style={{ marginBottom: "var(--space-xs)" }}
+							>
 								「{item.topic}」
 							</div>
 							{item.draftTitle && (
-								<div style={{ color: "#444", marginBottom: 2 }}>
+								<div
+									className="text-secondary"
+									style={{ marginBottom: "var(--space-xs)" }}
+								>
 									标题: {item.draftTitle}
 								</div>
 							)}
 							<div>
-								<span style={{ color: "#389e0d", marginRight: 6 }}>
+								<span
+									className="text-success"
+									style={{ marginRight: "var(--space-lg)" }}
+								>
 									✓已填 {filled}
 								</span>
-								<span style={{ color: "#d46b08", marginRight: 6 }}>
+								<span
+									className="text-warning"
+									style={{ marginRight: "var(--space-lg)" }}
+								>
 									↷跳过 {skipped}
 								</span>
-								<span style={{ color: "#cf1322" }}>⚠降级 {degraded}</span>
+								<span className="text-error">⚠降级 {degraded}</span>
 							</div>
 						</li>
 					);

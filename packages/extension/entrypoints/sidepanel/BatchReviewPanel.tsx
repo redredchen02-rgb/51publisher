@@ -46,14 +46,19 @@ function GroundingStrip({
 	return (
 		<div style={{ marginTop: 4, fontSize: 11 }}>
 			{/* 事实注入状态 */}
-			<div style={{ color: "#555" }}>
+			<div className="text-secondary">
 				事实注入:
 				{FACT_ORDER.map((k) => {
 					const has = !!f[k]?.trim();
 					return (
 						<span
 							key={k}
-							style={{ marginRight: 6, color: has ? "#389e0d" : "#bbb" }}
+							style={{
+								marginRight: 6,
+								color: has
+									? "var(--color-success)"
+									: "var(--color-text-disabled)",
+							}}
 						>
 							{has ? "✓" : "—"}
 							{k}
@@ -66,7 +71,10 @@ function GroundingStrip({
 				const missing = FACT_ORDER.filter((k) => !f[k]?.trim());
 				if (missing.length > 0) {
 					return (
-						<div style={{ marginTop: 2, color: "#d46b08", fontWeight: 600 }}>
+						<div
+							className="font-semibold"
+							style={{ marginTop: 2, color: "var(--color-warning)" }}
+						>
 							⚠️ 缺失事实 (不会渲染): {missing.join("、")}
 						</div>
 					);
@@ -80,7 +88,11 @@ function GroundingStrip({
 					{links.map((l) => (
 						<li
 							key={l.url}
-							style={{ color: l.sourced ? "#389e0d" : "#cf1322" }}
+							style={{
+								color: l.sourced
+									? "var(--color-success)"
+									: "var(--color-error)",
+							}}
 						>
 							{l.sourced ? "✓ 程式注入(不可编造)" : "✗ 非来源(疑似编造)"}{" "}
 							<code style={{ wordBreak: "break-all" }}>{l.url}</code>
@@ -91,12 +103,10 @@ function GroundingStrip({
 
 			{/* 发布前硬闸判定 */}
 			<div
+				className="flex font-semibold"
 				style={{
 					marginTop: 2,
-					color: verdict.ok ? "#389e0d" : "#cf1322",
-					fontWeight: 600,
-					display: "flex",
-					alignItems: "center",
+					color: verdict.ok ? "var(--color-success)" : "var(--color-error)",
 					gap: 6,
 				}}
 			>
@@ -111,7 +121,7 @@ function GroundingStrip({
 							type="button"
 							onClick={onFixPlaceholder}
 							style={{
-								background: "#fa8c16",
+								background: "var(--color-warning)",
 								color: "#fff",
 								border: "none",
 								borderRadius: 3,
@@ -126,7 +136,11 @@ function GroundingStrip({
 			</div>
 			{!verdict.ok && (
 				<ul
-					style={{ margin: "2px 0 0", padding: "0 0 0 12px", color: "#cf1322" }}
+					style={{
+						margin: "2px 0 0",
+						padding: "0 0 0 12px",
+						color: "var(--color-error)",
+					}}
 				>
 					{verdict.reasons.map((r) => (
 						<li key={r}>{r}</li>
@@ -158,7 +172,7 @@ function FillStatusTable({
 
 	if (allFilled) {
 		return (
-			<div style={{ marginTop: 4, fontSize: 11, color: "#389e0d" }}>
+			<div className="text-xs text-success" style={{ marginTop: 4 }}>
 				✓ 全部字段已填
 			</div>
 		);
@@ -170,31 +184,31 @@ function FillStatusTable({
 				type="button"
 				onClick={() => setOpen((v) => !v)}
 				style={{
-					background: "#fafafa",
-					border: "1px solid #d9d9d9",
+					background: "var(--color-bg-surface)",
+					border: "1px solid var(--color-border)",
 					borderRadius: 3,
 					padding: "2px 6px",
 					fontSize: 11,
 					cursor: "pointer",
-					color: "#555",
+					color: "var(--color-text-secondary)",
 				}}
 				aria-expanded={open}
 				aria-label="字段填充状态"
 			>
-				<span style={{ color: "#389e0d" }}>✓{filled.length}</span>{" "}
-				<span style={{ color: "#d46b08" }}>↷{skipped.length}</span>{" "}
-				<span style={{ color: "#cf1322" }}>⚠{degraded.length}</span>{" "}
+				<span className="text-success">✓{filled.length}</span>{" "}
+				<span className="text-warning">↷{skipped.length}</span>{" "}
+				<span className="text-error">⚠{degraded.length}</span>{" "}
 				{open ? "▲" : "▼"}
 			</button>
 			{open && (
 				<ul style={{ margin: "4px 0 0", padding: "0 0 0 12px", fontSize: 11 }}>
 					{skipped.map((r) => (
-						<li key={r.field} style={{ color: "#d46b08" }}>
+						<li key={r.field} className="text-warning">
 							<strong>{r.field}</strong> 已跳过{r.note ? `：${r.note}` : ""}
 						</li>
 					))}
 					{degraded.map((r) => (
-						<li key={r.field} style={{ color: "#cf1322" }}>
+						<li key={r.field} className="text-error">
 							<strong>{r.field}</strong> 降级
 							{r.note ? `：${r.note}` : "（innerHTML 兜底,格式可能丢失）"}
 						</li>
@@ -213,17 +227,21 @@ function QuarantineContext({
 }) {
 	const s: React.CSSProperties = { fontSize: 11, marginTop: 2 };
 	if (!record) {
-		return <div style={{ ...s, color: "#888" }}>无发布记录 — 可安全重试</div>;
+		return (
+			<div style={{ ...s, color: "var(--color-text-muted)" }}>
+				无发布记录 — 可安全重试
+			</div>
+		);
 	}
 	if (record.publishUrl) {
 		return (
-			<div style={{ ...s, color: "#874d00" }}>
+			<div style={{ ...s, color: "var(--color-warning-deep)" }}>
 				可能已发布(未核实) — 请先点「查看帖子」确认后再撤出隔离
 			</div>
 		);
 	}
 	return (
-		<div style={{ ...s, color: "#874d00" }}>
+		<div style={{ ...s, color: "var(--color-warning-deep)" }}>
 			未收到发布确认 — 帖子可能未成功发布
 		</div>
 	);
@@ -293,23 +311,23 @@ const MODE_STYLE: Record<
 	{ bg: string; border: string; color: string; label: string; icon: string }
 > = {
 	off: {
-		bg: "#f5f5f5",
-		border: "#d9d9d9",
-		color: "#555",
+		bg: "var(--color-bg-muted)",
+		border: "var(--color-border)",
+		color: "var(--color-text-secondary)",
 		label: "关闭(只填充,不发布)",
 		icon: "⏻",
 	},
 	"dry-run": {
-		bg: "#e6f4ff",
-		border: "#91caff",
-		color: "#0958d9",
+		bg: "var(--color-info-light)",
+		border: "var(--color-info-border)",
+		color: "var(--color-info)",
 		label: "预演(走流程不真发)",
 		icon: "🧪",
 	},
 	authorized: {
-		bg: "#fff1f0",
-		border: "#ffa39e",
-		color: "#cf1322",
+		bg: "var(--color-error-light)",
+		border: "var(--color-error-border)",
+		color: "var(--color-error)",
 		label: "已授权·会真发布",
 		icon: "🔴",
 	},
@@ -437,12 +455,8 @@ export function BatchReviewPanel(props: Props) {
 			>
 				<div
 					role="status"
-					style={{
-						display: "flex",
-						alignItems: "center",
-						gap: 8,
-						fontWeight: 600,
-					}}
+					className="flex font-semibold"
+					style={{ alignItems: "center", gap: 8 }}
 					aria-label={`发布档位 ${safetyMode}`}
 				>
 					{modeStyle.icon} 档位:
@@ -482,9 +496,9 @@ export function BatchReviewPanel(props: Props) {
 					role="alert"
 					style={{
 						...box,
-						background: "#fff7e6",
-						border: "1px solid #ffd591",
-						color: "#874d00",
+						background: "var(--color-warning-light)",
+						border: "1px solid var(--color-warning-border)",
+						color: "var(--color-warning-deep)",
 					}}
 				>
 					批次已暂停:请切回授权 admin 标签页(<code>{authorizedHost}</code>
@@ -493,7 +507,11 @@ export function BatchReviewPanel(props: Props) {
 						<button
 							type="button"
 							onClick={props.onResume}
-							style={{ ...btn, background: "#fa8c16", color: "#fff" }}
+							style={{
+								...btn,
+								background: "var(--color-warning)",
+								color: "#fff",
+							}}
 						>
 							我已切回,继续
 						</button>
@@ -505,15 +523,15 @@ export function BatchReviewPanel(props: Props) {
 			<div
 				style={{
 					...box,
-					background: "#fafafa",
-					border: "1px solid #eee",
-					color: "#333",
+					background: "var(--color-bg-surface)",
+					border: "1px solid var(--color-border-light)",
+					color: "var(--color-text)",
 				}}
 			>
 				共 {summary.total} 条 · 待审 {summary.awaitingApproval} · 已发{" "}
 				{summary.confirmed} · 失败 {summary.errored}
 				{summary.quarantined > 0 && (
-					<strong style={{ color: "#cf1322" }}>
+					<strong className="text-error">
 						{" "}
 						· 待人工核 {summary.quarantined}
 					</strong>
@@ -524,23 +542,20 @@ export function BatchReviewPanel(props: Props) {
 						(i) => i.aiReviewTriggered === true,
 					).length;
 					return optimized > 0 ? (
-						<span style={{ color: "#8c8c8c" }}>
-							{" "}
-							· ✦ {optimized} 条自评已优化
-						</span>
+						<span className="text-muted"> · ✦ {optimized} 条自评已优化</span>
 					) : null;
 				})()}
 				{(() => {
 					return phase === "done" && ds.itemsWithAnyDegrade > 0 ? (
 						<span
+							className="font-semibold"
 							style={{
 								marginLeft: 6,
-								background: "#fa8c16",
+								background: "var(--color-warning)",
 								color: "#fff",
 								borderRadius: 10,
 								padding: "1px 7px",
 								fontSize: 11,
-								fontWeight: 600,
 							}}
 						>
 							{ds.itemsWithAnyDegrade} 条降级
@@ -560,9 +575,9 @@ export function BatchReviewPanel(props: Props) {
 						<div
 							style={{
 								...box,
-								background: "#f6ffed",
-								border: "1px solid #b7eb8f",
-								color: "#389e0d",
+								background: "var(--color-success-light)",
+								border: "1px solid var(--color-success-border)",
+								color: "var(--color-success)",
 								fontSize: 12,
 							}}
 						>
@@ -572,9 +587,9 @@ export function BatchReviewPanel(props: Props) {
 						<div
 							style={{
 								...box,
-								background: "#fff7e6",
-								border: "1px solid #ffd591",
-								color: "#874d00",
+								background: "var(--color-warning-light)",
+								border: "1px solid var(--color-warning-border)",
+								color: "var(--color-warning-deep)",
 								fontSize: 12,
 							}}
 						>
@@ -591,12 +606,12 @@ export function BatchReviewPanel(props: Props) {
 					role="alert"
 					style={{
 						...box,
-						background: "#fff1f0",
-						border: "2px solid #cf1322",
-						color: "#cf1322",
+						background: "var(--color-error-light)",
+						border: "2px solid var(--color-error)",
+						color: "var(--color-error)",
 					}}
 				>
-					<div style={{ fontWeight: 700 }}>
+					<div className="font-semibold" style={{ fontWeight: 700 }}>
 						⚠ {quarantined.length} 条需人工核对
 					</div>
 					<div style={{ fontSize: 12, margin: "4px 0" }}>
@@ -610,12 +625,12 @@ export function BatchReviewPanel(props: Props) {
 								style={{
 									marginTop: 8,
 									paddingTop: 6,
-									borderTop: "1px solid #ffa39e",
+									borderTop: "1px solid var(--color-error-border)",
 								}}
 							>
-								<div style={{ fontWeight: 600 }}>「{it.topic}」</div>
+								<div className="font-semibold">「{it.topic}」</div>
 								<QuarantineContext record={traj} />
-								<div style={{ marginTop: 4, display: "flex", gap: 6 }}>
+								<div className="flex" style={{ marginTop: 4, gap: 6 }}>
 									{traj?.publishUrl && (
 										<a
 											href={traj.publishUrl}
@@ -624,8 +639,8 @@ export function BatchReviewPanel(props: Props) {
 											style={{
 												...btn,
 												background: "#fff",
-												border: "1px solid #ffa39e",
-												color: "#cf1322",
+												border: "1px solid var(--color-error-border)",
+												color: "var(--color-error)",
 												padding: "2px 8px",
 												fontSize: 12,
 												textDecoration: "none",
@@ -639,7 +654,7 @@ export function BatchReviewPanel(props: Props) {
 										onClick={() => props.onRelease(it.id)}
 										style={{
 											...btn,
-											background: "#cf1322",
+											background: "var(--color-error)",
 											color: "#fff",
 											padding: "2px 8px",
 											fontSize: 12,
@@ -660,22 +675,22 @@ export function BatchReviewPanel(props: Props) {
 					<li
 						key={it.id}
 						style={{
-							border: "1px solid #f0f0f0",
+							border: "1px solid var(--color-border-lighter)",
 							borderRadius: 4,
 							marginBottom: 4,
 						}}
 					>
-						<div style={{ display: "flex", alignItems: "center" }}>
+						<div className="flex" style={{ alignItems: "center" }}>
 							<button
 								type="button"
 								onClick={() => toggle(it.id)}
 								aria-expanded={expanded.has(it.id)}
+								className="flex"
 								style={{
 									...btn,
 									flex: 1,
 									textAlign: "left",
 									background: "#fff",
-									display: "flex",
 									justifyContent: "space-between",
 									alignItems: "center",
 									minWidth: 0,
@@ -696,10 +711,10 @@ export function BatchReviewPanel(props: Props) {
 									<span
 										role="img"
 										aria-label="已读"
+										className="text-success"
 										style={{
 											marginLeft: 4,
 											fontSize: 11,
-											color: "#389e0d",
 											flexShrink: 0,
 										}}
 									>
@@ -714,10 +729,10 @@ export function BatchReviewPanel(props: Props) {
 										).length;
 										return degraded > 0 ? (
 											<span
+												className="text-warning"
 												style={{
 													marginLeft: 4,
 													fontSize: 11,
-													color: "#fa8c16",
 													flexShrink: 0,
 												}}
 											>
@@ -727,10 +742,10 @@ export function BatchReviewPanel(props: Props) {
 									})()}
 								{it.aiReviewTriggered === true && (
 									<span
+										className="text-muted"
 										style={{
 											marginLeft: 4,
 											fontSize: 10,
-											color: "#8c8c8c",
 											flexShrink: 0,
 										}}
 									>
@@ -740,10 +755,10 @@ export function BatchReviewPanel(props: Props) {
 								<span
 									role="status"
 									aria-label={`状态 ${it.status}`}
+									className="text-secondary"
 									style={{
 										marginLeft: 8,
 										fontSize: 12,
-										color: "#555",
 										flexShrink: 0,
 									}}
 								>
@@ -756,6 +771,7 @@ export function BatchReviewPanel(props: Props) {
 								(discardPickerId === it.id ? (
 									// 展示原因选择器
 									<span
+										className="flex"
 										style={{
 											display: "inline-flex",
 											alignItems: "center",
@@ -776,7 +792,7 @@ export function BatchReviewPanel(props: Props) {
 												fontSize: 11,
 												padding: "1px 2px",
 												borderRadius: 3,
-												border: "1px solid #d9d9d9",
+												border: "1px solid var(--color-border)",
 											}}
 										>
 											{(
@@ -801,7 +817,7 @@ export function BatchReviewPanel(props: Props) {
 											style={{
 												padding: "2px 6px",
 												fontSize: 11,
-												background: "#cf1322",
+												background: "var(--color-error)",
 												color: "#fff",
 												border: "none",
 												borderRadius: 3,
@@ -816,8 +832,8 @@ export function BatchReviewPanel(props: Props) {
 											style={{
 												padding: "2px 4px",
 												fontSize: 11,
-												background: "#f0f0f0",
-												color: "#555",
+												background: "var(--color-border-lighter)",
+												color: "var(--color-text-secondary)",
 												border: "none",
 												borderRadius: 3,
 												cursor: "pointer",
@@ -840,9 +856,9 @@ export function BatchReviewPanel(props: Props) {
 											marginLeft: 4,
 											padding: "2px 6px",
 											fontSize: 11,
-											background: "#fff1f0",
-											color: "#cf1322",
-											border: "1px solid #ffa39e",
+											background: "var(--color-error-light)",
+											color: "var(--color-error)",
+											border: "1px solid var(--color-error-border)",
 											borderRadius: 3,
 											cursor: busy ? "not-allowed" : "pointer",
 											flexShrink: 0,
@@ -857,7 +873,7 @@ export function BatchReviewPanel(props: Props) {
 								style={{
 									padding: "6px 10px",
 									fontSize: 12,
-									borderTop: "1px solid #f5f5f5",
+									borderTop: "1px solid var(--color-bg-muted)",
 								}}
 							>
 								{/* U9:gate-failed — 接地闸门拦截,显示原因 + 重新生成按钮,不显示审批按钮 */}
@@ -868,9 +884,9 @@ export function BatchReviewPanel(props: Props) {
 											aria-label="接地拦截原因"
 											style={{
 												display: "inline-block",
-												background: "#fffbe6",
-												border: "1px solid #ffe58f",
-												color: "#874d00",
+												background: "var(--color-warning-light)",
+												border: "1px solid var(--color-warning-border)",
+												color: "var(--color-warning-deep)",
 												borderRadius: 4,
 												padding: "2px 8px",
 												fontSize: 11,
@@ -885,14 +901,17 @@ export function BatchReviewPanel(props: Props) {
 												style={{
 													marginTop: 6,
 													padding: "4px 8px",
-													background: "#fff8f0",
-													border: "1px solid #ffd591",
+													background: "var(--color-warning-light)",
+													border: "1px solid var(--color-warning-border)",
 													borderRadius: 4,
 													fontSize: 11,
-													color: "#5c3c00",
+													color: "var(--color-warning-deep)",
 												}}
 											>
-												<div style={{ fontWeight: 600, marginBottom: 2 }}>
+												<div
+													className="font-semibold"
+													style={{ marginBottom: 2 }}
+												>
 													原稿(含缺失事实):
 												</div>
 												<div style={{ wordBreak: "break-all" }}>
@@ -910,9 +929,9 @@ export function BatchReviewPanel(props: Props) {
 													marginLeft: 6,
 													padding: "2px 8px",
 													fontSize: 11,
-													background: "#fff7e6",
-													border: "1px solid #ffd591",
-													color: "#874d00",
+													background: "var(--color-warning-light)",
+													border: "1px solid var(--color-warning-border)",
+													color: "var(--color-warning-deep)",
 												}}
 											>
 												重新生成
@@ -935,7 +954,7 @@ export function BatchReviewPanel(props: Props) {
 										</div>
 										<div
 											style={{
-												color: "#666",
+												color: "var(--color-text-close)",
 												maxHeight: 120,
 												overflow: "auto",
 											}}
@@ -946,8 +965,8 @@ export function BatchReviewPanel(props: Props) {
 										{it.status === "awaiting-approval" &&
 											props.onItemEdited && (
 												<label
+													className="flex"
 													style={{
-														display: "flex",
 														alignItems: "center",
 														gap: 4,
 														marginTop: 6,
@@ -961,7 +980,7 @@ export function BatchReviewPanel(props: Props) {
 															if (!it.userEdited) props.onItemEdited?.(it.id);
 														}}
 													/>
-													<span style={{ color: "#888" }}>已手动修改草稿</span>
+													<span className="text-muted">已手动修改草稿</span>
 												</label>
 											)}
 										{it.status === "publish-confirmed" &&
@@ -974,9 +993,9 @@ export function BatchReviewPanel(props: Props) {
 														marginTop: 6,
 														padding: "3px 8px",
 														fontSize: 11,
-														background: "#f6ffed",
-														color: "#389e0d",
-														border: "1px solid #b7eb8f",
+														background: "var(--color-success-light)",
+														color: "var(--color-success)",
+														border: "1px solid var(--color-success-border)",
 													}}
 												>
 													存为范例
@@ -984,7 +1003,7 @@ export function BatchReviewPanel(props: Props) {
 											)}
 									</>
 								) : (
-									<span style={{ color: "#999" }}>
+									<span className="text-muted">
 										无草稿内容{it.error ? `(${it.error})` : ""}
 									</span>
 								)}
@@ -1014,9 +1033,9 @@ export function BatchReviewPanel(props: Props) {
 											aria-label="内容审核失败"
 											style={{
 												display: "inline-block",
-												background: "#fff7e6",
-												border: "1px solid #ffa940",
-												color: "#d46b08",
+												background: "var(--color-warning-light)",
+												border: "1px solid var(--color-warning)",
+												color: "var(--color-warning)",
 												borderRadius: 4,
 												padding: "2px 8px",
 												fontSize: 11,
@@ -1036,9 +1055,9 @@ export function BatchReviewPanel(props: Props) {
 													marginLeft: 6,
 													padding: "2px 8px",
 													fontSize: 11,
-													background: "#fff7e6",
-													border: "1px solid #ffd591",
-													color: "#874d00",
+													background: "var(--color-warning-light)",
+													border: "1px solid var(--color-warning-border)",
+													color: "var(--color-warning-deep)",
 												}}
 											>
 												重新生成
@@ -1057,9 +1076,9 @@ export function BatchReviewPanel(props: Props) {
 													...btn,
 													padding: "2px 8px",
 													fontSize: 11,
-													background: "#fff7e6",
-													border: "1px solid #ffd591",
-													color: "#874d00",
+													background: "var(--color-warning-light)",
+													border: "1px solid var(--color-warning-border)",
+													color: "var(--color-warning-deep)",
 												}}
 											>
 												重试此条
@@ -1079,8 +1098,10 @@ export function BatchReviewPanel(props: Props) {
 					style={{
 						...box,
 						marginTop: 8,
-						background: driftResult.ok ? "#f6ffed" : "#fff7e6",
-						border: `1px solid ${driftResult.ok ? "#b7eb8f" : "#ffd591"}`,
+						background: driftResult.ok
+							? "var(--color-success-light)"
+							: "var(--color-warning-light)",
+						border: `1px solid ${driftResult.ok ? "var(--color-success-border)" : "var(--color-warning-border)"}`,
 					}}
 				>
 					{driftResult.ok ? (
@@ -1088,10 +1109,16 @@ export function BatchReviewPanel(props: Props) {
 					) : (
 						<>
 							<div>⚠️ 缺失:{driftResult.missing.join("、")}</div>
-							<div style={{ fontSize: 12, color: "#874d00", marginTop: 2 }}>
+							<div
+								style={{
+									fontSize: 12,
+									color: "var(--color-warning-deep)",
+									marginTop: 2,
+								}}
+							>
 								请在目标页确认表单已载入,或刷新页面后操作。
 							</div>
-							<div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+							<div className="flex" style={{ gap: 6, marginTop: 6 }}>
 								<button
 									type="button"
 									onClick={props.onDriftCheck}
@@ -1100,7 +1127,7 @@ export function BatchReviewPanel(props: Props) {
 										...btn,
 										padding: "3px 8px",
 										fontSize: 12,
-										background: "#fa8c16",
+										background: "var(--color-warning)",
 										color: "#fff",
 									}}
 								>
@@ -1114,8 +1141,8 @@ export function BatchReviewPanel(props: Props) {
 										...btn,
 										padding: "3px 8px",
 										fontSize: 12,
-										background: "#f0f0f0",
-										color: "#333",
+										background: "var(--color-border-lighter)",
+										color: "var(--color-text)",
 									}}
 								>
 									跳过检查继续批准
@@ -1127,14 +1154,17 @@ export function BatchReviewPanel(props: Props) {
 			)}
 
 			{/* 动作区 */}
-			<div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+			<div className="flex" style={{ gap: 8, marginTop: 12, flexWrap: "wrap" }}>
 				{canApprove && !confirming && (
 					<button
 						type="button"
 						onClick={() => setConfirming(true)}
 						style={{
 							...btn,
-							background: safetyMode === "authorized" ? "#cf1322" : "#1677ff",
+							background:
+								safetyMode === "authorized"
+									? "var(--color-error)"
+									: "var(--color-info)",
 							color: "#fff",
 						}}
 					>
@@ -1147,7 +1177,11 @@ export function BatchReviewPanel(props: Props) {
 					type="button"
 					onClick={props.onDriftCheck}
 					disabled={busy}
-					style={{ ...btn, background: "#f0f0f0", color: "#333" }}
+					style={{
+						...btn,
+						background: "var(--color-border-lighter)",
+						color: "var(--color-text)",
+					}}
 				>
 					漂移自检
 				</button>
@@ -1158,9 +1192,9 @@ export function BatchReviewPanel(props: Props) {
 						disabled={busy}
 						style={{
 							...btn,
-							background: "#fff1f0",
-							color: "#cf1322",
-							border: "1px solid #ffa39e",
+							background: "var(--color-error-light)",
+							color: "var(--color-error)",
+							border: "1px solid var(--color-error-border)",
 						}}
 					>
 						急停
@@ -1177,17 +1211,17 @@ export function BatchReviewPanel(props: Props) {
 						...box,
 						marginTop: 10,
 						background: "#fff",
-						border: "2px solid #cf1322",
+						border: "2px solid var(--color-error)",
 					}}
 				>
-					<div style={{ fontWeight: 600, color: "#cf1322" }}>
+					<div className="font-semibold text-error">
 						{safetyMode === "authorized"
 							? `确定发布 ${summary.awaitingApproval} 条到 ${authorizedHost}?`
 							: `预演发布 ${summary.awaitingApproval} 条(不会真发)?`}
 					</div>
 					{safetyMode === "authorized" && (
 						<div style={{ marginTop: 6 }}>
-							<div style={{ fontSize: 12, color: "#888" }}>
+							<div className="text-sm text-muted">
 								防误触:请输入 <code>publish</code> 确认
 							</div>
 							<input
@@ -1199,21 +1233,25 @@ export function BatchReviewPanel(props: Props) {
 									boxSizing: "border-box",
 									padding: 5,
 									marginTop: 4,
-									border: "1px solid #d9d9d9",
+									border: "1px solid var(--color-border)",
 									borderRadius: 4,
 								}}
 							/>
 						</div>
 					)}
-					<div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+					<div className="flex" style={{ gap: 8, marginTop: 8 }}>
 						<button
 							type="button"
 							onClick={confirmApprove}
 							disabled={!gestureOk || !!busy}
 							style={{
 								...btn,
-								background: gestureOk && !busy ? "#cf1322" : "#f5f5f5",
-								color: gestureOk && !busy ? "#fff" : "#bbb",
+								background:
+									gestureOk && !busy
+										? "var(--color-error)"
+										: "var(--color-bg-muted)",
+								color:
+									gestureOk && !busy ? "#fff" : "var(--color-text-disabled)",
 							}}
 						>
 							确认
@@ -1224,7 +1262,11 @@ export function BatchReviewPanel(props: Props) {
 								setConfirming(false);
 								setTyped("");
 							}}
-							style={{ ...btn, background: "#f0f0f0", color: "#333" }}
+							style={{
+								...btn,
+								background: "var(--color-border-lighter)",
+								color: "var(--color-text)",
+							}}
 						>
 							取消
 						</button>

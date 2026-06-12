@@ -13,35 +13,38 @@ const FIELD_LABELS: Record<string, string> = {
 };
 
 const STATUS_STYLE = {
-	filled: { color: "#389e0d", bg: "#f6ffed", border: "#b7eb8f", text: "已填" },
-	skipped: { color: "#d48806", bg: "#fffbe6", border: "#ffe58f", text: "跳过" },
+	filled: {
+		color: "var(--color-success)",
+		bg: "var(--color-success-light)",
+		border: "var(--color-success-border)",
+		text: "已填",
+	},
+	skipped: {
+		color: "var(--color-warning)",
+		bg: "var(--color-warning-light)",
+		border: "var(--color-warning-border)",
+		text: "跳过",
+	},
 	degraded: {
-		color: "#cf1322",
-		bg: "#fff1f0",
-		border: "#ffa39e",
+		color: "var(--color-error)",
+		bg: "var(--color-error-light)",
+		border: "var(--color-error-border)",
 		text: "需手动",
 	},
 } as const;
 
-// 填充结果摘要:让操作员一眼看清"填了什么/哪些没填/哪些降级",
-// 把"人工审核"从口号变成可操作动作(R19)。
 export function FillResultPanel({ results }: { results: FieldFillResult[] }) {
 	if (results.length === 0) return null;
 	const problems = results.filter((r) => r.status !== "filled");
 	return (
-		<section aria-live="polite" style={{ marginTop: 12 }}>
-			<h2 style={{ fontSize: 14, margin: "0 0 6px" }}>填充结果</h2>
+		<section aria-live="polite" style={{ marginTop: "var(--space-xl)" }}>
+			<h2 style={{ fontSize: "var(--font-md)", margin: "0 0 var(--space-lg)" }}>
+				填充结果
+			</h2>
 			{problems.length > 0 && (
 				<div
-					role="alert"
-					style={{
-						background: "#fff1f0",
-						border: "1px solid #ffa39e",
-						borderRadius: 6,
-						padding: "6px 8px",
-						fontSize: 12,
-						marginBottom: 6,
-					}}
+					className="banner-error"
+					style={{ marginBottom: "var(--space-lg)" }}
 				>
 					⚠️ 有 {problems.length} 个字段未完整填入,请在发帖页核对后再手动发布。
 				</div>
@@ -53,7 +56,7 @@ export function FillResultPanel({ results }: { results: FieldFillResult[] }) {
 					padding: 0,
 					display: "flex",
 					flexDirection: "column",
-					gap: 4,
+					gap: "var(--space-sm)",
 				}}
 			>
 				{results.map((r) => {
@@ -63,20 +66,22 @@ export function FillResultPanel({ results }: { results: FieldFillResult[] }) {
 							key={r.field}
 							style={{
 								display: "flex",
-								gap: 8,
+								gap: "var(--space-md)",
 								alignItems: "baseline",
-								fontSize: 12,
+								fontSize: "var(--font-sm)",
 								background: s.bg,
 								border: `1px solid ${s.border}`,
-								borderRadius: 4,
+								borderRadius: "var(--radius-md)",
 								padding: "3px 6px",
 							}}
 						>
-							<span style={{ minWidth: 56, fontWeight: 600 }}>
+							<span className="font-semibold" style={{ minWidth: 56 }}>
 								{FIELD_LABELS[r.field] ?? r.field}
 							</span>
-							<span style={{ color: s.color, fontWeight: 600 }}>{s.text}</span>
-							{r.note && <span style={{ color: "#888" }}>{r.note}</span>}
+							<span className="font-semibold" style={{ color: s.color }}>
+								{s.text}
+							</span>
+							{r.note && <span className="text-muted">{r.note}</span>}
 						</li>
 					);
 				})}

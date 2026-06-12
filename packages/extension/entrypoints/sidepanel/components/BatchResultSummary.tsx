@@ -10,21 +10,7 @@ interface BatchResultSummaryProps {
 
 export function BatchResultSummary({ results }: BatchResultSummaryProps) {
 	if (results.length === 0) {
-		return (
-			<div
-				style={{
-					background: "#fafafa",
-					border: "1px solid #d9d9d9",
-					borderRadius: 6,
-					padding: 12,
-					marginBottom: 12,
-					textAlign: "center",
-					color: "#8c8c8c",
-				}}
-			>
-				暂无操作结果
-			</div>
-		);
+		return <div className="card text-center text-muted">暂无操作结果</div>;
 	}
 
 	const successCount = results.filter((r) => r.success).length;
@@ -34,41 +20,73 @@ export function BatchResultSummary({ results }: BatchResultSummaryProps) {
 		totalCount > 0 ? Math.round((successCount / totalCount) * 100) : 0;
 
 	return (
-		<div
-			style={{
-				background: "#fafafa",
-				border: "1px solid #d9d9d9",
-				borderRadius: 6,
-				padding: 12,
-				marginBottom: 12,
-			}}
-		>
-			<div style={{ fontWeight: 600, marginBottom: 8 }}>操作结果汇总</div>
+		<div className="card">
+			<div
+				className="font-semibold"
+				style={{ marginBottom: "var(--space-md)" }}
+			>
+				操作结果汇总
+			</div>
 
-			<div style={{ display: "flex", gap: 16, marginBottom: 8 }}>
-				<div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-					<span style={{ color: "#389e0d" }}>●</span>
+			<div
+				style={{
+					display: "flex",
+					gap: "var(--space-xl)",
+					marginBottom: "var(--space-md)",
+				}}
+			>
+				<div
+					style={{
+						display: "flex",
+						alignItems: "center",
+						gap: "var(--space-sm)",
+					}}
+				>
+					<span className="text-success">●</span>
 					<span>成功: {successCount}</span>
 				</div>
-				<div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-					<span style={{ color: "#cf1322" }}>●</span>
+				<div
+					style={{
+						display: "flex",
+						alignItems: "center",
+						gap: "var(--space-sm)",
+					}}
+				>
+					<span className="text-error">●</span>
 					<span>失败: {failureCount}</span>
 				</div>
-				<div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-					<span style={{ color: "#1677ff" }}>●</span>
+				<div
+					style={{
+						display: "flex",
+						alignItems: "center",
+						gap: "var(--space-sm)",
+					}}
+				>
+					<span className="text-info">●</span>
 					<span>总计: {totalCount}</span>
 				</div>
 			</div>
 
-			<div style={{ fontSize: 12, color: "#666" }}>成功率: {successRate}%</div>
+			<div className="text-sm text-secondary">成功率: {successRate}%</div>
 
 			{failureCount > 0 && (
-				<div style={{ marginTop: 8, fontSize: 12 }}>
-					<div style={{ fontWeight: 500, marginBottom: 4 }}>失败详情:</div>
+				<div
+					style={{ marginTop: "var(--space-md)", fontSize: "var(--font-sm)" }}
+				>
+					<div
+						className="font-medium"
+						style={{ marginBottom: "var(--space-sm)" }}
+					>
+						失败详情:
+					</div>
 					{results
 						.filter((r) => !r.success)
 						.map((r) => (
-							<div key={r.id} style={{ color: "#cf1322", marginBottom: 2 }}>
+							<div
+								key={r.id}
+								className="text-error"
+								style={{ marginBottom: "var(--space-xs)" }}
+							>
 								• {r.error || "未知错误"}
 							</div>
 						))}

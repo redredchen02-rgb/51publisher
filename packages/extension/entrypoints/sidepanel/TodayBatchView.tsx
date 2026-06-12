@@ -11,14 +11,6 @@ import { fetchPendingTopics } from "../../lib/pending-client";
 import { getReadItems, markItemRead } from "../../lib/read-tracker";
 import { getSettings } from "../../lib/storage";
 
-const btn: React.CSSProperties = {
-	padding: "6px 12px",
-	fontSize: 13,
-	border: "none",
-	borderRadius: 4,
-	cursor: "pointer",
-};
-
 const STATUS_LABEL: Record<string, string> = {
 	queued: "排队中",
 	generating: "生成中",
@@ -33,16 +25,16 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const STATUS_COLOR: Record<string, string> = {
-	queued: "#8c8c8c",
-	generating: "#1677ff",
-	filled: "#52c41a",
-	"gate-failed": "#cf1322",
-	"awaiting-approval": "#fa8c16",
-	"publish-dispatched": "#1677ff",
-	"publish-confirmed": "#52c41a",
-	"needs-human-verification": "#cf1322",
-	aborted: "#8c8c8c",
-	error: "#cf1322",
+	queued: "var(--color-text-disabled)",
+	generating: "var(--color-info)",
+	filled: "var(--color-success)",
+	"gate-failed": "var(--color-error)",
+	"awaiting-approval": "var(--color-warning)",
+	"publish-dispatched": "var(--color-info)",
+	"publish-confirmed": "var(--color-success)",
+	"needs-human-verification": "var(--color-error)",
+	aborted: "var(--color-text-disabled)",
+	error: "var(--color-error)",
 };
 
 const TERMINAL_STATUSES = new Set([
@@ -59,7 +51,6 @@ function isAllTerminal(items: BatchItem[]): boolean {
 	);
 }
 
-/** Phase 5 一键日常备稿视图:备稿触发 → 生成进度 → 逐篇审读 → 单条发布。 */
 export function TodayBatchView({ onBack }: { onBack: () => void }) {
 	const [dailyBatchSize, setDailyBatchSize] = useState(5);
 	const [adminTabId, setAdminTabId] = useState<number | null | undefined>(
@@ -69,36 +60,37 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState("");
 
-	// stage: "idle" → "generating" → "review"
 	const [stage, setStage] = useState<"idle" | "generating" | "review">("idle");
 	const [items, setItems] = useState<BatchItem[]>([]);
-	// 已读 id 集合(持久化 via chrome.storage.local)
 	const [readItems, setReadItems] = useState<Set<string>>(new Set());
-	// 乐观锁:点「发布」后立即 disable,防重复触发
 	const [publishingItems, setPublishingItems] = useState<Set<string>>(
 		new Set(),
 	);
-	// 展开的正文内容(查看全文)
 	const [expandedBodies, setExpandedBodies] = useState<Set<string>>(new Set());
 
 	const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-	// 挂载:并行加载设置 + 解析后台 tab
 	useEffect(() => {
 		void (async () => {
-			const [settings, tabId] = await Promise.all([
+			const [settings, tabId, activeBatch, reads] = await Promise.all([
 				getSettings(),
 				resolveAdminTabId(),
+				getBatchState(),
+				getReadItems(),
 			]);
 			setDailyBatchSize(settings.dailyBatchSize ?? 5);
 			setAdminTabId(tabId);
+			setReadItems(reads);
+			if (activeBatch?.items.length) {
+				setItems(activeBatch.items);
+				setStage("review");
+			}
 			if (tabId == null) {
 				setTabError("未找到后台发帖页——请先打开后台发帖页标签。");
 			}
 		})();
 	}, []);
 
-	// Phase 2 轮询:stage=review 时启动,所有条目终态后停止
 	useEffect(() => {
 		if (stage !== "review") {
 			if (pollRef.current) {
@@ -107,7 +99,6 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 			}
 			return;
 		}
-		// 已全部终态则不需要轮询
 		if (isAllTerminal(items)) return;
 
 		pollRef.current = setInterval(() => {
@@ -129,7 +120,7 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 				pollRef.current = null;
 			}
 		};
-	}, [stage, items]); // items 变化不重启轮询,只在 stage 切换时重建
+	}, [stage, items]);
 
 	async function handleDailyBatch() {
 		if (adminTabId == null) {
@@ -189,7 +180,6 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 				}));
 			setItems(finalItems);
 
-			// 加载持久化已读集合
 			const reads = await getReadItems();
 			setReadItems(reads);
 			setStage("review");
@@ -206,10 +196,7 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 		if (adminTabId == null) return;
 		setPublishingItems((prev) => new Set([...prev, item.id]));
 		try {
-			// postStatus 覆盖:用 draftOverrides 在 background 层注入(如不为 "0" 则覆盖)
-			// 注:approveSingleItem 目前不传 draftOverrides,postStatus 非"0"时需另行处理
-			// 简化实现:直接发 approveSingleItem,postStatus 覆盖由后续迭代处理
-			void postStatus; // 计划中的字段,暂时记录但不改变消息
+			void postStatus;
 			const batch = await approveSingleItem(adminTabId, item.id);
 			if (batch) setItems(batch.items);
 		} finally {
@@ -255,56 +242,101 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 	const generatingCount = items.filter(
 		(it) => it.status === "generating" || it.status === "queued",
 	).length;
+	const totalCount = items.length;
+	const producedCount = items.filter(
+		(it) =>
+			it.status === "filled" ||
+			it.status === "awaiting-approval" ||
+			it.status === "publish-dispatched" ||
+			it.status === "publish-confirmed",
+	).length;
+	const needsVerificationItems = items.filter(
+		(it) => it.status === "needs-human-verification",
+	);
+	const blockedCount =
+		gateFailedItems.length +
+		terminalOtherItems.length +
+		needsVerificationItems.length;
+	const completedCount = confirmedItems.length;
+	const progressValue =
+		totalCount === 0 ? 0 : Math.round((producedCount / totalCount) * 100);
+	const readReviewCount = reviewableItems.filter((it) =>
+		readItems.has(it.id),
+	).length;
+	const currentStep =
+		totalCount === 0
+			? "选题"
+			: generatingCount > 0
+				? "生成"
+				: reviewableItems.length > 0
+					? "审读"
+					: "发布";
 
 	return (
 		<main
-			style={{ fontFamily: "system-ui, sans-serif", padding: 12, fontSize: 14 }}
+			className="fade-in"
+			style={{
+				fontFamily: "system-ui, sans-serif",
+				padding: "var(--space-lg)",
+				fontSize: "var(--font-md)",
+			}}
 		>
-			<div
-				style={{
-					display: "flex",
-					justifyContent: "space-between",
-					alignItems: "center",
-					marginBottom: 8,
-				}}
-			>
-				<h1 style={{ fontSize: 16, margin: 0 }}>今日备稿</h1>
-				<button
-					type="button"
-					onClick={onBack}
-					style={{
-						...btn,
-						background: "#f0f0f0",
-						color: "#333",
-						padding: "4px 10px",
-					}}
-				>
+			<nav className="flex-between mb-md">
+				<h1 style={{ fontSize: "var(--font-xl)", margin: 0 }}>今日备稿</h1>
+				<button type="button" onClick={onBack} className="btn btn-plain btn-sm">
 					← 返回
 				</button>
-			</div>
+			</nav>
 
 			{tabError && (
-				<p
-					role="alert"
-					style={{ color: "#cf1322", fontSize: 13, marginBottom: 8 }}
-				>
+				<p role="alert" className="text-error">
 					{tabError}
 				</p>
 			)}
 
 			{error && (
-				<p
-					role="alert"
-					style={{ color: "#cf1322", fontSize: 13, marginBottom: 8 }}
-				>
+				<p role="alert" className="text-error">
 					{error}
 				</p>
 			)}
 
-			{/* Phase 1 / idle */}
+			<section className="pipeline-strip" aria-label="今日流水线进度">
+				<div
+					className={`pipeline-step ${currentStep === "选题" ? "active" : totalCount > 0 ? "done" : ""}`}
+				>
+					<span className="pipeline-step-label">选题</span>
+					<span className="pipeline-step-value">{dailyBatchSize}</span>
+				</div>
+				<div
+					className={`pipeline-step ${currentStep === "生成" ? "active" : producedCount > 0 ? "done" : ""}`}
+				>
+					<span className="pipeline-step-label">生成</span>
+					<span className="pipeline-step-value">
+						{producedCount}/{totalCount || dailyBatchSize}
+					</span>
+				</div>
+				<div
+					className={`pipeline-step ${currentStep === "审读" ? "active" : completedCount > 0 ? "done" : ""}`}
+				>
+					<span className="pipeline-step-label">审读</span>
+					<span className="pipeline-step-value">
+						{readReviewCount}/{reviewableItems.length}
+					</span>
+				</div>
+				<div
+					className={`pipeline-step ${currentStep === "发布" ? "active" : completedCount > 0 ? "done" : ""}`}
+				>
+					<span className="pipeline-step-label">发布</span>
+					<span className="pipeline-step-value">{completedCount}</span>
+				</div>
+			</section>
+
 			{stage !== "review" && (
 				<>
-					<p style={{ fontSize: 12, color: "#555", margin: "0 0 12px" }}>
+					<p
+						className="text-secondary"
+						style={{ margin: "0 0 var(--space-xl)" }}
+					>
 						自动从高分待审选题中取前 <strong>{dailyBatchSize}</strong>{" "}
 						条，一键触发批量生成。
 					</p>
@@ -312,14 +344,12 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 						type="button"
 						onClick={() => void handleDailyBatch()}
 						disabled={busy || adminTabId == null}
+						className="btn btn-primary"
 						style={{
-							...btn,
-							background: busy || adminTabId == null ? "#d9d9d9" : "#1677ff",
-							color: busy || adminTabId == null ? "#8c8c8c" : "#fff",
 							width: "100%",
-							marginBottom: 12,
-							fontSize: 14,
-							padding: "8px 12px",
+							marginBottom: "var(--space-xl)",
+							fontSize: "var(--font-md)",
+							padding: "var(--space-md) var(--space-lg)",
 						}}
 					>
 						{busy
@@ -335,8 +365,8 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 										display: "flex",
 										justifyContent: "space-between",
 										padding: "5px 0",
-										borderBottom: "1px solid #f0f0f0",
-										fontSize: 12,
+										borderBottom: "1px solid var(--color-border-lighter)",
+										fontSize: "var(--font-sm)",
 									}}
 								>
 									<span
@@ -351,8 +381,10 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 									</span>
 									<span
 										style={{
-											marginLeft: 8,
-											color: STATUS_COLOR[item.status] ?? "#8c8c8c",
+											marginLeft: "var(--space-md)",
+											color:
+												STATUS_COLOR[item.status] ??
+												"var(--color-text-disabled)",
 											flexShrink: 0,
 										}}
 									>
@@ -365,19 +397,33 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 				</>
 			)}
 
-			{/* Phase 2: 审读队列 */}
 			{stage === "review" && (
 				<>
+					<section className="stats-grid" aria-label="批次摘要">
+						<div className="stat-tile">
+							<span className="stat-value">{progressValue}%</span>
+							<span className="stat-label">生成进度</span>
+						</div>
+						<div className="stat-tile">
+							<span className="stat-value">{reviewableItems.length}</span>
+							<span className="stat-label">待审发布</span>
+						</div>
+						<div className="stat-tile">
+							<span className="stat-value">{blockedCount}</span>
+							<span className="stat-label">需处理</span>
+						</div>
+						<div className="stat-tile">
+							<span className="stat-value">{completedCount}</span>
+							<span className="stat-label">已发布</span>
+						</div>
+					</section>
+
 					<div
-						style={{
-							display: "flex",
-							justifyContent: "space-between",
-							alignItems: "center",
-							marginBottom: 10,
-						}}
+						className="flex-between"
+						style={{ marginBottom: "var(--space-lg)" }}
 					>
-						<span style={{ fontSize: 13, color: "#555" }}>
-							审读队列 · 共 {items.length} 条
+						<span className="text-secondary">
+							当前批次 · {currentStep}中 · 共 {items.length} 条
 						</span>
 						<button
 							type="button"
@@ -386,28 +432,27 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 								setItems([]);
 								setError("");
 							}}
-							style={{
-								...btn,
-								background: "#f0f0f0",
-								color: "#333",
-								padding: "3px 8px",
-								fontSize: 12,
-							}}
+							className="btn btn-plain btn-sm"
 						>
 							新批次
 						</button>
 					</div>
 
 					{isAllTerminal(items) && (
-						<p style={{ fontSize: 13, color: "#389e0d", marginBottom: 10 }}>
+						<p
+							className="text-success"
+							style={{ marginBottom: "var(--space-lg)" }}
+						>
 							✓ 批次已完成
 						</p>
 					)}
 
-					{/* 待发布 */}
 					{reviewableItems.length > 0 && (
-						<section style={{ marginBottom: 12 }}>
-							<p style={{ fontSize: 12, color: "#8c8c8c", margin: "0 0 6px" }}>
+						<section style={{ marginBottom: "var(--space-xl)" }}>
+							<p
+								className="text-muted"
+								style={{ margin: "0 0 var(--space-lg)" }}
+							>
 								待发布
 							</p>
 							{reviewableItems.map((item) => {
@@ -425,45 +470,41 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 								return (
 									<div
 										key={item.id}
-										style={{
-											border: "1px solid #e8e8e8",
-											borderRadius: 6,
-											marginBottom: 8,
-											overflow: "hidden",
-										}}
+										className="card"
+										style={{ overflow: "hidden" }}
 									>
-										{/* 折叠头 */}
 										<details
 											onToggle={() => handleToggleRead(item.id)}
 											style={{ padding: 0 }}
 										>
 											<summary
 												style={{
-													padding: "8px 10px",
+													padding: "var(--space-md) var(--space-lg)",
 													cursor: "pointer",
 													listStyle: "none",
 													display: "flex",
 													justifyContent: "space-between",
 													alignItems: "center",
-													gap: 8,
+													gap: "var(--space-md)",
 												}}
 											>
 												<span
+													className="font-medium"
 													style={{
 														flex: 1,
 														overflow: "hidden",
 														textOverflow: "ellipsis",
 														whiteSpace: "nowrap",
-														fontSize: 13,
-														fontWeight: 500,
 													}}
 												>
 													{item.draft?.title ?? item.topic}
 												</span>
 												<span
+													className="text-xs"
 													style={{
-														fontSize: 11,
-														color: isRead ? "#52c41a" : "#fa8c16",
+														color: isRead
+															? "var(--color-success)"
+															: "var(--color-warning)",
 														flexShrink: 0,
 													}}
 												>
@@ -472,14 +513,19 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 											</summary>
 											<div
 												style={{
-													padding: "8px 10px",
-													borderTop: "1px solid #f0f0f0",
-													fontSize: 12,
-													color: "#555",
+													padding: "var(--space-md) var(--space-lg)",
+													borderTop: "1px solid var(--color-border-lighter)",
+													fontSize: "var(--font-sm)",
+													color: "var(--color-text-secondary)",
 												}}
 											>
 												{item.draft?.subtitle && (
-													<p style={{ margin: "0 0 6px", fontStyle: "italic" }}>
+													<p
+														style={{
+															margin: "0 0 var(--space-lg)",
+															fontStyle: "italic",
+														}}
+													>
 														{item.draft.subtitle}
 													</p>
 												)}
@@ -491,13 +537,10 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 															<button
 																type="button"
 																onClick={() => toggleBodyExpand(item.id)}
+																className="btn-icon text-info"
 																style={{
-																	background: "none",
-																	border: "none",
-																	color: "#1677ff",
-																	cursor: "pointer",
-																	fontSize: 12,
-																	padding: "0 2px",
+																	fontSize: "var(--font-sm)",
+																	padding: "0 var(--space-xs)",
 																}}
 															>
 																查看全文
@@ -508,13 +551,10 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 														<button
 															type="button"
 															onClick={() => toggleBodyExpand(item.id)}
+															className="btn-icon text-muted"
 															style={{
-																background: "none",
-																border: "none",
-																color: "#8c8c8c",
-																cursor: "pointer",
-																fontSize: 12,
-																padding: "0 2px",
+																fontSize: "var(--font-sm)",
+																padding: "0 var(--space-xs)",
 															}}
 														>
 															收起
@@ -523,14 +563,13 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 												</p>
 											</div>
 										</details>
-										{/* 发布行 */}
 										<div
 											style={{
-												padding: "6px 10px",
-												background: "#fafafa",
+												padding: "var(--space-lg) var(--space-xl)",
+												background: "var(--color-bg-surface)",
 												display: "flex",
 												justifyContent: "flex-end",
-												gap: 8,
+												gap: "var(--space-md)",
 											}}
 										>
 											<button
@@ -538,13 +577,16 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 												disabled={!isRead || isPublishing}
 												onClick={() => void handlePublish(item, "0")}
 												title={!isRead ? "请先展开预览后才能发布" : ""}
+												className="btn btn-sm"
 												style={{
-													...btn,
 													background:
-														!isRead || isPublishing ? "#d9d9d9" : "#52c41a",
-													color: !isRead || isPublishing ? "#8c8c8c" : "#fff",
-													padding: "4px 12px",
-													fontSize: 12,
+														!isRead || isPublishing
+															? "var(--color-border)"
+															: "var(--color-success)",
+													color:
+														!isRead || isPublishing
+															? "var(--color-text-disabled)"
+															: "#fff",
 												}}
 											>
 												{isPublishing ? "发布中…" : "发布（隐藏）"}
@@ -556,22 +598,19 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 						</section>
 					)}
 
-					{/* 内容问题 */}
 					{gateFailedItems.length > 0 && (
-						<section style={{ marginBottom: 12 }}>
-							<p style={{ fontSize: 12, color: "#8c8c8c", margin: "0 0 6px" }}>
+						<section style={{ marginBottom: "var(--space-xl)" }}>
+							<p
+								className="text-muted"
+								style={{ margin: "0 0 var(--space-lg)" }}
+							>
 								内容问题
 							</p>
 							{gateFailedItems.map((item) => (
 								<div
 									key={item.id}
-									style={{
-										border: "1px solid #ffccc7",
-										borderRadius: 6,
-										padding: "8px 10px",
-										marginBottom: 6,
-										background: "#fff2f0",
-									}}
+									className="banner-error"
+									style={{ marginBottom: "var(--space-lg)" }}
 								>
 									<div
 										style={{
@@ -581,15 +620,15 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 										}}
 									>
 										<div style={{ flex: 1 }}>
-											<p style={{ margin: 0, fontSize: 13, fontWeight: 500 }}>
+											<p className="font-medium" style={{ margin: 0 }}>
 												{item.topic}
 											</p>
 											{item.gateFailReason && (
 												<p
+													className="text-error"
 													style={{
-														margin: "4px 0 0",
-														fontSize: 11,
-														color: "#cf1322",
+														margin: "var(--space-sm) 0 0",
+														fontSize: "var(--font-xs)",
 													}}
 												>
 													{item.gateFailReason}
@@ -599,14 +638,10 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 										<button
 											type="button"
 											onClick={() => void handleRetry(item.id)}
+											className="btn btn-plain btn-sm text-error"
 											style={{
-												...btn,
-												background: "#fff1f0",
-												color: "#cf1322",
-												border: "1px solid #ffccc7",
-												padding: "3px 8px",
-												fontSize: 12,
 												flexShrink: 0,
+												borderColor: "var(--color-error-border)",
 											}}
 										>
 											重新生成
@@ -617,21 +652,50 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 						</section>
 					)}
 
-					{/* 已发布 */}
+					{needsVerificationItems.length > 0 && (
+						<section style={{ marginBottom: "var(--space-xl)" }}>
+							<p
+								className="text-muted"
+								style={{ margin: "0 0 var(--space-lg)" }}
+							>
+								需人工核实
+							</p>
+							{needsVerificationItems.map((item) => (
+								<div
+									key={item.id}
+									className="banner-warning"
+									style={{ marginBottom: "var(--space-lg)" }}
+								>
+									<p className="font-medium" style={{ margin: 0 }}>
+										{item.draft?.title ?? item.topic}
+									</p>
+									<p
+										className="text-warning-deep text-sm"
+										style={{ margin: "var(--space-sm) 0 0" }}
+									>
+										发布确认状态不确定，请先到后台核实是否已发出，再回到批量审核处理。
+									</p>
+								</div>
+							))}
+						</section>
+					)}
+
 					{confirmedItems.length > 0 && (
-						<section style={{ marginBottom: 12 }}>
-							<p style={{ fontSize: 12, color: "#8c8c8c", margin: "0 0 6px" }}>
+						<section style={{ marginBottom: "var(--space-xl)" }}>
+							<p
+								className="text-muted"
+								style={{ margin: "0 0 var(--space-lg)" }}
+							>
 								已发布
 							</p>
 							{confirmedItems.map((item) => (
 								<div
 									key={item.id}
 									style={{
-										padding: "6px 10px",
-										borderBottom: "1px solid #f0f0f0",
+										padding: "var(--space-lg) var(--space-xl)",
+										borderBottom: "1px solid var(--color-border-lighter)",
 										display: "flex",
 										justifyContent: "space-between",
-										fontSize: 13,
 									}}
 								>
 									<span
@@ -645,7 +709,8 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 										{item.draft?.title ?? item.topic}
 									</span>
 									<span
-										style={{ marginLeft: 8, color: "#52c41a", flexShrink: 0 }}
+										className="text-success"
+										style={{ marginLeft: "var(--space-md)", flexShrink: 0 }}
 									>
 										✓ 已发布
 									</span>
@@ -654,27 +719,29 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 						</section>
 					)}
 
-					{/* 错误/中止 */}
 					{terminalOtherItems.length > 0 && (
-						<section style={{ marginBottom: 12 }}>
-							<p style={{ fontSize: 12, color: "#8c8c8c", margin: "0 0 6px" }}>
+						<section style={{ marginBottom: "var(--space-xl)" }}>
+							<p
+								className="text-muted"
+								style={{ margin: "0 0 var(--space-lg)" }}
+							>
 								出错/中止
 							</p>
 							{terminalOtherItems.map((item) => (
 								<div
 									key={item.id}
 									style={{
-										padding: "6px 10px",
-										borderBottom: "1px solid #f0f0f0",
-										fontSize: 12,
-										color: "#8c8c8c",
+										padding: "var(--space-lg) var(--space-xl)",
+										borderBottom: "1px solid var(--color-border-lighter)",
+										fontSize: "var(--font-sm)",
+										color: "var(--color-text-muted)",
 									}}
 								>
 									<span>{item.topic}</span>
 									{item.error && (
 										<span
 											style={{
-												marginLeft: 8,
+												marginLeft: "var(--space-md)",
 												color: STATUS_COLOR[item.status],
 											}}
 										>
@@ -685,6 +752,16 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 							))}
 						</section>
 					)}
+
+					{reviewableItems.length === 0 &&
+						gateFailedItems.length === 0 &&
+						needsVerificationItems.length === 0 &&
+						terminalOtherItems.length === 0 &&
+						confirmedItems.length === 0 && (
+							<div className="banner-info">
+								当前批次还没有可审读内容，生成进度会自动刷新。
+							</div>
+						)}
 				</>
 			)}
 		</main>

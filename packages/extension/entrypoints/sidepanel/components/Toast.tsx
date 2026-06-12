@@ -7,16 +7,10 @@ interface ToastProps {
 	duration?: number;
 }
 
-const BG: Record<ToastProps["type"], string> = {
-	success: "#f6ffed",
-	error: "#fff1f0",
-	info: "#e6f7ff",
-};
-
-const BORDER: Record<ToastProps["type"], string> = {
-	success: "#b7eb8f",
-	error: "#ffa39e",
-	info: "#91d5ff",
+const TOAST_CLASS: Record<ToastProps["type"], string> = {
+	success: "banner-success",
+	error: "banner-error",
+	info: "banner-info",
 };
 
 export function Toast({ message, type, onClose, duration = 3000 }: ToastProps) {
@@ -29,16 +23,14 @@ export function Toast({ message, type, onClose, duration = 3000 }: ToastProps) {
 	return (
 		<div
 			role="alert"
+			className={`${TOAST_CLASS[type]} toast-enter`}
 			style={{
-				background: BG[type],
-				border: `1px solid ${BORDER[type]}`,
-				borderRadius: 4,
-				padding: "8px 12px",
-				marginBottom: 8,
+				padding: "var(--space-md) var(--space-lg)",
+				marginBottom: "var(--space-md)",
 				display: "flex",
 				justifyContent: "space-between",
 				alignItems: "center",
-				fontSize: 13,
+				fontSize: "var(--font-base)",
 			}}
 		>
 			<span>{message}</span>
@@ -47,15 +39,8 @@ export function Toast({ message, type, onClose, duration = 3000 }: ToastProps) {
 					type="button"
 					aria-label="关闭"
 					onClick={onClose}
-					style={{
-						border: "none",
-						background: "none",
-						cursor: "pointer",
-						fontSize: 14,
-						color: "#666",
-						padding: "0 4px",
-						lineHeight: 1,
-					}}
+					className="btn-icon text-close"
+					style={{ fontSize: "var(--font-md)", padding: "0 var(--space-sm)" }}
 				>
 					×
 				</button>

@@ -7,18 +7,15 @@ export function Loading({ message = "加载中…" }: Props) {
 		<div
 			role="status"
 			aria-live="polite"
+			className="flex-col flex-center"
 			style={{
-				display: "flex",
-				flexDirection: "column",
-				alignItems: "center",
-				justifyContent: "center",
-				gap: 12,
-				padding: 32,
-				color: "var(--text-muted)",
+				gap: "var(--space-xl)",
+				padding: "var(--space-2xl)",
+				color: "var(--color-text-muted)",
 			}}
 		>
 			<div className="spinner" />
-			<span style={{ fontSize: 13 }}>{message}</span>
+			<span>{message}</span>
 		</div>
 	);
 }
