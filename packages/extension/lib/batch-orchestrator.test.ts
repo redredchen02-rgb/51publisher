@@ -177,10 +177,10 @@ describe("runBatch", () => {
 		});
 		const result = await runBatch(deps);
 		expect(result).not.toBeNull();
-		const statuses = result!.items.map((it) => it.status);
+		const statuses = result?.items.map((it) => it.status);
 		// 第 1 条 error,第 2 条 awaiting-approval
-		expect(statuses[0]).toBe("error");
-		expect(statuses[1]).toBe("awaiting-approval");
+		expect(statuses![0]).toBe("error");
+		expect(statuses![1]).toBe("awaiting-approval");
 	});
 
 	it("重入守卫: topic-a 已被隔离 → 只生成 topic-b", async () => {
@@ -804,7 +804,7 @@ describe("runBatch coverImageUrls", () => {
 	it("Phase-3: reviewDraft 未注入 → 流程与 Phase 2 一致,aiReviewTriggered 未设置", async () => {
 		const deps = makeRunDeps({ topics: [TOPIC_A] });
 		const result = await runBatch(deps);
-		expect("aiReviewTriggered" in result!.items[0]!).toBe(false);
+		expect("aiReviewTriggered" in result?.items[0]!).toBe(false);
 	});
 
 	it("Phase-3: reviewDraft 全维度通过 → aiReviewTriggered=false,草稿不变", async () => {
@@ -864,8 +864,8 @@ describe("runBatch coverImageUrls", () => {
 			rewriteDraft: vi.fn(),
 		});
 		const result = await runBatch(deps);
-		expect("aiReviewTriggered" in result!.items[0]!).toBe(false);
-		expect("aiReviewTriggered" in result!.items[1]!).toBe(false);
+		expect("aiReviewTriggered" in result?.items[0]!).toBe(false);
+		expect("aiReviewTriggered" in result?.items[1]!).toBe(false);
 		expect(result?.items).toHaveLength(2); // loop 未中断
 	});
 
@@ -887,7 +887,7 @@ describe("runBatch coverImageUrls", () => {
 			rewriteDraft: rewriteDraftFn,
 		});
 		const result = await runBatch(deps);
-		expect("aiReviewTriggered" in result!.items[0]!).toBe(false);
+		expect("aiReviewTriggered" in result?.items[0]!).toBe(false);
 		expect(result?.items[0]?.draft?.title).toBe(DRAFT.title); // 原草稿保留
 	});
 });

@@ -153,7 +153,7 @@ describe("pending-store (SQLite)", () => {
 		await new Promise((r) => setTimeout(r, 10));
 		const updated = await updatePendingTopicStatus(topic.id, "approved");
 		expect(updated).not.toBeNull();
-		expect(updated!.status).toBe("approved");
+		expect(updated?.status).toBe("approved");
 		expect(updated!.updatedAt > topic.updatedAt).toBe(true);
 	});
 
@@ -165,7 +165,7 @@ describe("pending-store (SQLite)", () => {
 			"rejected",
 			"内容质量不足",
 		);
-		expect(updated!.status).toBe("rejected");
+		expect(updated?.status).toBe("rejected");
 		expect(updated?.rejectedReason).toBe("内容质量不足");
 	});
 

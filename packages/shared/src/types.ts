@@ -220,6 +220,8 @@ export type GenerateDraftResponse =
 				completion: number;
 				estimated?: boolean;
 			};
+			/** 质量警告（非阻塞，供 UI 提示）。 */
+			qualityWarnings?: Array<{ name: string; message: string }>;
 	  }
 	| { ok: false; error: string; kind?: "no-key" | "network" | "format" };
 

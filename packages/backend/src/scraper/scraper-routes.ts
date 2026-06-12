@@ -182,7 +182,7 @@ export async function registerScraperRoutes(
 				return { ok: true, pendingTopic };
 			} catch (e) {
 				const msg = e instanceof Error ? e.message : String(e);
-				request.log.error(err, `Scrape failed for ${siteName}`);
+				request.log.error(e, `Scrape failed for ${siteName}`);
 				return err(reply, 500, `Scrape failed: ${msg}`);
 			}
 		},

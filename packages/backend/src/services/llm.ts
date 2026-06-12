@@ -292,7 +292,16 @@ export async function generateDraft(
 		? parsed.tags.map(str).filter(Boolean)
 		: [];
 	const category = normalizeCategory(str(parsed.category));
-	return { ok: true, draft: toDraft(assembled, category, tags, id, now) };
+	const draft = toDraft(assembled, category, tags, id, now);
+
+	// 质量评估
+	const { evaluateQuality } = await import("@51publisher/shared");
+	const quality = evaluateQuality(draft, facts);
+	const qualityWarnings = quality.checks
+		.filter((c) => !c.pass)
+		.map((c) => ({ name: c.name, message: c.message }));
+
+	return { ok: true, draft, ...(qualityWarnings.length > 0 ? { qualityWarnings } : {}) };
 }
 
 export type ListModelsResult =

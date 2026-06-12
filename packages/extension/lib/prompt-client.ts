@@ -2,6 +2,10 @@ import { clearToken, getToken } from "./auth-client";
 
 const BACKEND_BASE = "http://127.0.0.1:3001";
 
+function errorMessage(err: unknown): string {
+	return err instanceof Error ? err.message : String(err);
+}
+
 export interface PromptTemplate {
 	id: string;
 	name: string;
@@ -42,7 +46,7 @@ export async function fetchPrompts(
 		}
 		return await res.json();
 	} catch (err) {
-		return { ok: false, error: (err as Error).message };
+		return { ok: false, error: errorMessage(err) };
 	}
 }
 
@@ -71,7 +75,7 @@ export async function createPrompt(
 		}
 		return await res.json();
 	} catch (err) {
-		return { ok: false, error: (err as Error).message };
+		return { ok: false, error: errorMessage(err) };
 	}
 }
 
@@ -101,6 +105,6 @@ export async function updatePrompt(
 		}
 		return await res.json();
 	} catch (err) {
-		return { ok: false, error: (err as Error).message };
+		return { ok: false, error: errorMessage(err) };
 	}
 }

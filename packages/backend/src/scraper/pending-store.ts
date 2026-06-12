@@ -50,24 +50,37 @@ interface PendingRow {
 	updated_at: string;
 }
 
+function safeJsonParse<T>(raw: string | null | undefined, fallback: T): T;
+function safeJsonParse<T>(
+	raw: string | null | undefined,
+	fallback: undefined,
+): T | undefined;
+function safeJsonParse<T>(
+	raw: string | null | undefined,
+	fallback: T | undefined,
+): T | undefined {
+	if (!raw) return fallback;
+	try {
+		return JSON.parse(raw) as T;
+	} catch {
+		return fallback;
+	}
+}
+
 function rowToTopic(row: PendingRow): PendingTopic {
 	return {
 		id: row.id,
 		sourceUrl: row.source_url,
 		siteName: row.site_name,
 		title: row.title,
-		rawContent: row.raw_content
-			? (JSON.parse(row.raw_content) as RawContent)
-			: undefined,
-		facts: JSON.parse(row.facts) as FactsBlock,
+		rawContent: safeJsonParse<RawContent>(row.raw_content, undefined),
+		facts: safeJsonParse<FactsBlock>(row.facts, {}),
 		confidence: row.confidence,
 		status: row.status as PendingStatus,
 		rejectedReason: row.rejected_reason ?? undefined,
 		coverImageUrl: row.cover_image_url ?? undefined,
 		score: row.score ?? undefined,
-		enrichment: row.enrichment
-			? (JSON.parse(row.enrichment) as EnrichedContext)
-			: undefined,
+		enrichment: safeJsonParse<EnrichedContext>(row.enrichment, undefined),
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
