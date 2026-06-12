@@ -2,6 +2,7 @@ import type { FastifyBaseLogger } from "fastify";
 import cron from "node-cron";
 import { sendAlert } from "../services/telegram.js";
 import { extractFacts } from "./fact-extractor.js";
+import { tryEnrich } from "./enrichment-utils.js";
 import {
 	type PendingTopic,
 	pendingTopicExistsBySourceUrl,
@@ -9,7 +10,7 @@ import {
 } from "./pending-store.js";
 import { scraperConfig } from "./scraper-config.js";
 import type { ScraperSiteConfig, SiteAdapter } from "./site-adapter.js";
-import { type EnrichedContext, enrichContext } from "./web-enricher.js";
+import type { EnrichedContext } from "./web-enricher.js";
 
 interface SchedulerDeps {
 	logger?: FastifyBaseLogger;
@@ -92,27 +93,8 @@ async function runSingleUrl(
 			});
 
 		// Web 搜索富化：搜作品评测/讨论/背景资料
-		let enrichment: EnrichedContext | undefined;
-		if (process.env.ENRICHMENT_ENABLED !== "false") {
-			try {
-				const maxQ = Math.min(
-					Math.max(Number(process.env.ENRICHMENT_MAX_QUERIES ?? "3") || 3, 1),
-					10,
-				);
-				enrichment = await enrichContext({ facts, maxQueries: maxQ });
-				const totalResults = enrichment.queryResults.reduce(
-					(sum, qr) => sum + qr.results.length,
-					0,
-				);
-				deps.logger?.info(
-					`[scheduler] Enrichment complete for ${site.siteName}: ${totalResults} results`,
-				);
-			} catch (enrichErr) {
-				deps.logger?.warn(
-					`[scheduler] Enrichment failed (non-fatal): ${enrichErr}`,
-				);
-			}
-		}
+		deps.logger?.info(`[scheduler] Enriching via web search for ${site.siteName}`);
+		const enrichment = await tryEnrich({ facts, logger: deps.logger });
 
 		const now = new Date().toISOString();
 		const topic: PendingTopic = {
@@ -217,18 +199,7 @@ async function runListDiscovery(
 			);
 
 			// Web 搜索富化（list-discovery 模式也执行）
-			let enrichment: EnrichedContext | undefined;
-			if (process.env.ENRICHMENT_ENABLED !== "false") {
-				try {
-					const maxQ = Math.min(
-						Math.max(Number(process.env.ENRICHMENT_MAX_QUERIES ?? "3") || 3, 1),
-						10,
-					);
-					enrichment = await enrichContext({ facts, maxQueries: maxQ });
-				} catch {
-					// 非致命错误，静默降级
-				}
-			}
+			const enrichment = await tryEnrich({ facts, logger: deps.logger });
 
 			const now = new Date().toISOString();
 			const topic: PendingTopic = {
