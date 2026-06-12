@@ -43,8 +43,8 @@ cp packages/backend/.env.example packages/backend/.env
 
 | 变量 | 说明 | 示例 |
 | --- | --- | --- |
-| `LLM_ENDPOINT` | LLM 服务地址（到 `/v1`） | `https://api.deepseek.com/v1` |
-| `LLM_API_KEY` | 你的 API Key | `sk-...` |
+| `LLM_ENDPOINT` | LLM 服务地址（到 `/v1`） | `https://la-sealion.inaiai.com/v1` |
+| `LLM_API_KEY` | 你在 la-sealion 平台的 API Key | `sk-...` |
 | `CORS_ORIGIN` | 扩展的 `chrome-extension://` ID（见下方说明） | `chrome-extension://abcdef...` |
 | `JWT_SECRET` | 随机强密钥（≥32 字符） | 见下方生成命令 |
 | `JWT_ADMIN_PASSWORD_HASH` | 管理密码的哈希值 | 见下方生成命令 |
@@ -122,9 +122,9 @@ pnpm build:extension
 
 | 项 | 填法 |
 | --- | --- |
-| **LLM endpoint** | 大模型地址，填到 base URL（如 `https://api.deepseek.com/v1`），会自动补 `/chat/completions`。必须 `https://`。 |
-| **API key** | 你的 key。⚠️ 明文存于本地浏览器，并随请求发往 endpoint——**只配可信地址，建议用权限受限的专用 key**。 |
-| **模型** | 填好上面两项后，点「**↻ 拉取模型列表**」→ 下拉选择；拉不到也可手填模型名（如 `deepseek-chat`）。 |
+| **LLM endpoint** | 填 `https://la-sealion.inaiai.com/v1`，系统会自动补 `/chat/completions`。 |
+| **API key** | 你在 la-sealion 平台的 API Key。⚠️ 明文存于本地浏览器，并随请求发往 endpoint——**只配可信地址**。 |
+| **模型** | 填好上面两项后，点「**↻ 拉取模型列表**」→ 下拉选择 `gemma4-31b-heretic`；拉不到也可直接手填模型名。 |
 | **后端 URL** | 本地后端地址，默认 `http://127.0.0.1:3001`。 |
 | **Prompt 模板** | 已内置「51娘 + 只写口吻散文」契约，通常无需改。 |
 | **Few-shot 范例** | 已内置脱敏范例；可改，但**别写真实连结**（会随请求外发）。 |

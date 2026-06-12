@@ -9,7 +9,11 @@ import type { EnrichedContext } from "./web-enricher.js";
 
 export type PendingStatus = "pending" | "approved" | "rejected";
 
-const VALID_STATUSES: Set<string> = new Set(["pending", "approved", "rejected"]);
+const VALID_STATUSES: Set<string> = new Set([
+	"pending",
+	"approved",
+	"rejected",
+]);
 
 function isValidPendingStatus(status: string): status is PendingStatus {
 	return VALID_STATUSES.has(status);

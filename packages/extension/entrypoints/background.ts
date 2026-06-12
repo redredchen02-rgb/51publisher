@@ -583,8 +583,8 @@ export default defineBackground(() => {
 	// 后端不可达时 fail-closed,不覆盖本地已有映射。
 	refreshRemoteMappings()
 		.then(({ remote }) => {
-			if (remote) console.log("[bg] 远程映射配置已刷新");
-			else console.log("[bg] 使用本地默认映射(后端不可达)");
+			if (remote) console.debug("[bg] 远程映射配置已刷新");
+			else console.debug("[bg] 使用本地默认映射(后端不可达)");
 		})
 		.catch((e) => console.warn("[bg] 刷新远程映射失败", e));
 
@@ -594,7 +594,7 @@ export default defineBackground(() => {
 		browser.alarms.create("keep-alive", { periodInMinutes: 1 });
 		browser.alarms.onAlarm.addListener((alarm: { name: string }) => {
 			if (alarm.name === "keep-alive") {
-				console.log("[bg] keep-alive ping");
+				console.debug("[bg] keep-alive ping");
 			}
 		});
 	} else {

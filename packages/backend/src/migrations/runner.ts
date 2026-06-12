@@ -54,6 +54,16 @@ DELETE FROM pending_topics WHERE rowid NOT IN (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_source_url ON pending_topics(source_url);`,
 	"006-enrichment.sql": `\
 ALTER TABLE pending_topics ADD COLUMN enrichment TEXT DEFAULT NULL;`,
+	"007-batches.sql": `\
+CREATE TABLE IF NOT EXISTS batches (
+  id               TEXT PRIMARY KEY,
+  tab_id           INTEGER NOT NULL,
+  authorized_host  TEXT NOT NULL,
+  items            TEXT NOT NULL,
+  created_at       TEXT NOT NULL,
+  updated_at       TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_batches_updated ON batches(updated_at DESC);`,
 };
 
 export function runMigrations(dbPath: string): void {

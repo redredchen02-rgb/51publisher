@@ -43,9 +43,9 @@ pnpm build          # 产出 .output/chrome-mv3/
 
 | 项          | 说明                                                                                                                                                |
 | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| endpoint    | 大模型地址,**仅支持 OpenAI 兼容 `chat/completions`**,必须 `https://`。                                                                              |
-| 模型        | 模型名,如 `gpt-4o-mini`。                                                                                                                           |
-| API key     | **明文存于本地浏览器(`chrome.storage.local`)**,并会随请求发往你配置的 endpoint。                                                                    |
+| endpoint    | 大模型地址，填 `https://la-sealion.inaiai.com/v1`（系统会自动补 `/chat/completions`）。                                                              |
+| 模型        | 填 `gemma4-31b-heretic`，或点「↻ 拉取模型列表」从下拉选择。                                                                                          |
+| API key     | 你在 la-sealion 平台的 API Key。**明文存于本地浏览器(`chrome.storage.local`)**，随请求发往上面配置的 endpoint。                                        |
 | Prompt 模板 | 注入 `{{topic}}`/`{{facts}}`/`{{fewshot}}`。模型只回口吻散文槽位(intro/highlights…);**正文由系统用你的事实组装**,模型不写连结/作品名(防幻觉,见下)。 |
 | 字段映射    | 默认值来自现场勘查,通常无需改;后台改版时按指南更新。带 JSON + schema 校验与「恢复默认」。                                                           |
 
