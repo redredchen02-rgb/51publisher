@@ -35,8 +35,10 @@ export function App() {
 	const [topic, setTopic] = useState("");
 	const [draft, setDraft] = useState<ContentDraft | null>(null);
 	const [results, setResults] = useState<FieldFillResult[]>([]);
-	const { error, handleError, clearError } = useErrorHandler();
-	const [confirmNext, setConfirmNext] = useState(false);
+const { error, handleError, clearError } = useErrorHandler();
+const { logs, logError, retrieveLogs, clearLogs, exportLogs } = useErrorLogger();
+const [showLogs, setShowLogs] = useState(false);
+const [confirmNext, setConfirmNext] = useState(false);
 	const [toast, setToast] = useState<{
 		message: string;
 		type: "success" | "error" | "info";
@@ -92,11 +94,13 @@ export function App() {
 				setMode("draft");
 				loadingState.completeLoading();
 			} else {
-				handleError(
-					res.kind === "no-key" ? `${res.error}(点右上角设置)` : res.error,
-				);
+				const errMsg =
+					res.kind === "no-key" ? `${res.error}(点右上角设置)` : res.error;
+				handleError(errMsg);
 				setMode(draft ? "draft" : "empty");
 				loadingState.completeLoading();
+				// 记录错误日志
+				void logError(new Error(errMsg), { topic, action: "generate" });
 			}
 		} finally {
 			clearInterval(progressInterval);
@@ -123,6 +127,8 @@ export function App() {
 			handleError(res.error);
 			setMode("draft");
 			setToast({ message: res.error, type: "error" });
+			// 记录错误日志
+			void logError(new Error(res.error), { action: "fill" });
 		}
 	}
 
