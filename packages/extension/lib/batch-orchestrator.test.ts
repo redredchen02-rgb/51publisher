@@ -1,5 +1,5 @@
 import type { ContentDraft } from "@51publisher/shared";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Batch } from "./batch";
 import type {
 	ApproveBatchDeps,
@@ -97,15 +97,23 @@ describe("runBatch", () => {
 		const deps = makeRunDeps();
 		const result = await runBatch(deps);
 		expect(result).not.toBeNull();
-		expect(result!.items).toHaveLength(2);
-		expect(result!.items.every((it) => it.status === "awaiting-approval")).toBe(
+		expect(result?.items).toHaveLength(2);
+		expect(result?.items.every((it) => it.status === "awaiting-approval")).toBe(
 			true,
 		);
 		// generateDraft 被调用 2 次
 		expect(deps.generateDraft).toHaveBeenCalledTimes(2);
 		// 签名改为 (topic, facts, enrichment);无事实/富化时为 undefined。
-		expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_A, undefined, undefined);
-		expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_B, undefined, undefined);
+		expect(deps.generateDraft).toHaveBeenCalledWith(
+			TOPIC_A,
+			undefined,
+			undefined,
+		);
+		expect(deps.generateDraft).toHaveBeenCalledWith(
+			TOPIC_B,
+			undefined,
+			undefined,
+		);
 	});
 
 	it("源接地:facts 与 topics 同序平行,透传给 generateDraft 并落到 item.facts", async () => {
@@ -115,14 +123,14 @@ describe("runBatch", () => {
 		const result = await runBatch(deps);
 		expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_A, factsA, undefined);
 		expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_B, factsB, undefined);
-		expect(result!.items[0]!.facts).toEqual(factsA);
-		expect(result!.items[1]!.facts).toEqual(factsB);
+		expect(result?.items[0]?.facts).toEqual(factsA);
+		expect(result?.items[1]?.facts).toEqual(factsB);
 	});
 
 	it("重入闸:默认过滤已发布选题(persistentBlockedTopics)", async () => {
 		const deps = makeRunDeps({ persistentBlockedTopics: [TOPIC_A] });
 		const result = await runBatch(deps);
-		expect(result!.items.map((it) => it.topic)).toEqual([TOPIC_B]);
+		expect(result?.items.map((it) => it.topic)).toEqual([TOPIC_B]);
 	});
 
 	it("R8 迭代通道:bypassReentry=true 时不过滤已发布选题(可重跑对比)", async () => {
@@ -131,8 +139,12 @@ describe("runBatch", () => {
 			bypassReentry: true,
 		});
 		const result = await runBatch(deps);
-		expect(result!.items.map((it) => it.topic)).toEqual([TOPIC_A, TOPIC_B]);
-		expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_A, undefined, undefined);
+		expect(result?.items.map((it) => it.topic)).toEqual([TOPIC_A, TOPIC_B]);
+		expect(deps.generateDraft).toHaveBeenCalledWith(
+			TOPIC_A,
+			undefined,
+			undefined,
+		);
 	});
 
 	it("tab 漂移中断: pinnedHostOk 第 2 次返回 false → 只生成第 1 条", async () => {
@@ -188,8 +200,8 @@ describe("runBatch", () => {
 		const result = await runBatch(deps);
 		expect(result).not.toBeNull();
 		// TOPIC_A 被过滤,只生成 TOPIC_B
-		expect(result!.items).toHaveLength(1);
-		expect(result!.items[0]!.topic).toBe(TOPIC_B);
+		expect(result?.items).toHaveLength(1);
+		expect(result?.items[0]?.topic).toBe(TOPIC_B);
 	});
 
 	it("host 解析失败 → 返回 null,不创建批次", async () => {
@@ -211,7 +223,7 @@ describe("approveBatch", () => {
 		const deps = makeApproveDeps({ getBatch: vi.fn(async () => batch) });
 		const result = await approveBatch(deps);
 		expect(result).not.toBeNull();
-		expect(result!.items[0]!.status).toBe("publish-confirmed");
+		expect(result?.items[0]?.status).toBe("publish-confirmed");
 		expect(deps.sendGrant).toHaveBeenCalledOnce();
 		expect(deps.appendTrajectory).toHaveBeenCalledOnce();
 	});
@@ -230,7 +242,7 @@ describe("approveBatch", () => {
 		const result = await approveBatch(deps);
 		expect(result).not.toBeNull();
 		// 状态维持 awaiting-approval(原 background.ts 同等行为)
-		expect(result!.items[0]!.status).toBe("awaiting-approval");
+		expect(result?.items[0]?.status).toBe("awaiting-approval");
 		expect(deps.sendGrant).not.toHaveBeenCalled();
 		expect(deps.appendTrajectory).not.toHaveBeenCalled();
 	});
@@ -251,7 +263,7 @@ describe("approveBatch", () => {
 		const result = await approveBatch(deps);
 		expect(result).not.toBeNull();
 		// 两条都留在 awaiting-approval
-		expect(result!.items.every((it) => it.status === "awaiting-approval")).toBe(
+		expect(result?.items.every((it) => it.status === "awaiting-approval")).toBe(
 			true,
 		);
 		expect(deps.sendGrant).not.toHaveBeenCalled();
@@ -273,7 +285,7 @@ describe("approveBatch", () => {
 		});
 		const result = await approveBatch(deps);
 		expect(result).not.toBeNull();
-		expect(result!.items[0]!.status).toBe("awaiting-approval"); // 未变
+		expect(result?.items[0]?.status).toBe("awaiting-approval"); // 未变
 		expect(deps.sendGrant).not.toHaveBeenCalled();
 		expect(deps.appendTrajectory).not.toHaveBeenCalled();
 	});
@@ -485,7 +497,7 @@ describe("approveBatch recordPost (U10)", () => {
 				recordPost,
 			}),
 		);
-		expect(result!.items[0]!.status).toBe("publish-confirmed");
+		expect(result?.items[0]?.status).toBe("publish-confirmed");
 	});
 
 	it("publishUrl 为空(sendGrant 未返回 url): recordPost 仍被调用,publishUrl 为空字符串", async () => {
@@ -541,7 +553,7 @@ describe("approveBatch recordPost (U10)", () => {
 		const deps = makeApproveDeps({ getBatch: vi.fn(async () => batch) });
 		// 无 recordPost dep — 不应抛出
 		const result = await approveBatch(deps);
-		expect(result!.items[0]!.status).toBe("publish-confirmed");
+		expect(result?.items[0]?.status).toBe("publish-confirmed");
 	});
 });
 
@@ -582,7 +594,7 @@ describe("retryItem", () => {
 		const deps = makeRetryDeps(batch);
 		const result = await retryItem(deps, "item_0");
 		expect(result).not.toBeNull();
-		expect(result!.items[0]!.status).toBe("awaiting-approval");
+		expect(result?.items[0]?.status).toBe("awaiting-approval");
 		expect(deps.generateDraft).toHaveBeenCalledOnce();
 		expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_A, undefined);
 	});
@@ -600,7 +612,7 @@ describe("retryItem", () => {
 		};
 		const deps = makeRetryDeps(batch);
 		const result = await retryItem(deps, "item_0");
-		expect(result!.items[1]!.status).toBe("publish-confirmed");
+		expect(result?.items[1]?.status).toBe("publish-confirmed");
 	});
 
 	it("generateDraft fails: item marked error again, no throw", async () => {
@@ -614,8 +626,8 @@ describe("retryItem", () => {
 		});
 		const result = await retryItem(deps, "item_0");
 		expect(result).not.toBeNull();
-		expect(result!.items[0]!.status).toBe("error");
-		expect(result!.items[0]!.error).toBe("network");
+		expect(result?.items[0]?.status).toBe("error");
+		expect(result?.items[0]?.error).toBe("network");
 	});
 
 	it("no batch: returns null", async () => {
@@ -654,9 +666,9 @@ describe("retryItem", () => {
 		};
 		const deps = makeRetryDeps(batch);
 		const result = await retryItem(deps, "item_0");
-		expect(result!.items[0]!.status).toBe("awaiting-approval");
+		expect(result?.items[0]?.status).toBe("awaiting-approval");
 		// 生成恒置 ''(DRAFT.coverImageUrl=''),回注后应为持久化值
-		expect(result!.items[0]!.draft?.coverImageUrl).toBe("http://a.jpg");
+		expect(result?.items[0]?.draft?.coverImageUrl).toBe("http://a.jpg");
 	});
 
 	it("无封面 topic retry: 不报错,draft.coverImageUrl 保持 ''", async () => {
@@ -677,8 +689,8 @@ describe("retryItem", () => {
 		};
 		const deps = makeRetryDeps(batch);
 		const result = await retryItem(deps, "item_0");
-		expect(result!.items[0]!.status).toBe("awaiting-approval");
-		expect(result!.items[0]!.draft?.coverImageUrl).toBe("");
+		expect(result?.items[0]?.status).toBe("awaiting-approval");
+		expect(result?.items[0]?.draft?.coverImageUrl).toBe("");
 	});
 
 	it("回归: 旧批次条目(无 coverImageUrl 字段)retry 优雅降级,draft.coverImageUrl 保持 ''", async () => {
@@ -686,8 +698,8 @@ describe("retryItem", () => {
 		const deps = makeRetryDeps(batch);
 		const result = await retryItem(deps, "item_0");
 		expect(result).not.toBeNull();
-		expect(result!.items[0]!.status).toBe("awaiting-approval");
-		expect(result!.items[0]!.draft?.coverImageUrl).toBe("");
+		expect(result?.items[0]?.status).toBe("awaiting-approval");
+		expect(result?.items[0]?.draft?.coverImageUrl).toBe("");
 	});
 
 	it("回归: 封面回注不影响 facts 透传 generateDraft", async () => {
@@ -779,10 +791,10 @@ describe("runBatch coverImageUrls", () => {
 			persistentBlockedTopics: [TOPIC_A], // TOPIC_A 被过滤,验证封面跟 topic 走不错位
 		});
 		const result = await runBatch(deps);
-		expect(result!.items).toHaveLength(1);
-		expect(result!.items[0]!.topic).toBe(TOPIC_B);
-		expect(result!.items[0]!.coverImageUrl).toBe("http://b.jpg");
-		expect(result!.items[0]!.draft?.coverImageUrl).toBe("http://b.jpg");
+		expect(result?.items).toHaveLength(1);
+		expect(result?.items[0]?.topic).toBe(TOPIC_B);
+		expect(result?.items[0]?.coverImageUrl).toBe("http://b.jpg");
+		expect(result?.items[0]?.draft?.coverImageUrl).toBe("http://b.jpg");
 	});
 
 	// ================================================================
@@ -792,7 +804,7 @@ describe("runBatch coverImageUrls", () => {
 	it("Phase-3: reviewDraft 未注入 → 流程与 Phase 2 一致,aiReviewTriggered 未设置", async () => {
 		const deps = makeRunDeps({ topics: [TOPIC_A] });
 		const result = await runBatch(deps);
-		expect("aiReviewTriggered" in result!.items[0]!).toBe(false);
+		expect("aiReviewTriggered" in result?.items[0]!).toBe(false);
 	});
 
 	it("Phase-3: reviewDraft 全维度通过 → aiReviewTriggered=false,草稿不变", async () => {
@@ -807,8 +819,8 @@ describe("runBatch coverImageUrls", () => {
 			rewriteDraft: vi.fn(),
 		});
 		const result = await runBatch(deps);
-		expect(result!.items[0]!.aiReviewTriggered).toBe(false);
-		expect(result!.items[0]!.draft?.title).toBe(DRAFT.title); // 草稿未变
+		expect(result?.items[0]?.aiReviewTriggered).toBe(false);
+		expect(result?.items[0]?.draft?.title).toBe(DRAFT.title); // 草稿未变
 		expect(reviewDraftFn).toHaveBeenCalledTimes(1);
 	});
 
@@ -832,9 +844,9 @@ describe("runBatch coverImageUrls", () => {
 			rewriteDraft: rewriteDraftFn,
 		});
 		const result = await runBatch(deps);
-		expect(result!.items[0]!.aiReviewTriggered).toBe(true);
-		expect(result!.items[0]!.draft?.title).toBe("重写标题");
-		expect(result!.items[0]!.reviewCostTokens).toEqual({
+		expect(result?.items[0]?.aiReviewTriggered).toBe(true);
+		expect(result?.items[0]?.draft?.title).toBe("重写标题");
+		expect(result?.items[0]?.reviewCostTokens).toEqual({
 			prompt: 120,
 			completion: 40,
 		});
@@ -852,9 +864,9 @@ describe("runBatch coverImageUrls", () => {
 			rewriteDraft: vi.fn(),
 		});
 		const result = await runBatch(deps);
-		expect("aiReviewTriggered" in result!.items[0]!).toBe(false);
-		expect("aiReviewTriggered" in result!.items[1]!).toBe(false);
-		expect(result!.items).toHaveLength(2); // loop 未中断
+		expect("aiReviewTriggered" in result?.items[0]!).toBe(false);
+		expect("aiReviewTriggered" in result?.items[1]!).toBe(false);
+		expect(result?.items).toHaveLength(2); // loop 未中断
 	});
 
 	it("Phase-3: rewriteDraft 失败 → fail-open,aiReviewTriggered 未设置,原草稿保留", async () => {
@@ -875,8 +887,8 @@ describe("runBatch coverImageUrls", () => {
 			rewriteDraft: rewriteDraftFn,
 		});
 		const result = await runBatch(deps);
-		expect("aiReviewTriggered" in result!.items[0]!).toBe(false);
-		expect(result!.items[0]!.draft?.title).toBe(DRAFT.title); // 原草稿保留
+		expect("aiReviewTriggered" in result?.items[0]!).toBe(false);
+		expect(result?.items[0]?.draft?.title).toBe(DRAFT.title); // 原草稿保留
 	});
 });
 
@@ -892,7 +904,7 @@ describe("runBatch grounding gate (U4)", () => {
 		});
 		const result = await runBatch(deps);
 		expect(result).not.toBeNull();
-		expect(result!.items[0]!.status).toBe("awaiting-approval");
+		expect(result?.items[0]?.status).toBe("awaiting-approval");
 	});
 
 	it("gate 失败(含【待补】): item 状态为 gate-failed, gateFailReason 非空", async () => {
@@ -903,8 +915,8 @@ describe("runBatch grounding gate (U4)", () => {
 		});
 		const result = await runBatch(deps);
 		expect(result).not.toBeNull();
-		expect(result!.items[0]!.status).toBe("gate-failed");
-		expect(result!.items[0]!.gateFailReason).toBe(reason);
+		expect(result?.items[0]?.status).toBe("gate-failed");
+		expect(result?.items[0]?.gateFailReason).toBe(reason);
 	});
 
 	it("gate 失败(无来源链接): item 状态为 gate-failed", async () => {
@@ -914,8 +926,8 @@ describe("runBatch grounding gate (U4)", () => {
 			evaluateGrounding: vi.fn(() => ({ ok: false, reasons: [reason] })),
 		});
 		const result = await runBatch(deps);
-		expect(result!.items[0]!.status).toBe("gate-failed");
-		expect(result!.items[0]!.gateFailReason).toContain("无来源");
+		expect(result?.items[0]?.status).toBe("gate-failed");
+		expect(result?.items[0]?.gateFailReason).toContain("无来源");
 	});
 
 	it("gate 抛出异常 → fail-open,item 最终状态为 awaiting-approval", async () => {
@@ -927,7 +939,7 @@ describe("runBatch grounding gate (U4)", () => {
 		});
 		const result = await runBatch(deps);
 		expect(result).not.toBeNull();
-		expect(result!.items[0]!.status).toBe("awaiting-approval");
+		expect(result?.items[0]?.status).toBe("awaiting-approval");
 	});
 
 	it("混合结果: 第1条 gate 失败, 第2条通过 → gate-failed + awaiting-approval", async () => {
@@ -942,8 +954,8 @@ describe("runBatch grounding gate (U4)", () => {
 		});
 		const result = await runBatch(deps);
 		expect(result).not.toBeNull();
-		expect(result!.items[0]!.status).toBe("gate-failed");
-		expect(result!.items[1]!.status).toBe("awaiting-approval");
+		expect(result?.items[0]?.status).toBe("gate-failed");
+		expect(result?.items[1]?.status).toBe("awaiting-approval");
 	});
 
 	it("gate-failed items 被 presentForApproval 自然跳过(不升格为 awaiting-approval)", async () => {
@@ -953,7 +965,7 @@ describe("runBatch grounding gate (U4)", () => {
 		});
 		const result = await runBatch(deps);
 		// 两条都 gate-failed — presentForApproval 只促升 filled,gate-failed 留原状
-		expect(result!.items.every((it) => it.status === "gate-failed")).toBe(true);
+		expect(result?.items.every((it) => it.status === "gate-failed")).toBe(true);
 	});
 
 	it("gate 未注入时使用默认 evaluateGrounding(不报错,正常生成)", async () => {
@@ -962,7 +974,7 @@ describe("runBatch grounding gate (U4)", () => {
 		// 不注入 evaluateGrounding
 		const result = await runBatch(deps);
 		expect(result).not.toBeNull();
-		expect(result!.items[0]!.status).toBe("awaiting-approval");
+		expect(result?.items[0]?.status).toBe("awaiting-approval");
 	});
 });
 
@@ -971,9 +983,8 @@ describe("runBatch grounding gate (U4)", () => {
 // 不 mock gate / mergeRewriteResult,走真实函数。
 // ================================================================
 
-import { evaluateGrounding } from "./grounding-gate";
-import { mergeRewriteResult } from "./llm";
 import { markFilled, markGateFailed, presentForApproval } from "./batch";
+import { evaluateGrounding } from "./grounding-gate";
 
 describe("grounding gate bypass fix (Unit 4 integration)", () => {
 	// ① 零事实选题:AI 重写填掉【待补】后,gate 仍应拦截(读 snapshot 而非重写稿)
@@ -998,7 +1009,10 @@ describe("grounding gate bypass fix (Unit 4 integration)", () => {
 			// reviewDraft 触发重写(title_quality 是 mergeRewriteResult 合并 title 的维度名)
 			reviewDraft: vi.fn(async () => ({
 				ok: true as const,
-				result: { ok: true, dimensions: [{ name: "title_quality", pass: false }] },
+				result: {
+					ok: true,
+					dimensions: [{ name: "title_quality", pass: false }],
+				},
 			})),
 			rewriteDraft: vi.fn(async () => ({
 				ok: true as const,
@@ -1010,11 +1024,13 @@ describe("grounding gate bypass fix (Unit 4 integration)", () => {
 		expect(generateCalled).toBe(true);
 		expect(result).not.toBeNull();
 		// 重写后 item.draft 不含【待补】,但 snapshot 含 → gate 仍拦截
-		expect(result!.items[0]!.status).toBe("gate-failed");
+		expect(result?.items[0]?.status).toBe("gate-failed");
 		// snapshot 保留原始占位
-		expect(result!.items[0]!.assembledDraftSnapshot?.title).toContain("【待补】");
+		expect(result?.items[0]?.assembledDraftSnapshot?.title).toContain(
+			"【待补】",
+		);
 		// item.draft 是重写后的(发布时用)
-		expect(result!.items[0]!.draft?.title).not.toContain("【待补】");
+		expect(result?.items[0]?.draft?.title).not.toContain("【待补】");
 	});
 
 	// ② post-assembler 原稿确实含【待补】(守护 R2 前置假设)
@@ -1098,7 +1114,7 @@ describe("grounding gate bypass fix (Unit 4 integration)", () => {
 		batch = markGateFailed(batch, "item_1", "标题含【待补】");
 		// presentForApproval 只升格 filled
 		batch = presentForApproval(batch);
-		expect(batch.items[0]!.status).toBe("awaiting-approval");
-		expect(batch.items[1]!.status).toBe("gate-failed"); // 不得被升格
+		expect(batch.items[0]?.status).toBe("awaiting-approval");
+		expect(batch.items[1]?.status).toBe("gate-failed"); // 不得被升格
 	});
 });
