@@ -1,7 +1,7 @@
 ---
 title: "fix: grounding gate 被 AI 评审重写绕过(防幻觉硬闸修复)"
 type: fix
-status: active
+status: completed
 date: 2026-06-11
 origin: docs/brainstorms/2026-06-11-grounding-gate-rewrite-bypass-requirements.md
 ---
