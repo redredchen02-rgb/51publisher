@@ -34,6 +34,7 @@ export function KeyboardShortcutsHelp() {
 			</button>
 
 			{isOpen && (
+				// eslint-disable-next-line jsx-a11y/no-static-element-interactions
 				<div
 					role="dialog"
 					style={{
@@ -50,6 +51,11 @@ export function KeyboardShortcutsHelp() {
 					}}
 					onClick={(e) => {
 						if (e.target === e.currentTarget) {
+							setIsOpen(false);
+						}
+					}}
+					onKeyDown={(e) => {
+						if (e.key === "Escape") {
 							setIsOpen(false);
 						}
 					}}
