@@ -30,7 +30,7 @@ const memoryCache = new Map<
 	{ data: EnrichedContext; expiresAt: number; lastAccessedAt: number }
 >();
 const MEMORY_CACHE_TTL = 60 * 60 * 1000; // 1 小时
-const MEMORY_CACHE_SIZE = 100;
+const MEMORY_CACHE_SIZE = 500; // 增大缓存容量，减少 LRU 淘汰频率
 const DB_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 小时
 
 function evictLruFromMemoryCache(): void {

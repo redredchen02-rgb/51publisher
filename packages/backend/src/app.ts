@@ -37,6 +37,42 @@ export function buildApp(): FastifyInstance {
 	initPendingDb();
 	const server = Fastify({ logger: true });
 
+	// 注册 Swagger 插件
+	void server.register(import("@fastify/swagger"), {
+		openapi: {
+			openapi: "3.0.0",
+			info: {
+				title: "51publisher Backend API",
+				description: "51publisher 后端 API 文档",
+				version: "0.1.0",
+			},
+			servers: [
+				{
+					url: "http://localhost:3001",
+					description: "开发服务器",
+				},
+			],
+			components: {
+				securitySchemes: {
+					bearerAuth: {
+						type: "http",
+						scheme: "bearer",
+						bearerFormat: "JWT",
+					},
+				},
+			},
+			security: [{ bearerAuth: [] }],
+		},
+	});
+
+	void server.register(import("@fastify/swagger-ui"), {
+		routePrefix: "/docs",
+		uiConfig: {
+			docExpansion: "list",
+			deepLinking: true,
+		},
+	});
+
 	const corsOrigins = (process.env.CORS_ORIGIN ?? "")
 		.split(",")
 		.map((s) => s.trim())

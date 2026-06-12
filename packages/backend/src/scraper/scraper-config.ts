@@ -31,6 +31,12 @@ class ScraperConfig {
 	listSiteConfigs(): ScraperSiteConfig[] {
 		return [...this.siteConfigs];
 	}
+
+	/** 重置配置（仅用于测试隔离）。 */
+	reset(): void {
+		this.adapters.clear();
+		this.siteConfigs = [];
+	}
 }
 
 export const scraperConfig = new ScraperConfig();

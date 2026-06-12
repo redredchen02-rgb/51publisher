@@ -26,17 +26,29 @@ export interface PublishedPost {
 	createdAt: string;
 }
 
-function rowToPost(row: Record<string, unknown>): PublishedPost {
+interface PublishedPostRow {
+	id: string;
+	batch_item_id: string | null;
+	source_title: string | null;
+	publish_url: string | null;
+	publish_url_source: string | null;
+	published_at: string | null;
+	outcome: string | null;
+	last_checked_at: string | null;
+	created_at: string;
+}
+
+function rowToPost(row: PublishedPostRow): PublishedPost {
 	return {
-		id: row.id as string,
-		batchItemId: (row.batch_item_id as string | null) ?? undefined,
-		sourceTitle: (row.source_title as string | null) ?? undefined,
-		publishUrl: (row.publish_url as string | null) ?? undefined,
-		publishUrlSource: (row.publish_url_source as string | null) ?? undefined,
-		publishedAt: (row.published_at as string | null) ?? undefined,
-		outcome: row.outcome as string | null,
-		lastCheckedAt: row.last_checked_at as string | null,
-		createdAt: row.created_at as string,
+		id: row.id,
+		batchItemId: row.batch_item_id ?? undefined,
+		sourceTitle: row.source_title ?? undefined,
+		publishUrl: row.publish_url ?? undefined,
+		publishUrlSource: row.publish_url_source ?? undefined,
+		publishedAt: row.published_at ?? undefined,
+		outcome: row.outcome,
+		lastCheckedAt: row.last_checked_at,
+		createdAt: row.created_at,
 	};
 }
 
@@ -129,7 +141,7 @@ export async function registerPublishedPostsRoutes(
 
 				const row = db
 					.prepare("SELECT * FROM published_posts WHERE id = ?")
-					.get(upsertId) as Record<string, unknown>;
+					.get(upsertId) as PublishedPostRow;
 				return { wasNew: !existing, post: rowToPost(row) };
 			});
 
@@ -150,13 +162,13 @@ export async function registerPublishedPostsRoutes(
 			? (db
 					.prepare(
 						"SELECT * FROM published_posts WHERE source_title = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
-					)
-					.all(sourceTitle, limit, offset) as Record<string, unknown>[])
-			: (db
-					.prepare(
-						"SELECT * FROM published_posts ORDER BY created_at DESC LIMIT ? OFFSET ?",
-					)
-					.all(limit, offset) as Record<string, unknown>[]);
+				)
+				.all(sourceTitle, limit, offset) as PublishedPostRow[])
+		: (db
+				.prepare(
+					"SELECT * FROM published_posts ORDER BY created_at DESC LIMIT ? OFFSET ?",
+				)
+				.all(limit, offset) as PublishedPostRow[]);
 
 		const totalRow = sourceTitle
 			? (db

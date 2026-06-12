@@ -121,15 +121,34 @@ function computeScore(topic: PendingTopic, db: BetterSqlite3DB): number {
 
 	let publishedPenalty = 0;
 	try {
-		const hit = db
-			.prepare("SELECT id FROM published_posts WHERE source_title = ? LIMIT 1")
-			.get(topic.title);
-		if (hit) publishedPenalty = 0.8;
+		const publishedTitles = getPublishedTitles(db);
+		if (publishedTitles.has(topic.title)) publishedPenalty = 0.8;
 	} catch {
 		// 旧版 DB 不含 published_posts 表，跳过惩罚项
 	}
 
 	return fieldCompleteness * freshnessDecay * (1 - publishedPenalty);
+}
+
+// 缓存已发布的标题，避免 N+1 查询
+let _publishedTitlesCache: Set<string> | null = null;
+
+function getPublishedTitles(db: BetterSqlite3DB): Set<string> {
+	if (_publishedTitlesCache) return _publishedTitlesCache;
+	try {
+		const rows = db
+			.prepare("SELECT DISTINCT source_title FROM published_posts")
+			.all() as { source_title: string }[];
+		_publishedTitlesCache = new Set(rows.map((r) => r.source_title).filter(Boolean));
+	} catch {
+		// published_posts 表可能不存在
+		_publishedTitlesCache = new Set();
+	}
+	return _publishedTitlesCache;
+}
+
+export function invalidatePublishedTitlesCache(): void {
+	_publishedTitlesCache = null;
 }
 
 export async function pendingTopicExistsBySourceUrl(
@@ -220,8 +239,9 @@ export async function listPendingTopics(
 ): Promise<PendingTopic[]> {
 	const db = getDb();
 	const cap = Math.min(Math.max(limit ?? 50, 1), 500);
+	// 使用 COALESCE 替代 NULLS LAST 以兼容旧版 SQLite (< 3.30.0)
 	const orderCol =
-		sortBy === "score" ? "score DESC NULLS LAST" : "created_at DESC";
+		sortBy === "score" ? "COALESCE(score, 0) DESC" : "created_at DESC";
 	let rows: PendingRow[];
 	if (status !== undefined) {
 		rows = db
