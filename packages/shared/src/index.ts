@@ -1,5 +1,8 @@
 // Shared types and utilities for 51publisher monorepo
 
+export { fetchWithTimeout } from "./fetch.js";
+export type { FetchWithTimeoutOptions } from "./fetch.js";
+
 export type { FactKey, FactsBlock, ParsedTopic } from "./facts.js";
 export {
 	applyPromptTemplate,

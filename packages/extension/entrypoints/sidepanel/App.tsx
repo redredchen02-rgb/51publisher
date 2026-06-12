@@ -20,6 +20,7 @@ import { useErrorHandler } from "./hooks/useErrorHandler";
 import { useErrorLogger } from "./hooks/useErrorLogger";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useLoadingState } from "./hooks/useLoadingState";
+import { useOperationHistory } from "./hooks/useOperationHistory";
 import { Loading } from "./Loading";
 import { PendingTopicsView } from "./PendingTopicsView";
 import { Settings } from "./Settings";
@@ -39,6 +40,14 @@ export function App() {
 	const { logs, logError, retrieveLogs, clearLogs, exportLogs } =
 		useErrorLogger();
 	const [showLogs, setShowLogs] = useState(false);
+	const {
+		history,
+		recordOperation,
+		retrieveHistory,
+		clearHistory,
+		exportHistory,
+	} = useOperationHistory();
+	const [showHistory, setShowHistory] = useState(false);
 	const [confirmNext, setConfirmNext] = useState(false);
 	const [toast, setToast] = useState<{
 		message: string;
@@ -94,6 +103,7 @@ export function App() {
 				updateDraft(res.draft);
 				setMode("draft");
 				loadingState.completeLoading();
+				void recordOperation({ type: "generate", topic, success: true });
 			} else {
 				const errMsg =
 					res.kind === "no-key" ? `${res.error}(点右上角设置)` : res.error;
@@ -102,6 +112,12 @@ export function App() {
 				loadingState.completeLoading();
 				// 记录错误日志
 				void logError(new Error(errMsg), { topic, action: "generate" });
+				void recordOperation({
+					type: "generate",
+					topic,
+					success: false,
+					details: { error: errMsg },
+				});
 			}
 		} finally {
 			clearInterval(progressInterval);
@@ -416,10 +432,7 @@ export function App() {
 			)}
 
 			{draft && mode !== "generating" && (
-				<DraftPreview
-					draft={draft}
-					onChange={updateDraft}
-				/>
+				<DraftPreview draft={draft} onChange={updateDraft} />
 			)}
 
 			{mode === "filling" && (

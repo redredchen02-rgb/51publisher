@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { getBackendUrl, clearBackendUrlCache } from "./backend-url";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { clearBackendUrlCache, getBackendUrl } from "./backend-url";
 
 vi.mock("#imports", () => ({
 	storage: {
