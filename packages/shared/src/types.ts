@@ -153,6 +153,8 @@ export type RuntimeMessage =
 			coverImageUrls?: string[];
 			/** 与 topics 同序平行;同索引 = 同选题。handleRunBatch 写入 item.pendingTopicId。 */
 			topicIds?: string[];
+			/** 预格式化的 web 搜索富化文本（可选），与 topics 同序平行。 */
+			enrichments?: (string | undefined)[];
 	  }
 	| {
 			type: "APPROVE_BATCH";

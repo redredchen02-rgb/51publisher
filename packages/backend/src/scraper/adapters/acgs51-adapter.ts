@@ -81,13 +81,16 @@ function extractMetadata(html: string): Record<string, string> {
 		}
 	}
 
-	// 2. 提取作者信息（从 "作者：" 区域）
+	// 2. 提取作者信息（从 "作者：" 区域，需要是 /creator/ 链接）
 	const authorMatch = html.match(
-		/<span[^>]*>作者[：:]?<\/span>\s*<a[^>]*>\s*<span[^>]*>([^<]+)<\/span>/i,
+		/<span[^>]*>作者[：:]?<\/span>\s*<a[^>]*href="[^"]*\/creator\/\d+"[^>]*>\s*<span[^>]*>([^<]+)<\/span>/i,
 	);
 	if (authorMatch) {
 		const authorName = authorMatch[1].trim();
-		if (authorName) meta["制作"] = authorName;
+		// 过滤掉明显不是作者名的内容
+		if (authorName && authorName.length > 1 && !/^(剧情|简介|标签|分类|默认)/.test(authorName)) {
+			meta["制作"] = authorName;
+		}
 	}
 
 	// 3. 从标题提取作者（格式通常是 [作者名] 作品名）

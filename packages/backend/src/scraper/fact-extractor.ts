@@ -76,7 +76,18 @@ export async function extractFacts(
 		fetchFn = fetch,
 	} = opts;
 
-	const userPrompt = `${EXTRACTOR_PROMPT}\n\n标题：${rawContent.title}\n\n正文：${rawContent.body.slice(0, 8000)}`;
+	let userPrompt = `${EXTRACTOR_PROMPT}\n\n标题：${rawContent.title}\n\n正文：${rawContent.body.slice(0, 8000)}`;
+
+	// 如果有结构化元数据，附加到 prompt 中
+	if (rawContent.metadata && Object.keys(rawContent.metadata).length > 0) {
+		const metaLines = Object.entries(rawContent.metadata)
+			.filter(([, v]) => v)
+			.map(([k, v]) => `- ${k}: ${v}`)
+			.join("\n");
+		if (metaLines) {
+			userPrompt += `\n\n结构化元数据（来自页面提取，可直接使用）：\n${metaLines}`;
+		}
+	}
 
 	// Two-pass: json_schema strict → json_object fallback (mirrors llm.ts pattern)
 	for (const useSchema of [true, false] as const) {
