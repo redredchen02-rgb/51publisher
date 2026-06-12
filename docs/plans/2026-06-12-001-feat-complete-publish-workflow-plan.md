@@ -1,7 +1,7 @@
 ---
 title: "feat: 完整发帖 Workflow 收尾 — 隐藏发布 + 注册表回写 + 逐篇审读"
 type: feat
-status: active
+status: completed
 date: 2026-06-12
 origin: docs/brainstorms/2026-06-12-001-complete-publish-workflow-requirements.md
 ---
@@ -81,7 +81,7 @@ origin: docs/brainstorms/2026-06-12-001-complete-publish-workflow-requirements.m
 
 ## Implementation Units
 
-- [ ] **Unit 1: postStatus 默认改 "0"**
+- [x] **Unit 1: postStatus 默认改 "0"**
 
 **Goal:** LLM 生成的草稿默认以「隐藏」状态发布
 
@@ -109,7 +109,7 @@ origin: docs/brainstorms/2026-06-12-001-complete-publish-workflow-requirements.m
 
 ---
 
-- [ ] **Unit 2: published_posts 回写接线**
+- [x] **Unit 2: published_posts 回写接线**
 
 **Goal:** `handleApproveBatch` 在 `publish-confirmed` 后调用 `recordPublishedPost` 写入注册表
 
@@ -142,7 +142,7 @@ origin: docs/brainstorms/2026-06-12-001-complete-publish-workflow-requirements.m
 
 ---
 
-- [ ] **Unit 3: ApproveSingleItem — orchestrator 扩展 + 消息接线**
+- [x] **Unit 3: ApproveSingleItem — orchestrator 扩展 + 消息接线**
 
 **Goal:** 让 TodayBatchView 能对单条 `awaiting-approval` 草稿发起 approve-fill-publish，而不触碰其余条目
 
@@ -198,7 +198,7 @@ handleApproveSingleItem(tabId, itemId) {
 
 ---
 
-- [ ] **Unit 4: TodayBatchView 审读 UI 重写**
+- [x] **Unit 4: TodayBatchView 审读 UI 重写**
 
 **Goal:** 生成完成后切换到「审读队列」模式，每条草稿需展开预览后才能点「发布」
 

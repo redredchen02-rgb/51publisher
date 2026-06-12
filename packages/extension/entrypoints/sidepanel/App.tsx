@@ -24,10 +24,6 @@ import { TodayBatchView } from "./TodayBatchView";
 
 type Mode = "empty" | "generating" | "draft" | "filling" | "filled" | "partial";
 
-const _btn: React.CSSProperties = {};
-const _primaryBtn: React.CSSProperties = {};
-const _plainBtn: React.CSSProperties = {};
-
 export function App() {
 	const [view, setView] = useState<
 		"main" | "settings" | "batch" | "pending" | "today" | "auth"

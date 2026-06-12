@@ -290,7 +290,7 @@ export function toDraft(
 		body: assembled.body,
 		tags,
 		description: assembled.description,
-		postStatus: "1",
+		postStatus: "0",
 		publishedAt: "",
 		mediaId: "",
 		status: "draft",

@@ -119,7 +119,7 @@ const draft: ContentDraft = {
 	body: "<p>测试正文</p>",
 	tags: ["标签A"],
 	description: "",
-	postStatus: "1",
+	postStatus: "0",
 	publishedAt: "",
 	mediaId: "99",
 	status: "draft",
