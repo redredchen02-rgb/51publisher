@@ -287,13 +287,10 @@ describe("App with keyboard shortcuts help", () => {
 		expect(screen.getByLabelText("快捷键帮助")).toBeTruthy();
 	});
 
-	it("renders KeyboardShortcutsHelp component", async () => {
-		const mockKbd = KeyboardShortcutsHelp as unknown as ReturnType<typeof vi.fn>;
-		mockKbd.mockReturnValue(<div data-testid="kbd-help">mock</div>);
-
+	it("opens keyboard shortcuts dialog when clicked", async () => {
 		render(<App />);
 		await waitForAppReady();
-		expect(screen.getByLabelText("快捷键帮助")).toBeTruthy();
-		expect(mockKbd).toHaveBeenCalled();
+		fireEvent.click(screen.getByLabelText("快捷键帮助"));
+		expect(screen.getByText("快捷键帮助", { selector: "h3" })).toBeTruthy();
 	});
 });
