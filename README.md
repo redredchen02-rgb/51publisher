@@ -148,10 +148,15 @@ ENRICHMENT_MAX_QUERIES=3
 
 ```bash
 pnpm test          # 单元测试(vitest,jsdom + mock)
-pnpm test:e2e      # 端到端:本地 fixture + 真实 Quill,核心填充路径 + 降级 + contract
-pnpm check:fixtures # 脱敏闸门:扫 fixture 是否夹带机密(pre-commit 会自动跑)
 pnpm compile       # tsc 类型检查
 pnpm build         # 构建
+```
+
+扩展包特有的命令:
+```bash
+cd packages/extension
+pnpm test:e2e      # 端到端:本地 fixture + 真实 Quill,核心填充路径 + 降级 + contract
+pnpm check:fixtures # 脱敏闸门:扫 fixture 是否夹带机密(pre-commit 会自动跑)
 ```
 
 三层结构:`entrypoints/background.ts`(调大模型)、`entrypoints/content.ts`(隔离世界填充)+ `entrypoints/quill-bridge.content.ts`(主世界写 Quill,逻辑在 `lib/body-responder.ts`)、`entrypoints/sidepanel/`(React UI);共享逻辑在 `lib/`。
