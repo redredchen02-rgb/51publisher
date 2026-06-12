@@ -7,9 +7,9 @@ import { safeFetch } from "../ssrf-guard.js";
 const UA =
 	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
 
-/** 詳情頁路徑模式：/段/數字ID(.html?可選) 或 /YYYYMMDD/ 或 /YYYY/MM/ 格式。 */
+/** 詳情頁路徑模式：/段/數字ID(.html?可選) 或 /YYYY/MM/slug 或 /YYYYMMDD/slug 格式。 */
 const DETAIL_PATH_RE =
-	/^\/[a-z0-9_-]+\/\d+(?:\.html?)?(?:[?#].*)?$|\/\d{4}\/\d{2}\/|\/\d{8}\//i;
+	/^\/[a-z0-9_-]+\/\d+(?:\.html?)?(?:[?#].*)?$|\/\d{4}\/\d{2}\/[^/]+|\/\d{8}\/[^/]+/i;
 
 export interface DiscoveredUrl {
 	url: string;
@@ -78,6 +78,10 @@ export async function fetchList(listUrl: string): Promise<DiscoveredUrl[]> {
 	}
 	if (!res.ok) return [];
 
+	const MAX_BYTES = 5 * 1024 * 1024;
+	const cl = Number(res.headers.get("content-length") ?? "0");
+	if (cl > MAX_BYTES) { res.body?.cancel(); return []; }
+
 	const html = await res.text();
 	const base = new URL(listUrl);
 	const seen = new Set<string>();
@@ -127,6 +131,13 @@ export async function fetchContent(url: string): Promise<RawContent> {
 	if (!res.ok) {
 		res.body?.cancel();
 		throw new Error(`HTTP ${res.status}: Failed to fetch ${url}`);
+	}
+
+	const MAX_BYTES = 5 * 1024 * 1024;
+	const cl = Number(res.headers.get("content-length") ?? "0");
+	if (cl > MAX_BYTES) {
+		res.body?.cancel();
+		throw new Error(`Response too large (content-length: ${cl})`);
 	}
 
 	const html = await res.text();

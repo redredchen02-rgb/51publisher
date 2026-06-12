@@ -9,12 +9,16 @@ vi.mock("../ssrf-guard.js", () => ({
 import { safeFetch } from "../ssrf-guard.js";
 const mockSafeFetch = vi.mocked(safeFetch);
 
-function makeResponse(body: string, status = 200): Response {
+function makeResponse(body: string, status = 200, contentLength?: number): Response {
+	const headers = new Headers();
+	if (contentLength !== undefined) headers.set("content-length", String(contentLength));
 	return {
 		ok: status >= 200 && status < 300,
 		status,
+		headers,
 		text: async () => body,
-	} as Response;
+		body: null,
+	} as unknown as Response;
 }
 
 const LIST_HTML = `
@@ -91,6 +95,12 @@ describe("generic-adapter.fetchList", () => {
 		const results = await fetchList("https://example.com/latest");
 		expect(results).toHaveLength(0);
 	});
+
+	it("content-length 超過 5 MB → 返回空陣列", async () => {
+		mockSafeFetch.mockResolvedValueOnce(makeResponse("x", 200, 6 * 1024 * 1024));
+		const results = await fetchList("https://example.com/latest");
+		expect(results).toHaveLength(0);
+	});
 });
 
 describe("generic-adapter.fetchContent", () => {
@@ -106,5 +116,10 @@ describe("generic-adapter.fetchContent", () => {
 	it("HTTP 4xx 時拋出含狀態碼的 Error", async () => {
 		mockSafeFetch.mockResolvedValueOnce(makeResponse("", 404));
 		await expect(fetchContent("https://example.com/gossip/99999")).rejects.toThrow("HTTP 404");
+	});
+
+	it("content-length 超過 5 MB → 拋出 too large 錯誤", async () => {
+		mockSafeFetch.mockResolvedValueOnce(makeResponse("x", 200, 6 * 1024 * 1024));
+		await expect(fetchContent("https://example.com/gossip/12345")).rejects.toThrow("too large");
 	});
 });

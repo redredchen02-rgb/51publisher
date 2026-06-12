@@ -13,11 +13,13 @@ import {
 import { pendingTopicExistsBySourceUrl, savePendingTopic } from "./pending-store.js";
 import type { PendingTopic } from "./pending-store.js";
 
-/** 返回 400 如果 hostname 是 IP literal（IPv4 或 IPv6）。 */
+/** 返回 400 如果 hostname 是 IP literal（IPv4、decimal-encoded IPv4 或 IPv6）。 */
 function isIpLiteral(hostname: string): boolean {
-	// IPv4: 純數字和點
+	// IPv4 dotted-quad
 	if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) return true;
-	// IPv6: 含冒號（含 [::1] 去括號後）
+	// Decimal-encoded IPv4 (e.g. 2130706433 → 127.0.0.1)
+	if (/^\d+$/.test(hostname) && BigInt(hostname) <= 0xffffffffn) return true;
+	// IPv6 含冒號
 	if (hostname.includes(":")) return true;
 	// IPv6 帶中括號
 	if (/^\[.*\]$/.test(hostname)) return true;

@@ -124,7 +124,7 @@ export async function gossipExtractFacts(
 		}
 
 		if (!res) throw new Error("No response received from LLM");
-		if (useSchema && res.status === 400) continue;
+		if (useSchema && (res.status === 400 || res.status === 422)) continue;
 		if (!res.ok) throw new Error(`LLM request failed: HTTP ${res.status}`);
 
 		let raw: unknown;

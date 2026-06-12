@@ -100,7 +100,14 @@ export function GossipView({ onBack, onTopicAdded }: Props) {
 			setDiscovered((p) => ({ ...p, [siteId]: (p[siteId] ?? []).filter(i => i.url !== item.url) }));
 			onTopicAdded();
 		} catch (e) {
-			console.warn("[GossipView] from-url failed:", e);
+			const msg = e instanceof Error ? e.message : String(e);
+			if (msg === "DUPLICATE_URL") {
+				// 已在待審列表，視為成功：移除並跳轉
+				setDiscovered((p) => ({ ...p, [siteId]: (p[siteId] ?? []).filter(i => i.url !== item.url) }));
+				onTopicAdded();
+			} else {
+				console.warn("[GossipView] from-url failed:", e);
+			}
 		} finally {
 			setGenBusy((p) => ({ ...p, [key]: false }));
 		}

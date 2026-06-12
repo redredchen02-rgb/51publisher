@@ -100,6 +100,7 @@ export async function fetchGossipTopicFromUrl(url: string, siteName: string): Pr
 		timeoutMs: 60_000,
 	});
 	if (res.status === 401) { await clearToken(); throw new Error("Unauthorized"); }
+	if (res.status === 409) throw new Error("DUPLICATE_URL");
 	if (!res.ok) {
 		const data = await res.json() as { error?: string };
 		throw new Error(data.error ?? `HTTP ${res.status}`);
