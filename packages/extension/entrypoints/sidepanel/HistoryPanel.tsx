@@ -13,6 +13,15 @@ export function HistoryPanel() {
 		getTrajectory().then((r) => setRecords([...r].reverse())); // newest-first
 	}, []);
 
+	// records は newest-first;verifyTrajectory / rollbackTargets は oldest-first を期待。
+	// records が変わるときだけ再計算する(Hook は early return の前に置く)。
+	const oldestFirst = useMemo(() => [...records].reverse(), [records]);
+	const intact = useMemo(() => verifyTrajectory(oldestFirst), [oldestFirst]);
+	const rollbackSet = useMemo(
+		() => new Set(rollbackTargets(oldestFirst).map((r) => r.id)),
+		[oldestFirst],
+	);
+
 	if (records.length === 0) {
 		return (
 			<section style={{ paddingTop: 10, fontSize: 13 }}>
@@ -21,14 +30,6 @@ export function HistoryPanel() {
 		);
 	}
 
-	// records は newest-first;verifyTrajectory / rollbackTargets は oldest-first を期待。
-	// records が変わるときだけ再計算する。
-	const oldestFirst = useMemo(() => [...records].reverse(), [records]);
-	const intact = useMemo(() => verifyTrajectory(oldestFirst), [oldestFirst]);
-	const rollbackSet = useMemo(
-		() => new Set(rollbackTargets(oldestFirst).map((r) => r.id)),
-		[oldestFirst],
-	);
 	const visible = records.slice(0, page * PAGE_SIZE);
 	const hasMore = records.length > page * PAGE_SIZE;
 
