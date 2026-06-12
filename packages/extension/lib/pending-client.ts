@@ -169,15 +169,12 @@ export async function triggerScrape(
 		if (token) headers.Authorization = `Bearer ${token}`;
 
 		const backendUrl = await getBackendUrl();
-		const res = await fetchFn(
-			`${backendUrl}/api/v1/scraper/trigger`,
-			{
-				method: "POST",
-				headers,
-				body: JSON.stringify({ siteName }),
-				signal: controller.signal,
-			},
-		);
+		const res = await fetchFn(`${backendUrl}/api/v1/scraper/trigger`, {
+			method: "POST",
+			headers,
+			body: JSON.stringify({ siteName }),
+			signal: controller.signal,
+		});
 		if (res.status === 401) {
 			await clearToken();
 			return false;
