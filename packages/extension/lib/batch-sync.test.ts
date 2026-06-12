@@ -25,7 +25,7 @@ const mockCreateRemoteBatch = vi.mocked(createRemoteBatch);
 const mockFetchBatchState = vi.mocked(fetchBatchState);
 const mockSyncBatchItemStatus = vi.mocked(syncBatchItemStatus);
 
-function makeBatch(overrides?: Partial<ReturnType<typeof createBatch>>): any {
+function makeBatch(overrides?: Record<string, unknown>): any {
 	return {
 		id: "batch-1",
 		tabId: 1,
