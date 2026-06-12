@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 export type BatchOperationStatus =
 	| "idle"
@@ -35,7 +35,7 @@ export function useBatchOperations<T, R>(): UseBatchOperationsReturn<T, R> {
 	const [status, setStatus] = useState<BatchOperationStatus>("idle");
 	const [items, setItems] = useState<BatchItem<T>[]>([]);
 	const [results, setResults] = useState<R[]>([]);
-	const [pausedRef] = useState({ value: false });
+	const pausedRef = useRef({ value: false });
 
 	const progress: BatchProgress = {
 		total: items.length,
@@ -62,12 +62,12 @@ export function useBatchOperations<T, R>(): UseBatchOperationsReturn<T, R> {
 			setItems(initialItems);
 			setResults([]);
 			setStatus("running");
-			pausedRef.value = false;
+			pausedRef.current.value = false;
 
 			const collectedResults: R[] = [];
 
 			for (let i = 0; i < inputs.length; i++) {
-				while (pausedRef.value) {
+				while (pausedRef.current.value) {
 					await new Promise((r) => setTimeout(r, 100));
 				}
 
@@ -103,20 +103,20 @@ export function useBatchOperations<T, R>(): UseBatchOperationsReturn<T, R> {
 
 			setStatus("completed");
 		},
-		[pausedRef],
+		[],
 	);
 
 	const pause = useCallback(() => {
-		pausedRef.value = !pausedRef.value;
+		pausedRef.current.value = !pausedRef.current.value;
 		setStatus((s) => (s === "running" ? "paused" : "running"));
-	}, [pausedRef]);
+	}, []);
 
 	const reset = useCallback(() => {
-		pausedRef.value = false;
+		pausedRef.current.value = false;
 		setStatus("idle");
 		setItems([]);
 		setResults([]);
-	}, [pausedRef]);
+	}, []);
 
 	return { status, items, results, progress, start, pause, reset };
 }

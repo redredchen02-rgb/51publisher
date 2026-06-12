@@ -40,17 +40,14 @@ export function useErrorHandler(): UseErrorHandlerReturn {
 					setIsRetrying(false);
 					return result;
 				} catch (err) {
-					lastError =
-						err instanceof Error ? err : new Error(String(err));
+					lastError = err instanceof Error ? err : new Error(String(err));
 					console.warn(
 						`[ErrorHandler] Attempt ${attempt}/${maxRetries} failed:`,
 						lastError.message,
 					);
 
 					if (attempt < maxRetries) {
-						await new Promise((resolve) =>
-							setTimeout(resolve, 1000 * attempt),
-						);
+						await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
 					}
 				}
 			}

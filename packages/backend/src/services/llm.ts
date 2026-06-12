@@ -301,7 +301,11 @@ export async function generateDraft(
 		.filter((c) => !c.pass)
 		.map((c) => ({ name: c.name, message: c.message }));
 
-	return { ok: true, draft, ...(qualityWarnings.length > 0 ? { qualityWarnings } : {}) };
+	return {
+		ok: true,
+		draft,
+		...(qualityWarnings.length > 0 ? { qualityWarnings } : {}),
+	};
 }
 
 export type ListModelsResult =

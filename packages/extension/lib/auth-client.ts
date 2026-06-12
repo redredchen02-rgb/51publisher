@@ -1,6 +1,6 @@
 import { storage } from "#imports";
+import { getBackendUrl } from "./backend-url";
 
-const BACKEND_BASE = "http://127.0.0.1:3001";
 const AUTH_TOKEN_KEY = "local:authToken";
 
 export interface LoginResult {
@@ -11,7 +11,7 @@ export interface LoginResult {
 
 export async function login(password: string): Promise<LoginResult> {
 	try {
-		const res = await fetch(`${BACKEND_BASE}/api/v1/auth/login`, {
+		const res = await fetch(`${await getBackendUrl()}/api/v1/auth/login`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ password }),

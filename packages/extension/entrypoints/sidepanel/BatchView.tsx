@@ -101,6 +101,7 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 		return () => {
 			unwatch();
 			if (debounceRef.current) clearTimeout(debounceRef.current);
+			if (toastTimer.current !== null) clearTimeout(toastTimer.current);
 		};
 	}, [refresh]);
 

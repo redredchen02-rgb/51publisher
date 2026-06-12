@@ -1,6 +1,5 @@
 import { clearToken, getToken } from "./auth-client";
-
-const BACKEND_BASE = "http://127.0.0.1:3001";
+import { getBackendUrl } from "./backend-url";
 
 export interface PendingTopic {
 	id: string;
@@ -48,46 +47,31 @@ export interface PendingTopicResponse {
 /**
  * 拉取待审核选题列表。支持按质量分排序（sort_by='score'）和折叠阈值。
  *
- * 两种调用方式（向前兼容）：
- *   fetchPendingTopics('pending')
- *   fetchPendingTopics('pending', 'score', 0.5)
+ * 两种调用方式:
  *   fetchPendingTopics({ status: 'pending', sort_by: 'score', fold_threshold: 0.5 })
+ *   fetchPendingTopics('pending')
  */
 export async function fetchPendingTopics(
+	opts: FetchPendingTopicsOptions,
+	fetchFn?: typeof fetch,
+	timeoutMs?: number,
+): Promise<PendingTopic[]>;
+export async function fetchPendingTopics(
+	status?: string,
+	fetchFn?: typeof fetch,
+	timeoutMs?: number,
+): Promise<PendingTopic[]>;
+export async function fetchPendingTopics(
 	statusOrOpts?: string | FetchPendingTopicsOptions,
-	sortByOrFetch?: "score" | "created_at" | typeof fetch,
-	foldThresholdOrTimeout?: number,
-	fetchFnArg?: typeof fetch,
-	timeoutMs = 10_000,
+	fetchFn?: typeof fetch,
+	timeoutMs?: number,
 ): Promise<PendingTopic[]> {
-	// 解析重载参数
-	let opts: FetchPendingTopicsOptions;
-	let fetchFn: typeof fetch;
-	let timeout: number;
-
-	if (typeof statusOrOpts === "object" && statusOrOpts !== null) {
-		// fetchPendingTopics(opts, fetchFn?, timeoutMs?)
-		opts = statusOrOpts;
-		fetchFn = (sortByOrFetch as typeof fetch | undefined) ?? fetch;
-		timeout = (foldThresholdOrTimeout as number | undefined) ?? 10_000;
-	} else if (typeof sortByOrFetch === "string" || sortByOrFetch === undefined) {
-		// fetchPendingTopics(status?, sortBy?, foldThreshold?, fetchFn?, timeoutMs?)
-		opts = {
-			status: statusOrOpts as string | undefined,
-			sort_by: sortByOrFetch as "score" | "created_at" | undefined,
-			fold_threshold:
-				typeof foldThresholdOrTimeout === "number"
-					? foldThresholdOrTimeout
-					: undefined,
-		};
-		fetchFn = fetchFnArg ?? fetch;
-		timeout = timeoutMs;
-	} else {
-		// fetchPendingTopics(status?, fetchFn, timeoutMs?)
-		opts = { status: statusOrOpts as string | undefined };
-		fetchFn = sortByOrFetch as typeof fetch;
-		timeout = (foldThresholdOrTimeout as number | undefined) ?? 10_000;
-	}
+	const opts: FetchPendingTopicsOptions =
+		typeof statusOrOpts === "object" && statusOrOpts !== null
+			? statusOrOpts
+			: { status: statusOrOpts };
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), timeoutMs ?? 10_000);
 
 	const qp = new URLSearchParams();
 	if (opts.status) qp.set("status", opts.status);
@@ -95,8 +79,6 @@ export async function fetchPendingTopics(
 	if (opts.fold_threshold !== undefined)
 		qp.set("fold_threshold", String(opts.fold_threshold));
 	const params = qp.toString() ? `?${qp.toString()}` : "";
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeout);
 
 	try {
 		const token = await getToken();
@@ -105,8 +87,9 @@ export async function fetchPendingTopics(
 		};
 		if (token) headers.Authorization = `Bearer ${token}`;
 
-		const res = await fetchFn(
-			`${BACKEND_BASE}/api/v1/pending-topics${params}`,
+		const backendUrl = await getBackendUrl();
+		const res = await (fetchFn ?? fetch)(
+			`${backendUrl}/api/v1/pending-topics${params}`,
 			{
 				headers,
 				signal: controller.signal,
@@ -146,7 +129,7 @@ export async function patchPendingTopic(
 		if (token) headers.Authorization = `Bearer ${token}`;
 
 		const res = await fetchFn(
-			`${BACKEND_BASE}/api/v1/pending-topics/${encodeURIComponent(id)}`,
+			`${await getBackendUrl()}/api/v1/pending-topics/${encodeURIComponent(id)}`,
 			{
 				method: "PATCH",
 				headers,
@@ -184,7 +167,7 @@ export async function triggerScrape(
 		};
 		if (token) headers.Authorization = `Bearer ${token}`;
 
-		const res = await fetchFn(`${BACKEND_BASE}/api/v1/scraper/trigger`, {
+		const res = await fetchFn(`${await getBackendUrl()}/api/v1/scraper/trigger`, {
 			method: "POST",
 			headers,
 			body: JSON.stringify({ siteName }),
@@ -219,7 +202,8 @@ export async function fetchAdapters(
 		};
 		if (token) headers.Authorization = `Bearer ${token}`;
 
-		const res = await fetchFn(`${BACKEND_BASE}/api/v1/scraper/adapters`, {
+		const backendUrl2 = await getBackendUrl();
+		const res = await fetchFn(`${backendUrl2}/api/v1/scraper/adapters`, {
 			headers,
 			signal: controller.signal,
 		});
@@ -261,7 +245,7 @@ export async function updatePendingStatus(
 		if (token) headers.Authorization = `Bearer ${token}`;
 
 		const res = await fetchFn(
-			`${BACKEND_BASE}/api/v1/pending-topics/${encodeURIComponent(id)}`,
+			`${await getBackendUrl()}/api/v1/pending-topics/${encodeURIComponent(id)}`,
 			{
 				method: "PATCH",
 				headers,

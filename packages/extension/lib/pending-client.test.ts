@@ -38,36 +38,36 @@ describe("fetchPendingTopics — URL 查询参数构造", () => {
 
 	it("无参数调用 → URL 不含 sort_by 或 fold_threshold", async () => {
 		const { capturedUrls, fn } = mockFetch({ ok: true, topics: [] });
-		await fetchPendingTopics(undefined, undefined, undefined, fn);
+		await fetchPendingTopics(undefined, fn);
 		expect(capturedUrls[0]).not.toContain("sort_by");
 		expect(capturedUrls[0]).not.toContain("fold_threshold");
 	});
 
 	it("fetchPendingTopics('pending') → URL 含 status=pending，不含排序参数", async () => {
 		const { capturedUrls, fn } = mockFetch({ ok: true, topics: [] });
-		await fetchPendingTopics("pending", undefined, undefined, fn);
+		await fetchPendingTopics("pending", fn);
 		expect(capturedUrls[0]).toContain("status=pending");
 		expect(capturedUrls[0]).not.toContain("sort_by");
 		expect(capturedUrls[0]).not.toContain("fold_threshold");
 	});
 
-	it("fetchPendingTopics('pending', 'score') → URL 含 sort_by=score，不含 fold_threshold", async () => {
+	it("fetchPendingTopics({ sort_by: 'score' }) → URL 含 sort_by=score，不含 fold_threshold", async () => {
 		const { capturedUrls, fn } = mockFetch({ ok: true, topics: [] });
-		await fetchPendingTopics("pending", "score", undefined, fn);
+		await fetchPendingTopics({ sort_by: "score" }, fn);
 		expect(capturedUrls[0]).toContain("sort_by=score");
 		expect(capturedUrls[0]).not.toContain("fold_threshold");
 	});
 
-	it("fetchPendingTopics('pending', 'score', 0.5) → URL 含 sort_by=score&fold_threshold=0.5", async () => {
+	it("fetchPendingTopics({ sort_by: 'score', fold_threshold: 0.5 }) → URL 含 sort_by=score&fold_threshold=0.5", async () => {
 		const { capturedUrls, fn } = mockFetch({ ok: true, topics: [] });
-		await fetchPendingTopics("pending", "score", 0.5, fn);
+		await fetchPendingTopics({ sort_by: "score", fold_threshold: 0.5 }, fn);
 		expect(capturedUrls[0]).toContain("sort_by=score");
 		expect(capturedUrls[0]).toContain("fold_threshold=0.5");
 	});
 
-	it("fetchPendingTopics('pending', 'created_at') → URL 含 sort_by=created_at", async () => {
+	it("fetchPendingTopics({ sort_by: 'created_at' }) → URL 含 sort_by=created_at", async () => {
 		const { capturedUrls, fn } = mockFetch({ ok: true, topics: [] });
-		await fetchPendingTopics("pending", "created_at", undefined, fn);
+		await fetchPendingTopics({ sort_by: "created_at" }, fn);
 		expect(capturedUrls[0]).toContain("sort_by=created_at");
 	});
 
@@ -98,12 +98,7 @@ describe("fetchPendingTopics — 响应解析与 folded 字段", () => {
 	it("后端返回 ok:true + topics → 正确返回数组", async () => {
 		const topic = makeTopic();
 		const { fn } = mockFetch({ ok: true, topics: [topic] });
-		const result = await fetchPendingTopics(
-			undefined,
-			undefined,
-			undefined,
-			fn,
-		);
+		const result = await fetchPendingTopics(undefined, fn);
 		expect(result).toHaveLength(1);
 		expect(result[0]?.id).toBe("t1");
 	});
@@ -111,58 +106,33 @@ describe("fetchPendingTopics — 响应解析与 folded 字段", () => {
 	it("后端返回含 folded:true 的选题 → folded 字段保留", async () => {
 		const topic = makeTopic({ folded: true, qualityScore: 0.2 });
 		const { fn } = mockFetch({ ok: true, topics: [topic] });
-		const result = await fetchPendingTopics(
-			undefined,
-			undefined,
-			undefined,
-			fn,
-		);
+		const result = await fetchPendingTopics(undefined, fn);
 		expect(result[0]?.folded).toBe(true);
 	});
 
 	it("后端返回 folded:false → folded 字段保留", async () => {
 		const topic = makeTopic({ folded: false });
 		const { fn } = mockFetch({ ok: true, topics: [topic] });
-		const result = await fetchPendingTopics(
-			undefined,
-			undefined,
-			undefined,
-			fn,
-		);
+		const result = await fetchPendingTopics(undefined, fn);
 		expect(result[0]?.folded).toBe(false);
 	});
 
 	it("后端返回 folded 缺失 → undefined（可选字段）", async () => {
 		const topic = makeTopic();
 		const { fn } = mockFetch({ ok: true, topics: [topic] });
-		const result = await fetchPendingTopics(
-			undefined,
-			undefined,
-			undefined,
-			fn,
-		);
+		const result = await fetchPendingTopics(undefined, fn);
 		expect(result[0]?.folded).toBeUndefined();
 	});
 
 	it("后端返回 ok:false → 返回空数组", async () => {
 		const { fn } = mockFetch({ ok: false, error: "unauthorized" });
-		const result = await fetchPendingTopics(
-			undefined,
-			undefined,
-			undefined,
-			fn,
-		);
+		const result = await fetchPendingTopics(undefined, fn);
 		expect(result).toEqual([]);
 	});
 
 	it("fetch 返回 401 → 返回空数组", async () => {
 		const fn = async () => new Response("{}", { status: 401 });
-		const result = await fetchPendingTopics(
-			undefined,
-			undefined,
-			undefined,
-			fn as typeof fetch,
-		);
+		const result = await fetchPendingTopics(undefined, fn as typeof fetch);
 		expect(result).toEqual([]);
 	});
 
@@ -170,12 +140,56 @@ describe("fetchPendingTopics — 响应解析与 folded 字段", () => {
 		const fn = async () => {
 			throw new Error("network error");
 		};
-		const result = await fetchPendingTopics(
-			undefined,
-			undefined,
-			undefined,
-			fn as typeof fetch,
-		);
+		const result = await fetchPendingTopics(undefined, fn as typeof fetch);
 		expect(result).toEqual([]);
 	});
+});
+
+it("后端返回 ok:true + topics → 正确返回数组", async () => {
+	const topic = makeTopic();
+	const { fn } = mockFetch({ ok: true, topics: [topic] });
+	const result = await fetchPendingTopics(undefined, fn);
+	expect(result).toHaveLength(1);
+	expect(result[0]?.id).toBe("t1");
+});
+
+it("后端返回含 folded:true 的选题 → folded 字段保留", async () => {
+	const topic = makeTopic({ folded: true, qualityScore: 0.2 });
+	const { fn } = mockFetch({ ok: true, topics: [topic] });
+	const result = await fetchPendingTopics(undefined, fn);
+	expect(result[0]?.folded).toBe(true);
+});
+
+it("后端返回 folded:false → folded 字段保留", async () => {
+	const topic = makeTopic({ folded: false });
+	const { fn } = mockFetch({ ok: true, topics: [topic] });
+	const result = await fetchPendingTopics(undefined, fn);
+	expect(result[0]?.folded).toBe(false);
+});
+
+it("后端返回 folded 缺失 → undefined（可选字段）", async () => {
+	const topic = makeTopic();
+	const { fn } = mockFetch({ ok: true, topics: [topic] });
+	const result = await fetchPendingTopics(undefined, fn);
+	expect(result[0]?.folded).toBeUndefined();
+});
+
+it("后端返回 ok:false → 返回空数组", async () => {
+	const { fn } = mockFetch({ ok: false, error: "unauthorized" });
+	const result = await fetchPendingTopics(undefined, fn);
+	expect(result).toEqual([]);
+});
+
+it("fetch 返回 401 → 返回空数组", async () => {
+	const fn = async () => new Response("{}", { status: 401 });
+	const result = await fetchPendingTopics(undefined, fn as typeof fetch);
+	expect(result).toEqual([]);
+});
+
+it("fetch 抛出异常 → 静默返回空数组", async () => {
+	const fn = async () => {
+		throw new Error("network error");
+	};
+	const result = await fetchPendingTopics(undefined, fn as typeof fetch);
+	expect(result).toEqual([]);
 });

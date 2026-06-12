@@ -51,6 +51,16 @@ export function buildApp(): FastifyInstance {
 				return false;
 			}
 		})();
+
+		// 质量统计
+		let quality = { avgScore: 0, passRate: 0, totalGenerations: 0 };
+		try {
+			const { getQualityStats } = await import("./services/quality-metrics.js");
+			quality = await getQualityStats();
+		} catch {
+			// 质量统计不可用不影响健康检查
+		}
+
 		return {
 			ok: true,
 			uptime: Math.round(process.uptime()),
@@ -59,6 +69,7 @@ export function buildApp(): FastifyInstance {
 			memory: {
 				heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
 			},
+			quality,
 		};
 	});
 

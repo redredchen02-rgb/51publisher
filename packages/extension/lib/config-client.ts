@@ -1,6 +1,7 @@
 import type { FieldMapping } from "@51publisher/shared";
 import { DEFAULT_FIELD_MAPPING } from "@51publisher/shared";
 import { clearToken, getToken } from "./auth-client";
+import { getBackendUrl } from "./backend-url";
 
 /**
  * 后端配置客户端。
@@ -9,8 +10,6 @@ import { clearToken, getToken } from "./auth-client";
  * 后端不可达时 fail-closed 回落到编译期默认值(DEFAULT_FIELD_MAPPING),
  * 保证离线环境下扩展仍可正常工作。
  */
-
-const BACKEND_BASE = "http://127.0.0.1:3001";
 
 export interface MappingsResponse {
 	ok: boolean;
@@ -37,7 +36,7 @@ export async function fetchRemoteMappings(
 		};
 		if (token) headers.Authorization = `Bearer ${token}`;
 
-		const res = await fetchFn(`${BACKEND_BASE}/api/v1/config/mappings`, {
+		const res = await fetchFn(`${await getBackendUrl()}/api/v1/config/mappings`, {
 			headers,
 			signal: controller.signal,
 		});
@@ -54,7 +53,6 @@ export async function fetchRemoteMappings(
 
 		const data = (await res.json()) as MappingsResponse;
 		if (data.ok && data.mappings) {
-			console.log(
 				"[config-client] 成功拉取远程映射 (version=%d)",
 				data.version,
 			);
@@ -105,7 +103,7 @@ export async function syncBatchItemStatus(
 		if (token) headers.Authorization = `Bearer ${token}`;
 
 		const res = await fetchFn(
-			`${BACKEND_BASE}/api/v1/batches/${encodeURIComponent(batchId)}/items/${encodeURIComponent(itemId)}`,
+			`${await getBackendUrl()}/api/v1/batches/${encodeURIComponent(batchId)}/items/${encodeURIComponent(itemId)}`,
 			{
 				method: "PATCH",
 				headers,
@@ -158,7 +156,7 @@ export async function fetchBatchState(
 		if (token) headers.Authorization = `Bearer ${token}`;
 
 		const res = await fetchFn(
-			`${BACKEND_BASE}/api/v1/batches/${encodeURIComponent(batchId)}`,
+			`${await getBackendUrl()}/api/v1/batches/${encodeURIComponent(batchId)}`,
 			{
 				headers,
 				signal: controller.signal,
@@ -207,7 +205,7 @@ export async function createRemoteBatch(
 		};
 		if (token) headers.Authorization = `Bearer ${token}`;
 
-		const res = await fetchFn(`${BACKEND_BASE}/api/v1/batches`, {
+		const res = await fetchFn(`${await getBackendUrl()}/api/v1/batches`, {
 			method: "POST",
 			headers,
 			body: JSON.stringify(payload),

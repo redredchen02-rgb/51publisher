@@ -19,6 +19,10 @@ vi.mock("./pending-store.js", () => ({
 	savePendingTopic: vi.fn(async () => undefined),
 }));
 
+vi.mock("./web-enricher.js", () => ({
+	enrichContext: vi.fn(async () => ({ queryResults: [] })),
+}));
+
 // ---- helpers ----
 
 const MOCK_RAW: RawContent = {

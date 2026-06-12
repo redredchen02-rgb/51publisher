@@ -1,6 +1,5 @@
 import { clearToken, getToken } from "./auth-client";
-
-const BACKEND_BASE = "http://127.0.0.1:3001";
+import { getBackendUrl } from "./backend-url";
 
 function errorMessage(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
@@ -36,10 +35,16 @@ async function handleUnauthorized(res: Response): Promise<void> {
  */
 export async function fetchPrompts(
 	fetchFn: typeof fetch = fetch,
+	timeoutMs = 10_000,
 ): Promise<{ ok: boolean; prompts?: PromptTemplate[]; error?: string }> {
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), timeoutMs);
 	try {
 		const headers = await authHeaders();
-		const res = await fetchFn(`${BACKEND_BASE}/api/v1/prompts`, { headers });
+		const res = await fetchFn(`${await getBackendUrl()}/api/v1/prompts`, {
+			headers,
+			signal: controller.signal,
+		});
 		if (!res.ok) {
 			await handleUnauthorized(res);
 			return { ok: false, error: `HTTP ${res.status}` };
@@ -47,6 +52,8 @@ export async function fetchPrompts(
 		return await res.json();
 	} catch (err) {
 		return { ok: false, error: errorMessage(err) };
+	} finally {
+		clearTimeout(timer);
 	}
 }
 
@@ -64,7 +71,7 @@ export async function createPrompt(
 ): Promise<{ ok: boolean; error?: string }> {
 	try {
 		const headers = await authHeaders();
-		const res = await fetchFn(`${BACKEND_BASE}/api/v1/prompts`, {
+		const res = await fetchFn(`${await getBackendUrl()}/api/v1/prompts`, {
 			method: "POST",
 			headers,
 			body: JSON.stringify(data),
@@ -94,7 +101,7 @@ export async function updatePrompt(
 ): Promise<{ ok: boolean; error?: string }> {
 	try {
 		const headers = await authHeaders();
-		const res = await fetchFn(`${BACKEND_BASE}/api/v1/prompts/${id}`, {
+		const res = await fetchFn(`${await getBackendUrl()}/api/v1/prompts/${id}`, {
 			method: "PUT",
 			headers,
 			body: JSON.stringify(data),

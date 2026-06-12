@@ -36,9 +36,7 @@ export function ErrorDisplay({
 				}}
 			>
 				<div>
-					<div
-						style={{ fontWeight: 600, color: "#cf1322", marginBottom: 4 }}
-					>
+					<div style={{ fontWeight: 600, color: "#cf1322", marginBottom: 4 }}>
 						{message}
 					</div>
 					{solution && (

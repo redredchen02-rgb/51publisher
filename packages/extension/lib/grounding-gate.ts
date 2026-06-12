@@ -37,7 +37,9 @@ export function evaluateGrounding(
 
 	// 质量分检查（非阻塞，仅提示）
 	if (qualityScore !== undefined && qualityScore < 0.6) {
-		reasons.push(`内容质量分 ${(qualityScore * 100).toFixed(0)}% 低于阈值,建议优化后再发。`);
+		reasons.push(
+			`内容质量分 ${(qualityScore * 100).toFixed(0)}% 低于阈值,建议优化后再发。`,
+		);
 	}
 
 	return { ok: reasons.length === 0, reasons };

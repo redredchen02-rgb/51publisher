@@ -8,8 +8,8 @@
 //   - recordPost 在确认后被调用，含 batchItemId、sourceTitle、publishUrl
 //   - read-tracker 约束在 TodayBatchView UI 层实施，此层不重复验证
 
-import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ContentDraft } from "@51publisher/shared";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Batch } from "../../lib/batch";
 import type { ApproveBatchDeps } from "../../lib/batch-orchestrator";
 import { approveBatch } from "../../lib/batch-orchestrator";
@@ -177,9 +177,11 @@ describe("U5-B postStatus 隐藏帖 → trajectory publishedAsDraft", () => {
 			spy.restore();
 		}
 		expect(appendTrajectory).toHaveBeenCalledOnce();
-		expect(appendTrajectory).toHaveBeenCalledWith(expect.objectContaining({
-			publishedAsDraft: true,
-		}));
+		expect(appendTrajectory).toHaveBeenCalledWith(
+			expect.objectContaining({
+				publishedAsDraft: true,
+			}),
+		);
 	});
 
 	it('postStatus="1" → appendTrajectory 收到 publishedAsDraft: false', async () => {
@@ -194,9 +196,11 @@ describe("U5-B postStatus 隐藏帖 → trajectory publishedAsDraft", () => {
 		} finally {
 			spy.restore();
 		}
-		expect(appendTrajectory).toHaveBeenCalledWith(expect.objectContaining({
-			publishedAsDraft: false,
-		}));
+		expect(appendTrajectory).toHaveBeenCalledWith(
+			expect.objectContaining({
+				publishedAsDraft: false,
+			}),
+		);
 	});
 });
 
@@ -267,11 +271,13 @@ describe("U5-D recordPost 回写集成", () => {
 			spy.restore();
 		}
 		expect(recordPost).toHaveBeenCalledOnce();
-		expect(recordPost).toHaveBeenCalledWith(expect.objectContaining({
-			batchItemId: "item_0",
-			sourceTitle: TOPIC_A,
-			publishedAt: fixedTs,
-		}));
+		expect(recordPost).toHaveBeenCalledWith(
+			expect.objectContaining({
+				batchItemId: "item_0",
+				sourceTitle: TOPIC_A,
+				publishedAt: fixedTs,
+			}),
+		);
 	});
 
 	it("recordPost 抛出 → approveBatch 不传播（fire-and-forget），状态仍 publish-confirmed", async () => {

@@ -103,11 +103,10 @@ export function DraftPreview({
 							style={inputStyle}
 							value={draft.postStatus}
 							onChange={(e) =>
-						set({
-							postStatus:
-								e.target.value === "1" ? "1" : "0",
-						})
-					}
+								set({
+									postStatus: e.target.value === "1" ? "1" : "0",
+								})
+							}
 						/>
 					</Field>
 					<Field label="发布时间(yyyy-MM-dd)">

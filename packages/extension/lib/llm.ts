@@ -6,6 +6,7 @@ import type {
 	Settings,
 } from "@51publisher/shared";
 import { clearToken, getToken } from "./auth-client";
+import { getBackendUrl } from "./backend-url";
 
 export interface LlmDeps {
 	settings: Settings;
@@ -20,8 +21,6 @@ export interface LlmDeps {
 export type ListModelsResult =
 	| { ok: true; models: string[] }
 	| { ok: false; error: string };
-
-const BACKEND_BASE = "http://127.0.0.1:3001";
 
 /**
  * 拉取模型列表，转而请求本地后端服务。
@@ -41,7 +40,7 @@ export async function listModels(
 		};
 		if (token) headers.Authorization = `Bearer ${token}`;
 
-		const res = await fetchFn(`${BACKEND_BASE}/api/v1/models`, {
+		const res = await fetchFn(`${await getBackendUrl()}/api/v1/models`, {
 			headers,
 			signal: controller.signal,
 		});
@@ -97,7 +96,7 @@ export async function generateDraft(
 		};
 		if (token) headers.Authorization = `Bearer ${token}`;
 
-		const res = await fetchFn(`${BACKEND_BASE}/api/v1/drafts/generate`, {
+		const res = await fetchFn(`${await getBackendUrl()}/api/v1/drafts/generate`, {
 			method: "POST",
 			headers,
 			body: JSON.stringify({
@@ -173,7 +172,7 @@ export async function reviewDraft(
 			"Content-Type": "application/json",
 		};
 		if (token) headers.Authorization = `Bearer ${token}`;
-		const res = await fetchFn(`${BACKEND_BASE}/api/v1/drafts/review`, {
+		const res = await fetchFn(`${await getBackendUrl()}/api/v1/drafts/review`, {
 			method: "POST",
 			headers,
 			body: JSON.stringify({ draft, criteriaPrompt, settings: deps.settings }),
@@ -218,7 +217,7 @@ export async function rewriteDraft(
 			"Content-Type": "application/json",
 		};
 		if (token) headers.Authorization = `Bearer ${token}`;
-		const res = await fetchFn(`${BACKEND_BASE}/api/v1/drafts/rewrite`, {
+		const res = await fetchFn(`${await getBackendUrl()}/api/v1/drafts/rewrite`, {
 			method: "POST",
 			headers,
 			body: JSON.stringify({ draft, failedDims, settings: deps.settings }),
