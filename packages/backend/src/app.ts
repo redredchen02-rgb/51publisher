@@ -161,10 +161,10 @@ export function registerDraftRoutes(app: FastifyInstance): void {
 					500,
 					"Backend is not configured with an LLM_ENDPOINT. Please check .env file.",
 				);
-			const backendModel = process.env.LLM_MODEL || settings.model;
+			const backendModel = (process.env.LLM_MODEL || settings.model).trim();
 			const resolvedSettings = {
 				...settings,
-				endpoint: backendEndpoint,
+				endpoint: backendEndpoint.trim(),
 				model: backendModel,
 			};
 			try {

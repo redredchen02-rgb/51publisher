@@ -416,7 +416,10 @@ export function App() {
 			)}
 
 			{draft && mode !== "generating" && (
-				<DraftPreview draft={draft} onChange={updateDraft} />
+				<DraftPreview
+					draft={draft}
+					onChange={updateDraft}
+				/>
 			)}
 
 			{mode === "filling" && (
