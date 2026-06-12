@@ -94,14 +94,36 @@ async function runImmediateSweep(deps: RevisitDeps): Promise<void> {
 	}
 }
 
+const SWEEP_BATCH_SIZE = 50;
+
 async function runHealthSweep(deps: RevisitDeps): Promise<void> {
 	try {
 		const db = getDb();
-		const rows = db
-			.prepare("SELECT * FROM published_posts WHERE outcome = 'online'")
-			.all() as PublishedRow[];
-		for (const row of rows) {
-			await checkRow(row, deps);
+		let offset = 0;
+		let hasMore = true;
+
+		while (hasMore) {
+			const rows = db
+				.prepare(
+					"SELECT * FROM published_posts WHERE outcome = 'online' LIMIT ? OFFSET ?",
+				)
+				.all(SWEEP_BATCH_SIZE, offset) as PublishedRow[];
+
+			if (rows.length === 0) {
+				hasMore = false;
+				break;
+			}
+
+			for (const row of rows) {
+				await checkRow(row, deps);
+			}
+
+			offset += rows.length;
+
+			// 如果返回的行数小于批次大小，说明已无更多数据
+			if (rows.length < SWEEP_BATCH_SIZE) {
+				hasMore = false;
+			}
 		}
 	} catch (err) {
 		deps.logger?.error(err, "[revisit] Health sweep error");
