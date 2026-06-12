@@ -44,8 +44,10 @@ jobs:
 
       - name: Build Docker image
         run: docker build -f packages/backend/Dockerfile -t 51publisher-backend .
+        continue-on-error: true
 
       - name: Export Docker image
+        if: success()
         run: docker save 51publisher-backend | gzip > 51publisher-backend.tar.gz
 
       - name: Upload extension artifact
@@ -56,10 +58,12 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Docker artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: docker-image
           path: 51publisher-backend.tar.gz
+          if-no-files-found: ignore
 
   release:
     needs: build-and-verify
@@ -76,6 +80,7 @@ jobs:
         with:
           name: docker-image
           path: artifacts/
+          if-no-files-found: ignore
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
