@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock ssrf-guard before importing telegram so the module uses the mock
-vi.mock("./scraper/ssrf-guard.js", () => ({
+vi.mock("../scraper/ssrf-guard.js", () => ({
 	assertUrlSafe: vi.fn().mockResolvedValue(new URL("https://api.telegram.org")),
 }));
 

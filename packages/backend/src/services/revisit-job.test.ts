@@ -1,10 +1,10 @@
 import cron from "node-cron";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { startRevisitJob } from "./revisit-job.js";
 import { pendingWriteQueue } from "../scraper/pending-db.js";
 import { jobs, stopScheduler } from "../scraper/scheduler.js";
 import { isHostAllowed } from "../scraper/ssrf-allowlist.js";
 import { safeFetch } from "../scraper/ssrf-guard.js";
+import { startRevisitJob } from "./revisit-job.js";
 import { sendAlert } from "./telegram.js";
 
 // ---- mocks ----
@@ -20,12 +20,12 @@ vi.mock("./telegram.js", () => ({
 	sendAlert: vi.fn(async () => undefined),
 }));
 
-vi.mock("./scraper/ssrf-guard.js", () => ({
+vi.mock("../scraper/ssrf-guard.js", () => ({
 	safeFetch: vi.fn(),
 	SsrfError: class SsrfError extends Error {},
 }));
 
-vi.mock("./scraper/ssrf-allowlist.js", () => ({
+vi.mock("../scraper/ssrf-allowlist.js", () => ({
 	loadSSRFAllowlist: vi.fn(() => ({ allowedHosts: [], mode: "fail-closed" })),
 	isHostAllowed: vi.fn(() => true),
 }));
@@ -34,7 +34,7 @@ const mockRun = vi.fn();
 const mockAll = vi.fn(() => [] as unknown[]);
 const mockDb = { prepare: vi.fn(() => ({ all: mockAll, run: mockRun })) };
 
-vi.mock("./scraper/pending-db.js", () => ({
+vi.mock("../scraper/pending-db.js", () => ({
 	getDb: vi.fn(() => mockDb),
 	pendingWriteQueue: {
 		enqueue: vi.fn((fn: () => unknown) => Promise.resolve(fn())),

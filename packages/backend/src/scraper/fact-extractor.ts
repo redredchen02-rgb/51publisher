@@ -1,5 +1,5 @@
 import type { FactsBlock } from "@51publisher/shared";
-import { FACT_ORDER } from "@51publisher/shared";
+import { CORE_FACT_KEYS, FACT_ORDER } from "@51publisher/shared";
 import { chatCompletionsUrl } from "../services/llm.js";
 import type { ExtractedFacts, RawContent } from "./site-adapter.js";
 
@@ -149,9 +149,9 @@ export async function extractFacts(
 				?.choices?.[0]?.message?.content ?? "";
 
 		const facts = parseFactsFromContent(content);
-		const filled = FACT_ORDER.filter((k) => facts[k]).length;
+		const filled = CORE_FACT_KEYS.filter((k) => facts[k]).length;
 		const rawConfidence =
-			FACT_ORDER.length > 0 ? filled / FACT_ORDER.length : 0;
+			CORE_FACT_KEYS.length > 0 ? filled / CORE_FACT_KEYS.length : 0;
 		const extractionMode = useSchema ? "strict" : "fallback";
 		const confidence =
 			extractionMode === "fallback"
