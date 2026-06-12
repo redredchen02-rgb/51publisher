@@ -1,55 +1,74 @@
 import { useCallback, useState } from "react";
 
-export interface ErrorEntry {
-	message: string;
-	code?: string;
-	timestamp: number;
-}
-
-export interface UseErrorHandlerReturn {
-	error: string;
-	errorLog: ErrorEntry[];
-	setError: (message: string, code?: string) => void;
+interface UseErrorHandlerReturn {
+	error: string | null;
+	isRetrying: boolean;
+	handleError: (error: Error | string) => void;
 	clearError: () => void;
-	withErrorHandling: <T>(
-		fn: () => Promise<T>,
-		fallback?: string,
-	) => Promise<T | undefined>;
+	retry: <T>(
+		operation: () => Promise<T>,
+		maxRetries?: number,
+	) => Promise<T | null>;
 }
 
 export function useErrorHandler(): UseErrorHandlerReturn {
-	const [error, setErrorState] = useState("");
-	const [errorLog, setErrorLog] = useState<ErrorEntry[]>([]);
+	const [error, setError] = useState<string | null>(null);
+	const [isRetrying, setIsRetrying] = useState(false);
 
-	const setError = useCallback((message: string, code?: string) => {
-		setErrorState(message);
-		if (message) {
-			setErrorLog((prev) => [
-				...prev.slice(-19),
-				{ message, code, timestamp: Date.now() },
-			]);
-		}
+	const handleError = useCallback((err: Error | string) => {
+		const message = err instanceof Error ? err.message : String(err);
+		setError(message);
+		console.error("[ErrorHandler]", message);
 	}, []);
 
-	const clearError = useCallback(() => setErrorState(""), []);
+	const clearError = useCallback(() => {
+		setError(null);
+	}, []);
 
-	const withErrorHandling = useCallback(
+	const retry = useCallback(
 		async <T>(
-			fn: () => Promise<T>,
-			fallback?: string,
-		): Promise<T | undefined> => {
-			try {
-				clearError();
-				return await fn();
-			} catch (e) {
-				const msg =
-					fallback ?? (e instanceof Error ? e.message : "操作失败，请重试。");
-				setError(msg);
-				return undefined;
+			operation: () => Promise<T>,
+			maxRetries = 3,
+		): Promise<T | null> => {
+			setIsRetrying(true);
+			let lastError: Error | null = null;
+
+			for (let attempt = 1; attempt <= maxRetries; attempt++) {
+				try {
+					const result = await operation();
+					clearError();
+					setIsRetrying(false);
+					return result;
+				} catch (err) {
+					lastError =
+						err instanceof Error ? err : new Error(String(err));
+					console.warn(
+						`[ErrorHandler] Attempt ${attempt}/${maxRetries} failed:`,
+						lastError.message,
+					);
+
+					if (attempt < maxRetries) {
+						await new Promise((resolve) =>
+							setTimeout(resolve, 1000 * attempt),
+						);
+					}
+				}
 			}
+
+			if (lastError) {
+				handleError(lastError);
+			}
+			setIsRetrying(false);
+			return null;
 		},
-		[setError, clearError],
+		[clearError, handleError],
 	);
 
-	return { error, errorLog, setError, clearError, withErrorHandling };
+	return {
+		error,
+		isRetrying,
+		handleError,
+		clearError,
+		retry,
+	};
 }
