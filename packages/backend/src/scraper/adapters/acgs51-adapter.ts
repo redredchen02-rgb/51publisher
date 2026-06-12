@@ -136,7 +136,7 @@ function extractMetadata(html: string): Record<string, string> {
 
 	// 7. 提取章节数
 	const chapterIds = new Set(
-		html.match(/chapter\/(\d+)/g)?.map((m) => m) ?? [],
+		html.match(/chapter\/(\d+)/g)?.map((m) => m.replace("chapter/", "")) ?? [],
 	);
 	if (chapterIds.size > 0) {
 		meta.章节数 = String(chapterIds.size);

@@ -21,11 +21,17 @@ interface QualityMetricRow {
 }
 
 function _rowToMetric(row: QualityMetricRow): QualityMetric {
+	let checks: QualityCheck[] = [];
+	try {
+		checks = JSON.parse(row.checks) as QualityCheck[];
+	} catch {
+		// DB 数据损坏时降级为空数组，不崩溃
+	}
 	return {
 		id: row.id,
 		topicId: row.topic_id,
 		overall: row.overall,
-		checks: JSON.parse(row.checks) as QualityCheck[],
+		checks,
 		createdAt: row.created_at,
 	};
 }

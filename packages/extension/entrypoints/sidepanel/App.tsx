@@ -41,7 +41,6 @@ export function App() {
 		useErrorLogger();
 	const [showLogs, setShowLogs] = useState(false);
 	const { recordOperation } = useOperationHistory();
-	const [_showHistory, _setShowHistory] = useState(false);
 	const [confirmNext, setConfirmNext] = useState(false);
 	const [toast, setToast] = useState<{
 		message: string;
