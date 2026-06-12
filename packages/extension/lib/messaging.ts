@@ -28,20 +28,27 @@ const SW_TIMEOUT: Partial<Record<RuntimeMessage["type"], number>> = {
 
 function sendMsg<T>(msg: RuntimeMessage): Promise<T> {
 	const ms = SW_TIMEOUT[msg.type] ?? 30_000;
-	return Promise.race([
-		browser.runtime.sendMessage(msg) as Promise<T>,
-		new Promise<never>((_, reject) =>
-			setTimeout(
-				() =>
-					reject(
-						new Error(
-							`[sw/${msg.type}] 未在 ${ms / 1000}s 内响应，SW 可能已回收，请重试`,
-						),
+	return new Promise<T>((resolve, reject) => {
+		const timer = setTimeout(
+			() =>
+				reject(
+					new Error(
+						`[sw/${msg.type}] 未在 ${ms / 1000}s 内响应，SW 可能已回收，请重试`,
 					),
-				ms,
-			),
-		),
-	]);
+				),
+			ms,
+		);
+		(browser.runtime.sendMessage(msg) as Promise<T>).then(
+			(result) => {
+				clearTimeout(timer);
+				resolve(result);
+			},
+			(err: unknown) => {
+				clearTimeout(timer);
+				reject(err);
+			},
+		);
+	});
 }
 
 /** side panel → background:生成草稿。 */

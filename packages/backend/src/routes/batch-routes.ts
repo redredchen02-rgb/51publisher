@@ -162,11 +162,11 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
 			if (body.status) {
 				const allowed = ALLOWED_TRANSITIONS[item.status];
 				if (!allowed?.has(body.status)) {
-					return reply.status(409).send({
-						ok: false,
-						error: `Invalid state transition: ${item.status} → ${body.status}`,
-						currentStatus: item.status,
-					});
+					return err(
+						reply,
+						409,
+						`Invalid state transition: ${item.status} → ${body.status}`,
+					);
 				}
 				item.status = body.status;
 			}

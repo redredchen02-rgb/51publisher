@@ -142,6 +142,7 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 		setExpandedBodies(new Set());
 		setStage("generating");
 
+		let progressPoll: ReturnType<typeof setInterval> | undefined;
 		try {
 			const pendingTopics = await fetchPendingTopics({
 				status: "pending",
@@ -159,8 +160,7 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 			const topicIds = topN.map((t) => t.id);
 			const enrichments = topN.map((t) => t.enrichmentText);
 
-			// Phase 1 进度轮询:每 2s 拉一次,展示「生成中 X/N」
-			const progressPoll = setInterval(() => {
+			progressPoll = setInterval(() => {
 				void getBatchState().then((batch) => {
 					if (batch) setItems(batch.items);
 				});
@@ -194,6 +194,7 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 			setReadItems(reads);
 			setStage("review");
 		} catch {
+			clearInterval(progressPoll);
 			setError("启动批量失败,请重试。");
 			setStage("idle");
 		} finally {

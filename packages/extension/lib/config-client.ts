@@ -133,7 +133,7 @@ export async function syncBatchItemStatus(
 		return { ok: true };
 	} catch (err) {
 		console.warn("[config-client] Batch 状态同步异常:", err);
-		return { ok: false, error: String(err) };
+		return { ok: false, error: err instanceof Error ? err.message : String(err) };
 	} finally {
 		clearTimeout(timer);
 	}
@@ -179,7 +179,7 @@ export async function fetchBatchState(
 		const data = await res.json();
 		return { ok: true, batch: (data as { batch?: unknown }).batch };
 	} catch (err) {
-		return { ok: false, error: String(err) };
+		return { ok: false, error: err instanceof Error ? err.message : String(err) };
 	} finally {
 		clearTimeout(timer);
 	}
@@ -229,7 +229,7 @@ export async function createRemoteBatch(
 
 		return { ok: true };
 	} catch (err) {
-		return { ok: false, error: String(err) };
+		return { ok: false, error: err instanceof Error ? err.message : String(err) };
 	} finally {
 		clearTimeout(timer);
 	}
