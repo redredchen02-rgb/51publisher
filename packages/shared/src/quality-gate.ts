@@ -1,8 +1,8 @@
 // 内容质量门禁：评估草稿是否达到发布标准。
 // 纯函数、无副作用，可在 shared 包中复用。
 
-import type { ContentDraft } from "./types.js";
 import type { FactsBlock } from "./facts.js";
+import type { ContentDraft } from "./types.js";
 
 export interface QualityCheck {
 	/** 检查项名称。 */
