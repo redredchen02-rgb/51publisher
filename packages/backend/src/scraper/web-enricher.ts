@@ -49,16 +49,6 @@ function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function _decodeHtmlEntities(s: string): string {
-	return s
-		.replace(/&amp;/g, "&")
-		.replace(/&lt;/g, "<")
-		.replace(/&gt;/g, ">")
-		.replace(/&#x27;/g, "'")
-		.replace(/&quot;/g, '"')
-		.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
-}
-
 /** 初始化富化缓存表。 */
 function initEnrichmentCacheTable(): void {
 	try {

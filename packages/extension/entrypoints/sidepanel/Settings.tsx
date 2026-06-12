@@ -212,6 +212,11 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			);
 			return;
 		}
+		if (backendUrl && backendUrl.startsWith("http://")) {
+			console.warn(
+				"[Settings] 后端 URL 使用 HTTP，JWT 以明文传输。建议仅在本地开发时使用。",
+			);
+		}
 		setError("");
 		const existing = await getSettings();
 		const fewShotExamplesResolved =
