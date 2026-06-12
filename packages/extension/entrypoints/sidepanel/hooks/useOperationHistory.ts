@@ -33,16 +33,12 @@ export function useOperationHistory(): UseOperationHistoryReturn {
 				timestamp: new Date().toISOString(),
 			};
 
-			// 先计算新历史，再更新状态和存储
-			const newHistory = [record, ...history].slice(0, 100);
-			setHistory(newHistory);
-			// 异步保存到存储（在 updater 外部）
-			const storage = getStorage();
-			if (storage) {
-				storage.set({ [STORAGE_KEY]: newHistory }).catch(() => {});
-			}
+			setHistory((prev) => {
+				const newHistory = [record, ...prev].slice(0, 100); // 保留最近 100 条
+				return newHistory;
+			});
 		},
-		[history],
+		[],
 	);
 
 	const retrieveHistory = useCallback(async () => {

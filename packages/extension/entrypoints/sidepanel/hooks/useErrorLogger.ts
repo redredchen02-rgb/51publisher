@@ -31,16 +31,12 @@ export function useErrorLogger(): UseErrorLoggerReturn {
 				context,
 				timestamp: new Date().toISOString(),
 			};
-			// 先计算新日志，再更新状态和存储
-			const newLogs = [log, ...logs].slice(0, 100);
-			setLogs(newLogs);
-			// 异步保存到存储（在 updater 外部）
-			const storage = getStorage();
-			if (storage) {
-				storage.set({ [STORAGE_KEY]: newLogs }).catch(() => {});
-			}
+			setLogs((prev) => {
+				const newLogs = [log, ...prev].slice(0, 100);
+				return newLogs;
+			});
 		},
-		[logs],
+		[],
 	);
 
 	const retrieveLogs = useCallback(async () => {
