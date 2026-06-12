@@ -321,6 +321,7 @@ export function batchPhase(batch: Batch): BatchPhase {
 		)
 	)
 		return "awaiting-approval";
+	// error 状态也算 done（terminal），但 batchSummary 会统计 errored 数量
 	return "done"; // 全部 terminal
 }
 
