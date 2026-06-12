@@ -6,15 +6,15 @@ import {
 	clearCurrentDraft,
 	getCurrentDraft,
 	getSettings,
-	saveCurrentDraft,
 } from "../../lib/storage";
 import { AuthView } from "./AuthView";
 import { BatchView } from "./BatchView";
 import { ProgressBar } from "./components/ProgressBar";
 import { Toast } from "./components/Toast";
 import { DraftPreview } from "./DraftPreview";
-import { ErrorBoundary } from "./ErrorBoundary";
 import { FillResultPanel } from "./FillResultPanel";
+import { useAutoSave } from "./hooks/useAutoSave";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useLoadingState } from "./hooks/useLoadingState";
 import { Loading } from "./Loading";
 import { PendingTopicsView } from "./PendingTopicsView";
@@ -23,9 +23,9 @@ import { TodayBatchView } from "./TodayBatchView";
 
 type Mode = "empty" | "generating" | "draft" | "filling" | "filled" | "partial";
 
-const btn: React.CSSProperties = {};
-const primaryBtn: React.CSSProperties = {};
-const plainBtn: React.CSSProperties = {};
+const _btn: React.CSSProperties = {};
+const _primaryBtn: React.CSSProperties = {};
+const _plainBtn: React.CSSProperties = {};
 
 export function App() {
 	const [view, setView] = useState<
@@ -37,10 +37,14 @@ export function App() {
 	const [results, setResults] = useState<FieldFillResult[]>([]);
 	const [error, setError] = useState("");
 	const [confirmNext, setConfirmNext] = useState(false);
-	const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+	const [toast, setToast] = useState<{
+		message: string;
+		type: "success" | "error" | "info";
+	} | null>(null);
 	const [authenticated, setAuthenticated] = useState(false);
 	const [authChecking, setAuthChecking] = useState(true);
 	const loadingState = useLoadingState();
+	const { saveDraft } = useAutoSave();
 	const promptTemplateRef = useRef("");
 	const genTokenRef = useRef(0); // 取消用:递增后旧请求结果作废
 
@@ -62,7 +66,7 @@ export function App() {
 
 	function updateDraft(next: ContentDraft) {
 		setDraft(next);
-		void saveCurrentDraft(next);
+		saveDraft(next);
 	}
 
 	async function handleGenerate() {
@@ -139,6 +143,17 @@ export function App() {
 	function copyBody() {
 		if (draft) void navigator.clipboard?.writeText(draft.body);
 	}
+
+	useKeyboardShortcuts({
+		onGenerate: handleGenerate,
+		onFill: handleFill,
+		onNext: handleNext,
+		onSave: () => {
+			if (draft) {
+				saveDraft(draft, true);
+			}
+		},
+	});
 
 	if (authChecking) {
 		return <Loading />;
@@ -287,7 +302,10 @@ export function App() {
 
 			{mode === "generating" && (
 				<div style={{ marginBottom: 12 }}>
-					<ProgressBar progress={loadingState.progress} label={loadingState.message} />
+					<ProgressBar
+						progress={loadingState.progress}
+						label={loadingState.message}
+					/>
 					<button
 						onClick={cancelGenerate}
 						className="btn btn-plain"
@@ -305,12 +323,18 @@ export function App() {
 			{mode === "filling" && (
 				<div aria-live="polite" style={{ marginBottom: 8 }}>
 					<ProgressBar progress={0} indeterminate />
-					<div style={{ fontSize: 13, color: "#555", marginTop: 4 }}>正在填充到当前页…</div>
+					<div style={{ fontSize: 13, color: "#555", marginTop: 4 }}>
+						正在填充到当前页…
+					</div>
 				</div>
 			)}
 
 			{toast && (
-				<Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+				<Toast
+					message={toast.message}
+					type={toast.type}
+					onClose={() => setToast(null)}
+				/>
 			)}
 
 			{(mode === "filled" || mode === "partial") && (

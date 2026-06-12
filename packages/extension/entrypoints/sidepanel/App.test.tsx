@@ -28,6 +28,7 @@ const draft: ContentDraft = {
 
 const requestGenerate = vi.fn();
 const requestFill = vi.fn();
+const saveCurrentDraftMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock("../../lib/auth-client", () => ({
 	isAuthenticated: vi.fn(async () => true),
@@ -51,7 +52,7 @@ vi.mock("../../lib/storage", () => ({
 		fieldMapping: {},
 	}),
 	getCurrentDraft: async () => null,
-	saveCurrentDraft: async () => {},
+	saveCurrentDraft: saveCurrentDraftMock,
 	clearCurrentDraft: async () => {},
 }));
 
@@ -65,6 +66,7 @@ describe("App", () => {
 	beforeEach(() => {
 		requestGenerate.mockReset();
 		requestFill.mockReset();
+		saveCurrentDraftMock.mockReset();
 	});
 	afterEach(() => cleanup());
 
@@ -133,9 +135,7 @@ describe("App", () => {
 	});
 
 	it("生成中显示进度条", async () => {
-		requestGenerate.mockImplementation(
-			() => new Promise(() => {}),
-		);
+		requestGenerate.mockImplementation(() => new Promise(() => {}));
 		render(<App />);
 		await waitForAppReady();
 		fireEvent.change(screen.getByPlaceholderText(/输入选题/), {
@@ -209,5 +209,64 @@ describe("App", () => {
 			const matches = screen.getAllByText("填充出错");
 			expect(matches.length).toBeGreaterThanOrEqual(1);
 		});
+	});
+});
+
+describe("App keyboard shortcuts and auto-save", () => {
+	beforeEach(() => {
+		requestGenerate.mockReset();
+		requestFill.mockReset();
+		saveCurrentDraftMock.mockClear();
+	});
+	afterEach(() => cleanup());
+
+	it("Ctrl+Enter 触发生成草稿", async () => {
+		requestGenerate.mockResolvedValue({ ok: true, draft });
+		render(<App />);
+		await waitForAppReady();
+		fireEvent.change(screen.getByPlaceholderText(/输入选题/), {
+			target: { value: "某新番" },
+		});
+		fireEvent.keyDown(window, { key: "Enter", ctrlKey: true });
+		await waitFor(() => {
+			expect(requestGenerate).toHaveBeenCalled();
+		});
+	});
+
+	it("Ctrl+S 触发保存草稿", async () => {
+		requestGenerate.mockResolvedValue({ ok: true, draft });
+		render(<App />);
+		await waitForAppReady();
+		fireEvent.change(screen.getByPlaceholderText(/输入选题/), {
+			target: { value: "某新番" },
+		});
+		fireEvent.click(screen.getByText("生成草稿"));
+		await screen.findByDisplayValue("AI 标题");
+		saveCurrentDraftMock.mockClear();
+		fireEvent.keyDown(window, { key: "s", ctrlKey: true });
+		await waitFor(() => {
+			expect(saveCurrentDraftMock).toHaveBeenCalled();
+		});
+	});
+
+	it("草稿变更时通过 useAutoSave 自动保存", async () => {
+		requestGenerate.mockResolvedValue({ ok: true, draft });
+		render(<App />);
+		await waitForAppReady();
+		fireEvent.change(screen.getByPlaceholderText(/输入选题/), {
+			target: { value: "某新番" },
+		});
+		fireEvent.click(screen.getByText("生成草稿"));
+		await screen.findByDisplayValue("AI 标题");
+		saveCurrentDraftMock.mockClear();
+		fireEvent.change(screen.getByDisplayValue("AI 标题"), {
+			target: { value: "新标题" },
+		});
+		await waitFor(
+			() => {
+				expect(saveCurrentDraftMock).toHaveBeenCalled();
+			},
+			{ timeout: 2000 },
+		);
 	});
 });
