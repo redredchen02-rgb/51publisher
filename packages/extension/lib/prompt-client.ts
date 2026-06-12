@@ -35,7 +35,7 @@ async function handleUnauthorized(res: Response): Promise<void> {
  * 从后端获取所有 Prompt 模板列表。
  */
 export async function fetchPrompts(
-	fetchFn: typeof fetch = fetch,
+	_fetchFn: typeof fetch = fetch,
 	timeoutMs = 10_000,
 ): Promise<{ ok: boolean; prompts?: PromptTemplate[]; error?: string }> {
 	try {

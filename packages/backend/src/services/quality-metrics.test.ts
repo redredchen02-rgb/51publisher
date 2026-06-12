@@ -1,9 +1,8 @@
-import { existsSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 // 使用临时数据库
-const TEST_DB_PATH = join(process.cwd(), "data", "test-quality.db");
+const _TEST_DB_PATH = join(process.cwd(), "data", "test-quality.db");
 
 // Mock 环境变量
 process.env.PUBLISHER_DATA_DIR = join(process.cwd(), "data");

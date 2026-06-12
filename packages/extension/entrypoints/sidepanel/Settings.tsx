@@ -1,4 +1,5 @@
-import type { FewShotPair, FieldMapping, FieldType } from "@51publisher/shared";
+import type { FewShotPair, FieldMapping } from "@51publisher/shared";
+import { isValidFieldMapping, VALID_FIELD_TYPES } from "@51publisher/shared";
 import { useCallback, useEffect, useState } from "react";
 import {
 	createPrompt,
@@ -23,16 +24,6 @@ export function deriveFewShotExamples(pairs: FewShotPair[]): string {
 	return pairs.map((p) => `${p.input}\n---\n${p.output}`).join("\n\n");
 }
 
-const FIELD_TYPES: FieldType[] = [
-	"text",
-	"textarea",
-	"quill",
-	"native-select",
-	"checkbox-multi",
-	"date",
-	"custom-dropdown",
-	"tag-input",
-];
 const inputStyle: React.CSSProperties = {
 	width: "100%",
 	boxSizing: "border-box",
@@ -65,19 +56,24 @@ export function validateMapping(text: string): string | null {
 	} catch (e) {
 		return `JSON 格式错误:${(e as Error).message}`;
 	}
-	if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
-		return "字段映射必须是一个对象。";
-	for (const [key, def] of Object.entries(parsed as Record<string, unknown>)) {
-		if (!def || typeof def !== "object") return `字段 ${key} 必须是对象。`;
-		const d = def as Record<string, unknown>;
-		if (typeof d.selector !== "string" || !d.selector)
-			return `字段 ${key} 缺少有效的 selector。`;
-		if (
-			typeof d.fieldType !== "string" ||
-			!FIELD_TYPES.includes(d.fieldType as FieldType)
-		) {
-			return `字段 ${key} 的 fieldType 非法(应为:${FIELD_TYPES.join(" / ")})。`;
+	if (!isValidFieldMapping(parsed)) {
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+			return "字段映射必须是一个对象。";
+		for (const [key, def] of Object.entries(
+			parsed as Record<string, unknown>,
+		)) {
+			if (!def || typeof def !== "object") return `字段 ${key} 必须是对象。`;
+			const d = def as Record<string, unknown>;
+			if (typeof d.selector !== "string" || !d.selector)
+				return `字段 ${key} 缺少有效的 selector。`;
+			if (
+				typeof d.fieldType !== "string" ||
+				!(VALID_FIELD_TYPES as readonly string[]).includes(d.fieldType)
+			) {
+				return `字段 ${key} 的 fieldType 非法(应为:${VALID_FIELD_TYPES.join(" / ")})。`;
+			}
 		}
+		return "字段映射校验失败。";
 	}
 	return null;
 }

@@ -20,7 +20,7 @@ interface QualityMetricRow {
 	created_at: string;
 }
 
-function rowToMetric(row: QualityMetricRow): QualityMetric {
+function _rowToMetric(row: QualityMetricRow): QualityMetric {
 	return {
 		id: row.id,
 		topicId: row.topic_id,

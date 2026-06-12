@@ -8,6 +8,7 @@ import {
 	assembleDraft,
 	type DraftSlots,
 	normalizeCategory,
+	toDraft,
 } from "@51publisher/shared";
 
 export interface LlmDeps {
@@ -125,35 +126,6 @@ export function slotsFromParsed(parsed: Record<string, unknown>): DraftSlots {
 		intro: str(parsed.intro),
 		highlights: str(parsed.highlights),
 		outro: optStr(parsed.outro),
-	};
-}
-
-export function toDraft(
-	assembled: {
-		title: string;
-		subtitle: string;
-		body: string;
-		description: string;
-	},
-	category: string,
-	tags: string[],
-	id: string,
-	now: string,
-): ContentDraft {
-	return {
-		id,
-		title: assembled.title,
-		subtitle: assembled.subtitle,
-		category,
-		coverImageUrl: "",
-		body: assembled.body,
-		tags,
-		description: assembled.description,
-		postStatus: "0",
-		publishedAt: "",
-		mediaId: "",
-		status: "draft",
-		createdAt: now,
 	};
 }
 

@@ -1,4 +1,29 @@
-import type { FieldMapping } from "./types.js";
+import type { FieldMapping, FieldType } from "./types.js";
+
+export const VALID_FIELD_TYPES: readonly FieldType[] = [
+	"text",
+	"textarea",
+	"quill",
+	"native-select",
+	"checkbox-multi",
+	"date",
+	"custom-dropdown",
+	"tag-input",
+] as const;
+
+const VALID_FIELD_TYPES_SET = new Set<string>(VALID_FIELD_TYPES);
+
+export function isValidFieldMapping(v: unknown): v is FieldMapping {
+	if (!v || typeof v !== "object" || Array.isArray(v)) return false;
+	for (const [, def] of Object.entries(v as Record<string, unknown>)) {
+		if (!def || typeof def !== "object") return false;
+		const d = def as Record<string, unknown>;
+		if (typeof d.selector !== "string" || d.selector.trim() === "")
+			return false;
+		if (!VALID_FIELD_TYPES_SET.has(d.fieldType as string)) return false;
+	}
+	return true;
+}
 
 // 默认字段映射:来自 U0 现场勘查(docs/field-mapping-guide.md)。
 // 刻意独立于 storage.ts —— 不依赖 `#imports`(WXT 虚拟模块),

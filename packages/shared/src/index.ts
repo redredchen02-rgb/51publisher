@@ -1,16 +1,15 @@
 // Shared types and utilities for 51publisher monorepo
 
 export {
-	TERMINAL,
 	type Batch,
 	type BatchItem,
 	type BatchItemStatus,
 	isTerminal,
 	recoverBatch,
+	TERMINAL,
 } from "./batch.js";
-export { fetchWithTimeout } from "./fetch.js";
-export type { FetchWithTimeoutOptions } from "./fetch.js";
-export type { FactsBlock, FactKey, ParsedTopic } from "./facts.js";
+export { toDraft } from "./draft.js";
+export type { FactKey, FactsBlock, ParsedTopic } from "./facts.js";
 export {
 	applyPromptTemplate,
 	CORE_FACT_KEYS,
@@ -20,7 +19,13 @@ export {
 	isEmptyFacts,
 	parseTopicLine,
 } from "./facts.js";
-export { DEFAULT_FIELD_MAPPING } from "./field-mapping.js";
+export type { FetchWithTimeoutOptions } from "./fetch.js";
+export { fetchWithTimeout } from "./fetch.js";
+export {
+	DEFAULT_FIELD_MAPPING,
+	isValidFieldMapping,
+	VALID_FIELD_TYPES,
+} from "./field-mapping.js";
 export type { AssembledDraft, DraftSlots } from "./post-assembler.js";
 export {
 	assembleDraft,
