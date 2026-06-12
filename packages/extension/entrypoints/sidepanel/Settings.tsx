@@ -251,7 +251,11 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
 	return (
 		<div>
-			<button type="button" onClick={onClose} style={{ fontSize: 13, marginBottom: 8 }}>
+			<button
+				type="button"
+				onClick={onClose}
+				style={{ fontSize: 13, marginBottom: 8 }}
+			>
 				← 返回
 			</button>
 			<h2 style={{ fontSize: 15, margin: "0 0 4px" }}>设置</h2>
@@ -389,7 +393,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			<label style={labelStyle}>
 				Prompt 模板(占位符:{"{{topic}}"} 选题 / {"{{facts}}"} 事实块 /{" "}
 				{"{{fewshot}}"} 范例)
-				<button type="button"
+				<button
+					type="button"
 					style={{ marginLeft: 8, fontSize: 11 }}
 					onClick={() => setPromptTemplate(DEFAULT_SETTINGS.promptTemplate)}
 				>
@@ -408,7 +413,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
 			<label style={labelStyle}>
 				Few-shot 原始文本(旧格式兼容,优先使用上方结构化编辑器)
-				<button type="button"
+				<button
+					type="button"
 					style={{ marginLeft: 8, fontSize: 11 }}
 					onClick={() =>
 						setFewShotExamples(DEFAULT_SETTINGS.fewShotExamples ?? "")
@@ -437,9 +443,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 				AI 生成时只从此列表选择标签；留空则仅约束分类不约束标签。
 			</p>
 
-			<div style={labelStyle}>
-				AI 评审标准（Phase 3，留空使用内置四维标准）
-			</div>
+			<div style={labelStyle}>AI 评审标准（Phase 3，留空使用内置四维标准）</div>
 			<textarea
 				style={{ ...inputStyle, minHeight: 80 }}
 				placeholder={
@@ -463,7 +467,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
 			<label style={labelStyle}>
 				Prompt 管理
-				<button type="button"
+				<button
+					type="button"
 					style={{ marginLeft: 8, fontSize: 11 }}
 					onClick={handleLoadPrompts}
 				>
@@ -484,7 +489,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
 					))}
 				</select>
 			)}
-			<button type="button"
+			<button
+				type="button"
 				style={{ fontSize: 11, marginTop: 2 }}
 				onClick={handleSaveToBackend}
 			>
@@ -498,7 +504,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
 			<label style={labelStyle}>
 				字段映射(JSON)
-				<button type="button"
+				<button
+					type="button"
 					style={{ marginLeft: 8, fontSize: 11 }}
 					onClick={() =>
 						setMappingText(
@@ -527,7 +534,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			)}
 			{saved && <p style={{ color: "#389e0d", fontSize: 12 }}>已保存。</p>}
 
-			<button type="button"
+			<button
+				type="button"
 				onClick={handleSave}
 				style={{
 					marginTop: 10,

@@ -1,5 +1,12 @@
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
+import {
+	mkdir,
+	readdir,
+	readFile,
+	stat,
+	unlink,
+	writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 
 export interface JsonFileStoreOptions<T> {

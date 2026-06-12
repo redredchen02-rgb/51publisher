@@ -232,20 +232,20 @@ export async function updatePendingStatus(
 			{
 				method: "PATCH",
 				headers,
-			body: JSON.stringify({
-				status,
-				...(rejectedReason ? { rejectedReason } : {}),
-			}),
-			timeoutMs,
-		},
-	);
-	if (res.status === 401) {
-		await clearToken();
+				body: JSON.stringify({
+					status,
+					...(rejectedReason ? { rejectedReason } : {}),
+				}),
+				timeoutMs,
+			},
+		);
+		if (res.status === 401) {
+			await clearToken();
+			return false;
+		}
+		return res.ok;
+	} catch (e) {
+		console.warn("[pending-client] updatePendingStatus:", e);
 		return false;
 	}
-	return res.ok;
-} catch (e) {
-	console.warn("[pending-client] updatePendingStatus:", e);
-	return false;
-}
 }

@@ -190,7 +190,13 @@ export function registerDraftRoutes(app: FastifyInstance): void {
 		},
 	);
 
-	app.post<{ Body: { draft: import("@51publisher/shared").ContentDraft; criteriaPrompt?: string; settings: import("@51publisher/shared").Settings } }>(
+	app.post<{
+		Body: {
+			draft: import("@51publisher/shared").ContentDraft;
+			criteriaPrompt?: string;
+			settings: import("@51publisher/shared").Settings;
+		};
+	}>(
 		"/api/v1/drafts/review",
 		{
 			schema: {
@@ -221,7 +227,13 @@ export function registerDraftRoutes(app: FastifyInstance): void {
 		},
 	);
 
-	app.post<{ Body: { draft: import("@51publisher/shared").ContentDraft; failedDims: string[]; settings: import("@51publisher/shared").Settings } }>(
+	app.post<{
+		Body: {
+			draft: import("@51publisher/shared").ContentDraft;
+			failedDims: string[];
+			settings: import("@51publisher/shared").Settings;
+		};
+	}>(
 		"/api/v1/drafts/rewrite",
 		{
 			schema: {
