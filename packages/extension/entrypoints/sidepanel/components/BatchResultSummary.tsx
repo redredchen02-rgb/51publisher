@@ -1,5 +1,3 @@
-import React from "react";
-
 interface BatchResult {
 	id: string;
 	success: boolean;

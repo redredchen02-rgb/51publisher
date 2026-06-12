@@ -27,10 +27,8 @@ import {
 } from "../../lib/storage";
 import { BatchReviewPanel } from "./BatchReviewPanel";
 import { BatchResultSummary } from "./components/BatchResultSummary";
-import { BatchToolbar } from "./components/BatchToolbar";
 import { DryRunReport } from "./DryRunReport";
 import { HistoryPanel } from "./HistoryPanel";
-import { useBatchOperations } from "./hooks/useBatchOperations";
 
 const btn: React.CSSProperties = {
 	padding: "6px 12px",
@@ -63,7 +61,7 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 	const [readItems, setReadItems] = useState<Set<string>>(new Set());
 	const savingItems = useRef(new Set<string>());
 	const toastTimer = useRef<number | null>(null);
-	const [operationResults, setOperationResults] = useState<
+	const [operationResults, _setOperationResults] = useState<
 		Array<{ id: string; success: boolean; error?: string }>
 	>([]);
 

@@ -59,7 +59,12 @@ export async function registerScraperRoutes(
 					);
 				}
 				// Pick a random article from the discovered list.
-				targetUrl = discovered[Math.floor(Math.random() * discovered.length)]!;
+				const randomIndex = Math.floor(Math.random() * discovered.length);
+				const pick = discovered[randomIndex];
+				if (!pick) {
+					return err(reply, 500, "Unexpected: empty discovery result");
+				}
+				targetUrl = pick;
 				request.log.info(
 					`Discovered ${discovered.length} URLs, selected: ${targetUrl}`,
 				);
@@ -206,7 +211,11 @@ export async function registerScraperRoutes(
 
 	// 自动批量生成草稿（含进度反馈）
 	app.post<{
-		Body: { minConfidence?: number; maxItems?: number; enableEnrichment?: boolean };
+		Body: {
+			minConfidence?: number;
+			maxItems?: number;
+			enableEnrichment?: boolean;
+		};
 	}>("/api/v1/scraper/auto-generate", async (request, reply) => {
 		const { minConfidence, maxItems, enableEnrichment } = request.body ?? {};
 

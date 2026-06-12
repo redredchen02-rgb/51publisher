@@ -166,6 +166,12 @@ async function runListDiscovery(
 	adapter: SiteAdapter,
 	deps: SchedulerDeps,
 ): Promise<void> {
+	if (!site.listUrl) {
+		deps.logger?.warn(
+			`[scheduler] No listUrl for ${site.siteName}, skipping discovery`,
+		);
+		return;
+	}
 	const budget = Math.max(
 		1,
 		Number(process.env.ACGS51_LIST_BUDGET ?? "20") || 20,
@@ -174,7 +180,7 @@ async function runListDiscovery(
 		`[scheduler] List-discovery start: ${site.siteName} listUrl=${site.listUrl}`,
 	);
 
-	const candidateUrls = (await adapter.fetchList?.(site.listUrl!)) ?? [];
+	const candidateUrls = (await adapter.fetchList?.(site.listUrl)) ?? [];
 
 	// Session-level dedup（防止同一次 run 内重复抓取同一 URL）
 	const sessionSet = new Set<string>();
@@ -283,14 +289,19 @@ export function startScheduler(deps: SchedulerDeps): void {
 			continue;
 		}
 
-		if (!cron.validate(site.cron!)) {
+		if (!site.cron) {
+			deps.logger?.error(`No cron expression for ${site.siteName}, skipping`);
+			continue;
+		}
+
+		if (!cron.validate(site.cron)) {
 			deps.logger?.error(
 				`Invalid cron expression for ${site.siteName}: ${site.cron}`,
 			);
 			continue;
 		}
 
-		const job = cron.schedule(site.cron!, async () => {
+		const job = cron.schedule(site.cron, async () => {
 			const adapter = scraperConfig.getAdapter(site.adapterName);
 			if (!adapter) {
 				deps.logger?.error(

@@ -179,8 +179,8 @@ describe("runBatch", () => {
 		expect(result).not.toBeNull();
 		const statuses = result?.items.map((it) => it.status);
 		// 第 1 条 error,第 2 条 awaiting-approval
-		expect(statuses![0]).toBe("error");
-		expect(statuses![1]).toBe("awaiting-approval");
+		expect(statuses?.[0]).toBe("error");
+		expect(statuses?.[1]).toBe("awaiting-approval");
 	});
 
 	it("重入守卫: topic-a 已被隔离 → 只生成 topic-b", async () => {

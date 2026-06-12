@@ -4,16 +4,16 @@ import type {
 	FieldFillResult,
 } from "@51publisher/shared";
 import {
-	TERMINAL,
 	type Batch,
 	type BatchItem,
 	type BatchItemStatus,
 	isTerminal,
 	recoverBatch,
+	TERMINAL,
 } from "@51publisher/shared";
 
 export type { Batch, BatchItem, BatchItemStatus };
-export { TERMINAL, isTerminal, recoverBatch };
+export { isTerminal, recoverBatch, TERMINAL };
 
 // 批量发布队列状态机(纯函数,无副作用/不碰 chrome)。
 // background 拿它做编排,把异步效果(生成/填充/发布)的结果喂进来推进状态。

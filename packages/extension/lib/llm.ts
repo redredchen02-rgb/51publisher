@@ -276,27 +276,6 @@ export function mergeRewriteResult(
 	return merged;
 }
 
-import type { AssembledDraft } from "@51publisher/shared";
-export function toDraft(
-	assembled: AssembledDraft,
-	category: string,
-	tags: string[],
-	id: string,
-	now: string,
-): ContentDraft {
-	return {
-		id,
-		title: assembled.title,
-		subtitle: assembled.subtitle,
-		category,
-		coverImageUrl: "",
-		body: assembled.body,
-		tags,
-		description: assembled.description,
-		postStatus: "0",
-		publishedAt: "",
-		mediaId: "",
-		status: "draft",
-		createdAt: now,
-	};
-}
+import { toDraft } from "@51publisher/shared";
+
+export { toDraft };

@@ -47,7 +47,7 @@ export function App() {
 		clearHistory,
 		exportHistory,
 	} = useOperationHistory();
-	const [showHistory, setShowHistory] = useState(false);
+	const [_showHistory, _setShowHistory] = useState(false);
 	const [confirmNext, setConfirmNext] = useState(false);
 	const [toast, setToast] = useState<{
 		message: string;
@@ -125,10 +125,10 @@ export function App() {
 			handleError(errMsg);
 			setMode(draft ? "draft" : "empty");
 			loadingState.completeLoading();
-			void logError(
-				err instanceof Error ? err : new Error(errMsg),
-				{ topic, action: "generate" },
-			);
+			void logError(err instanceof Error ? err : new Error(errMsg), {
+				topic,
+				action: "generate",
+			});
 			void recordOperation({
 				type: "generate",
 				topic,

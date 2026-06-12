@@ -41,7 +41,7 @@ function isPublicV4(ip: string): boolean {
 // Parse an IPv6 string into 8 16-bit hextets, expanding "::" and any trailing
 // dotted-quad. Returns null on anything malformed (caller then denies).
 function parseV6Hextets(ip: string): number[] | null {
-	const s = ip.split("%")[0]!; // drop zone id
+	const s = ip.split("%")[0] ?? ""; // drop zone id
 	const halves = s.split("::");
 	if (halves.length > 2) return null;
 
@@ -56,7 +56,10 @@ function parseV6Hextets(ip: string): number[] | null {
 					v4.some((n) => Number.isNaN(n) || n < 0 || n > 255)
 				)
 					return null;
-				out.push((v4[0]! << 8) | v4[1]!, (v4[2]! << 8) | v4[3]!);
+				out.push(
+					((v4[0] ?? 0) << 8) | (v4[1] ?? 0),
+					((v4[2] ?? 0) << 8) | (v4[3] ?? 0),
+				);
 			} else {
 				if (!/^[0-9a-f]{1,4}$/i.test(g)) return null;
 				out.push(Number.parseInt(g, 16));
@@ -65,8 +68,8 @@ function parseV6Hextets(ip: string): number[] | null {
 		return out;
 	};
 
-	const head = toHextets(halves[0]!);
-	const tail = halves.length === 2 ? toHextets(halves[1]!) : [];
+	const head = toHextets(halves[0] ?? "");
+	const tail = halves.length === 2 ? toHextets(halves[1] ?? "") : [];
 	if (!head || !tail) return null;
 
 	if (halves.length === 2) {
@@ -81,7 +84,7 @@ function isPublicV6(ip: string): boolean {
 	const hx = parseV6Hextets(ip.toLowerCase());
 	if (!hx) return false;
 	const embeddedV4 = () =>
-		`${hx[6]! >> 8}.${hx[6]! & 0xff}.${hx[7]! >> 8}.${hx[7]! & 0xff}`;
+		`${(hx[6] ?? 0) >> 8}.${(hx[6] ?? 0) & 0xff}.${(hx[7] ?? 0) >> 8}.${(hx[7] ?? 0) & 0xff}`;
 	const highZero = hx.slice(0, 6).every((x) => x === 0);
 
 	// :: (unspecified) and ::1 (loopback) and any ::/96 IPv4-compatible address.
@@ -112,7 +115,7 @@ function isPublicV6(ip: string): boolean {
 		return isPublicV4(embeddedV4());
 	}
 
-	const fh = hx[0]!;
+	const fh = hx[0] ?? 0;
 	if (fh >= 0xfc00 && fh <= 0xfdff) return false; // fc00::/7 unique-local
 	if (fh >= 0xfe80 && fh <= 0xfebf) return false; // fe80::/10 link-local
 	if (fh >= 0xff00) return false; // ff00::/8 multicast

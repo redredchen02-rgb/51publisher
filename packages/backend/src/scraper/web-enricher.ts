@@ -25,7 +25,10 @@ export interface EnrichedContext {
 }
 
 // ---- 缓存（内存 + SQLite 双层）----
-const memoryCache = new Map<string, { data: EnrichedContext; expiresAt: number }>();
+const memoryCache = new Map<
+	string,
+	{ data: EnrichedContext; expiresAt: number }
+>();
 const MEMORY_CACHE_TTL = 60 * 60 * 1000; // 1 小时
 const MEMORY_CACHE_SIZE = 100;
 const DB_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 小时
@@ -102,14 +105,6 @@ function saveToDbCache(key: string, data: EnrichedContext): void {
 
 function getCacheKey(facts: FactsBlock): string {
 	return `${facts.制作 || ""}|${facts.作品名 || ""}`;
-}
-
-export interface EnrichedContext {
-	queryResults: Array<{
-		query: string;
-		results: SearchResult[];
-	}>;
-	collectedAt: string;
 }
 
 /** 从 Jina 返回的 Markdown 中提取有用信息。 */

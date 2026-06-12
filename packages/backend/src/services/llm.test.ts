@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import type { FactsBlock, Settings } from "@51publisher/shared";
-import { assembleDraft } from "@51publisher/shared";
+import { assembleDraft, toDraft } from "@51publisher/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
 	buildRequest,
@@ -10,7 +10,6 @@ import {
 	listModels,
 	modelsUrl,
 	slotsFromParsed,
-	toDraft,
 } from "../services/llm.js";
 
 const DEFAULT_SETTINGS: Settings = {

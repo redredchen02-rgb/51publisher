@@ -6,9 +6,9 @@ import type {
 } from "@51publisher/shared";
 import { DEFAULT_FIELD_MAPPING } from "@51publisher/shared";
 import { storage } from "#imports";
+import { clearBackendUrlCache } from "./backend-url";
 import type { Batch } from "./batch";
 import { recoverBatch } from "./batch";
-import { clearBackendUrlCache } from "./backend-url";
 import { fetchRemoteMappings } from "./config-client";
 import type { TrajectoryInput, TrajectoryRecord } from "./trajectory";
 import { appendRecord } from "./trajectory";

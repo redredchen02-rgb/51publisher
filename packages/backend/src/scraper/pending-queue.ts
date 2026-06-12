@@ -1,16 +1,23 @@
-type QueueItem<T> = {
+type QueueItem<T = unknown> = {
 	fn: () => T;
 	resolve: (v: T) => void;
 	reject: (e: Error) => void;
 };
 
 export class WriteQueue {
-	private queue: QueueItem<any>[] = [];
+	private queue: QueueItem[] = [];
 	private active = false;
 
 	enqueue<T>(fn: () => T): Promise<T> {
 		return new Promise<T>((resolve, reject) => {
-			this.queue.push({ fn, resolve, reject });
+			// Safe: T is captured by the Promise<T> closure;
+			// the cast is needed because TS contravariance prevents
+			// QueueItem<T> → QueueItem<unknown> assignment.
+			(this.queue as QueueItem<unknown>[]).push({
+				fn,
+				resolve,
+				reject,
+			} as QueueItem<unknown>);
 			this.drain();
 		});
 	}

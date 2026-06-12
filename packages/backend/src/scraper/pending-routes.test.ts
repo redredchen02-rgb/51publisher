@@ -234,8 +234,14 @@ describe("GET /api/v1/pending-topics — sort_by + fold_threshold (U7)", () => {
 		const topics = res.json().topics as { id: string; folded?: boolean }[];
 		// 两条都在（不隐藏）
 		expect(topics.length).toBe(2);
-		const rich = topics.find((t) => t.id === "rich")!;
-		const sparse = topics.find((t) => t.id === "sparse")!;
+		const rich = topics.find((t) => t.id === "rich") as {
+			id: string;
+			folded?: boolean;
+		};
+		const sparse = topics.find((t) => t.id === "sparse") as {
+			id: string;
+			folded?: boolean;
+		};
 		expect(rich.folded).toBe(false);
 		expect(sparse.folded).toBe(true);
 	});
