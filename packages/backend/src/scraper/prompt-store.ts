@@ -1,6 +1,5 @@
-import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { JsonFileStore } from "../utils/json-store.js";
 
 // ---- 类型定义 ----
 
@@ -35,62 +34,26 @@ const DATA_DIR =
 	join(dirname(new URL(import.meta.url).pathname), "..", "data");
 const PROMPTS_DIR = join(DATA_DIR, "prompts");
 
-async function ensureDir(dir: string): Promise<void> {
-	if (!existsSync(dir)) await mkdir(dir, { recursive: true });
-}
-
-function promptFilePath(id: string): string {
-	const safe = id.replace(/[^a-zA-Z0-9_-]/g, "_");
-	return join(PROMPTS_DIR, `${safe}.json`);
-}
+const promptStore = new JsonFileStore<PromptTemplate>({
+	dirPath: PROMPTS_DIR,
+	updatedAtKey: "updatedAt",
+});
 
 export async function loadPrompt(id: string): Promise<PromptTemplate | null> {
-	const fp = promptFilePath(id);
-	if (!existsSync(fp)) return null;
-	try {
-		const raw = await readFile(fp, "utf-8");
-		return JSON.parse(raw) as PromptTemplate;
-	} catch {
-		return null;
-	}
+	return promptStore.read(id);
 }
 
 export async function savePrompt(template: PromptTemplate): Promise<void> {
-	await ensureDir(PROMPTS_DIR);
-	template.updatedAt = new Date().toISOString();
-	await writeFile(
-		promptFilePath(template.id),
-		JSON.stringify(template, null, 2),
-		"utf-8",
-	);
+	return promptStore.write(template);
 }
 
 export async function listPrompts(): Promise<PromptTemplate[]> {
-	await ensureDir(PROMPTS_DIR);
-	const files = await readdir(PROMPTS_DIR);
-	const jsonFiles = files.filter((f) => f.endsWith(".json"));
-
-	const templates: PromptTemplate[] = [];
-	for (const f of jsonFiles) {
-		try {
-			const raw = await readFile(join(PROMPTS_DIR, f), "utf-8");
-			const t = JSON.parse(raw) as PromptTemplate;
-			templates.push(t);
-		} catch {
-			// skip corrupt
-		}
-	}
-
-	// 最近更新排前
-	templates.sort(
-		(a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-	);
-	return templates;
+	return promptStore.list();
 }
 
-export async function deletePrompt(id: string): Promise<void> {
-	const fp = promptFilePath(id);
-	if (existsSync(fp)) {
-		await unlink(fp);
-	}
+export async function deletePrompt(id: string): Promise<boolean> {
+	const existed = await promptStore.read(id);
+	if (!existed) return false;
+	await promptStore.delete(id);
+	return true;
 }
