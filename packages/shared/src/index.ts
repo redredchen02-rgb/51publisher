@@ -1,8 +1,5 @@
 // Shared types and utilities for 51publisher monorepo
 
-export { fetchWithTimeout } from "./fetch.js";
-export type { FetchWithTimeoutOptions } from "./fetch.js";
-
 export type { FactKey, FactsBlock, ParsedTopic } from "./facts.js";
 export {
 	applyPromptTemplate,
@@ -13,6 +10,8 @@ export {
 	isEmptyFacts,
 	parseTopicLine,
 } from "./facts.js";
+export type { FetchWithTimeoutOptions } from "./fetch.js";
+export { fetchWithTimeout } from "./fetch.js";
 export { DEFAULT_FIELD_MAPPING } from "./field-mapping.js";
 export type { AssembledDraft, DraftSlots } from "./post-assembler.js";
 export {

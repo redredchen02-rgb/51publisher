@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from "@51publisher/shared";
 import { clearToken, getToken } from "./auth-client";
 import { getBackendUrl } from "./backend-url";
 
@@ -70,8 +71,6 @@ export async function fetchPendingTopics(
 		typeof statusOrOpts === "object" && statusOrOpts !== null
 			? statusOrOpts
 			: { status: statusOrOpts };
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs ?? 10_000);
 
 	const qp = new URLSearchParams();
 	if (opts.status) qp.set("status", opts.status);
@@ -88,11 +87,11 @@ export async function fetchPendingTopics(
 		if (token) headers.Authorization = `Bearer ${token}`;
 
 		const backendUrl = await getBackendUrl();
-		const res = await (fetchFn ?? fetch)(
+		const res = await fetchWithTimeout(
 			`${backendUrl}/api/v1/pending-topics${params}`,
 			{
 				headers,
-				signal: controller.signal,
+				timeoutMs: timeoutMs ?? 10_000,
 			},
 		);
 		if (res.status === 401) {
@@ -104,8 +103,6 @@ export async function fetchPendingTopics(
 		return data.ok && data.topics ? data.topics : [];
 	} catch {
 		return [];
-	} finally {
-		clearTimeout(timer);
 	}
 }
 
@@ -115,12 +112,8 @@ export async function fetchPendingTopics(
 export async function patchPendingTopic(
 	id: string,
 	patch: { facts?: Record<string, string> },
-	fetchFn: typeof fetch = fetch,
 	timeoutMs = 10_000,
 ): Promise<boolean> {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-
 	try {
 		const token = await getToken();
 		const headers: Record<string, string> = {
@@ -129,13 +122,13 @@ export async function patchPendingTopic(
 		if (token) headers.Authorization = `Bearer ${token}`;
 
 		const backendUrl = await getBackendUrl();
-		const res = await fetchFn(
+		const res = await fetchWithTimeout(
 			`${backendUrl}/api/v1/pending-topics/${encodeURIComponent(id)}`,
 			{
 				method: "PATCH",
 				headers,
 				body: JSON.stringify(patch),
-				signal: controller.signal,
+				timeoutMs,
 			},
 		);
 		if (res.status === 401) {
@@ -145,8 +138,6 @@ export async function patchPendingTopic(
 		return res.ok;
 	} catch {
 		return false;
-	} finally {
-		clearTimeout(timer);
 	}
 }
 
@@ -155,12 +146,8 @@ export async function patchPendingTopic(
  */
 export async function triggerScrape(
 	siteName: string,
-	fetchFn: typeof fetch = fetch,
 	timeoutMs = 15_000,
 ): Promise<boolean> {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-
 	try {
 		const token = await getToken();
 		const headers: Record<string, string> = {
@@ -169,11 +156,11 @@ export async function triggerScrape(
 		if (token) headers.Authorization = `Bearer ${token}`;
 
 		const backendUrl = await getBackendUrl();
-		const res = await fetchFn(`${backendUrl}/api/v1/scraper/trigger`, {
+		const res = await fetchWithTimeout(`${backendUrl}/api/v1/scraper/trigger`, {
 			method: "POST",
 			headers,
 			body: JSON.stringify({ siteName }),
-			signal: controller.signal,
+			timeoutMs,
 		});
 		if (res.status === 401) {
 			await clearToken();
@@ -182,21 +169,13 @@ export async function triggerScrape(
 		return res.ok;
 	} catch {
 		return false;
-	} finally {
-		clearTimeout(timer);
 	}
 }
 
 /**
  * 拉取已注册的适配器列表（R3）。
  */
-export async function fetchAdapters(
-	fetchFn: typeof fetch = fetch,
-	timeoutMs = 10_000,
-): Promise<string[]> {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-
+export async function fetchAdapters(timeoutMs = 10_000): Promise<string[]> {
 	try {
 		const token = await getToken();
 		const headers: Record<string, string> = {
@@ -204,11 +183,14 @@ export async function fetchAdapters(
 		};
 		if (token) headers.Authorization = `Bearer ${token}`;
 
-		const backendUrl2 = await getBackendUrl();
-		const res = await fetchFn(`${backendUrl2}/api/v1/scraper/adapters`, {
-			headers,
-			signal: controller.signal,
-		});
+		const backendUrl = await getBackendUrl();
+		const res = await fetchWithTimeout(
+			`${backendUrl}/api/v1/scraper/adapters`,
+			{
+				headers,
+				timeoutMs,
+			},
+		);
 		if (res.status === 401) {
 			await clearToken();
 			return [];
@@ -221,8 +203,6 @@ export async function fetchAdapters(
 		return data.ok && data.adapters ? data.adapters.map((a) => a.name) : [];
 	} catch {
 		return [];
-	} finally {
-		clearTimeout(timer);
 	}
 }
 

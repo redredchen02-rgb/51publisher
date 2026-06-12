@@ -1,6 +1,6 @@
+import { fetchWithTimeout } from "@51publisher/shared";
 import { clearToken, getToken } from "./auth-client";
 import { getBackendUrl } from "./backend-url";
-import { fetchWithTimeout } from "@51publisher/shared";
 
 function errorMessage(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
