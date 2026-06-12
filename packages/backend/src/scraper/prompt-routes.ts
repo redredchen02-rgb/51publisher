@@ -51,7 +51,7 @@ export async function registerPromptRoutes(
 				body: CreatePromptBodySchema,
 			},
 		},
-		async (request, reply) => {
+		async (request, _reply) => {
 			const { name, template, fewShotExamples, model } = request.body;
 
 			const now = new Date().toISOString();

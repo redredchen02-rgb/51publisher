@@ -17,34 +17,6 @@
   diff 永远为空。需要将操作者的内联编辑写回 item.draft（或单独存 userDraft 字段）才能得到有意义的 diff。
   发现于: feat/phase-2-measurement (2026-06-11)
 
-- **appendTrajectory read-modify-write 无锁 (non-blocking)** | **Priority:** P2
-  `appendTrajectory` 在 background.ts 中做 getTrajectory → push → saveTrajectory，高并发（多条目并发发布）
-  时可能丢失 record。需要队列化写入或 storage.set 的 CAS 重试。
-  发现于: feat/phase-2-measurement (2026-06-11)
-
-- **off-mode 下缺少 appendTrajectory 调用 (non-blocking)** | **Priority:** P2
-  `handleRunBatch` 仅在 mode !== 'off' 时调用 `appendTrajectory`。off 模式的发布轨迹不会被记录，
-  导致 trajectory 视图在 off 模式下永远为空。
-  发现于: feat/phase-2-measurement (2026-06-11)
-
-- **handleApproveBatch 无并发锁 (non-blocking)** | **Priority:** P2
-  `APPROVE_BATCH` 消息处理器无 in-flight 布尔守卫；快速双击可派发两次批准。
-  确认按钮已加 `disabled={!!busy}` 前端守卫，但 background 层仍缺后端幂等保护。
-  发现于: feat/phase-2-measurement (2026-06-11)
-
-- **handleApproveBatch 持有过时批次快照导致 userEdited 被覆盖 (non-blocking)** | **Priority:** P2
-  `handleApproveBatch` 入口一次性读取 `getBatch()`，整个循环持有本地副本。
-  用户在 item 1 发布期间勾选 item 2 的"已修改"，`handleMarkItemEdited` 写入 storage，
-  但 `handleApproveBatch` 下一次 `saveBatch(batch)` 以过时副本覆写，`userEdited` 变回 false。
-  修复：在轨迹块内 re-read `getBatch()` 获取最新 `userEdited` 值，或仅重读目标 item。
-  发现于: feat/phase-2-measurement, adversarial review (2026-06-11)
-
-- **addFewShotPair 模块级 read-modify-write 无串行化 (non-blocking)** | **Priority:** P3
-  `addFewShotPair` / `removeLastFewShotPair` 均在 await 边界跨越时存在竞态。
-  `savingItems` 防重仅保护同 itemId 的双击；不同 item 并发调用仍可产生 9 条记录或丢失 undo。
-  修复：通过模块级 Promise 队列串行化所有 few-shot 写操作。
-  发现于: feat/phase-2-measurement, adversarial review (2026-06-11)
-
 - **off-mode trajectory status 命名误导 (non-blocking)** | **Priority:** P3
   `handleApproveBatch` 在 `result.error === 'blocked'`（off 模式）时写入 `status: 'fill-completed'`，
   但该状态在语义上意味着"网关拦截(off模式)"而非"填充成功"。若批次在审批前被 kill，不写轨迹。
@@ -57,3 +29,27 @@
   发现于: feat/phase-2-measurement (2026-06-11)
 
 ## Completed
+
+- **appendTrajectory read-modify-write 无锁** | **Priority:** P2 | **Fixed:** 2026-06-12
+  引入 Promise 队列 `trajectoryQueue` 串行化所有轨迹写操作，防止并发丢记录。
+
+- **handleApproveBatch 无并发锁** | **Priority:** P2 | **Fixed:** 2026-06-12
+  添加 `_approveBatchInFlight` 布尔守卫，防止快速双击派发两次批准。
+
+- **handleApproveBatch 持有过时批次快照导致 userEdited 被覆盖** | **Priority:** P2 | **Fixed:** 2026-06-12
+  添加 `saveWithUserEditedMerge` 函数，每次保存前重新读取 storage 合并最新 `userEdited` 状态。
+
+- **addFewShotPair 模块级 read-modify-write 无串行化** | **Priority:** P3 | **Fixed:** 2026-06-12
+  引入 `fewShotQueue` Promise 队列串行化 `addFewShotPair` 和 `removeLastFewShotPair`。
+
+- **off-mode 下缺少 appendTrajectory 调用** | **Priority:** P2 | **Verified:** 2026-06-12
+  代码验证：off-mode 下 `result.dryRun === false`，`appendTrajectory` 已被正确调用。
+
+- **backend auth-routes 测试超时** | **Priority:** P0 | **Fixed:** 2026-06-12
+  使用 Vitest 4 语法为 rate-limit 测试增加 30s 超时。
+
+- **backend auto-generate 测试逻辑错误** | **Priority:** P0 | **Fixed:** 2026-06-12
+  删除重复且逻辑错误的测试用例。
+
+- **extension App.test.tsx mock 路径不匹配** | **Priority:** P0 | **Fixed:** 2026-06-12
+  添加 `../../../lib/storage` 的 mock 以匹配 useAutoSave hook 的导入路径。
