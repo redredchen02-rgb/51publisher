@@ -15,9 +15,11 @@ export function usePersistedState<T>(
 			try {
 				const storage = getStorage();
 				if (storage) {
-					const stored = await storage.get<T>(key);
-					if (!cancelled && stored !== null) {
-						setState(stored);
+					const result = await storage.get<Record<string, unknown>>(key);
+					// chrome.storage.local.get 返回 {[key]: value}，需取出真实值
+					const value = result?.[key];
+					if (!cancelled && value !== undefined) {
+						setState(value as T);
 					}
 				}
 			} catch {
