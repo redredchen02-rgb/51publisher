@@ -103,9 +103,9 @@ describe("runBatch", () => {
 		);
 		// generateDraft 被调用 2 次
 		expect(deps.generateDraft).toHaveBeenCalledTimes(2);
-		// 签名改为 (topic, facts);无事实时 facts=undefined。
-		expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_A, undefined);
-		expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_B, undefined);
+		// 签名改为 (topic, facts, enrichment);无事实/富化时为 undefined。
+		expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_A, undefined, undefined);
+		expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_B, undefined, undefined);
 	});
 
 	it("源接地:facts 与 topics 同序平行,透传给 generateDraft 并落到 item.facts", async () => {
@@ -113,8 +113,8 @@ describe("runBatch", () => {
 		const factsB = { 作品名: "B作" };
 		const deps = makeRunDeps({ facts: [factsA, factsB] });
 		const result = await runBatch(deps);
-		expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_A, factsA);
-		expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_B, factsB);
+		expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_A, factsA, undefined);
+		expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_B, factsB, undefined);
 		expect(result!.items[0]!.facts).toEqual(factsA);
 		expect(result!.items[1]!.facts).toEqual(factsB);
 	});
@@ -132,7 +132,7 @@ describe("runBatch", () => {
 		});
 		const result = await runBatch(deps);
 		expect(result!.items.map((it) => it.topic)).toEqual([TOPIC_A, TOPIC_B]);
-		expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_A, undefined);
+		expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_A, undefined, undefined);
 	});
 
 	it("tab 漂移中断: pinnedHostOk 第 2 次返回 false → 只生成第 1 条", async () => {

@@ -21,6 +21,8 @@ export interface PendingTopic {
 	coverImageUrl?: string;
 	/** 质量分低于 fold_threshold 时后端标记为折叠（低优先级）。 */
 	folded?: boolean;
+	/** 预格式化的 web 搜索富化文本，可直接注入 LLM prompt（后端 formatEnrichmentForPrompt 输出）。 */
+	enrichmentText?: string;
 	createdAt: string;
 	updatedAt: string;
 }

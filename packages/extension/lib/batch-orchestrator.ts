@@ -46,6 +46,8 @@ export interface RunBatchDeps {
 	coverImageUrls?: (string | undefined)[];
 	/** 与 topics 同序平行的待审池选题 ID(U7 状态回写);可省略(手动批量=无来源选题)。 */
 	topicIds?: (string | undefined)[];
+	/** 与 topics 同序平行的 web 富化文本（来自 pending-store enrichmentText）;可省略。 */
+	enrichments?: (string | undefined)[];
 	tabId: number;
 	/** chrome.tabs.get(tabId).hostname;tab 无 url/已关 → null。 */
 	resolveHost: () => Promise<string | null>;
@@ -55,6 +57,7 @@ export interface RunBatchDeps {
 	generateDraft: (
 		topic: string,
 		facts?: FactsBlock,
+		enrichment?: string,
 	) => Promise<GenerateDraftResponse>;
 	save: (batch: Batch) => Promise<void>;
 	genBatchId: () => string;
@@ -123,6 +126,13 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
 		if (tid) topicIdsByTopic.set(t, tid);
 	});
 
+	// topic → 富化文本映射(来自 pending-store enrichmentText,可省略)。
+	const enrichmentByTopic = new Map<string, string>();
+	topics.forEach((t, i) => {
+		const e = deps.enrichments?.[i];
+		if (e) enrichmentByTopic.set(t, e);
+	});
+
 	// 重入守卫:排除上一批仍被隔离的同选题 + 持久化已发布选题(防跨 session 重发)。
 	// R8 迭代通道(bypassReentry)跳过此守卫,允许重跑已发题目对比 prompt/few-shot 效果。
 	const existing = await getExistingBatch();
@@ -161,7 +171,7 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
 		batch = markGenerating(batch, item.id);
 		await save(batch);
 
-		const gen = await generateDraft(item.topic, item.facts);
+		const gen = await generateDraft(item.topic, item.facts, enrichmentByTopic.get(item.topic));
 		if (!gen.ok) {
 			batch = markGenerateFailed(batch, item.id, gen.error);
 			await save(batch);

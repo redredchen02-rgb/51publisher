@@ -123,6 +123,7 @@ export async function runBatch(
 	coverImageUrls?: string[],
 	iterate?: boolean,
 	topicIds?: string[],
+	enrichments?: (string | undefined)[],
 ): Promise<BatchResponse> {
 	return sendMsg<BatchResponse>({
 		type: "RUN_BATCH",
@@ -132,6 +133,7 @@ export async function runBatch(
 		iterate,
 		coverImageUrls,
 		topicIds,
+		enrichments,
 	});
 }
 

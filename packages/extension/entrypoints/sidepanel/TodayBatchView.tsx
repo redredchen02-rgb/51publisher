@@ -88,6 +88,7 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 			const topics = topN.map((t) => t.title);
 			const factsList = topN.map((t) => t.facts ?? {});
 			const topicIds = topN.map((t) => t.id);
+			const enrichments = topN.map((t) => t.enrichmentText);
 
 			// 传 topicIds 使 handleRunBatch 能写 item.pendingTopicId。
 			await runBatch(
@@ -97,6 +98,7 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 				undefined,
 				undefined,
 				topicIds,
+				enrichments,
 			);
 
 			// 构造轻量展示列表(真实批次状态由 BatchView 展示,此处仅给用户即时反馈)。

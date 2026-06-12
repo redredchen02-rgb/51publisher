@@ -81,6 +81,7 @@ export interface BackgroundHandlerDeps {
 			settings: import("@51publisher/shared").Settings;
 			apiKey: string;
 			facts?: FactsBlock;
+			enrichment?: string;
 		},
 	) => Promise<GenerateDraftResponse>;
 	buildBatchId: () => string;
@@ -219,6 +220,7 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 		iterate?: boolean,
 		coverImageUrls?: string[],
 		topicIds?: string[],
+		enrichments?: (string | undefined)[],
 	): Promise<Batch | null> {
 		try {
 			// 新批次启动:重置已读标记,确保门控从零开始(SW kill 后恢复也同样干净)。
@@ -233,11 +235,12 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 				facts,
 				coverImageUrls,
 				topicIds,
+				enrichments,
 				tabId,
 				resolveHost: () => resolveTabHost(tabId),
 				getExistingBatch: deps.getBatch,
 				pinnedHostOk,
-				generateDraft: (topic, itemFacts) => {
+				generateDraft: (topic, itemFacts, enrichment) => {
 					const prompt =
 						buildPrompt(
 							settings.promptTemplate,
@@ -249,6 +252,7 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 						settings,
 						apiKey,
 						facts: itemFacts,
+						enrichment,
 					});
 				},
 				save: deps.saveBatch,
@@ -577,6 +581,7 @@ export default defineBackground(() => {
 				message.iterate,
 				message.coverImageUrls,
 				message.topicIds,
+				message.enrichments,
 			);
 		if (message?.type === "APPROVE_BATCH")
 			return handlers.handleApproveBatch(message.tabId, message.draftOverrides);
