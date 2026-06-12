@@ -111,8 +111,12 @@ describe("startRevisitJob — cron registration", () => {
 
 	it("stopScheduler() stops both revisit tasks and removes them from jobs", () => {
 		startRevisitJob();
-		const immediateTask = jobs.get("__revisit_immediate")!;
-		const healthTask = jobs.get("__revisit_health")!;
+		const immediateTask = jobs.get("__revisit_immediate");
+		const healthTask = jobs.get("__revisit_health");
+		expect(immediateTask).toBeDefined();
+		expect(healthTask).toBeDefined();
+		if (!immediateTask || !healthTask)
+			throw new Error("revisit tasks not registered");
 
 		stopScheduler();
 
@@ -246,7 +250,7 @@ describe('health sweep — checks outcome="online" rows', () => {
 		// The health sweep calls prepare with the 'online' query
 		const prepareCalls = (
 			vi.mocked(mockDb.prepare).mock.calls as [string][][]
-		).map(([sql]) => sql!);
+		).map(([sql]) => sql);
 		expect(prepareCalls.some((sql) => sql.includes("outcome = 'online'"))).toBe(
 			true,
 		);
