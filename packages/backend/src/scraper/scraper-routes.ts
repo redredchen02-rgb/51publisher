@@ -45,12 +45,12 @@ export async function registerScraperRoutes(
 			} else if (!url && config.listUrl && adapter.fetchList) {
 				request.log.info(`List-discovery mode: scanning ${config.listUrl}`);
 				let discovered: string[];
-				try {
-					discovered = await adapter.fetchList(config.listUrl);
-				} catch (e) {
-					const msg = e instanceof Error ? e.message : String(e);
-					return err(reply, 500, `fetchList failed: ${msg}`);
-				}
+			try {
+				discovered = await adapter.fetchList(config.listUrl);
+			} catch (e) {
+				request.log.error(e, `fetchList failed for ${config.listUrl}`);
+				return err(reply, 500, "Failed to fetch list. Check server logs for details.");
+			}
 				if (discovered.length === 0) {
 					return err(
 						reply,
@@ -188,9 +188,8 @@ export async function registerScraperRoutes(
 
 				return { ok: true, pendingTopic };
 			} catch (e) {
-				const msg = e instanceof Error ? e.message : String(e);
 				request.log.error(e, `Scrape failed for ${siteName}`);
-				return err(reply, 500, `Scrape failed: ${msg}`);
+				return err(reply, 500, "Scrape failed. Check server logs for details.");
 			}
 		},
 	);
@@ -250,9 +249,8 @@ export async function registerScraperRoutes(
 				},
 			};
 		} catch (e) {
-			const msg = e instanceof Error ? e.message : String(e);
 			request.log.error(e, "Auto-generate failed");
-			return err(reply, 500, `Auto-generate failed: ${msg}`);
+			return err(reply, 500, "Auto-generate failed. Check server logs for details.");
 		}
 	});
 }
