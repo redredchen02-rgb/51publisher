@@ -5,7 +5,7 @@ COPY pnpm-lock.yaml package.json pnpm-workspace.yaml ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/backend/package.json packages/backend/
 
-RUN corepack enable && pnpm install --frozen-lockfile
+RUN npm install -g pnpm@9 && pnpm install --frozen-lockfile
 
 COPY packages/shared/ packages/shared/
 COPY packages/backend/ packages/backend/
