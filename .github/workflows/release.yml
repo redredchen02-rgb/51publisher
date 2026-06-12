@@ -54,7 +54,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: extension-zip
-          path: packages/extension/.output/*.zip
+          path: packages/extension/.output/publisher-fill-assistant-*.zip
           if-no-files-found: error
 
       - name: Upload Docker artifact
