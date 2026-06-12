@@ -1,6 +1,6 @@
 import type { FastifyBaseLogger } from "fastify";
 import cron from "node-cron";
-import { sendAlert } from "../telegram.js";
+import { sendAlert } from "../services/telegram.js";
 import { extractFacts } from "./fact-extractor.js";
 import {
 	type PendingTopic,

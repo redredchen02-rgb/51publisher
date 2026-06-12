@@ -3,6 +3,7 @@
 export type { FactKey, FactsBlock, ParsedTopic } from "./facts.js";
 export {
 	applyPromptTemplate,
+	CORE_FACT_KEYS,
 	FACT_ORDER,
 	factUrls,
 	formatFactsForPrompt,

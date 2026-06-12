@@ -9,6 +9,7 @@ import {
 } from "../../lib/storage";
 import { AuthView } from "./AuthView";
 import { BatchView } from "./BatchView";
+import { KeyboardShortcutsHelp } from "./components/KeyboardShortcutsHelp";
 import { ProgressBar } from "./components/ProgressBar";
 import { Toast } from "./components/Toast";
 import { DraftPreview } from "./DraftPreview";
@@ -245,6 +246,7 @@ export function App() {
 					>
 						⚙ 设置
 					</button>
+					<KeyboardShortcutsHelp />
 				</div>
 			</div>
 

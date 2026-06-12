@@ -1,6 +1,14 @@
 # Changelog
 
-## [0.5.0.0] — 2026-06-11
+## [0.1.0] — 2026-06-12
+
+### Changed
+
+- **版本號統一**：所有 package 版本號重設為 0.1.0（原 0.5.0），CHANGELOG 版本格式統一為三段式
+- **Backend 結構收斂**：重組為 config / middleware / routes / services / stores / scrapers / utils 分層目錄
+- **index.ts 瘦身**：server 建構邏輯抽出至 `app.ts`，入口降至 ~20 行
+
+## [0.5.0] — 2026-06-11
 
 ### Added
 

@@ -4,8 +4,8 @@ import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
 import jwt from "jsonwebtoken";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { AUDIT_LOG_PATH } from "./audit-log.js";
-import { PUBLIC_ROUTES } from "./auth-middleware.js";
+import { AUDIT_LOG_PATH } from "../services/audit-log.js";
+import { PUBLIC_ROUTES } from "../middleware/auth-middleware.js";
 import { registerAuthRoutes } from "./auth-routes.js";
 
 const SECRET = randomBytes(48).toString("hex");

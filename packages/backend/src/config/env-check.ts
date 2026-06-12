@@ -3,7 +3,7 @@
 // never authenticate with known defaults.
 
 import { URL } from "node:url";
-import { isHostAllowed, loadSSRFAllowlist } from "./scraper/ssrf-allowlist.js";
+import { isHostAllowed, loadSSRFAllowlist } from "../scraper/ssrf-allowlist.js";
 
 const WEAK_SECRETS = new Set([
 	"",

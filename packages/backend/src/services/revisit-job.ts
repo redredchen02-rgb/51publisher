@@ -1,10 +1,10 @@
 import { URL } from "node:url";
 import type { FastifyBaseLogger } from "fastify";
 import cron from "node-cron";
-import { getDb, pendingWriteQueue } from "./scraper/pending-db.js";
-import { jobs } from "./scraper/scheduler.js";
-import { isHostAllowed, loadSSRFAllowlist } from "./scraper/ssrf-allowlist.js";
-import { safeFetch } from "./scraper/ssrf-guard.js";
+import { getDb, pendingWriteQueue } from "../scraper/pending-db.js";
+import { jobs } from "../scraper/scheduler.js";
+import { isHostAllowed, loadSSRFAllowlist } from "../scraper/ssrf-allowlist.js";
+import { safeFetch } from "../scraper/ssrf-guard.js";
 import { sendAlert } from "./telegram.js";
 
 interface RevisitDeps {

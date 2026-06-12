@@ -11,7 +11,7 @@ import {
 	modelsUrl,
 	slotsFromParsed,
 	toDraft,
-} from "./llm.js";
+} from "../services/llm.js";
 
 const DEFAULT_SETTINGS: Settings = {
 	endpoint: "",

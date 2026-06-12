@@ -1,4 +1,4 @@
-import { getDb } from "./scraper/pending-db.js";
+import { getDb } from "../scraper/pending-db.js";
 
 /**
  * SQLite 持久化 key-value 配置储存。

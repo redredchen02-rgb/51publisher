@@ -5,7 +5,7 @@ vi.mock("./scraper/ssrf-guard.js", () => ({
 	assertUrlSafe: vi.fn().mockResolvedValue(new URL("https://api.telegram.org")),
 }));
 
-import { assertUrlSafe } from "./scraper/ssrf-guard.js";
+import { assertUrlSafe } from "../scraper/ssrf-guard.js";
 import { sendAlert } from "./telegram.js";
 
 const VALID_TOKEN = "123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi";
@@ -147,10 +147,10 @@ describe("sendAlert", () => {
 describe("checkEnv: TG guard", () => {
 	// Import checkEnv after the module is already set up
 	// eslint-disable-next-line @typescript-eslint/consistent-type-imports
-	let checkEnv: typeof import("./env-check.js").checkEnv;
+	let checkEnv: typeof import("../config/env-check.js").checkEnv;
 
 	beforeEach(async () => {
-		const mod = await import("./env-check.js");
+		const mod = await import("../config/env-check.js");
 		checkEnv = mod.checkEnv;
 	});
 

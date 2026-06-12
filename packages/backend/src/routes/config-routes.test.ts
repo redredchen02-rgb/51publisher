@@ -2,8 +2,8 @@ import { DEFAULT_FIELD_MAPPING } from "@51publisher/shared";
 import Fastify from "fastify";
 import { beforeEach, describe, expect, it } from "vitest";
 import { registerConfigRoutes } from "./config-routes.js";
-import { configDelete } from "./config-store.js";
-import { initPendingDb } from "./scraper/pending-db.js";
+import { configDelete } from "../services/config-store.js";
+import { initPendingDb } from "../scraper/pending-db.js";
 
 async function buildApp() {
 	initPendingDb();

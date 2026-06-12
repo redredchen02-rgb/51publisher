@@ -1,6 +1,6 @@
 import type { FactsBlock } from "@51publisher/shared";
 import { FACT_ORDER } from "@51publisher/shared";
-import { chatCompletionsUrl } from "../llm.js";
+import { chatCompletionsUrl } from "../services/llm.js";
 import type { ExtractedFacts, RawContent } from "./site-adapter.js";
 
 /** json_schema 约束——保证 LLM 输出结构化事实。 */
@@ -49,7 +49,12 @@ function str(v: unknown): string {
 }
 
 function parseFactsFromContent(content: string): FactsBlock {
-	const parsed = JSON.parse(content) as Record<string, unknown>;
+	let parsed: Record<string, unknown>;
+	try {
+		parsed = JSON.parse(content) as Record<string, unknown>;
+	} catch {
+		return {};
+	}
 	const facts: FactsBlock = {};
 	for (const key of FACT_ORDER) {
 		const val = str(parsed[key]);

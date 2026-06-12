@@ -1,8 +1,8 @@
 import type { FieldMapping } from "@51publisher/shared";
 import { DEFAULT_FIELD_MAPPING } from "@51publisher/shared";
 import type { FastifyInstance } from "fastify";
-import { configGet, configSet } from "./config-store.js";
-import { err } from "./error-response.js";
+import { configGet, configSet } from "../services/config-store.js";
+import { err } from "../utils/error-response.js";
 
 const CONFIG_KEY_MAPPINGS = "field_mappings";
 

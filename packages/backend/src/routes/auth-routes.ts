@@ -1,9 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import jwt from "jsonwebtoken";
-import { auditLogin } from "./audit-log.js";
-import { err } from "./error-response.js";
-import { verifyPassword } from "./password.js";
-import { LoginBody as LoginBodySchema, LoginResponse } from "./schemas.js";
+import { auditLogin } from "../services/audit-log.js";
+import { err } from "../utils/error-response.js";
+import { verifyPassword } from "../services/password.js";
+import { LoginBody as LoginBodySchema, LoginResponse } from "../utils/schemas.js";
 
 // Strict per-route limit for auth endpoints (overrides the global limit).
 const AUTH_RATE_LIMIT = {

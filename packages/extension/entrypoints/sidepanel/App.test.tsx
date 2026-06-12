@@ -28,7 +28,9 @@ const draft: ContentDraft = {
 
 const requestGenerate = vi.fn();
 const requestFill = vi.fn();
-const saveCurrentDraftMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const saveCurrentDraftMock = vi.hoisted(() =>
+	vi.fn().mockResolvedValue(undefined),
+);
 
 vi.mock("../../lib/auth-client", () => ({
 	isAuthenticated: vi.fn(async () => true),
@@ -268,5 +270,30 @@ describe("App keyboard shortcuts and auto-save", () => {
 			},
 			{ timeout: 2000 },
 		);
+	});
+});
+
+describe("App with keyboard shortcuts help", () => {
+	beforeEach(() => {
+		requestGenerate.mockReset();
+		requestFill.mockReset();
+		saveCurrentDraftMock.mockClear();
+	});
+	afterEach(() => cleanup());
+
+	it("shows keyboard shortcuts help button", async () => {
+		render(<App />);
+		await waitForAppReady();
+		expect(screen.getByLabelText("快捷键帮助")).toBeTruthy();
+	});
+
+	it("renders KeyboardShortcutsHelp component", async () => {
+		const mockKbd = KeyboardShortcutsHelp as unknown as ReturnType<typeof vi.fn>;
+		mockKbd.mockReturnValue(<div data-testid="kbd-help">mock</div>);
+
+		render(<App />);
+		await waitForAppReady();
+		expect(screen.getByLabelText("快捷键帮助")).toBeTruthy();
+		expect(mockKbd).toHaveBeenCalled();
 	});
 });

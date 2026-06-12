@@ -110,7 +110,9 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
 
 	// topic → facts 映射(过滤后用 fresh 题目回查对齐;重复题目后者覆盖)。
 	const factsByTopic = new Map<string, FactsBlock | undefined>();
-	topics.forEach((t, i) => factsByTopic.set(t, deps.facts?.[i]));
+	topics.forEach((t, i) => {
+		factsByTopic.set(t, deps.facts?.[i]);
+	});
 
 	// topic → coverImageUrl 映射(同序平行)。
 	const coverUrlsByTopic = new Map<string, string>();
@@ -171,7 +173,11 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
 		batch = markGenerating(batch, item.id);
 		await save(batch);
 
-		const gen = await generateDraft(item.topic, item.facts, enrichmentByTopic.get(item.topic));
+		const gen = await generateDraft(
+			item.topic,
+			item.facts,
+			enrichmentByTopic.get(item.topic),
+		);
 		if (!gen.ok) {
 			batch = markGenerateFailed(batch, item.id, gen.error);
 			await save(batch);
@@ -310,7 +316,7 @@ export async function approveBatch(
 	for (const snapshot of batch.items) {
 		// 每轮从最新 batch 取该项当前状态(前面的转移可能已变)。
 		const item = batch.items.find((it) => it.id === snapshot.id);
-		if (!item || item.status !== "awaiting-approval" || !item.draft) continue;
+		if (item?.status !== "awaiting-approval" || !item.draft) continue;
 		if (!(await pinnedHostOk(batch))) break;
 
 		// 发布前 grounding 硬闸:仅 authorized 档拦截(残留【待补】/无来源连结 → 该条转 error,不 dispatch)。
@@ -318,9 +324,9 @@ export async function approveBatch(
 			const gate = await evaluateGate();
 			if (gate.mode === "authorized") {
 				const verdict = checkGrounding(
-				item.assembledDraftSnapshot ?? item.draft,
-				item.facts,
-			);
+					item.assembledDraftSnapshot ?? item.draft,
+					item.facts,
+				);
 				if (!verdict.ok) {
 					batch = markGenerateFailed(
 						batch,
@@ -515,7 +521,15 @@ export async function retryItem(
 		? { ...gen.draft, coverImageUrl: item.coverImageUrl }
 		: gen.draft;
 	// retry 无重写流程,draft 即原稿;刷新快照使重试后新原稿成为 gate 判据。
-	batch = markFilled(batch, itemId, draft, undefined, undefined, undefined, draft);
+	batch = markFilled(
+		batch,
+		itemId,
+		draft,
+		undefined,
+		undefined,
+		undefined,
+		draft,
+	);
 	batch = presentForApproval(batch);
 	await deps.save(batch); // flush approval-ready state
 	return batch;

@@ -1,6 +1,6 @@
 import { randomBytes, scryptSync } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { verifyPassword } from "./password.js";
+import { verifyPassword } from "../services/password.js";
 
 function makeHash(pw: string): string {
 	const salt = randomBytes(16);

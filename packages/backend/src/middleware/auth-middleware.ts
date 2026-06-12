@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import jwt from "jsonwebtoken";
-import { err } from "./error-response.js";
+import { err } from "../utils/error-response.js";
 
 declare module "fastify" {
 	interface FastifyRequest {

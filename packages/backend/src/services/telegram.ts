@@ -1,4 +1,4 @@
-import { assertUrlSafe } from "./scraper/ssrf-guard.js";
+import { assertUrlSafe } from "../scraper/ssrf-guard.js";
 
 export type AlertLevel = "critical" | "warning" | "info";
 

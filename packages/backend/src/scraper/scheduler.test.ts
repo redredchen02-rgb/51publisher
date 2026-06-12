@@ -29,7 +29,7 @@ vi.mock("./pending-store.js", () => ({
 	pendingTopicExistsBySourceUrl: vi.fn(async () => false),
 }));
 
-vi.mock("../telegram.js", () => ({
+vi.mock("../services/telegram.js", () => ({
 	sendAlert: vi.fn(async () => undefined),
 }));
 
@@ -179,7 +179,7 @@ describe("startScheduler — cron 任务的 coverImageUrl 透传", () => {
 // U4: list-discovery 模式
 // ================================================================
 
-import { sendAlert } from "../telegram.js";
+import { sendAlert } from "../services/telegram.js";
 
 const LIST_URL = "https://test-site.example.com/list/";
 

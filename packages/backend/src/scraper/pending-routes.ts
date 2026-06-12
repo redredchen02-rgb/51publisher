@@ -1,6 +1,6 @@
 import type { RejectionReason } from "@51publisher/shared";
 import type { FastifyInstance } from "fastify";
-import { err } from "../error-response.js";
+import { err } from "../utils/error-response.js";
 import {
 	deletePendingTopic,
 	listPendingTopics,

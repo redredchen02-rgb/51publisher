@@ -1,8 +1,8 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { runMigrations } from "./migrations/runner.js";
+import { runMigrations } from "../migrations/runner.js";
 import { registerPublishedPostsRoutes } from "./published-posts-routes.js";
-import { DB_PATH, getDb, initPendingDb } from "./scraper/pending-db.js";
+import { DB_PATH, getDb, initPendingDb } from "../scraper/pending-db.js";
 
 async function buildApp(): Promise<FastifyInstance> {
 	const app = Fastify({ logger: false });

@@ -16,12 +16,18 @@ export interface FactsBlock {
 	無修?: string;
 	题材?: string;
 	简介?: string;
+	/** 连载/完结状态（扩展字段，不影响核心防幻觉）。 */
+	状态?: string;
+	/** 总章节数（扩展字段）。 */
+	章节数?: string;
+	/** 详细标签，逗号分隔（扩展字段）。 */
+	标签?: string;
 }
 
 export type FactKey = keyof FactsBlock;
 
-/** 规范字段顺序(渲 prompt 时稳定输出)。 */
-export const FACT_ORDER: FactKey[] = [
+/** 核心字段顺序（参与置信度计算）。 */
+export const CORE_FACT_KEYS: FactKey[] = [
 	"作品名",
 	"集数",
 	"制作",
@@ -29,6 +35,14 @@ export const FACT_ORDER: FactKey[] = [
 	"無修",
 	"题材",
 	"简介",
+];
+
+/** 全部字段顺序（含扩展字段，渲 prompt 时使用）。 */
+export const FACT_ORDER: FactKey[] = [
+	...CORE_FACT_KEYS,
+	"状态",
+	"章节数",
+	"标签",
 ];
 
 /** 输入 key 别名 → 规范键。比对前会 trim + 转小写(中文不受影响)。 */
@@ -72,6 +86,16 @@ const KEY_ALIASES: Record<string, FactKey> = {
 	desc: "简介",
 	description: "简介",
 	intro: "简介",
+	状态: "状态",
+	status: "状态",
+	连载: "状态",
+	完结: "状态",
+	章节数: "章节数",
+	章节数量: "章节数",
+	集数总计: "章节数",
+	详细标签: "标签",
+	detailedTags: "标签",
+	detailTags: "标签",
 };
 
 /** 含 URL 的事实字段(连结来源校验的允许集来自这些)。 */

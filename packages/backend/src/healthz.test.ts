@@ -1,6 +1,6 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { PUBLIC_ROUTES, requireAuth } from "./auth-middleware.js";
+import { PUBLIC_ROUTES, requireAuth } from "./middleware/auth-middleware.js";
 
 async function buildApp(): Promise<FastifyInstance> {
 	const app = Fastify();

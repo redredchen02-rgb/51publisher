@@ -1,10 +1,10 @@
 import cron from "node-cron";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { startRevisitJob } from "./revisit-job.js";
-import { pendingWriteQueue } from "./scraper/pending-db.js";
-import { jobs, stopScheduler } from "./scraper/scheduler.js";
-import { isHostAllowed } from "./scraper/ssrf-allowlist.js";
-import { safeFetch } from "./scraper/ssrf-guard.js";
+import { pendingWriteQueue } from "../scraper/pending-db.js";
+import { jobs, stopScheduler } from "../scraper/scheduler.js";
+import { isHostAllowed } from "../scraper/ssrf-allowlist.js";
+import { safeFetch } from "../scraper/ssrf-guard.js";
 import { sendAlert } from "./telegram.js";
 
 // ---- mocks ----
