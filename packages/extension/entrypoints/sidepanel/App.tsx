@@ -9,12 +9,14 @@ import {
 } from "../../lib/storage";
 import { AuthView } from "./AuthView";
 import { BatchView } from "./BatchView";
+import { ErrorDisplay } from "./components/ErrorDisplay";
 import { KeyboardShortcutsHelp } from "./components/KeyboardShortcutsHelp";
 import { ProgressBar } from "./components/ProgressBar";
 import { Toast } from "./components/Toast";
 import { DraftPreview } from "./DraftPreview";
 import { FillResultPanel } from "./FillResultPanel";
 import { useAutoSave } from "./hooks/useAutoSave";
+import { useErrorHandler } from "./hooks/useErrorHandler";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useLoadingState } from "./hooks/useLoadingState";
 import { Loading } from "./Loading";
@@ -32,7 +34,7 @@ export function App() {
 	const [topic, setTopic] = useState("");
 	const [draft, setDraft] = useState<ContentDraft | null>(null);
 	const [results, setResults] = useState<FieldFillResult[]>([]);
-	const [error, setError] = useState("");
+	const { error, handleError, clearError } = useErrorHandler();
 	const [confirmNext, setConfirmNext] = useState(false);
 	const [toast, setToast] = useState<{
 		message: string;
@@ -68,10 +70,10 @@ export function App() {
 
 	async function handleGenerate() {
 		if (!topic.trim()) {
-			setError("请先输入主题。");
+			handleError("请先输入主题。");
 			return;
 		}
-		setError("");
+		clearError();
 		setResults([]);
 		setMode("generating");
 		loadingState.startLoading("正在生成草稿...");
@@ -89,7 +91,7 @@ export function App() {
 				setMode("draft");
 				loadingState.completeLoading();
 			} else {
-				setError(
+				handleError(
 					res.kind === "no-key" ? `${res.error}(点右上角设置)` : res.error,
 				);
 				setMode(draft ? "draft" : "empty");
@@ -108,7 +110,7 @@ export function App() {
 
 	async function handleFill() {
 		if (!draft) return;
-		setError("");
+		clearError();
 		setMode("filling");
 		const res = await requestFill(draft);
 		if (res.ok) {
@@ -117,7 +119,7 @@ export function App() {
 			setMode(anyProblem ? "partial" : "filled");
 			if (!anyProblem) setToast({ message: "填充成功", type: "success" });
 		} else {
-			setError(res.error);
+			handleError(res.error);
 			setMode("draft");
 			setToast({ message: res.error, type: "error" });
 		}
@@ -133,7 +135,7 @@ export function App() {
 		setDraft(null);
 		setResults([]);
 		setTopic("");
-		setError("");
+		clearError();
 		setMode("empty");
 	}
 
@@ -183,7 +185,7 @@ export function App() {
 			<PendingTopicsView
 				onBack={() => setView("main")}
 				onBatchStarted={() => setView("batch")}
-				onError={(msg) => setError(msg)}
+				onError={(msg) => handleError(msg)}
 			/>
 		);
 
@@ -261,19 +263,21 @@ export function App() {
 			</div>
 
 			{error && (
-				<p
-					role="alert"
-					style={{
-						color: "#cf1322",
-						fontSize: 13,
-						background: "#fff1f0",
-						border: "1px solid #ffa39e",
-						borderRadius: 4,
-						padding: "6px 8px",
+				<ErrorDisplay
+					message={error}
+					onRetry={() => {
+						if (mode === "generating" || mode === "empty" || mode === "draft") {
+							handleGenerate();
+						} else if (
+							mode === "filling" ||
+							mode === "filled" ||
+							mode === "partial"
+						) {
+							handleFill();
+						}
 					}}
-				>
-					{error}
-				</p>
+					onDismiss={clearError}
+				/>
 			)}
 
 			{(mode === "empty" ||

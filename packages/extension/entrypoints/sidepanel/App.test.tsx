@@ -273,6 +273,49 @@ describe("App keyboard shortcuts and auto-save", () => {
 	});
 });
 
+describe("App with error handling", () => {
+	beforeEach(() => {
+		requestGenerate.mockReset();
+		requestFill.mockReset();
+	});
+	afterEach(() => cleanup());
+
+	it("shows ErrorDisplay component when error occurs", async () => {
+		requestGenerate.mockResolvedValue({
+			ok: false,
+			error: "网络错误",
+		});
+		render(<App />);
+		await waitForAppReady();
+		fireEvent.change(screen.getByPlaceholderText(/输入选题/), {
+			target: { value: "测试选题" },
+		});
+		fireEvent.click(screen.getByText("生成草稿"));
+		await waitFor(() => {
+			expect(screen.getByText("网络错误")).toBeTruthy();
+		});
+	});
+
+	it("retry button triggers handleGenerate again", async () => {
+		requestGenerate
+			.mockResolvedValueOnce({ ok: false, error: "网络错误" })
+			.mockResolvedValueOnce({ ok: true, draft });
+		render(<App />);
+		await waitForAppReady();
+		fireEvent.change(screen.getByPlaceholderText(/输入选题/), {
+			target: { value: "测试选题" },
+		});
+		fireEvent.click(screen.getByText("生成草稿"));
+		await waitFor(() => {
+			expect(screen.getByText("网络错误")).toBeTruthy();
+		});
+		fireEvent.click(screen.getByText("重试"));
+		await waitFor(() => {
+			expect(screen.getByDisplayValue("AI 标题")).toBeTruthy();
+		});
+	});
+});
+
 describe("App with keyboard shortcuts help", () => {
 	beforeEach(() => {
 		requestGenerate.mockReset();
