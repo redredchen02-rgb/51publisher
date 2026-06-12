@@ -161,11 +161,17 @@ export async function safeFetch(
 	rawUrl: string,
 	init: RequestInit = {},
 	maxHops = 5,
+	timeoutMs = 30_000,
 ): Promise<Response> {
 	let current = rawUrl;
+	const timeoutSignal = AbortSignal.timeout(timeoutMs);
+	const signal =
+		init.signal instanceof AbortSignal
+			? AbortSignal.any([init.signal, timeoutSignal])
+			: timeoutSignal;
 	for (let hop = 0; hop <= maxHops; hop++) {
 		await assertUrlSafe(current);
-		const res = await fetch(current, { ...init, redirect: "manual" });
+		const res = await fetch(current, { ...init, signal, redirect: "manual" });
 		if (res.status >= 300 && res.status < 400) {
 			const loc = res.headers.get("location");
 			if (!loc) return res;

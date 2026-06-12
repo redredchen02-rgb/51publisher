@@ -58,3 +58,6 @@ export type {
 
 export type { CategoryOption } from "./vocab.js";
 export { CATEGORY_VOCAB, normalizeCategory } from "./vocab.js";
+
+export type { GossipFactKey, GossipFactsBlock } from "./gossip-facts.js";
+export { GOSSIP_FACT_KEYS, GOSSIP_FACTS_SCHEMA } from "./gossip-facts.js";

@@ -1,4 +1,4 @@
-import type { FactsBlock } from "@51publisher/shared";
+import type { FactsBlock, GossipFactsBlock } from "@51publisher/shared";
 import {
 	type BetterSqlite3DB,
 	getDb,
@@ -25,22 +25,24 @@ export interface PendingTopic {
 	siteName: string;
 	title: string;
 	rawContent?: RawContent;
-	facts: FactsBlock;
+	facts: FactsBlock | GossipFactsBlock;
 	confidence: number;
 	status: PendingStatus;
 	rejectedReason?: string;
 	coverImageUrl?: string;
 	score?: number;
 	enrichment?: EnrichedContext;
+	domain?: "acg" | "gossip";
 	createdAt: string;
 	updatedAt: string;
 }
 
 export interface PendingTopicPatch {
-	facts?: FactsBlock;
+	facts?: FactsBlock | GossipFactsBlock;
 	confidence?: number;
 	status?: PendingStatus;
 	rejectedReason?: string;
+	domain?: "acg" | "gossip";
 }
 
 interface PendingRow {
@@ -56,6 +58,7 @@ interface PendingRow {
 	cover_image_url: string | null;
 	score: number | null;
 	enrichment: string | null;
+	domain: string;
 	created_at: string;
 	updated_at: string;
 }
@@ -78,19 +81,21 @@ function safeJsonParse<T>(
 }
 
 function rowToTopic(row: PendingRow): PendingTopic {
+	const domain = row.domain === "gossip" ? "gossip" : "acg";
 	return {
 		id: row.id,
 		sourceUrl: row.source_url,
 		siteName: row.site_name,
 		title: row.title,
 		rawContent: safeJsonParse<RawContent>(row.raw_content, undefined),
-		facts: safeJsonParse<FactsBlock>(row.facts, {}),
+		facts: safeJsonParse<FactsBlock | GossipFactsBlock>(row.facts, {}),
 		confidence: row.confidence,
 		status: isValidPendingStatus(row.status) ? row.status : "pending",
 		rejectedReason: row.rejected_reason ?? undefined,
 		coverImageUrl: row.cover_image_url ?? undefined,
 		score: row.score ?? undefined,
 		enrichment: safeJsonParse<EnrichedContext>(row.enrichment, undefined),
+		domain,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
@@ -188,14 +193,14 @@ export async function savePendingTopic(
 
 		const score = computeScore(topic, db);
 
-		db.prepare(
+		try { db.prepare(
 			`
       INSERT INTO pending_topics
         (id, source_url, site_name, title, raw_content, facts, confidence, status,
-         rejected_reason, cover_image_url, score, enrichment, created_at, updated_at)
+         rejected_reason, cover_image_url, score, enrichment, domain, created_at, updated_at)
       VALUES
         (@id, @sourceUrl, @siteName, @title, @rawContent, @facts, @confidence, @status,
-         @rejectedReason, @coverImageUrl, @score, @enrichment, @createdAt, @updatedAt)
+         @rejectedReason, @coverImageUrl, @score, @enrichment, @domain, @createdAt, @updatedAt)
       ON CONFLICT(id) DO UPDATE SET
         source_url = excluded.source_url,
         site_name  = excluded.site_name,
@@ -208,6 +213,7 @@ export async function savePendingTopic(
         cover_image_url = excluded.cover_image_url,
         score      = excluded.score,
         enrichment = excluded.enrichment,
+        domain     = excluded.domain,
         updated_at = excluded.updated_at
     `,
 		).run({
@@ -223,9 +229,23 @@ export async function savePendingTopic(
 			coverImageUrl: topic.coverImageUrl ?? null,
 			score,
 			enrichment: topic.enrichment ? JSON.stringify(topic.enrichment) : null,
+			domain: topic.domain ?? "acg",
 			createdAt: topic.createdAt,
 			updatedAt: topic.updatedAt,
 		});
+
+		} catch (e: unknown) {
+			// UNIQUE constraint on source_url — treat as duplicate
+			if (
+				typeof e === "object" &&
+				e !== null &&
+				"code" in e &&
+				(e as { code: string }).code === "SQLITE_CONSTRAINT_UNIQUE"
+			) {
+				return { inserted: false };
+			}
+			throw e;
+		}
 
 		// existing 且同 id → upsert 更新；不存在 → 新插入
 		return { inserted: existing === undefined };
@@ -236,24 +256,30 @@ export async function listPendingTopics(
 	limit?: number,
 	status?: PendingStatus,
 	sortBy?: "score" | "created_at",
+	domain?: "acg" | "gossip",
 ): Promise<PendingTopic[]> {
 	const db = getDb();
 	const cap = Math.min(Math.max(limit ?? 50, 1), 500);
 	// 使用 COALESCE 替代 NULLS LAST 以兼容旧版 SQLite (< 3.30.0)
 	const orderCol =
 		sortBy === "score" ? "COALESCE(score, 0) DESC" : "created_at DESC";
-	let rows: PendingRow[];
+
+	const conditions: string[] = [];
+	const params: unknown[] = [];
 	if (status !== undefined) {
-		rows = db
-			.prepare(
-				`SELECT * FROM pending_topics WHERE status = ? ORDER BY ${orderCol} LIMIT ?`,
-			)
-			.all(status, cap) as PendingRow[];
-	} else {
-		rows = db
-			.prepare(`SELECT * FROM pending_topics ORDER BY ${orderCol} LIMIT ?`)
-			.all(cap) as PendingRow[];
+		conditions.push("status = ?");
+		params.push(status);
 	}
+	if (domain !== undefined) {
+		conditions.push("domain = ?");
+		params.push(domain);
+	}
+	const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+	params.push(cap);
+
+	const rows = db
+		.prepare(`SELECT * FROM pending_topics ${where} ORDER BY ${orderCol} LIMIT ?`)
+		.all(...params) as PendingRow[];
 	return rows.map(rowToTopic);
 }
 

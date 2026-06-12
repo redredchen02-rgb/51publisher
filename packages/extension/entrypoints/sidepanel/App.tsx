@@ -22,6 +22,7 @@ import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useLoadingState } from "./hooks/useLoadingState";
 import { useOperationHistory } from "./hooks/useOperationHistory";
 import { Loading } from "./Loading";
+import { GossipView } from "./GossipView";
 import { PendingTopicsView } from "./PendingTopicsView";
 import { Settings } from "./Settings";
 import { TodayBatchView } from "./TodayBatchView";
@@ -30,7 +31,7 @@ type Mode = "empty" | "generating" | "draft" | "filling" | "filled" | "partial";
 
 export function App() {
 	const [view, setView] = useState<
-		"main" | "settings" | "batch" | "pending" | "today" | "auth"
+		"main" | "settings" | "batch" | "pending" | "today" | "auth" | "gossip"
 	>("main");
 	const [mode, setMode] = useState<Mode>("empty");
 	const [topic, setTopic] = useState("");
@@ -217,6 +218,12 @@ export function App() {
 				onError={(msg) => handleError(msg)}
 			/>
 		);
+	if (view === "gossip")
+		return (
+			<Wrap>
+				<GossipView onBack={() => setView("main")} onTopicAdded={() => setView("pending")} />
+			</Wrap>
+		);
 
 	const busy = mode === "generating" || mode === "filling";
 
@@ -279,6 +286,14 @@ export function App() {
 						<span className="workflow-card-desc">
 							自动取高分待审选题，生成草稿，逐篇审读后发布
 						</span>
+					</button>
+					<button
+						type="button"
+						onClick={() => setView("gossip")}
+						className="btn btn-plain"
+						aria-label="吃瓜素材"
+					>
+						🍉 吃瓜
 					</button>
 					<button
 						type="button"

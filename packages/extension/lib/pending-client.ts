@@ -23,6 +23,7 @@ export interface PendingTopic {
 	folded?: boolean;
 	/** 预格式化的 web 搜索富化文本，可直接注入 LLM prompt（后端 formatEnrichmentForPrompt 输出）。 */
 	enrichmentText?: string;
+	domain?: "acg" | "gossip";
 	createdAt: string;
 	updatedAt: string;
 }
@@ -31,6 +32,7 @@ export interface FetchPendingTopicsOptions {
 	status?: string;
 	sort_by?: "score" | "created_at";
 	fold_threshold?: number;
+	domain?: "acg" | "gossip";
 }
 
 export interface PendingTopicsResponse {
@@ -77,6 +79,7 @@ export async function fetchPendingTopics(
 	if (opts.sort_by) qp.set("sort_by", opts.sort_by);
 	if (opts.fold_threshold !== undefined)
 		qp.set("fold_threshold", String(opts.fold_threshold));
+	if (opts.domain) qp.set("domain", opts.domain);
 	const params = qp.toString() ? `?${qp.toString()}` : "";
 
 	try {
