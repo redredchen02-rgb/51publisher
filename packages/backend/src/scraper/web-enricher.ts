@@ -103,7 +103,10 @@ async function fetchPixivByArtist(
 		if (!res.ok) return [];
 
 		const content = await res.text();
-		return parseJinaContent(content, `https://pixiv.net/tags/${encodeURIComponent(artistName)}`);
+		return parseJinaContent(
+			content,
+			`https://pixiv.net/tags/${encodeURIComponent(artistName)}`,
+		);
 	} catch {
 		return [];
 	} finally {
@@ -142,7 +145,10 @@ async function fetchPixivByWork(
 		if (!res.ok) return [];
 
 		const content = await res.text();
-		return parseJinaContent(content, `https://pixiv.net/tags/${encodeURIComponent(cleanName)}`);
+		return parseJinaContent(
+			content,
+			`https://pixiv.net/tags/${encodeURIComponent(cleanName)}`,
+		);
 	} catch {
 		return [];
 	} finally {
@@ -176,7 +182,8 @@ function buildSearchTasks(
 
 /** 格式化富化上下文为 LLM prompt 可用的文本。 */
 export function formatEnrichmentForPrompt(ctx: EnrichedContext): string {
-	if (!ctx.queryResults.length) return "";
+	const hasAny = ctx.queryResults.some((qr) => qr.results.length > 0);
+	if (!hasAny) return "";
 
 	const lines: string[] = [
 		"【网络参考资料】(以下为网络搜索结果，可参考用于丰富文章内容，但不得直接复制):",
