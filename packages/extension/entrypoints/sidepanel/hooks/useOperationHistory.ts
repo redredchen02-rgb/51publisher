@@ -69,7 +69,9 @@ export function useOperationHistory(): UseOperationHistoryReturn {
 			const storage = getStorage();
 			if (storage) {
 				const result = await storage.get(STORAGE_KEY);
-				setHistory((result[STORAGE_KEY] as OperationRecord[] | undefined) ?? []);
+				setHistory(
+					(result[STORAGE_KEY] as OperationRecord[] | undefined) ?? [],
+				);
 			}
 		} catch {
 			// 静默失败
