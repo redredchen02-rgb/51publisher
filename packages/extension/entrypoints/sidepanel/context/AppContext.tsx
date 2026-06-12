@@ -1,6 +1,7 @@
 import type { ContentDraft, FieldFillResult } from "@51publisher/shared";
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useCallback, useContext } from "react";
 import type { ReactNode } from "react";
+import { usePersistedState } from "../hooks/usePersistedState";
 
 type Mode = "empty" | "generating" | "draft" | "filling" | "filled" | "partial";
 
@@ -25,54 +26,94 @@ interface AppContextType extends AppState {
 
 const AppContext = createContext<AppContextType | null>(null);
 
-const initialState: AppState = {
-	topic: "",
-	draft: null,
-	mode: "empty",
-	error: "",
-	results: [],
-	authenticated: false,
-};
-
 interface AppProviderProps {
 	children: ReactNode;
 }
 
 export function AppProvider({ children }: AppProviderProps) {
-	const [state, setState] = useState<AppState>(initialState);
+	const [topic, setTopicPersisted] = usePersistedState("app-topic", "");
+	const [draft, setDraftPersisted] = usePersistedState<ContentDraft | null>(
+		"app-draft",
+		null,
+	);
+	const [mode, setModePersisted] = usePersistedState<Mode>("app-mode", "empty");
+	const [error, setErrorPersisted] = usePersistedState("app-error", "");
+	const [results, setResultsPersisted] = usePersistedState<FieldFillResult[]>(
+		"app-results",
+		[],
+	);
+	const [authenticated, setAuthenticatedPersisted] = usePersistedState(
+		"app-authenticated",
+		false,
+	);
 
-	const setTopic = useCallback((topic: string) => {
-		setState((prev) => ({ ...prev, topic }));
-	}, []);
+	const setTopic = useCallback(
+		(value: string) => {
+			setTopicPersisted(value);
+		},
+		[setTopicPersisted],
+	);
 
-	const setDraft = useCallback((draft: ContentDraft | null) => {
-		setState((prev) => ({ ...prev, draft }));
-	}, []);
+	const setDraft = useCallback(
+		(value: ContentDraft | null) => {
+			setDraftPersisted(value);
+		},
+		[setDraftPersisted],
+	);
 
-	const setMode = useCallback((mode: Mode) => {
-		setState((prev) => ({ ...prev, mode }));
-	}, []);
+	const setMode = useCallback(
+		(value: Mode) => {
+			setModePersisted(value);
+		},
+		[setModePersisted],
+	);
 
-	const setError = useCallback((error: string) => {
-		setState((prev) => ({ ...prev, error }));
-	}, []);
+	const setError = useCallback(
+		(value: string) => {
+			setErrorPersisted(value);
+		},
+		[setErrorPersisted],
+	);
 
-	const setResults = useCallback((results: FieldFillResult[]) => {
-		setState((prev) => ({ ...prev, results }));
-	}, []);
+	const setResults = useCallback(
+		(value: FieldFillResult[]) => {
+			setResultsPersisted(value);
+		},
+		[setResultsPersisted],
+	);
 
-	const setAuthenticated = useCallback((authenticated: boolean) => {
-		setState((prev) => ({ ...prev, authenticated }));
-	}, []);
+	const setAuthenticated = useCallback(
+		(value: boolean) => {
+			setAuthenticatedPersisted(value);
+		},
+		[setAuthenticatedPersisted],
+	);
 
 	const reset = useCallback(() => {
-		setState(initialState);
-	}, []);
+		setTopicPersisted("");
+		setDraftPersisted(null);
+		setModePersisted("empty");
+		setErrorPersisted("");
+		setResultsPersisted([]);
+		setAuthenticatedPersisted(false);
+	}, [
+		setTopicPersisted,
+		setDraftPersisted,
+		setModePersisted,
+		setErrorPersisted,
+		setResultsPersisted,
+		setAuthenticatedPersisted,
+	]);
 
 	return (
 		<AppContext.Provider
 			value={{
-				...state,
+				topic,
+				draft,
+				mode,
+				error,
+				results,
+				authenticated,
 				setTopic,
 				setDraft,
 				setMode,
