@@ -90,7 +90,10 @@ export async function fetchPendingTopics(
 		const url = `${backendUrl}/api/v1/pending-topics${params}`;
 		const res = fetchFn
 			? await fetchFn(url, { headers })
-			: await fetchWithTimeout(url, { headers, timeoutMs: timeoutMs ?? 10_000 });
+			: await fetchWithTimeout(url, {
+					headers,
+					timeoutMs: timeoutMs ?? 10_000,
+				});
 		if (res.status === 401) {
 			await clearToken();
 			return [];
