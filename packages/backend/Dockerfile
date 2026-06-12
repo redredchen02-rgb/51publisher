@@ -18,8 +18,9 @@ WORKDIR /app
 
 COPY --from=builder /app/packages/backend/dist ./dist
 COPY --from=builder /app/packages/backend/package.json ./
-COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages/shared/dist ../packages/shared/dist
+
+RUN npm install --omit=dev
 
 ENV NODE_ENV=production
 EXPOSE 3001
