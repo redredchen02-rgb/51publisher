@@ -36,6 +36,7 @@ export function GossipView({ onBack, onTopicAdded }: Props) {
 
 	// per-article 的生成狀態
 	const [genBusy, setGenBusy] = useState<Record<string, boolean>>({});
+	const [genError, setGenError] = useState<Record<string, string>>({});
 
 	const loadSites = useCallback(async () => {
 		const list = await fetchGossipSites();
@@ -94,19 +95,18 @@ export function GossipView({ onBack, onTopicAdded }: Props) {
 	async function handleGenerate(item: DiscoveredItem, siteId: string, siteName: string) {
 		const key = item.url;
 		setGenBusy((p) => ({ ...p, [key]: true }));
+		setGenError((p) => { const n = { ...p }; delete n[key]; return n; });
 		try {
 			await fetchGossipTopicFromUrl(item.url, siteName);
-			// 成功後從 discovered 列表移除，避免重複生成
 			setDiscovered((p) => ({ ...p, [siteId]: (p[siteId] ?? []).filter(i => i.url !== item.url) }));
 			onTopicAdded();
 		} catch (e) {
 			const msg = e instanceof Error ? e.message : String(e);
 			if (msg === "DUPLICATE_URL") {
-				// 已在待審列表，視為成功：移除並跳轉
 				setDiscovered((p) => ({ ...p, [siteId]: (p[siteId] ?? []).filter(i => i.url !== item.url) }));
 				onTopicAdded();
 			} else {
-				console.warn("[GossipView] from-url failed:", e);
+				setGenError((p) => ({ ...p, [key]: msg }));
 			}
 		} finally {
 			setGenBusy((p) => ({ ...p, [key]: false }));
@@ -236,14 +236,19 @@ export function GossipView({ onBack, onTopicAdded }: Props) {
 								<span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
 									{item.title ?? urlLabel(item.url)}
 								</span>
-								<button
-									type="button"
-									onClick={() => void handleGenerate(item, site.id, site.name)}
-									disabled={genBusy[item.url]}
-									style={{ ...btn, background: "#1677ff", color: "white", whiteSpace: "nowrap" }}
-								>
-									{genBusy[item.url] ? "生成中…" : "生成文章"}
-								</button>
+								<div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+									<button
+										type="button"
+										onClick={() => void handleGenerate(item, site.id, site.name)}
+										disabled={genBusy[item.url]}
+										style={{ ...btn, background: "#1677ff", color: "white", whiteSpace: "nowrap" }}
+									>
+										{genBusy[item.url] ? "生成中…" : "生成文章"}
+									</button>
+									{genError[item.url] && (
+										<span style={{ fontSize: 10, color: "#cf1322" }}>⚠ {genError[item.url]}</span>
+									)}
+								</div>
 							</div>
 						))}
 					</div>

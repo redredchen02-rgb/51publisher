@@ -247,4 +247,95 @@ describe("gossip-routes", () => {
 		});
 		expect(res.statusCode).toBe(400);
 	});
+
+	it("from-url：LLM 未配置 → 503", async () => {
+		delete process.env.LLM_ENDPOINT;
+		delete process.env.LLM_API_KEY;
+		const res = await app.inject({
+			method: "POST",
+			url: "/api/v1/gossip/topics/from-url",
+			payload: { url: "https://gossip.com/article/1", siteName: "站點" },
+		});
+		expect(res.statusCode).toBe(503);
+	});
+
+	it("from-url：重複 URL → 409", async () => {
+		process.env.LLM_ENDPOINT = "https://api.test";
+		process.env.LLM_API_KEY = "test-key";
+
+		const mockFacts = {
+			facts: {
+				當事人: "A", 事件摘要: "test",
+				起因: null, 經過: null, 結果: null, 來源連結: null, 發生時間: null, 熱度標籤: null,
+			},
+			confidence: 0.5,
+			extractionMode: "strict" as const,
+		};
+		const mockRaw = { title: "文章", body: "body", url: "https://gossip.com/article/dup" };
+
+		mockFetchContent.mockResolvedValue(mockRaw);
+		mockGossipExtractFacts.mockResolvedValue(mockFacts);
+
+		// 第一次：成功存入
+		const first = await app.inject({
+			method: "POST",
+			url: "/api/v1/gossip/topics/from-url",
+			payload: { url: "https://gossip.com/article/dup", siteName: "站點" },
+		});
+		expect(first.statusCode).toBe(201);
+
+		// 第二次：同 URL → 409
+		mockFetchContent.mockResolvedValue(mockRaw);
+		mockGossipExtractFacts.mockResolvedValue(mockFacts);
+		const second = await app.inject({
+			method: "POST",
+			url: "/api/v1/gossip/topics/from-url",
+			payload: { url: "https://gossip.com/article/dup", siteName: "站點" },
+		});
+		expect(second.statusCode).toBe(409);
+	});
+
+	it("discover：fetchList 拋出 → 500", async () => {
+		const createRes = await app.inject({
+			method: "POST",
+			url: "/api/v1/gossip/sites",
+			payload: { name: "站點", listUrl: "https://gossip.com/latest" },
+		});
+		const { site } = createRes.json();
+
+		mockFetchList.mockRejectedValueOnce(new Error("network timeout"));
+
+		const res = await app.inject({
+			method: "POST",
+			url: `/api/v1/gossip/sites/${site.id}/discover`,
+		});
+		expect(res.statusCode).toBe(500);
+	});
+
+	it("from-url：fetchContent 拋出 → 502", async () => {
+		process.env.LLM_ENDPOINT = "https://api.test";
+		process.env.LLM_API_KEY = "test-key";
+		mockFetchContent.mockRejectedValueOnce(new Error("network error"));
+		const res = await app.inject({
+			method: "POST",
+			url: "/api/v1/gossip/topics/from-url",
+			payload: { url: "https://gossip.com/article/new", siteName: "站點" },
+		});
+		expect(res.statusCode).toBe(502);
+	});
+
+	it("from-url：gossipExtractFacts 拋出 → 502", async () => {
+		process.env.LLM_ENDPOINT = "https://api.test";
+		process.env.LLM_API_KEY = "test-key";
+		mockFetchContent.mockResolvedValueOnce({
+			title: "文章", body: "body", url: "https://gossip.com/article/err",
+		});
+		mockGossipExtractFacts.mockRejectedValueOnce(new Error("LLM timed out"));
+		const res = await app.inject({
+			method: "POST",
+			url: "/api/v1/gossip/topics/from-url",
+			payload: { url: "https://gossip.com/article/err", siteName: "站點" },
+		});
+		expect(res.statusCode).toBe(502);
+	});
 });

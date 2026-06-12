@@ -122,4 +122,14 @@ describe("generic-adapter.fetchContent", () => {
 		mockSafeFetch.mockResolvedValueOnce(makeResponse("x", 200, 6 * 1024 * 1024));
 		await expect(fetchContent("https://example.com/gossip/12345")).rejects.toThrow("too large");
 	});
+
+	it("og:* meta 缺失時 fallback 用 <title> 和 <h1>，body 可能為空", async () => {
+		const html = `<html><head><title>純文字標題</title></head><body><h1>純文字標題</h1></body></html>`;
+		mockSafeFetch.mockResolvedValueOnce(makeResponse(html));
+		const result = await fetchContent("https://example.com/gossip/plain");
+		expect(result.title).toBe("純文字標題");
+		expect(result.coverImageUrl).toBeUndefined();
+		// og:description 缺失時 body 為空字串，這是預期行為
+		expect(typeof result.body).toBe("string");
+	});
 });

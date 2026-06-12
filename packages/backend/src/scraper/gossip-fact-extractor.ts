@@ -39,6 +39,11 @@ function str(v: unknown): string {
 	return typeof v === "string" ? v : "";
 }
 
+type LlmResponse = { choices?: Array<{ message?: { content?: string } }> };
+function isLlmResponse(v: unknown): v is LlmResponse {
+	return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
 function parseGossipFacts(content: string): GossipFactsBlock {
 	let parsed: unknown;
 	try {
@@ -133,9 +138,7 @@ export async function gossipExtractFacts(
 		} catch {
 			throw new Error("LLM response is not valid JSON");
 		}
-		const content =
-			(raw as { choices?: Array<{ message?: { content?: string } }> })
-				?.choices?.[0]?.message?.content ?? "";
+		const content = isLlmResponse(raw) ? (raw.choices?.[0]?.message?.content ?? "") : "";
 
 		const facts = parseGossipFacts(content);
 		const filled = GOSSIP_FACT_KEYS.filter((k) => facts[k] !== null && str(facts[k])).length;

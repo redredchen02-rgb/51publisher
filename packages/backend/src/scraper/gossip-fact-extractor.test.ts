@@ -101,4 +101,33 @@ describe("gossipExtractFacts", () => {
 		const fetchFn = mockFetch(llmResponse(factsJson));
 		await expect(gossipExtractFacts(longContent, { ...OPTS, fetchFn })).resolves.toBeDefined();
 	});
+
+	it("兩個 pass 均失敗（非 400/422）→ 拋出錯誤", async () => {
+		const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) });
+		await expect(gossipExtractFacts(SAMPLE_CONTENT, { ...OPTS, fetchFn })).rejects.toThrow(
+			/LLM request failed/,
+		);
+	});
+
+	it("AbortError timeout → 拋出 timed out 訊息", async () => {
+		const err = new Error("aborted");
+		err.name = "AbortError";
+		const fetchFn = vi.fn().mockRejectedValue(err);
+		await expect(gossipExtractFacts(SAMPLE_CONTENT, { ...OPTS, fetchFn })).rejects.toThrow(
+			/timed out/i,
+		);
+	});
+
+	it("strict 422 → fallback to json_object", async () => {
+		const factsJson = JSON.stringify({
+			當事人: "B", 事件摘要: "test", 起因: null, 經過: null,
+			結果: null, 來源連結: null, 發生時間: null, 熱度標籤: null,
+		});
+		const fetchFn = vi
+			.fn()
+			.mockResolvedValueOnce({ ok: false, status: 422, json: async () => ({}) })
+			.mockResolvedValueOnce({ ok: true, status: 200, json: async () => llmResponse(factsJson) });
+		const result = await gossipExtractFacts(SAMPLE_CONTENT, { ...OPTS, fetchFn });
+		expect(result.extractionMode).toBe("fallback");
+	});
 });

@@ -174,7 +174,7 @@ export async function savePendingTopic(
 
 		const score = computeScore(topic, db);
 
-		db.prepare(
+		try { db.prepare(
 			`
       INSERT INTO pending_topics
         (id, source_url, site_name, title, raw_content, facts, confidence, status,
@@ -214,6 +214,19 @@ export async function savePendingTopic(
 			createdAt: topic.createdAt,
 			updatedAt: topic.updatedAt,
 		});
+
+		} catch (e: unknown) {
+			// UNIQUE constraint on source_url — treat as duplicate
+			if (
+				typeof e === "object" &&
+				e !== null &&
+				"code" in e &&
+				(e as { code: string }).code === "SQLITE_CONSTRAINT_UNIQUE"
+			) {
+				return { inserted: false };
+			}
+			throw e;
+		}
 
 		// existing 且同 id → upsert 更新；不存在 → 新插入
 		return { inserted: existing === undefined };
