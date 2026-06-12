@@ -1,3 +1,4 @@
+import type { ContentDraft } from "@51publisher/shared";
 import { describe, expect, it } from "vitest";
 
 const ENDPOINT =
@@ -97,7 +98,7 @@ async function generate(topic: string, f: Record<string, string>) {
 	}
 	if (!res.ok) return { err: `HTTP ${res.status} ${res.statusText}` };
 	const raw: any = await res.json();
-	const content = raw?.choices?.[0]?.message?.content;
+	const content: string = raw?.choices?.[0]?.message?.content ?? "";
 	let parsed;
 	try {
 		parsed = JSON.parse(
@@ -154,19 +155,18 @@ describe.skipIf(!KEY)("validate-grounding", () => {
 		expect(stray).toHaveLength(0);
 
 		// 审计:模型散文里是否冒出 URL
+		const parsed = r.parsed as any;
 		const proseUrls =
-			[r.parsed.intro, r.parsed.highlights, r.parsed.outro]
-				.join(" ")
-				.match(URL_RE) || [];
+			[parsed.intro, parsed.highlights, parsed.outro].join(" ").match(URL_RE) ||
+			[];
 		expect(proseUrls).toHaveLength(0);
 
 		// 端到端 fixture: 事实输入 -> 模型 JSON -> 组装草稿 -> grounding gate 测试
 		// 测试是否会被拦截 (缺作品名、或者有占位符)
-		const draftMock: any = {
+		const draftMock = {
 			title: r.assembled?.title,
 			body: r.assembled?.body,
-			// stub others
-		};
+		} as ContentDraft;
 		const verdict = evaluateGrounding(draftMock, r.facts as any);
 
 		// 如果是"缺事实压力测试" case，作品名是只给名丙，没有其它，可能被拦吗？

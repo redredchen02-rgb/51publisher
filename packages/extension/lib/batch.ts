@@ -45,6 +45,7 @@ export function createBatch(
 	facts?: (FactsBlock | undefined)[],
 	coverImageUrls?: (string | undefined)[],
 	pendingTopicIds?: (string | undefined)[],
+	enrichments?: (string | undefined)[],
 ): Batch {
 	return {
 		id,
@@ -55,6 +56,7 @@ export function createBatch(
 			const f = facts?.[i];
 			const cover = coverImageUrls?.[i];
 			const tid = pendingTopicIds?.[i];
+			const enr = enrichments?.[i];
 			return {
 				id: genItemId(i),
 				topic,
@@ -62,6 +64,7 @@ export function createBatch(
 				...(f ? { facts: f } : {}),
 				...(cover ? { coverImageUrl: cover } : {}),
 				...(tid ? { pendingTopicId: tid } : {}),
+				...(enr ? { enrichment: enr } : {}),
 			};
 		}),
 	};

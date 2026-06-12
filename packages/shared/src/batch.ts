@@ -36,6 +36,7 @@ export interface BatchItem {
 	gateFailReason?: string;
 	assembledDraftSnapshot?: ContentDraft;
 	pendingTopicId?: string;
+	enrichment?: string;
 }
 
 export interface Batch {

@@ -81,7 +81,7 @@ describe.skipIf(!API_KEY)("probe-grounding", () => {
 		expect(res.ok).toBe(true);
 
 		const raw: any = await res.json();
-		const content = raw?.choices?.[0]?.message?.content;
+		const content: string = raw?.choices?.[0]?.message?.content ?? "";
 		expect(typeof content).toBe("string");
 
 		let draft: any;
