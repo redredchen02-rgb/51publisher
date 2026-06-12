@@ -76,8 +76,8 @@ describe("batch 状态机", () => {
 		b = markDispatched(b, "item_0");
 		expect(batchPhase(b)).toBe("publishing");
 		b = markConfirmed(b, "item_0", "https://dx-999-adm.ympxbys.xyz/post/1");
-		expect(b.items[0]!.status).toBe("publish-confirmed");
-		expect(b.items[0]!.publishUrl).toContain("/post/1");
+		expect(b.items[0]?.status).toBe("publish-confirmed");
+		expect(b.items[0]?.publishUrl).toContain("/post/1");
 
 		for (const id of ["item_1", "item_2"]) {
 			b = markConfirmed(markDispatched(b, id), id);
@@ -89,7 +89,7 @@ describe("batch 状态机", () => {
 	it("越级转移被拒:queued 直接 markConfirmed 无效", () => {
 		const b = newBatch(["x"]);
 		const after = markConfirmed(b, "item_0");
-		expect(after.items[0]!.status).toBe("queued");
+		expect(after.items[0]?.status).toBe("queued");
 	});
 
 	it("单条生成失败标 error,不阻断其余", () => {
@@ -98,8 +98,8 @@ describe("batch 状态机", () => {
 		b = markFilled(b, "item_0", draftFor("item_0"));
 		b = markGenerateFailed(b, "item_1", "llm-format");
 		b = presentForApproval(b);
-		expect(b.items[0]!.status).toBe("awaiting-approval");
-		expect(b.items[1]!.status).toBe("error");
+		expect(b.items[0]?.status).toBe("awaiting-approval");
+		expect(b.items[1]?.status).toBe("error");
 		expect(batchSummary(b).errored).toBe(1);
 	});
 
@@ -108,37 +108,37 @@ describe("batch 状态机", () => {
 			let b = fillAll(newBatch(["a", "b"]));
 			b = markDispatched(b, "item_0"); // 在途,SW 崩溃
 			const recovered = recoverBatch(b);
-			expect(recovered.items[0]!.status).toBe("needs-human-verification");
-			expect(recovered.items[0]!.error).toMatch(/recovered/);
+			expect(recovered.items[0]?.status).toBe("needs-human-verification");
+			expect(recovered.items[0]?.error).toMatch(/recovered/);
 			// item_1 仍 awaiting,不受影响
-			expect(recovered.items[1]!.status).toBe("awaiting-approval");
+			expect(recovered.items[1]?.status).toBe("awaiting-approval");
 		});
 
 		it("已回执 no-publish-target(确未触发)→ markPublishFailed 清回 error,不隔离", () => {
 			let b = fillAll(newBatch(["a"]));
 			b = markDispatched(b, "item_0");
 			b = markPublishFailed(b, "item_0", "no-publish-target");
-			expect(b.items[0]!.status).toBe("error");
-			expect(b.items[0]!.error).toBe("no-publish-target");
+			expect(b.items[0]?.status).toBe("error");
+			expect(b.items[0]?.error).toBe("no-publish-target");
 		});
 
 		it("已 confirmed 的项 recoverBatch 不动", () => {
 			let b = fillAll(newBatch(["a"]));
 			b = markConfirmed(markDispatched(b, "item_0"), "item_0");
-			expect(recoverBatch(b).items[0]!.status).toBe("publish-confirmed");
+			expect(recoverBatch(b).items[0]?.status).toBe("publish-confirmed");
 		});
 	});
 
 	describe("隔离退出 + 重入守卫", () => {
 		it("needs-human-verification 仅 releaseQuarantine 可离开 → aborted", () => {
 			let b = recoverBatch(markDispatched(fillAll(newBatch(["a"])), "item_0"));
-			expect(b.items[0]!.status).toBe("needs-human-verification");
+			expect(b.items[0]?.status).toBe("needs-human-verification");
 			// 其它转移无效
-			expect(markConfirmed(b, "item_0").items[0]!.status).toBe(
+			expect(markConfirmed(b, "item_0").items[0]?.status).toBe(
 				"needs-human-verification",
 			);
 			b = releaseQuarantine(b, "item_0");
-			expect(b.items[0]!.status).toBe("aborted");
+			expect(b.items[0]?.status).toBe("aborted");
 		});
 
 		it("新批次不重入已隔离的同选题", () => {
@@ -159,9 +159,9 @@ describe("batch 状态机", () => {
 			b = markDispatched(b, "item_1"); // b: 在途
 			// c: 仍 awaiting-approval
 			const killed = abortBatch(b);
-			expect(killed.items[0]!.status).toBe("publish-confirmed"); // 不回退
-			expect(killed.items[1]!.status).toBe("publish-dispatched"); // 在飞不动
-			expect(killed.items[2]!.status).toBe("aborted"); // 未发→停
+			expect(killed.items[0]?.status).toBe("publish-confirmed"); // 不回退
+			expect(killed.items[1]?.status).toBe("publish-dispatched"); // 在飞不动
+			expect(killed.items[2]?.status).toBe("aborted"); // 未发→停
 		});
 	});
 
@@ -234,21 +234,21 @@ describe("retryBatchItem", () => {
 		let b = newBatch(["t"]);
 		b = markGenerateFailed(b, "item_0", "network");
 		const result = retryBatchItem(b, "item_0");
-		expect(result.items[0]!.status).toBe("queued");
-		expect(result.items[0]!.error).toBeUndefined();
+		expect(result.items[0]?.status).toBe("queued");
+		expect(result.items[0]?.error).toBeUndefined();
 	});
 
 	it("aborted item → queued", () => {
 		let b = newBatch(["t"]);
 		b = abortBatch(b);
 		const result = retryBatchItem(b, "item_0");
-		expect(result.items[0]!.status).toBe("queued");
+		expect(result.items[0]?.status).toBe("queued");
 	});
 
 	it("nonexistent itemId → batch unchanged", () => {
 		const b = newBatch(["t"]);
 		const result = retryBatchItem(b, "no-such-id");
-		expect(result.items[0]!.status).toBe("queued"); // original status
+		expect(result.items[0]?.status).toBe("queued"); // original status
 		expect(result).toEqual(b); // identical
 	});
 
@@ -259,14 +259,14 @@ describe("retryBatchItem", () => {
 		b = markConfirmed(b, "item_0");
 		const result = retryBatchItem(b, "item_0");
 		// Intentional: operator override bypasses guards
-		expect(result.items[0]!.status).toBe("queued");
+		expect(result.items[0]?.status).toBe("queued");
 	});
 
 	it("other items unchanged", () => {
 		let b = newBatch(["a", "b"]);
 		b = markGenerateFailed(b, "item_0", "err");
 		const result = retryBatchItem(b, "item_0");
-		expect(result.items[1]!.status).toBe("queued"); // item_1 untouched
+		expect(result.items[1]?.status).toBe("queued"); // item_1 untouched
 	});
 
 	it("retry 不清除持久化的 coverImageUrl(供重生成后回注)", () => {
@@ -282,7 +282,7 @@ describe("retryBatchItem", () => {
 		);
 		let after = markGenerateFailed(b, "item_0", "network");
 		after = retryBatchItem(after, "item_0");
-		expect(after.items[0]!.coverImageUrl).toBe("http://cover.jpg");
+		expect(after.items[0]?.coverImageUrl).toBe("http://cover.jpg");
 	});
 });
 
@@ -299,8 +299,8 @@ describe("createBatch coverImageUrls", () => {
 			"http://a.jpg",
 			"http://b.jpg",
 		]);
-		expect(b.items[0]!.coverImageUrl).toBe("http://a.jpg");
-		expect(b.items[1]!.coverImageUrl).toBe("http://b.jpg");
+		expect(b.items[0]?.coverImageUrl).toBe("http://a.jpg");
+		expect(b.items[1]?.coverImageUrl).toBe("http://b.jpg");
 	});
 
 	it("数组长度不足/含 undefined → 对应条目无 coverImageUrl 字段,其余正常", () => {
@@ -315,7 +315,7 @@ describe("createBatch coverImageUrls", () => {
 			[undefined, "http://b.jpg"],
 		);
 		expect("coverImageUrl" in b.items[0]!).toBe(false); // 显式 undefined
-		expect(b.items[1]!.coverImageUrl).toBe("http://b.jpg");
+		expect(b.items[1]?.coverImageUrl).toBe("http://b.jpg");
 		expect("coverImageUrl" in b.items[2]!).toBe(false); // 长度不足
 	});
 
@@ -331,7 +331,7 @@ describe("createBatch coverImageUrls", () => {
 			undefined,
 			["pid_a", undefined],
 		);
-		expect(b.items[0]!.pendingTopicId).toBe("pid_a");
+		expect(b.items[0]?.pendingTopicId).toBe("pid_a");
 		expect("pendingTopicId" in b.items[1]!).toBe(false);
 	});
 
@@ -353,8 +353,8 @@ describe("Phase-3 reviewMeta", () => {
 			triggered: true,
 			reviewCostTokens: { prompt: 200, completion: 80 },
 		});
-		expect(b.items[0]!.aiReviewTriggered).toBe(true);
-		expect(b.items[0]!.reviewCostTokens).toEqual({
+		expect(b.items[0]?.aiReviewTriggered).toBe(true);
+		expect(b.items[0]?.reviewCostTokens).toEqual({
 			prompt: 200,
 			completion: 80,
 		});
@@ -366,7 +366,7 @@ describe("Phase-3 reviewMeta", () => {
 		b = markFilled(b, "item_0", draftFor("item_0"), undefined, undefined, {
 			triggered: false,
 		});
-		expect(b.items[0]!.aiReviewTriggered).toBe(false);
+		expect(b.items[0]?.aiReviewTriggered).toBe(false);
 	});
 
 	it("reviewMeta=undefined → aiReviewTriggered 不写入（fail-open）", () => {
@@ -395,8 +395,8 @@ describe("Phase-3 reviewMeta", () => {
 			{ prompt: 100, completion: 50 },
 			500,
 		);
-		expect(b.items[0]!.llmCostTokens).toEqual({ prompt: 100, completion: 50 });
-		expect(b.items[0]!.generationDurationMs).toBe(500);
+		expect(b.items[0]?.llmCostTokens).toEqual({ prompt: 100, completion: 50 });
+		expect(b.items[0]?.generationDurationMs).toBe(500);
 		expect("aiReviewTriggered" in b.items[0]!).toBe(false);
 	});
 });
@@ -411,8 +411,8 @@ describe("gate-failed 状态机", () => {
 		b = markGenerating(b, "item_0");
 		b = markFilled(b, "item_0", draftFor("item_0"));
 		b = markGateFailed(b, "item_0", "残留【待补】占位符");
-		expect(b.items[0]!.status).toBe("gate-failed");
-		expect(b.items[0]!.gateFailReason).toBe("残留【待补】占位符");
+		expect(b.items[0]?.status).toBe("gate-failed");
+		expect(b.items[0]?.gateFailReason).toBe("残留【待补】占位符");
 	});
 
 	it("gate-failed → queued 转移成功（重试），清除 gateFailReason", () => {
@@ -421,8 +421,8 @@ describe("gate-failed 状态机", () => {
 		b = markFilled(b, "item_0", draftFor("item_0"));
 		b = markGateFailed(b, "item_0", "no-source-link");
 		b = retryFromGateFailed(b, "item_0");
-		expect(b.items[0]!.status).toBe("queued");
-		expect(b.items[0]!.gateFailReason).toBeUndefined();
+		expect(b.items[0]?.status).toBe("queued");
+		expect(b.items[0]?.gateFailReason).toBeUndefined();
 	});
 
 	it("awaiting-approval → gate-failed 越级转移被拒（无此路径）", () => {
@@ -430,10 +430,10 @@ describe("gate-failed 状态机", () => {
 		b = markGenerating(b, "item_0");
 		b = markFilled(b, "item_0", draftFor("item_0"));
 		b = presentForApproval(b);
-		expect(b.items[0]!.status).toBe("awaiting-approval");
+		expect(b.items[0]?.status).toBe("awaiting-approval");
 		// awaiting-approval 不在 markGateFailed 的 from=['filled']，无效
 		const after = markGateFailed(b, "item_0", "should-not-happen");
-		expect(after.items[0]!.status).toBe("awaiting-approval");
+		expect(after.items[0]?.status).toBe("awaiting-approval");
 	});
 
 	it("abortBatch 对 gate-failed 项生效 → aborted", () => {
@@ -445,8 +445,8 @@ describe("gate-failed 状态机", () => {
 		b = markFilled(b, "item_1", draftFor("item_1"));
 		b = presentForApproval(b);
 		const killed = abortBatch(b);
-		expect(killed.items[0]!.status).toBe("aborted"); // gate-failed → aborted
-		expect(killed.items[1]!.status).toBe("aborted"); // awaiting-approval → aborted
+		expect(killed.items[0]?.status).toBe("aborted"); // gate-failed → aborted
+		expect(killed.items[1]?.status).toBe("aborted"); // awaiting-approval → aborted
 	});
 
 	it("batchPhase:gate-failed + awaiting-approval → awaiting-approval", () => {
@@ -457,8 +457,8 @@ describe("gate-failed 状态机", () => {
 		b = markGenerating(b, "item_1");
 		b = markFilled(b, "item_1", draftFor("item_1"));
 		b = presentForApproval(b);
-		expect(b.items[0]!.status).toBe("gate-failed");
-		expect(b.items[1]!.status).toBe("awaiting-approval");
+		expect(b.items[0]?.status).toBe("gate-failed");
+		expect(b.items[1]?.status).toBe("awaiting-approval");
 		expect(batchPhase(b)).toBe("awaiting-approval");
 	});
 
@@ -480,7 +480,7 @@ describe("gate-failed 状态机", () => {
 		b = markGateFailed(b, "item_0", "reason");
 		const recovered = recoverBatch(b);
 		// gate-failed 不是 publish-dispatched，recoverBatch 不动它
-		expect(recovered.items[0]!.status).toBe("gate-failed");
+		expect(recovered.items[0]?.status).toBe("gate-failed");
 	});
 
 	it("gateFailReason 字段不干扰后续转移（retryFromGateFailed 后状态正常）", () => {
@@ -493,8 +493,8 @@ describe("gate-failed 状态机", () => {
 		b = markGenerating(b, "item_0");
 		b = markFilled(b, "item_0", draftFor("item_0"));
 		b = presentForApproval(b);
-		expect(b.items[0]!.status).toBe("awaiting-approval");
-		expect(b.items[0]!.gateFailReason).toBeUndefined();
+		expect(b.items[0]?.status).toBe("awaiting-approval");
+		expect(b.items[0]?.gateFailReason).toBeUndefined();
 	});
 
 	it("pendingTopicId 字段存入后不影响转移", () => {
@@ -504,7 +504,7 @@ describe("gate-failed 状态机", () => {
 		b = markGenerating(b, "item_0");
 		b = markFilled(b, "item_0", draftFor("item_0"));
 		b = markGateFailed(b, "item_0", "no-source-link");
-		expect(b.items[0]!.status).toBe("gate-failed");
-		expect(b.items[0]!.pendingTopicId).toBe("topic-uuid-123"); // 字段保留
+		expect(b.items[0]?.status).toBe("gate-failed");
+		expect(b.items[0]?.pendingTopicId).toBe("topic-uuid-123"); // 字段保留
 	});
 });

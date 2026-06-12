@@ -46,8 +46,8 @@ describe("FewShotPairEditor", () => {
 			/>,
 		);
 		const upBtns = screen.getAllByLabelText("上移") as HTMLButtonElement[];
-		expect(upBtns[0]!.disabled).toBe(true);
-		expect(upBtns[1]!.disabled).toBe(false);
+		expect(upBtns[0]?.disabled).toBe(true);
+		expect(upBtns[1]?.disabled).toBe(false);
 	});
 
 	it("下移最后一张 → 按钮 disabled", () => {
@@ -58,8 +58,8 @@ describe("FewShotPairEditor", () => {
 			/>,
 		);
 		const downBtns = screen.getAllByLabelText("下移") as HTMLButtonElement[];
-		expect(downBtns[0]!.disabled).toBe(false);
-		expect(downBtns[1]!.disabled).toBe(true);
+		expect(downBtns[0]?.disabled).toBe(false);
+		expect(downBtns[1]?.disabled).toBe(true);
 	});
 
 	it("导入 banner 存在时显示，点击后调 onImport", () => {

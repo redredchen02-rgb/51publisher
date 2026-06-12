@@ -174,7 +174,7 @@ async function runListDiscovery(
 		`[scheduler] List-discovery start: ${site.siteName} listUrl=${site.listUrl}`,
 	);
 
-	const candidateUrls = await adapter.fetchList!(site.listUrl!);
+	const candidateUrls = (await adapter.fetchList?.(site.listUrl!)) ?? [];
 
 	// Session-level dedup（防止同一次 run 内重复抓取同一 URL）
 	const sessionSet = new Set<string>();

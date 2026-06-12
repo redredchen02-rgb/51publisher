@@ -1,6 +1,5 @@
 import type {
 	ContentDraft,
-	DraftSlots,
 	FactsBlock,
 	GenerateDraftResponse,
 	ReviewResult,
@@ -28,8 +27,8 @@ const BACKEND_BASE = "http://127.0.0.1:3001";
  * 拉取模型列表，转而请求本地后端服务。
  */
 export async function listModels(
-	endpoint: string,
-	apiKey: string, // Kept for interface compatibility
+	_endpoint: string,
+	_apiKey: string, // Kept for interface compatibility
 	fetchFn: typeof fetch = fetch,
 	timeoutMs = 20_000,
 ): Promise<ListModelsResult> {
@@ -40,7 +39,7 @@ export async function listModels(
 		const headers: Record<string, string> = {
 			"Content-Type": "application/json",
 		};
-		if (token) headers["Authorization"] = `Bearer ${token}`;
+		if (token) headers.Authorization = `Bearer ${token}`;
 
 		const res = await fetchFn(`${BACKEND_BASE}/api/v1/models`, {
 			headers,
@@ -96,7 +95,7 @@ export async function generateDraft(
 		const headers: Record<string, string> = {
 			"Content-Type": "application/json",
 		};
-		if (token) headers["Authorization"] = `Bearer ${token}`;
+		if (token) headers.Authorization = `Bearer ${token}`;
 
 		const res = await fetchFn(`${BACKEND_BASE}/api/v1/drafts/generate`, {
 			method: "POST",
@@ -173,7 +172,7 @@ export async function reviewDraft(
 		const headers: Record<string, string> = {
 			"Content-Type": "application/json",
 		};
-		if (token) headers["Authorization"] = `Bearer ${token}`;
+		if (token) headers.Authorization = `Bearer ${token}`;
 		const res = await fetchFn(`${BACKEND_BASE}/api/v1/drafts/review`, {
 			method: "POST",
 			headers,
@@ -218,7 +217,7 @@ export async function rewriteDraft(
 		const headers: Record<string, string> = {
 			"Content-Type": "application/json",
 		};
-		if (token) headers["Authorization"] = `Bearer ${token}`;
+		if (token) headers.Authorization = `Bearer ${token}`;
 		const res = await fetchFn(`${BACKEND_BASE}/api/v1/drafts/rewrite`, {
 			method: "POST",
 			headers,

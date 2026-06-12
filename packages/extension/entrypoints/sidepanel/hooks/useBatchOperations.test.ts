@@ -32,7 +32,9 @@ describe("useBatchOperations", () => {
 		});
 		expect(result.current.progress.failed).toBe(1);
 		expect(result.current.progress.done).toBe(2);
-		expect(result.current.items.find((i) => i.status === "failed")?.error).toBe("fail");
+		expect(result.current.items.find((i) => i.status === "failed")?.error).toBe(
+			"fail",
+		);
 	});
 
 	it("reset 恢复初始状态", async () => {

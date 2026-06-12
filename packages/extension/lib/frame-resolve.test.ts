@@ -79,7 +79,7 @@ describe("resolveFrameForSelector", () => {
 		// 层 1
 		const win1 = { Quill: "win1" };
 		appendFakeIframe("", win1);
-		const doc1 = document.querySelector("iframe")!.contentDocument!;
+		const doc1 = document.querySelector("iframe")?.contentDocument!;
 		// 层 2
 		const win2 = { Quill: "win2" };
 		const ifr2 = document.createElement("iframe");

@@ -63,30 +63,30 @@ describe("U3 核心填充路径(真 Quill)", () => {
 		const draft = makeDraft();
 		const { doc } = await runFill(draft);
 		expect(
-			doc.querySelector<HTMLInputElement>('input[name="title"]')!.value,
+			doc.querySelector<HTMLInputElement>('input[name="title"]')?.value,
 		).toBe(draft.title);
 		expect(
-			doc.querySelector<HTMLInputElement>('input[name="subtitle"]')!.value,
+			doc.querySelector<HTMLInputElement>('input[name="subtitle"]')?.value,
 		).toBe(draft.subtitle);
 		expect(
-			doc.querySelector<HTMLTextAreaElement>('textarea[name="description"]')!
-				.value,
+			doc.querySelector<HTMLTextAreaElement>('textarea[name="description"]')
+				?.value,
 		).toBe(draft.description);
 		expect(
-			doc.querySelector<HTMLInputElement>('input[name="media_id"]')!.value,
+			doc.querySelector<HTMLInputElement>('input[name="media_id"]')?.value,
 		).toBe(draft.mediaId);
 		expect(
-			doc.querySelector<HTMLInputElement>('input[name="published_at"]')!.value,
+			doc.querySelector<HTMLInputElement>('input[name="published_at"]')?.value,
 		).toBe(draft.publishedAt);
 	});
 
 	it("下拉:type 选中 2、status 选中 1", async () => {
 		const { doc } = await runFill(makeDraft());
 		expect(
-			doc.querySelector<HTMLSelectElement>('select[name="type"]')!.value,
+			doc.querySelector<HTMLSelectElement>('select[name="type"]')?.value,
 		).toBe("2");
 		expect(
-			doc.querySelector<HTMLSelectElement>('select[name="status"]')!.value,
+			doc.querySelector<HTMLSelectElement>('select[name="status"]')?.value,
 		).toBe("1");
 	});
 
@@ -98,7 +98,7 @@ describe("U3 核心填充路径(真 Quill)", () => {
 			.filter((b) => b.checked)
 			.map((b) => b.id);
 		expect(checked.sort()).toEqual(["tag_1", "tag_2"]); // 奇幻=tag_1, 校園=tag_2
-		expect(doc.querySelector<HTMLInputElement>("#tag_3")!.checked).toBe(false); // 熱血未列出
+		expect(doc.querySelector<HTMLInputElement>("#tag_3")?.checked).toBe(false); // 熱血未列出
 	});
 
 	it("正文:HTML 进真 Quill 的 .ql-editor,<strong> 保留", async () => {

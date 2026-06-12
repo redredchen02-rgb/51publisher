@@ -68,8 +68,8 @@ function startAndGetCallbacks(): [() => Promise<void>, () => Promise<void>] {
 	const calls = vi.mocked(cron.schedule).mock.calls;
 	expect(calls).toHaveLength(2);
 	return [
-		calls[0]![1] as () => Promise<void>,
-		calls[1]![1] as () => Promise<void>,
+		calls[0]?.[1] as () => Promise<void>,
+		calls[1]?.[1] as () => Promise<void>,
 	];
 }
 
@@ -153,7 +153,7 @@ describe('immediate sweep — HTTP 404 → outcome "failed" + alert', () => {
 		await immediate();
 
 		expect(vi.mocked(sendAlert)).toHaveBeenCalledOnce();
-		const alertMsg = vi.mocked(sendAlert).mock.calls[0]![0];
+		const alertMsg = vi.mocked(sendAlert).mock.calls[0]?.[0];
 		expect(alertMsg).toContain("测试帖子");
 		expect(alertMsg).toContain("https://test-site.example.com/post/1");
 		expect(mockRun).toHaveBeenCalledWith(
@@ -173,7 +173,7 @@ describe("immediate sweep — HTTP 401 → session expiry alert", () => {
 		await immediate();
 
 		expect(vi.mocked(sendAlert)).toHaveBeenCalledOnce();
-		const alertMsg = vi.mocked(sendAlert).mock.calls[0]![0];
+		const alertMsg = vi.mocked(sendAlert).mock.calls[0]?.[0];
 		expect(alertMsg).toContain("session");
 		expect(mockRun).toHaveBeenCalledWith(
 			"failed",

@@ -22,7 +22,7 @@ function makeResponse(html: string, ok = true, status = 200): Response {
 
 /** 构造包含 N 条同 host 详情页链接的列表 HTML */
 function listHtml(
-	host: string,
+	_host: string,
 	paths: string[],
 	extras: string[] = [],
 ): string {
@@ -67,7 +67,7 @@ describe("acgs51Adapter.fetchList", () => {
 		const result = await acgs51Adapter.fetchList!(BASE);
 
 		expect(result).toHaveLength(1);
-		expect(result[0]).toBe("https://51acgs.com/acg/2001.html");
+		expect(result![0]).toBe("https://51acgs.com/acg/2001.html");
 	});
 
 	it("页面内重复链接只返回一次", async () => {
@@ -119,6 +119,6 @@ describe("acgs51Adapter.fetchList", () => {
 		const result = await acgs51Adapter.fetchList!(BASE);
 
 		expect(result).toHaveLength(1);
-		expect(result[0]).toBe("https://51acgs.com/anime/4001");
+		expect(result![0]).toBe("https://51acgs.com/anime/4001");
 	});
 });

@@ -1,7 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import {
 	type Batch,
-	type BatchItem,
 	type BatchItemStatus,
 	listBatches,
 	loadBatch,
@@ -105,7 +104,7 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
 					id: `item_${i}`,
 					topic,
 					status: "queued" as const,
-					...(facts?.[i] ? { facts: facts[i] } : {}),
+					...(facts?.[i] !== undefined ? { facts: facts[i] } : {}),
 				})),
 			};
 
@@ -162,7 +161,7 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
 			// 校验状态转移
 			if (body.status) {
 				const allowed = ALLOWED_TRANSITIONS[item.status];
-				if (!allowed || !allowed.has(body.status)) {
+				if (!allowed?.has(body.status)) {
 					return reply.status(409).send({
 						ok: false,
 						error: `Invalid state transition: ${item.status} → ${body.status}`,

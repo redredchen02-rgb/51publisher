@@ -19,7 +19,7 @@ describe("fixture contract", () => {
 
 	it("防假绿:删掉某字段后 contract 能点名缺失的选择器", () => {
 		const { document: doc } = loadFixture();
-		doc.querySelector('select[name="type"]')!.remove();
+		doc.querySelector('select[name="type"]')?.remove();
 		const missing = KEY_SELECTORS.filter((sel) => !doc.querySelector(sel));
 		expect(missing).toContain('select[name="type"]');
 	});

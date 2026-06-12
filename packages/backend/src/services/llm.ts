@@ -231,7 +231,7 @@ export async function generateDraft(
 				break;
 			}
 
-			if (res && res.ok) {
+			if (res?.ok) {
 				successInCurrentModel = true;
 				break;
 			}
@@ -255,7 +255,7 @@ export async function generateDraft(
 		if (successInCurrentModel) break;
 	}
 
-	if (!res || !res.ok) {
+	if (!res?.ok) {
 		return { ok: false, kind: "network", error: lastErrorMsg };
 	}
 

@@ -175,7 +175,7 @@ describe("storage", () => {
 			b = markDispatched(fillAll(b), "i0");
 			await saveBatch(b);
 			const got = await getBatch();
-			expect(got?.items[0]!.status).toBe("needs-human-verification");
+			expect(got?.items[0]?.status).toBe("needs-human-verification");
 		});
 
 		it("坏批次值(items 非数组)→ null", async () => {
@@ -218,7 +218,7 @@ describe("storage", () => {
 			});
 			expect(snapshotDropped).toBe(true);
 			const list = await getTrajectory();
-			expect(list[0]!.snapshot).toBeUndefined();
+			expect(list[0]?.snapshot).toBeUndefined();
 		});
 
 		it("clearTrajectory 后 → 空", async () => {
@@ -245,7 +245,7 @@ describe("storage", () => {
 			expect(r).toEqual({ ok: true });
 			const s = await getSettings();
 			expect(s.fewShotPairs).toHaveLength(1);
-			expect(s.fewShotPairs![0]).toEqual({ input: "Q1", output: "A1" });
+			expect(s.fewShotPairs?.[0]).toEqual({ input: "Q1", output: "A1" });
 			expect(s.fewShotExamples).toBe("Q1\n---\nA1");
 		});
 
@@ -272,7 +272,7 @@ describe("storage", () => {
 			await removeLastFewShotPair();
 			const s = await getSettings();
 			expect(s.fewShotPairs).toHaveLength(1);
-			expect(s.fewShotPairs![0]).toEqual({ input: "Q1", output: "A1" });
+			expect(s.fewShotPairs?.[0]).toEqual({ input: "Q1", output: "A1" });
 		});
 
 		it("removeLastFewShotPair:最后一条移除后 fewShotExamples 为 undefined", async () => {

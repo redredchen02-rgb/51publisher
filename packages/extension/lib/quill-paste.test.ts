@@ -42,7 +42,7 @@ describe("pasteIntoQuill", () => {
 		const res = pasteIntoQuill("<p>兜底</p>", "#editor", {}, document);
 		expect(res.ok).toBe(true);
 		expect(res.degraded).toBe(true);
-		expect(document.querySelector(".ql-editor")!.innerHTML).toBe("<p>兜底</p>");
+		expect(document.querySelector(".ql-editor")?.innerHTML).toBe("<p>兜底</p>");
 	});
 
 	it("既无 Quill 也无 .ql-editor → ok:false", () => {

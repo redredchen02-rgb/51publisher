@@ -1,6 +1,11 @@
-import { useState, useCallback } from "react";
+import { useCallback, useState } from "react";
 
-export type BatchOperationStatus = "idle" | "running" | "paused" | "completed" | "error";
+export type BatchOperationStatus =
+	| "idle"
+	| "running"
+	| "paused"
+	| "completed"
+	| "error";
 
 export interface BatchItem<T> {
 	id: string;
@@ -40,7 +45,8 @@ export function useBatchOperations<T, R>(): UseBatchOperationsReturn<T, R> {
 			items.length === 0
 				? 0
 				: Math.round(
-						(items.filter((i) => i.status === "done" || i.status === "failed").length /
+						(items.filter((i) => i.status === "done" || i.status === "failed")
+							.length /
 							items.length) *
 							100,
 					),
@@ -66,14 +72,18 @@ export function useBatchOperations<T, R>(): UseBatchOperationsReturn<T, R> {
 				}
 
 				setItems((prev) =>
-					prev.map((item, idx) => (idx === i ? { ...item, status: "processing" } : item)),
+					prev.map((item, idx) =>
+						idx === i ? { ...item, status: "processing" } : item,
+					),
 				);
 
 				try {
 					const result = await processor(inputs[i] as T);
 					collectedResults.push(result);
 					setItems((prev) =>
-						prev.map((item, idx) => (idx === i ? { ...item, status: "done" } : item)),
+						prev.map((item, idx) =>
+							idx === i ? { ...item, status: "done" } : item,
+						),
 					);
 					setResults([...collectedResults]);
 				} catch (e) {

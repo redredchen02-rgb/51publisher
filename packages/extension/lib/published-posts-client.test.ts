@@ -73,7 +73,7 @@ describe("recordPublishedPost", () => {
 			publishUrlSource: "from_save",
 		});
 		const body = JSON.parse(
-			(fetchSpy.mock.calls[0]![1] as RequestInit).body as string,
+			(fetchSpy.mock.calls[0]?.[1] as RequestInit).body as string,
 		);
 		expect(body.id).toBe("r1");
 		expect(body.batch_item_id).toBe("item_0");
@@ -99,7 +99,7 @@ describe("recordPublishedPost", () => {
 			publishedAt: "2026-06-11T00:00:00.000Z",
 		});
 		const body = JSON.parse(
-			(fetchSpy.mock.calls[0]![1] as RequestInit).body as string,
+			(fetchSpy.mock.calls[0]?.[1] as RequestInit).body as string,
 		);
 		expect(body.publish_url).toBeNull();
 		expect(body.publish_url_source).toBe("not_available");

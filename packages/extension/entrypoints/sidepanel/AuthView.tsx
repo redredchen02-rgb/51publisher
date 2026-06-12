@@ -51,7 +51,6 @@ export function AuthView({ onLogin }: { onLogin: () => void }) {
 					value={password}
 					disabled={loading}
 					onChange={(e) => setPassword(e.target.value)}
-					autoFocus
 				/>
 				{error && (
 					<p

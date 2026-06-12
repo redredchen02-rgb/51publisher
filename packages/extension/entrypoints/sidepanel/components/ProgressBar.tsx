@@ -5,7 +5,11 @@ interface ProgressBarProps {
 	indeterminate?: boolean;
 }
 
-export function ProgressBar({ progress, label, indeterminate }: ProgressBarProps) {
+export function ProgressBar({
+	progress,
+	label,
+	indeterminate,
+}: ProgressBarProps) {
 	return (
 		<div
 			style={{
@@ -42,9 +46,7 @@ export function ProgressBar({ progress, label, indeterminate }: ProgressBarProps
 				}
 			/>
 			{label && (
-				<div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
-					{label}
-				</div>
+				<div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>{label}</div>
 			)}
 		</div>
 	);

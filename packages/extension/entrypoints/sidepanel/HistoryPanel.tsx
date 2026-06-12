@@ -99,7 +99,7 @@ export function HistoryPanel() {
 								<span style={{ fontSize: 11, color: "#888" }}>可撤下</span>
 							)}
 						</div>
-						{r.fields && r.fields.some((f) => f.status === "degraded") && (
+						{r.fields?.some((f) => f.status === "degraded") && (
 							<div style={{ fontSize: 11, color: "#d46b08", marginTop: 2 }}>
 								⚠ {r.fields.filter((f) => f.status === "degraded").length}{" "}
 								个字段降级

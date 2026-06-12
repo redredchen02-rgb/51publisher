@@ -1,8 +1,8 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+	type EnrichedContext,
 	enrichContext,
 	formatEnrichmentForPrompt,
-	type EnrichedContext,
 } from "./web-enricher.js";
 
 function makeFetch(responses: Array<{ ok: boolean; text: string }>) {
@@ -89,7 +89,13 @@ describe("formatEnrichmentForPrompt", () => {
 			queryResults: [
 				{
 					query: "花鸟画师",
-					results: [{ title: "pixiv 作者页", snippet: "以工笔花鸟为主", url: "https://pixiv.net/tags/abc" }],
+					results: [
+						{
+							title: "pixiv 作者页",
+							snippet: "以工笔花鸟为主",
+							url: "https://pixiv.net/tags/abc",
+						},
+					],
 				},
 			],
 			collectedAt: "2026-06-12T00:00:00.000Z",
@@ -112,7 +118,12 @@ describe("formatEnrichmentForPrompt", () => {
 		const longSnippet = "x".repeat(3000);
 		const ctx: EnrichedContext = {
 			queryResults: [
-				{ query: "q", results: [{ title: "t", snippet: longSnippet, url: "https://example.com" }] },
+				{
+					query: "q",
+					results: [
+						{ title: "t", snippet: longSnippet, url: "https://example.com" },
+					],
+				},
 			],
 			collectedAt: "",
 		};

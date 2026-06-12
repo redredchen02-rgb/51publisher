@@ -105,7 +105,7 @@ describe("fetchPendingTopics — 响应解析与 folded 字段", () => {
 			fn,
 		);
 		expect(result).toHaveLength(1);
-		expect(result[0]!.id).toBe("t1");
+		expect(result[0]?.id).toBe("t1");
 	});
 
 	it("后端返回含 folded:true 的选题 → folded 字段保留", async () => {
@@ -117,7 +117,7 @@ describe("fetchPendingTopics — 响应解析与 folded 字段", () => {
 			undefined,
 			fn,
 		);
-		expect(result[0]!.folded).toBe(true);
+		expect(result[0]?.folded).toBe(true);
 	});
 
 	it("后端返回 folded:false → folded 字段保留", async () => {
@@ -129,7 +129,7 @@ describe("fetchPendingTopics — 响应解析与 folded 字段", () => {
 			undefined,
 			fn,
 		);
-		expect(result[0]!.folded).toBe(false);
+		expect(result[0]?.folded).toBe(false);
 	});
 
 	it("后端返回 folded 缺失 → undefined（可选字段）", async () => {
@@ -141,7 +141,7 @@ describe("fetchPendingTopics — 响应解析与 folded 字段", () => {
 			undefined,
 			fn,
 		);
-		expect(result[0]!.folded).toBeUndefined();
+		expect(result[0]?.folded).toBeUndefined();
 	});
 
 	it("后端返回 ok:false → 返回空数组", async () => {

@@ -1,9 +1,9 @@
 import { DEFAULT_FIELD_MAPPING } from "@51publisher/shared";
 import Fastify from "fastify";
 import { beforeEach, describe, expect, it } from "vitest";
-import { registerConfigRoutes } from "./config-routes.js";
-import { configDelete } from "../services/config-store.js";
 import { initPendingDb } from "../scraper/pending-db.js";
+import { configDelete } from "../services/config-store.js";
+import { registerConfigRoutes } from "./config-routes.js";
 
 async function buildApp() {
 	initPendingDb();
@@ -31,7 +31,7 @@ describe("GET /api/v1/config/mappings", () => {
 		expect(body.ok).toBe(true);
 		expect(body.mappings).toBeDefined();
 		expect(body.mappings.title.selector).toBe(
-			DEFAULT_FIELD_MAPPING.title!.selector,
+			DEFAULT_FIELD_MAPPING.title?.selector,
 		);
 		expect(body.mappings.body.fieldType).toBe("quill");
 		expect(body.version).toBeTypeOf("number");

@@ -25,7 +25,7 @@ export async function registerScraperRoutes(
 			}
 
 			const config = scraperConfig.getSiteConfig(siteName);
-			if (!config || !config.enabled) {
+			if (!config?.enabled) {
 				return err(
 					reply,
 					404,

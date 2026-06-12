@@ -27,7 +27,7 @@ function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function decodeHtmlEntities(s: string): string {
+function _decodeHtmlEntities(s: string): string {
 	return s
 		.replace(/&amp;/g, "&")
 		.replace(/&lt;/g, "<")
@@ -199,7 +199,7 @@ export function formatEnrichmentForPrompt(ctx: EnrichedContext): string {
 	}
 
 	const text = lines.join("\n");
-	return text.length > 2000 ? text.slice(0, 2000) + "\n...(已截断)" : text;
+	return text.length > 2000 ? `${text.slice(0, 2000)}\n...(已截断)` : text;
 }
 
 export interface EnrichDeps {

@@ -8,7 +8,7 @@ const KEY = process.env.LLM_KEY || process.env.API_KEY;
 const MODEL = process.env.LLM_MODEL || process.env.MODEL || "gpt-4o-mini";
 
 const FACT_ORDER = ["作品名", "集数", "制作", "漢化", "無修", "题材", "简介"];
-const PLACEHOLDER = "【待补】";
+const _PLACEHOLDER = "【待补】";
 
 const PROMPT = [
 	"你是「51娘」,成人動畫/裏番與成人同人漫畫介紹站的看板娘,口吻活潑,以「嗨嗨~大家好我是51娘」開場、結尾招呼各位紳士。",
@@ -147,7 +147,7 @@ describe.skipIf(!KEY)("validate-grounding", () => {
 		// 审计:body 里所有 URL 必须都来自 facts
 		const inputUrls: string[] =
 			Object.values(c.facts).join(" ").match(URL_RE) || [];
-		const bodyUrls = (r.assembled!.body.match(URL_RE) || []).map((u) =>
+		const bodyUrls = (r.assembled?.body.match(URL_RE) || []).map((u) =>
 			u.replace(/&quot;.*$/, ""),
 		);
 		const stray = bodyUrls.filter((u) => !inputUrls.includes(u));
@@ -163,8 +163,8 @@ describe.skipIf(!KEY)("validate-grounding", () => {
 		// 端到端 fixture: 事实输入 -> 模型 JSON -> 组装草稿 -> grounding gate 测试
 		// 测试是否会被拦截 (缺作品名、或者有占位符)
 		const draftMock: any = {
-			title: r.assembled!.title,
-			body: r.assembled!.body,
+			title: r.assembled?.title,
+			body: r.assembled?.body,
 			// stub others
 		};
 		const verdict = evaluateGrounding(draftMock, r.facts as any);

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { err } from "../utils/error-response.js";
 import { getDb, pendingWriteQueue } from "../scraper/pending-db.js";
+import { err } from "../utils/error-response.js";
 
 // Body shape matches extension's published-posts-client.ts recordPublishedPost().
 interface PublishedPostBody {

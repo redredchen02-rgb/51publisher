@@ -22,7 +22,7 @@ export async function requireAuth(
 	reply: FastifyReply,
 ): Promise<void> {
 	const authHeader = request.headers.authorization;
-	if (!authHeader || !authHeader.startsWith("Bearer ")) {
+	if (!authHeader?.startsWith("Bearer ")) {
 		err(reply, 401, "unauthorized");
 		return;
 	}

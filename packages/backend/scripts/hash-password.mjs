@@ -40,4 +40,4 @@ if (!password || password.length < 8) {
 	console.error("Password must be at least 8 characters.");
 	process.exit(1);
 }
-console.log("JWT_ADMIN_PASSWORD_HASH=" + hash(password));
+console.log(`JWT_ADMIN_PASSWORD_HASH=${hash(password)}`);

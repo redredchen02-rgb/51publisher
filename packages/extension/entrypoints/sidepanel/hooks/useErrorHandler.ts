@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useCallback, useState } from "react";
 
 export interface ErrorEntry {
 	message: string;
@@ -11,7 +11,10 @@ export interface UseErrorHandlerReturn {
 	errorLog: ErrorEntry[];
 	setError: (message: string, code?: string) => void;
 	clearError: () => void;
-	withErrorHandling: <T>(fn: () => Promise<T>, fallback?: string) => Promise<T | undefined>;
+	withErrorHandling: <T>(
+		fn: () => Promise<T>,
+		fallback?: string,
+	) => Promise<T | undefined>;
 }
 
 export function useErrorHandler(): UseErrorHandlerReturn {
@@ -21,19 +24,26 @@ export function useErrorHandler(): UseErrorHandlerReturn {
 	const setError = useCallback((message: string, code?: string) => {
 		setErrorState(message);
 		if (message) {
-			setErrorLog((prev) => [...prev.slice(-19), { message, code, timestamp: Date.now() }]);
+			setErrorLog((prev) => [
+				...prev.slice(-19),
+				{ message, code, timestamp: Date.now() },
+			]);
 		}
 	}, []);
 
 	const clearError = useCallback(() => setErrorState(""), []);
 
 	const withErrorHandling = useCallback(
-		async <T>(fn: () => Promise<T>, fallback?: string): Promise<T | undefined> => {
+		async <T>(
+			fn: () => Promise<T>,
+			fallback?: string,
+		): Promise<T | undefined> => {
 			try {
 				clearError();
 				return await fn();
 			} catch (e) {
-				const msg = fallback ?? (e instanceof Error ? e.message : "操作失败，请重试。");
+				const msg =
+					fallback ?? (e instanceof Error ? e.message : "操作失败，请重试。");
 				setError(msg);
 				return undefined;
 			}

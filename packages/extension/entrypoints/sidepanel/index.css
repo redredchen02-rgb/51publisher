@@ -147,8 +147,11 @@ textarea::placeholder {
 	}
 }
 
-
 @keyframes progress-indeterminate {
-	0% { left: -40%; }
-	100% { left: 100%; }
+	0% {
+		left: -40%;
+	}
+	100% {
+		left: 100%;
+	}
 }

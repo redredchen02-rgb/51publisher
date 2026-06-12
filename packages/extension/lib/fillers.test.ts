@@ -58,8 +58,8 @@ describe("fillers", () => {
 	it("text:填标题并触发 input 事件", () => {
 		const inputSpy = vi.fn();
 		document
-			.querySelector('input[name="title"]')!
-			.addEventListener("input", inputSpy);
+			.querySelector('input[name="title"]')
+			?.addEventListener("input", inputSpy);
 		const res = fillField("title", mapping.title!, draft, document);
 		expect(res?.status).toBe("filled");
 		expect(
@@ -103,7 +103,7 @@ describe("fillers", () => {
 	});
 
 	it("选择器找不到元素 → skipped,不中断", () => {
-		document.querySelector('input[name="title"]')!.remove();
+		document.querySelector('input[name="title"]')?.remove();
 		const res = fillField("title", mapping.title!, draft, document);
 		expect(res?.status).toBe("skipped");
 	});
@@ -126,8 +126,8 @@ describe("fillers", () => {
 		fillField("title", mapping.title!, draft, document);
 		expect(
 			document
-				.querySelector('input[name="title"]')!
-				.classList.contains(HIGHLIGHT_CLASS),
+				.querySelector('input[name="title"]')
+				?.classList.contains(HIGHLIGHT_CLASS),
 		).toBe(true);
 	});
 

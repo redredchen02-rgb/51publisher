@@ -25,7 +25,7 @@ describe("trajectory", () => {
 		list = appendRecord(list, input({ id: "a" })).list;
 		list = appendRecord(list, input({ id: "b" })).list;
 		expect(list.map((r) => r.seq)).toEqual([1, 2]);
-		expect(list[0]!.hash).not.toBe(list[1]!.hash);
+		expect(list[0]?.hash).not.toBe(list[1]?.hash);
 		expect(verifyTrajectory(list)).toBe(true);
 	});
 
@@ -34,9 +34,9 @@ describe("trajectory", () => {
 			[],
 			input({ publishUrl: "/post/9", publishedAsDraft: true }),
 		);
-		expect(list[0]!.publishUrl).toBe("/post/9");
-		expect(list[0]!.publishedAsDraft).toBe(true);
-		expect(list[0]!.fields[0]!.field).toBe("title");
+		expect(list[0]?.publishUrl).toBe("/post/9");
+		expect(list[0]?.publishedAsDraft).toBe(true);
+		expect(list[0]?.fields[0]?.field).toBe("title");
 	});
 
 	describe("脱敏闸门 fail-closed", () => {
@@ -46,8 +46,8 @@ describe("trajectory", () => {
 				input({ rawSnapshot: '<input name="title" value="t">' }),
 			);
 			expect(snapshotDropped).toBe(false);
-			expect(list[0]!.snapshot).toBeDefined();
-			expect(list[0]!.snapshot).not.toMatch(/value="t"/); // 值被剥
+			expect(list[0]?.snapshot).toBeDefined();
+			expect(list[0]?.snapshot).not.toMatch(/value="t"/); // 值被剥
 		});
 
 		it("含机密且清洗后仍残留 → 丢弃快照,record 仍落(不带 snapshot)", () => {
@@ -56,8 +56,8 @@ describe("trajectory", () => {
 				input({ rawSnapshot: "<span>PHPSESSID=deadbeefdeadbeef</span>" }),
 			);
 			expect(snapshotDropped).toBe(true);
-			expect(list[0]!.snapshot).toBeUndefined();
-			expect(list[0]!.status).toBe("publish-confirmed"); // 记录本身仍在
+			expect(list[0]?.snapshot).toBeUndefined();
+			expect(list[0]?.status).toBe("publish-confirmed"); // 记录本身仍在
 		});
 
 		it("hidden value 含机密 → 被剥,快照可存", () => {
@@ -68,8 +68,8 @@ describe("trajectory", () => {
 						"<input type=hidden name=_token value=abcdef1234567890abcdef1234567890>",
 				}),
 			);
-			expect(list[0]!.snapshot).toBeDefined();
-			expect(list[0]!.snapshot).not.toMatch(/_token/);
+			expect(list[0]?.snapshot).toBeDefined();
+			expect(list[0]?.snapshot).not.toMatch(/_token/);
 		});
 	});
 
@@ -116,12 +116,12 @@ describe("trajectory", () => {
 	describe("Phase-2 度量字段携带", () => {
 		it("mode 字段随 input 写入 record", () => {
 			const { list } = appendRecord([], input({ mode: "authorized" }));
-			expect(list[0]!.mode).toBe("authorized");
+			expect(list[0]?.mode).toBe("authorized");
 		});
 
 		it("hasManualEdit 字段随 input 写入 record", () => {
 			const { list } = appendRecord([], input({ hasManualEdit: true }));
-			expect(list[0]!.hasManualEdit).toBe(true);
+			expect(list[0]?.hasManualEdit).toBe(true);
 		});
 
 		it("llmCostTokens 字段随 input 写入 record", () => {
@@ -129,27 +129,27 @@ describe("trajectory", () => {
 				[],
 				input({ llmCostTokens: { prompt: 100, completion: 50 } }),
 			);
-			expect(list[0]!.llmCostTokens).toEqual({ prompt: 100, completion: 50 });
+			expect(list[0]?.llmCostTokens).toEqual({ prompt: 100, completion: 50 });
 		});
 
 		it("generationDurationMs 字段随 input 写入 record", () => {
 			const { list } = appendRecord([], input({ generationDurationMs: 1500 }));
-			expect(list[0]!.generationDurationMs).toBe(1500);
+			expect(list[0]?.generationDurationMs).toBe(1500);
 		});
 
 		it("slotDiff 字段随 input 写入 record", () => {
 			const slotDiff = { changedSlots: ["title", "body"], totalSlots: 10 };
 			const { list } = appendRecord([], input({ slotDiff }));
-			expect(list[0]!.slotDiff).toEqual(slotDiff);
+			expect(list[0]?.slotDiff).toEqual(slotDiff);
 		});
 
 		it("度量字段均缺省时不出现在 record (undefined 不污染)", () => {
 			const { list } = appendRecord([], input());
-			expect(list[0]!.mode).toBeUndefined();
-			expect(list[0]!.hasManualEdit).toBeUndefined();
-			expect(list[0]!.llmCostTokens).toBeUndefined();
-			expect(list[0]!.generationDurationMs).toBeUndefined();
-			expect(list[0]!.slotDiff).toBeUndefined();
+			expect(list[0]?.mode).toBeUndefined();
+			expect(list[0]?.hasManualEdit).toBeUndefined();
+			expect(list[0]?.llmCostTokens).toBeUndefined();
+			expect(list[0]?.generationDurationMs).toBeUndefined();
+			expect(list[0]?.slotDiff).toBeUndefined();
 		});
 
 		it("携带度量字段后 hash 链仍可验证", () => {
@@ -176,12 +176,12 @@ describe("trajectory", () => {
 	describe("Phase-3 评审字段携带", () => {
 		it("aiReviewTriggered=true 写入 record", () => {
 			const { list } = appendRecord([], input({ aiReviewTriggered: true }));
-			expect(list[0]!.aiReviewTriggered).toBe(true);
+			expect(list[0]?.aiReviewTriggered).toBe(true);
 		});
 
 		it("aiReviewTriggered=false 写入 record", () => {
 			const { list } = appendRecord([], input({ aiReviewTriggered: false }));
-			expect(list[0]!.aiReviewTriggered).toBe(false);
+			expect(list[0]?.aiReviewTriggered).toBe(false);
 		});
 
 		it("aiReviewTriggered=undefined 时 record 不含该键（三态语义）", () => {
@@ -192,7 +192,7 @@ describe("trajectory", () => {
 		it("reviewCostTokens 写入 record", () => {
 			const costs = { prompt: 200, completion: 80 };
 			const { list } = appendRecord([], input({ reviewCostTokens: costs }));
-			expect(list[0]!.reviewCostTokens).toEqual(costs);
+			expect(list[0]?.reviewCostTokens).toEqual(costs);
 		});
 
 		it("携带 Phase-3 字段后 hash 链仍可验证（新字段不影响 canonical）", () => {

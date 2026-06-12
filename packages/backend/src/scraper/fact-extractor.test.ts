@@ -46,7 +46,7 @@ describe("extractFacts — strict path", () => {
 		const result = await extractFacts(makeRaw(), { ...BASE_OPTS, fetchFn });
 		expect(result.extractionMode).toBe("strict");
 		expect(result.confidence).toBeCloseTo(3 / 7);
-		expect(result.facts["作品名"]).toBe("测试作品");
+		expect(result.facts.作品名).toBe("测试作品");
 	});
 
 	it("passthrough coverImageUrl（不经 LLM schema）", async () => {
@@ -120,7 +120,7 @@ describe("extractFacts — json_object fallback", () => {
 
 		const result = await extractFacts(makeRaw(), { ...BASE_OPTS, fetchFn });
 		expect(result.extractionMode).toBe("fallback");
-		expect(result.facts["作品名"]).toBe("作品B");
+		expect(result.facts.作品名).toBe("作品B");
 		expect(callCount).toBe(2);
 	});
 

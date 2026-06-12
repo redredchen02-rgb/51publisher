@@ -69,10 +69,10 @@ function fillNativeSelect(
 
 /** 取 checkbox 的关联标签文本(labels / 相邻 label / 父 label)。 */
 function labelTextFor(box: HTMLInputElement, doc: Document): string {
-	const viaLabels = box.labels && box.labels[0]?.textContent;
+	const viaLabels = box.labels?.[0]?.textContent;
 	if (viaLabels) return viaLabels.trim();
 	if (box.id) {
-		const forLabel = doc.querySelector(`label[for="${box.id}"]`);
+		const forLabel = doc.querySelector(`label[for="${CSS.escape(box.id)}"]`);
 		if (forLabel?.textContent) return forLabel.textContent.trim();
 	}
 	const next = box.nextElementSibling;

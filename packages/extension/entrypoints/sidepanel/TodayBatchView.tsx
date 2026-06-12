@@ -54,13 +54,17 @@ const TERMINAL_STATUSES = new Set([
 ]);
 
 function isAllTerminal(items: BatchItem[]): boolean {
-	return items.length > 0 && items.every((it) => TERMINAL_STATUSES.has(it.status));
+	return (
+		items.length > 0 && items.every((it) => TERMINAL_STATUSES.has(it.status))
+	);
 }
 
 /** Phase 5 一键日常备稿视图:备稿触发 → 生成进度 → 逐篇审读 → 单条发布。 */
 export function TodayBatchView({ onBack }: { onBack: () => void }) {
 	const [dailyBatchSize, setDailyBatchSize] = useState(5);
-	const [adminTabId, setAdminTabId] = useState<number | null | undefined>(undefined);
+	const [adminTabId, setAdminTabId] = useState<number | null | undefined>(
+		undefined,
+	);
 	const [tabError, setTabError] = useState("");
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState("");
@@ -71,7 +75,9 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 	// 已读 id 集合(持久化 via chrome.storage.local)
 	const [readItems, setReadItems] = useState<Set<string>>(new Set());
 	// 乐观锁:点「发布」后立即 disable,防重复触发
-	const [publishingItems, setPublishingItems] = useState<Set<string>>(new Set());
+	const [publishingItems, setPublishingItems] = useState<Set<string>>(
+		new Set(),
+	);
 	// 展开的正文内容(查看全文)
 	const [expandedBodies, setExpandedBodies] = useState<Set<string>>(new Set());
 
@@ -123,7 +129,7 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 				pollRef.current = null;
 			}
 		};
-	}, [stage]); // items 变化不重启轮询,只在 stage 切换时重建
+	}, [stage, items]); // items 变化不重启轮询,只在 stage 切换时重建
 
 	async function handleDailyBatch() {
 		if (adminTabId == null) {
@@ -172,13 +178,15 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 
 			clearInterval(progressPoll);
 
-			const finalItems = batch?.items ?? topN.map((t) => ({
-				id: t.id ?? t.title,
-				topic: t.title,
-				facts: t.facts ?? {},
-				status: "queued" as const,
-				pendingTopicId: t.id,
-			}));
+			const finalItems =
+				batch?.items ??
+				topN.map((t) => ({
+					id: t.id ?? t.title,
+					topic: t.title,
+					facts: t.facts ?? {},
+					status: "queued" as const,
+					pendingTopicId: t.id,
+				}));
 			setItems(finalItems);
 
 			// 加载持久化已读集合
@@ -236,7 +244,9 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 		(it) => it.status === "filled" || it.status === "awaiting-approval",
 	);
 	const gateFailedItems = items.filter((it) => it.status === "gate-failed");
-	const confirmedItems = items.filter((it) => it.status === "publish-confirmed");
+	const confirmedItems = items.filter(
+		(it) => it.status === "publish-confirmed",
+	);
 	const terminalOtherItems = items.filter(
 		(it) => it.status === "error" || it.status === "aborted",
 	);
@@ -246,7 +256,9 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 	).length;
 
 	return (
-		<main style={{ fontFamily: "system-ui, sans-serif", padding: 12, fontSize: 14 }}>
+		<main
+			style={{ fontFamily: "system-ui, sans-serif", padding: 12, fontSize: 14 }}
+		>
 			<div
 				style={{
 					display: "flex",
@@ -259,20 +271,31 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 				<button
 					type="button"
 					onClick={onBack}
-					style={{ ...btn, background: "#f0f0f0", color: "#333", padding: "4px 10px" }}
+					style={{
+						...btn,
+						background: "#f0f0f0",
+						color: "#333",
+						padding: "4px 10px",
+					}}
 				>
 					← 返回
 				</button>
 			</div>
 
 			{tabError && (
-				<p role="alert" style={{ color: "#cf1322", fontSize: 13, marginBottom: 8 }}>
+				<p
+					role="alert"
+					style={{ color: "#cf1322", fontSize: 13, marginBottom: 8 }}
+				>
 					{tabError}
 				</p>
 			)}
 
 			{error && (
-				<p role="alert" style={{ color: "#cf1322", fontSize: 13, marginBottom: 8 }}>
+				<p
+					role="alert"
+					style={{ color: "#cf1322", fontSize: 13, marginBottom: 8 }}
+				>
 					{error}
 				</p>
 			)}
@@ -281,7 +304,8 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 			{stage !== "review" && (
 				<>
 					<p style={{ fontSize: 12, color: "#555", margin: "0 0 12px" }}>
-						自动从高分待审选题中取前 <strong>{dailyBatchSize}</strong> 条，一键触发批量生成。
+						自动从高分待审选题中取前 <strong>{dailyBatchSize}</strong>{" "}
+						条，一键触发批量生成。
 					</p>
 					<button
 						type="button"
@@ -297,7 +321,9 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 							padding: "8px 12px",
 						}}
 					>
-						{busy ? `生成中 ${items.length - generatingCount}/${items.length}…` : "一键备稿"}
+						{busy
+							? `生成中 ${items.length - generatingCount}/${items.length}…`
+							: "一键备稿"}
 					</button>
 					{busy && items.length > 0 && (
 						<ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
@@ -312,10 +338,23 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 										fontSize: 12,
 									}}
 								>
-									<span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+									<span
+										style={{
+											overflow: "hidden",
+											textOverflow: "ellipsis",
+											whiteSpace: "nowrap",
+											flex: 1,
+										}}
+									>
 										{item.topic}
 									</span>
-									<span style={{ marginLeft: 8, color: STATUS_COLOR[item.status] ?? "#8c8c8c", flexShrink: 0 }}>
+									<span
+										style={{
+											marginLeft: 8,
+											color: STATUS_COLOR[item.status] ?? "#8c8c8c",
+											flexShrink: 0,
+										}}
+									>
 										{STATUS_LABEL[item.status] ?? item.status}
 									</span>
 								</li>
@@ -328,7 +367,14 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 			{/* Phase 2: 审读队列 */}
 			{stage === "review" && (
 				<>
-					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+					<div
+						style={{
+							display: "flex",
+							justifyContent: "space-between",
+							alignItems: "center",
+							marginBottom: 10,
+						}}
+					>
 						<span style={{ fontSize: 13, color: "#555" }}>
 							审读队列 · 共 {items.length} 条
 						</span>
@@ -339,7 +385,13 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 								setItems([]);
 								setError("");
 							}}
-							style={{ ...btn, background: "#f0f0f0", color: "#333", padding: "3px 8px", fontSize: 12 }}
+							style={{
+								...btn,
+								background: "#f0f0f0",
+								color: "#333",
+								padding: "3px 8px",
+								fontSize: 12,
+							}}
 						>
 							新批次
 						</button>
@@ -354,7 +406,9 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 					{/* 待发布 */}
 					{reviewableItems.length > 0 && (
 						<section style={{ marginBottom: 12 }}>
-							<p style={{ fontSize: 12, color: "#8c8c8c", margin: "0 0 6px" }}>待发布</p>
+							<p style={{ fontSize: 12, color: "#8c8c8c", margin: "0 0 6px" }}>
+								待发布
+							</p>
 							{reviewableItems.map((item) => {
 								const isRead = readItems.has(item.id);
 								const isPublishing =
@@ -405,13 +459,28 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 												>
 													{item.draft?.title ?? item.topic}
 												</span>
-												<span style={{ fontSize: 11, color: isRead ? "#52c41a" : "#fa8c16", flexShrink: 0 }}>
+												<span
+													style={{
+														fontSize: 11,
+														color: isRead ? "#52c41a" : "#fa8c16",
+														flexShrink: 0,
+													}}
+												>
 													{isRead ? "已读" : "未读"}
 												</span>
 											</summary>
-											<div style={{ padding: "8px 10px", borderTop: "1px solid #f0f0f0", fontSize: 12, color: "#555" }}>
+											<div
+												style={{
+													padding: "8px 10px",
+													borderTop: "1px solid #f0f0f0",
+													fontSize: 12,
+													color: "#555",
+												}}
+											>
 												{item.draft?.subtitle && (
-													<p style={{ margin: "0 0 6px", fontStyle: "italic" }}>{item.draft.subtitle}</p>
+													<p style={{ margin: "0 0 6px", fontStyle: "italic" }}>
+														{item.draft.subtitle}
+													</p>
 												)}
 												<p style={{ margin: 0 }}>
 													{isBodyExpanded ? bodyText : bodyPreview}
@@ -421,7 +490,14 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 															<button
 																type="button"
 																onClick={() => toggleBodyExpand(item.id)}
-																style={{ background: "none", border: "none", color: "#1677ff", cursor: "pointer", fontSize: 12, padding: "0 2px" }}
+																style={{
+																	background: "none",
+																	border: "none",
+																	color: "#1677ff",
+																	cursor: "pointer",
+																	fontSize: 12,
+																	padding: "0 2px",
+																}}
 															>
 																查看全文
 															</button>
@@ -431,7 +507,14 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 														<button
 															type="button"
 															onClick={() => toggleBodyExpand(item.id)}
-															style={{ background: "none", border: "none", color: "#8c8c8c", cursor: "pointer", fontSize: 12, padding: "0 2px" }}
+															style={{
+																background: "none",
+																border: "none",
+																color: "#8c8c8c",
+																cursor: "pointer",
+																fontSize: 12,
+																padding: "0 2px",
+															}}
 														>
 															收起
 														</button>
@@ -456,7 +539,8 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 												title={!isRead ? "请先展开预览后才能发布" : ""}
 												style={{
 													...btn,
-													background: !isRead || isPublishing ? "#d9d9d9" : "#52c41a",
+													background:
+														!isRead || isPublishing ? "#d9d9d9" : "#52c41a",
 													color: !isRead || isPublishing ? "#8c8c8c" : "#fff",
 													padding: "4px 12px",
 													fontSize: 12,
@@ -474,7 +558,9 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 					{/* 内容问题 */}
 					{gateFailedItems.length > 0 && (
 						<section style={{ marginBottom: 12 }}>
-							<p style={{ fontSize: 12, color: "#8c8c8c", margin: "0 0 6px" }}>内容问题</p>
+							<p style={{ fontSize: 12, color: "#8c8c8c", margin: "0 0 6px" }}>
+								内容问题
+							</p>
 							{gateFailedItems.map((item) => (
 								<div
 									key={item.id}
@@ -486,11 +572,25 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 										background: "#fff2f0",
 									}}
 								>
-									<div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+									<div
+										style={{
+											display: "flex",
+											justifyContent: "space-between",
+											alignItems: "flex-start",
+										}}
+									>
 										<div style={{ flex: 1 }}>
-											<p style={{ margin: 0, fontSize: 13, fontWeight: 500 }}>{item.topic}</p>
+											<p style={{ margin: 0, fontSize: 13, fontWeight: 500 }}>
+												{item.topic}
+											</p>
 											{item.gateFailReason && (
-												<p style={{ margin: "4px 0 0", fontSize: 11, color: "#cf1322" }}>
+												<p
+													style={{
+														margin: "4px 0 0",
+														fontSize: 11,
+														color: "#cf1322",
+													}}
+												>
 													{item.gateFailReason}
 												</p>
 											)}
@@ -498,7 +598,15 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 										<button
 											type="button"
 											onClick={() => void handleRetry(item.id)}
-											style={{ ...btn, background: "#fff1f0", color: "#cf1322", border: "1px solid #ffccc7", padding: "3px 8px", fontSize: 12, flexShrink: 0 }}
+											style={{
+												...btn,
+												background: "#fff1f0",
+												color: "#cf1322",
+												border: "1px solid #ffccc7",
+												padding: "3px 8px",
+												fontSize: 12,
+												flexShrink: 0,
+											}}
 										>
 											重新生成
 										</button>
@@ -511,7 +619,9 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 					{/* 已发布 */}
 					{confirmedItems.length > 0 && (
 						<section style={{ marginBottom: 12 }}>
-							<p style={{ fontSize: 12, color: "#8c8c8c", margin: "0 0 6px" }}>已发布</p>
+							<p style={{ fontSize: 12, color: "#8c8c8c", margin: "0 0 6px" }}>
+								已发布
+							</p>
 							{confirmedItems.map((item) => (
 								<div
 									key={item.id}
@@ -523,10 +633,21 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 										fontSize: 13,
 									}}
 								>
-									<span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+									<span
+										style={{
+											overflow: "hidden",
+											textOverflow: "ellipsis",
+											whiteSpace: "nowrap",
+											flex: 1,
+										}}
+									>
 										{item.draft?.title ?? item.topic}
 									</span>
-									<span style={{ marginLeft: 8, color: "#52c41a", flexShrink: 0 }}>✓ 已发布</span>
+									<span
+										style={{ marginLeft: 8, color: "#52c41a", flexShrink: 0 }}
+									>
+										✓ 已发布
+									</span>
 								</div>
 							))}
 						</section>
@@ -535,7 +656,9 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 					{/* 错误/中止 */}
 					{terminalOtherItems.length > 0 && (
 						<section style={{ marginBottom: 12 }}>
-							<p style={{ fontSize: 12, color: "#8c8c8c", margin: "0 0 6px" }}>出错/中止</p>
+							<p style={{ fontSize: 12, color: "#8c8c8c", margin: "0 0 6px" }}>
+								出错/中止
+							</p>
 							{terminalOtherItems.map((item) => (
 								<div
 									key={item.id}
@@ -548,7 +671,12 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 								>
 									<span>{item.topic}</span>
 									{item.error && (
-										<span style={{ marginLeft: 8, color: STATUS_COLOR[item.status] }}>
+										<span
+											style={{
+												marginLeft: 8,
+												color: STATUS_COLOR[item.status],
+											}}
+										>
 											{item.error}
 										</span>
 									)}

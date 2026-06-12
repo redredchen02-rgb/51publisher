@@ -191,7 +191,7 @@ describe("handleKillBatch", () => {
 		const h = createHandlers(deps);
 		const result = await h.handleKillBatch();
 		expect(result).not.toBeNull();
-		expect(result!.items.every((it) => it.status === "aborted")).toBe(true);
+		expect(result?.items.every((it) => it.status === "aborted")).toBe(true);
 		expect(deps.saveBatch).toHaveBeenCalled();
 	});
 
@@ -220,7 +220,7 @@ describe("handleReleaseQuarantine", () => {
 		const h = createHandlers(deps);
 		const result = await h.handleReleaseQuarantine("item_0");
 		expect(result).not.toBeNull();
-		expect(result!.items[0]!.status).toBe("aborted");
+		expect(result?.items[0]?.status).toBe("aborted");
 	});
 });
 
@@ -405,10 +405,10 @@ describe("runStartupGeneratingRecovery", () => {
 		await runStartupGeneratingRecovery(deps);
 		expect(deps.saveBatch).toHaveBeenCalledOnce();
 		const saved = (deps.saveBatch as ReturnType<typeof vi.fn>).mock
-			.calls[0]![0] as Batch;
-		expect(saved.items[0]!.status).toBe("error");
-		expect(saved.items[0]!.error).toBeTypeOf("string");
-		expect(saved.items[0]!.error!.length).toBeGreaterThan(0);
+			.calls[0]?.[0] as Batch;
+		expect(saved.items[0]?.status).toBe("error");
+		expect(saved.items[0]?.error).toBeTypeOf("string");
+		expect(saved.items[0]?.error?.length).toBeGreaterThan(0);
 	});
 
 	it("mixed batch: only generating items are changed, others untouched", async () => {
@@ -428,11 +428,11 @@ describe("runStartupGeneratingRecovery", () => {
 		await runStartupGeneratingRecovery(deps);
 		expect(deps.saveBatch).toHaveBeenCalledOnce();
 		const saved = (deps.saveBatch as ReturnType<typeof vi.fn>).mock
-			.calls[0]![0] as Batch;
-		expect(saved.items[0]!.status).toBe("error"); // generating → error
-		expect(saved.items[1]!.status).toBe("queued"); // unchanged
-		expect(saved.items[2]!.status).toBe("filled"); // unchanged
-		expect(saved.items[3]!.status).toBe("error"); // was already error, unchanged
+			.calls[0]?.[0] as Batch;
+		expect(saved.items[0]?.status).toBe("error"); // generating → error
+		expect(saved.items[1]?.status).toBe("queued"); // unchanged
+		expect(saved.items[2]?.status).toBe("filled"); // unchanged
+		expect(saved.items[3]?.status).toBe("error"); // was already error, unchanged
 	});
 
 	it("all items are gate-failed (needs-human-verification) → no changes, saveBatch not called", async () => {
@@ -473,7 +473,7 @@ describe("runStartupGeneratingRecovery", () => {
 		const deps = makeRecoveryDeps(batch);
 		await runStartupGeneratingRecovery(deps);
 		const saved = (deps.saveBatch as ReturnType<typeof vi.fn>).mock
-			.calls[0]![0] as Batch;
-		expect(saved.items[0]!.error).toBe("SW restarted during generation");
+			.calls[0]?.[0] as Batch;
+		expect(saved.items[0]?.error).toBe("SW restarted during generation");
 	});
 });

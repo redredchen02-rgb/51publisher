@@ -26,7 +26,6 @@ vi.mock("../../lib/messaging", () => ({
 	runBatch: vi.fn(async () => null),
 }));
 
-import { runBatch } from "../../lib/messaging";
 import {
 	fetchAdapters,
 	fetchPendingTopics,
@@ -201,7 +200,7 @@ describe("R2 — cover thumbnail", () => {
 			'img[alt="封面"]',
 		) as HTMLImageElement | null;
 		expect(img).not.toBeNull();
-		expect(img!.src).toContain("cover.jpg");
+		expect(img?.src).toContain("cover.jpg");
 	});
 
 	it("无 coverImageUrl 时不渲染 img", async () => {

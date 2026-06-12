@@ -262,10 +262,10 @@ describe("generateDraft (结构化组装)", () => {
 		expect(res.ok).toBe(true);
 		expect(f).toHaveBeenCalledTimes(2);
 		const firstBody = JSON.parse(
-			(f.mock.calls[0]![1] as RequestInit).body as string,
+			(f.mock.calls[0]?.[1] as RequestInit).body as string,
 		);
 		const secondBody = JSON.parse(
-			(f.mock.calls[1]![1] as RequestInit).body as string,
+			(f.mock.calls[1]?.[1] as RequestInit).body as string,
 		);
 		expect(firstBody.response_format.type).toBe("json_schema");
 		expect(secondBody.response_format.type).toBe("json_object");

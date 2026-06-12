@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useCallback, useState } from "react";
 
-type LoadingState = 'idle' | 'loading' | 'error';
+type LoadingState = "idle" | "loading" | "error";
 
 interface UseLoadingStateReturn {
 	state: LoadingState;
@@ -14,16 +14,16 @@ interface UseLoadingStateReturn {
 }
 
 export function useLoadingState(): UseLoadingStateReturn {
-	const [state, setState] = useState<LoadingState>('idle');
+	const [state, setState] = useState<LoadingState>("idle");
 	const [progress, setProgress] = useState(0);
-	const [message, setMessage] = useState('');
-	const [error, setError] = useState('');
+	const [message, setMessage] = useState("");
+	const [error, setError] = useState("");
 
 	const startLoading = useCallback((msg: string) => {
-		setState('loading');
+		setState("loading");
 		setProgress(0);
 		setMessage(msg);
-		setError('');
+		setError("");
 	}, []);
 
 	const updateProgress = useCallback((p: number) => {
@@ -31,14 +31,14 @@ export function useLoadingState(): UseLoadingStateReturn {
 	}, []);
 
 	const completeLoading = useCallback(() => {
-		setState('idle');
+		setState("idle");
 		setProgress(0);
-		setMessage('');
-		setError('');
+		setMessage("");
+		setError("");
 	}, []);
 
 	const handleError = useCallback((err: string) => {
-		setState('error');
+		setState("error");
 		setError(err);
 		setProgress(0);
 	}, []);

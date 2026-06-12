@@ -402,7 +402,7 @@ export function BatchReviewPanel(props: Props) {
 		const newVal = prompt(
 			"请输入缺失的内容(将自动替换标题与正文中的【待补】):",
 		);
-		if (!newVal || !newVal.trim()) return;
+		if (!newVal?.trim()) return;
 		const val = newVal.trim();
 		if (onDraftChange) {
 			onDraftChange(itemId, {
@@ -443,9 +443,7 @@ export function BatchReviewPanel(props: Props) {
 					{onModeChange ? (
 						<select
 							value={safetyMode}
-							onChange={(e) =>
-								onModeChange(e.target.value as SafetyMode)
-							}
+							onChange={(e) => onModeChange(e.target.value as SafetyMode)}
 							style={{
 								fontSize: 12,
 								padding: "1px 4px",
@@ -946,7 +944,7 @@ export function BatchReviewPanel(props: Props) {
 														type="checkbox"
 														checked={it.userEdited ?? false}
 														onChange={() => {
-															if (!it.userEdited) props.onItemEdited!(it.id);
+															if (!it.userEdited) props.onItemEdited?.(it.id);
 														}}
 													/>
 													<span style={{ color: "#888" }}>已手动修改草稿</span>
@@ -956,7 +954,7 @@ export function BatchReviewPanel(props: Props) {
 											props.onSaveAsFewShot && (
 												<button
 													type="button"
-													onClick={() => props.onSaveAsFewShot!(it.id)}
+													onClick={() => props.onSaveAsFewShot?.(it.id)}
 													style={{
 														...btn,
 														marginTop: 6,

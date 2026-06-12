@@ -226,6 +226,13 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			fewShotPairs.length > 0
 				? deriveFewShotExamples(fewShotPairs)
 				: fewShotExamples;
+		let fieldMappingParsed: FieldMapping;
+		try {
+			fieldMappingParsed = JSON.parse(mappingText) as FieldMapping;
+		} catch {
+			setError("字段映射 JSON 解析失败。");
+			return;
+		}
 		await saveSettings({
 			...existing,
 			endpoint,
@@ -234,7 +241,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			fewShotExamples: fewShotExamplesResolved,
 			fewShotPairs,
 			recommendedTags: parseTagsText(tagsText),
-			fieldMapping: JSON.parse(mappingText) as FieldMapping,
+			fieldMapping: fieldMappingParsed,
 			fallbackModel: fallbackModel || undefined,
 			backendUrl: backendUrl || undefined,
 			reviewCriteriaPrompt: reviewCriteriaPrompt || undefined,

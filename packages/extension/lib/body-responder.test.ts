@@ -1,11 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
-import {
-	type BodyFilledDetail,
-	EVT_BODY_FILLED,
-	EVT_FILL_BODY,
-	requestBodyFill,
-} from "./body-bridge";
+import { requestBodyFill } from "./body-bridge";
 import { installBodyResponder } from "./body-responder";
 import type { PasteResult } from "./quill-paste";
 

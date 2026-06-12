@@ -1,5 +1,6 @@
 // 主世界写入逻辑(纯函数,注入 window/document 便于测试)。
 // U0 勘查:目标后台 window.Quill 2.0.2 全局可用、vanilla(非受控)→ 走 tier ①。
+import { sanitizeBody } from "./sanitize";
 
 interface QuillInstance {
 	clipboard?: { dangerouslyPasteHTML?: (html: string) => void };
@@ -45,12 +46,12 @@ export function pasteIntoQuill(
 		}
 	}
 
-	// tier ②:兜底
+	// tier ②:兜底 — 纵深防御:即使上游已消毒, innerHTML 路径再过一遍
 	const editor = node.classList.contains("ql-editor")
 		? node
 		: node.querySelector(".ql-editor");
 	if (editor) {
-		(editor as HTMLElement).innerHTML = html;
+		(editor as HTMLElement).innerHTML = sanitizeBody(html);
 		editor.dispatchEvent(new Event("input", { bubbles: true }));
 		return { ok: true, degraded: true };
 	}

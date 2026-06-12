@@ -35,7 +35,7 @@ export async function fetchRemoteMappings(
 		const headers: Record<string, string> = {
 			"Content-Type": "application/json",
 		};
-		if (token) headers["Authorization"] = `Bearer ${token}`;
+		if (token) headers.Authorization = `Bearer ${token}`;
 
 		const res = await fetchFn(`${BACKEND_BASE}/api/v1/config/mappings`, {
 			headers,
@@ -102,7 +102,7 @@ export async function syncBatchItemStatus(
 		const headers: Record<string, string> = {
 			"Content-Type": "application/json",
 		};
-		if (token) headers["Authorization"] = `Bearer ${token}`;
+		if (token) headers.Authorization = `Bearer ${token}`;
 
 		const res = await fetchFn(
 			`${BACKEND_BASE}/api/v1/batches/${encodeURIComponent(batchId)}/items/${encodeURIComponent(itemId)}`,
@@ -155,7 +155,7 @@ export async function fetchBatchState(
 		const headers: Record<string, string> = {
 			"Content-Type": "application/json",
 		};
-		if (token) headers["Authorization"] = `Bearer ${token}`;
+		if (token) headers.Authorization = `Bearer ${token}`;
 
 		const res = await fetchFn(
 			`${BACKEND_BASE}/api/v1/batches/${encodeURIComponent(batchId)}`,
@@ -205,7 +205,7 @@ export async function createRemoteBatch(
 		const headers: Record<string, string> = {
 			"Content-Type": "application/json",
 		};
-		if (token) headers["Authorization"] = `Bearer ${token}`;
+		if (token) headers.Authorization = `Bearer ${token}`;
 
 		const res = await fetchFn(`${BACKEND_BASE}/api/v1/batches`, {
 			method: "POST",

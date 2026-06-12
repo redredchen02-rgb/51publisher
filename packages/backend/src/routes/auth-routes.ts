@@ -1,9 +1,12 @@
 import type { FastifyInstance } from "fastify";
 import jwt from "jsonwebtoken";
 import { auditLogin } from "../services/audit-log.js";
-import { err } from "../utils/error-response.js";
 import { verifyPassword } from "../services/password.js";
-import { LoginBody as LoginBodySchema, LoginResponse } from "../utils/schemas.js";
+import { err } from "../utils/error-response.js";
+import {
+	LoginBody as LoginBodySchema,
+	LoginResponse,
+} from "../utils/schemas.js";
 
 // Strict per-route limit for auth endpoints (overrides the global limit).
 const AUTH_RATE_LIMIT = {
@@ -55,9 +58,9 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 	app.get(
 		"/api/v1/auth/status",
 		{ config: { rateLimit: AUTH_RATE_LIMIT } },
-		async (request, reply) => {
+		async (request, _reply) => {
 			const authHeader = request.headers.authorization;
-			if (!authHeader || !authHeader.startsWith("Bearer ")) {
+			if (!authHeader?.startsWith("Bearer ")) {
 				return { ok: true, authenticated: false };
 			}
 

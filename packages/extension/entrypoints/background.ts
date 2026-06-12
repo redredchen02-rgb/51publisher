@@ -12,7 +12,6 @@ import {
 	type Batch,
 	patchBatchDrafts,
 	releaseQuarantine,
-	storeFillResults,
 } from "../lib/batch";
 import {
 	approveBatch,
@@ -21,7 +20,6 @@ import {
 	runBatch,
 } from "../lib/batch-orchestrator";
 import { withBackendSync } from "../lib/batch-sync";
-import { computeSlotDiff } from "../lib/draft-diff";
 import { evaluateGrounding } from "../lib/grounding-gate";
 import { generateDraft, reviewDraft, rewriteDraft } from "../lib/llm";
 import { buildPrompt } from "../lib/messaging";
@@ -213,7 +211,7 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 		}
 	}
 
-	let batchSeq = 0;
+	let _batchSeq = 0;
 
 	async function handleRunBatch(
 		topics: string[],
@@ -259,7 +257,7 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 				},
 				save: deps.saveBatch,
 				genBatchId: () => {
-					batchSeq += 1;
+					_batchSeq += 1;
 					return deps.buildBatchId();
 				},
 				genItemId: deps.buildItemId,

@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, act } from "@testing-library/react";
+import {
+	act,
+	cleanup,
+	fireEvent,
+	render,
+	screen,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Toast } from "./Toast.js";
 
@@ -20,7 +26,9 @@ describe("Toast", () => {
 	it("超时后调用 onClose", async () => {
 		vi.useFakeTimers();
 		const onClose = vi.fn();
-		render(<Toast message="ok" type="success" onClose={onClose} duration={1000} />);
+		render(
+			<Toast message="ok" type="success" onClose={onClose} duration={1000} />,
+		);
 		await act(async () => {
 			vi.advanceTimersByTime(1000);
 		});

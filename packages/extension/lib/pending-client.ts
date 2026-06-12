@@ -103,7 +103,7 @@ export async function fetchPendingTopics(
 		const headers: Record<string, string> = {
 			"Content-Type": "application/json",
 		};
-		if (token) headers["Authorization"] = `Bearer ${token}`;
+		if (token) headers.Authorization = `Bearer ${token}`;
 
 		const res = await fetchFn(
 			`${BACKEND_BASE}/api/v1/pending-topics${params}`,
@@ -143,7 +143,7 @@ export async function patchPendingTopic(
 		const headers: Record<string, string> = {
 			"Content-Type": "application/json",
 		};
-		if (token) headers["Authorization"] = `Bearer ${token}`;
+		if (token) headers.Authorization = `Bearer ${token}`;
 
 		const res = await fetchFn(
 			`${BACKEND_BASE}/api/v1/pending-topics/${encodeURIComponent(id)}`,
@@ -182,7 +182,7 @@ export async function triggerScrape(
 		const headers: Record<string, string> = {
 			"Content-Type": "application/json",
 		};
-		if (token) headers["Authorization"] = `Bearer ${token}`;
+		if (token) headers.Authorization = `Bearer ${token}`;
 
 		const res = await fetchFn(`${BACKEND_BASE}/api/v1/scraper/trigger`, {
 			method: "POST",
@@ -217,7 +217,7 @@ export async function fetchAdapters(
 		const headers: Record<string, string> = {
 			"Content-Type": "application/json",
 		};
-		if (token) headers["Authorization"] = `Bearer ${token}`;
+		if (token) headers.Authorization = `Bearer ${token}`;
 
 		const res = await fetchFn(`${BACKEND_BASE}/api/v1/scraper/adapters`, {
 			headers,
@@ -258,7 +258,7 @@ export async function updatePendingStatus(
 		const headers: Record<string, string> = {
 			"Content-Type": "application/json",
 		};
-		if (token) headers["Authorization"] = `Bearer ${token}`;
+		if (token) headers.Authorization = `Bearer ${token}`;
 
 		const res = await fetchFn(
 			`${BACKEND_BASE}/api/v1/pending-topics/${encodeURIComponent(id)}`,
