@@ -15,6 +15,7 @@ import { Toast } from "./components/Toast";
 import { DraftPreview } from "./DraftPreview";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { FillResultPanel } from "./FillResultPanel";
+import { useLoadingState } from "./hooks/useLoadingState";
 import { Loading } from "./Loading";
 import { PendingTopicsView } from "./PendingTopicsView";
 import { Settings } from "./Settings";
@@ -39,6 +40,7 @@ export function App() {
 	const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 	const [authenticated, setAuthenticated] = useState(false);
 	const [authChecking, setAuthChecking] = useState(true);
+	const loadingState = useLoadingState();
 	const promptTemplateRef = useRef("");
 	const genTokenRef = useRef(0); // 取消用:递增后旧请求结果作废
 
@@ -71,25 +73,36 @@ export function App() {
 		setError("");
 		setResults([]);
 		setMode("generating");
-		const token = ++genTokenRef.current;
-		const res = await requestGenerate(
-			buildPrompt(promptTemplateRef.current, topic),
-		);
-		if (token !== genTokenRef.current) return; // 已取消
-		if (res.ok) {
-			updateDraft(res.draft);
-			setMode("draft");
-		} else {
-			setError(
-				res.kind === "no-key" ? `${res.error}(点右上角设置)` : res.error,
+		loadingState.startLoading("正在生成草稿...");
+		const progressInterval = setInterval(() => {
+			loadingState.updateProgress(Math.min(loadingState.progress + 10, 90));
+		}, 500);
+		try {
+			const token = ++genTokenRef.current;
+			const res = await requestGenerate(
+				buildPrompt(promptTemplateRef.current, topic),
 			);
-			setMode(draft ? "draft" : "empty");
+			if (token !== genTokenRef.current) return; // 已取消
+			if (res.ok) {
+				updateDraft(res.draft);
+				setMode("draft");
+				loadingState.completeLoading();
+			} else {
+				setError(
+					res.kind === "no-key" ? `${res.error}(点右上角设置)` : res.error,
+				);
+				setMode(draft ? "draft" : "empty");
+				loadingState.completeLoading();
+			}
+		} finally {
+			clearInterval(progressInterval);
 		}
 	}
 
 	function cancelGenerate() {
 		genTokenRef.current++;
 		setMode(draft ? "draft" : "empty");
+		loadingState.completeLoading();
 	}
 
 	async function handleFill() {
@@ -105,6 +118,7 @@ export function App() {
 		} else {
 			setError(res.error);
 			setMode("draft");
+			setToast({ message: res.error, type: "error" });
 		}
 	}
 
@@ -272,18 +286,15 @@ export function App() {
 			)}
 
 			{mode === "generating" && (
-				<div aria-live="polite" style={{ marginBottom: 8 }}>
-					<ProgressBar progress={0} indeterminate />
-					<div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
-						正在生成草稿…{" "}
-						<button
-							onClick={cancelGenerate}
-							className="btn btn-plain"
-							style={{ padding: "2px 8px", marginLeft: 6 }}
-						>
-							取消
-						</button>
-					</div>
+				<div style={{ marginBottom: 12 }}>
+					<ProgressBar progress={loadingState.progress} label={loadingState.message} />
+					<button
+						onClick={cancelGenerate}
+						className="btn btn-plain"
+						style={{ padding: "2px 8px", marginTop: 6 }}
+					>
+						取消
+					</button>
 				</div>
 			)}
 

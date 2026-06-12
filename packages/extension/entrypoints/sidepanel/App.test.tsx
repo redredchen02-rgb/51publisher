@@ -171,4 +171,43 @@ describe("App", () => {
 		fireEvent.click(screen.getByText("生成草稿"));
 		expect(await screen.findByText("网络超时，请重试")).toBeTruthy();
 	});
+
+	it("填充成功 → 显示成功 toast", async () => {
+		requestGenerate.mockResolvedValue({ ok: true, draft });
+		requestFill.mockResolvedValue({
+			ok: true,
+			results: [{ field: "title", status: "filled" }],
+		});
+		render(<App />);
+		await waitForAppReady();
+		fireEvent.change(screen.getByPlaceholderText(/输入选题/), {
+			target: { value: "某新番" },
+		});
+		fireEvent.click(screen.getByText("生成草稿"));
+		await screen.findByDisplayValue("AI 标题");
+		fireEvent.click(screen.getByText("填充到当前页"));
+		await waitFor(() => {
+			expect(screen.getByText("填充成功")).toBeTruthy();
+		});
+	});
+
+	it("填充失败 → 显示错误 toast", async () => {
+		requestGenerate.mockResolvedValue({ ok: true, draft });
+		requestFill.mockResolvedValue({
+			ok: false,
+			error: "填充出错",
+		});
+		render(<App />);
+		await waitForAppReady();
+		fireEvent.change(screen.getByPlaceholderText(/输入选题/), {
+			target: { value: "某新番" },
+		});
+		fireEvent.click(screen.getByText("生成草稿"));
+		await screen.findByDisplayValue("AI 标题");
+		fireEvent.click(screen.getByText("填充到当前页"));
+		await waitFor(() => {
+			const matches = screen.getAllByText("填充出错");
+			expect(matches.length).toBeGreaterThanOrEqual(1);
+		});
+	});
 });
