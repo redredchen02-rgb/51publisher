@@ -55,7 +55,7 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 
 	const refresh = useCallback(async () => {
 		setLoading(true);
-		const list = await fetchPendingTopics("pending");
+		const list = await fetchPendingTopics({ status: "pending", domain: "acg" });
 		setTopics(list);
 		setLoading(false);
 	}, []);
@@ -167,6 +167,7 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 			const sorted = await fetchPendingTopics({
 				status: "pending",
 				sort_by: "score",
+				domain: "acg",
 			});
 			if (sorted.length === 0) {
 				setQuickDraftStatus("待审池暂无选题，请先抓取");
