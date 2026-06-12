@@ -32,6 +32,8 @@ const VALID_REJECTION_REASONS = new Set<RejectionReason>([
 	"other",
 ]);
 
+const VALID_STATUSES_SET = new Set<string>(["pending", "approved", "rejected"]);
+
 interface CreatePendingBody {
 	sourceUrl: string;
 	siteName: string;
@@ -59,11 +61,6 @@ export async function registerPendingRoutes(
 		};
 	}>("/api/v1/pending-topics", async (request) => {
 		const limit = Math.min(Math.max(Number(request.query.limit) || 50, 1), 200);
-		const VALID_STATUSES_SET: ReadonlySet<string> = new Set([
-			"pending",
-			"approved",
-			"rejected",
-		]);
 		const rawStatus = request.query.status;
 		const status: PendingStatus | undefined =
 			rawStatus !== undefined && VALID_STATUSES_SET.has(rawStatus)
@@ -143,16 +140,11 @@ export async function registerPendingRoutes(
 
 			if (body.status) {
 				// 校验 status 必须是合法枚举值
-				const VALID_STATUSES: ReadonlySet<PendingStatus> = new Set([
-					"pending",
-					"approved",
-					"rejected",
-				]);
-				if (!VALID_STATUSES.has(body.status)) {
+				if (!VALID_STATUSES_SET.has(body.status)) {
 					return err(
 						reply,
 						400,
-						`Invalid status "${body.status}". Must be one of: ${[...VALID_STATUSES].join(", ")}`,
+						`Invalid status "${body.status}". Must be one of: ${[...VALID_STATUSES_SET].join(", ")}`,
 					);
 				}
 

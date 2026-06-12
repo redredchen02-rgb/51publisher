@@ -48,8 +48,9 @@ export async function registerConfigRoutes(
 					"Invalid mappings payload. Each field must have a non-empty selector and a valid fieldType.",
 				);
 			}
-			saveMappings(body.mappings as FieldMapping);
-			return { ok: true, mappings: loadMappings() };
+			const mappings = body.mappings as FieldMapping;
+			saveMappings(mappings);
+			return { ok: true, mappings };
 		},
 	);
 }

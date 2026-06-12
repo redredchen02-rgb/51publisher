@@ -49,8 +49,12 @@ function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** 初始化富化缓存表。 */
+let _enrichmentTableReady = false;
+
+/** 初始化富化缓存表（幂等，只执行一次）。 */
 function initEnrichmentCacheTable(): void {
+	if (_enrichmentTableReady) return;
+	_enrichmentTableReady = true;
 	try {
 		const db = getDb();
 		db.exec(`
@@ -61,6 +65,8 @@ function initEnrichmentCacheTable(): void {
 			);
 			CREATE INDEX IF NOT EXISTS idx_enrichment_created ON enrichment_cache(created_at);
 		`);
+		// 清理过期缓存（24小时）
+		db.prepare("DELETE FROM enrichment_cache WHERE created_at < datetime('now', '-1 day')").run();
 	} catch {
 		// 初始化失败不影响主流程
 	}
