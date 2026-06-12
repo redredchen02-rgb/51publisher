@@ -9,6 +9,12 @@ import type { EnrichedContext } from "./web-enricher.js";
 
 export type PendingStatus = "pending" | "approved" | "rejected";
 
+const VALID_STATUSES: Set<string> = new Set(["pending", "approved", "rejected"]);
+
+function isValidPendingStatus(status: string): status is PendingStatus {
+	return VALID_STATUSES.has(status);
+}
+
 export interface PendingTopic {
 	id: string;
 	sourceUrl: string;
@@ -76,7 +82,7 @@ function rowToTopic(row: PendingRow): PendingTopic {
 		rawContent: safeJsonParse<RawContent>(row.raw_content, undefined),
 		facts: safeJsonParse<FactsBlock>(row.facts, {}),
 		confidence: row.confidence,
-		status: row.status as PendingStatus,
+		status: isValidPendingStatus(row.status) ? row.status : "pending",
 		rejectedReason: row.rejected_reason ?? undefined,
 		coverImageUrl: row.cover_image_url ?? undefined,
 		score: row.score ?? undefined,
