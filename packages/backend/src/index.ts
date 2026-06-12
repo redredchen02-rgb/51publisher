@@ -2,7 +2,10 @@ import dotenv from "dotenv";
 import { buildApp, registerDraftRoutes, startBackgroundJobs } from "./app.js";
 import { validateEnv } from "./config/env-check.js";
 
-dotenv.config();
+// Prefer ~/.51publisher/.env (outside repo, safe from accidental overwrites) over the in-repo .env
+const safeEnvPath = `${process.env.HOME}/.51publisher/.env`;
+dotenv.config({ path: safeEnvPath });
+dotenv.config(); // fallback: load in-repo .env for any vars not already set
 
 const start = async () => {
 	try {
