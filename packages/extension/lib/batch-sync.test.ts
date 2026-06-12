@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { withBackendSync, tryBackendRecovery } from "./batch-sync";
+import { tryBackendRecovery, withBackendSync } from "./batch-sync";
 
 // Mock 依赖
 vi.mock("./auth-client", () => ({
@@ -92,7 +92,9 @@ describe("batch-sync", () => {
 
 			// 第二次调用
 			const updatedBatch = makeBatch({
-				items: [{ id: "item-1", topic: "Topic 1", status: "filled", facts: {} }],
+				items: [
+					{ id: "item-1", topic: "Topic 1", status: "filled", facts: {} },
+				],
 			});
 			await sync(updatedBatch);
 

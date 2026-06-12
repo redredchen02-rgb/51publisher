@@ -8,6 +8,7 @@ import {
 } from "../../lib/prompt-client";
 import {
 	DEFAULT_SETTINGS,
+	deriveFewShotExamples,
 	getApiKey,
 	getBackendToken,
 	getSettings,
@@ -18,11 +19,6 @@ import {
 import { FewShotPairEditor } from "./components/FewShotPairEditor";
 
 const MAX_PAIRS = 8;
-
-/** 从 fewShotPairs 派生 fewShotExamples 字符串(每条 input\n---\noutput，条间 \n\n 分隔)。 */
-export function deriveFewShotExamples(pairs: FewShotPair[]): string {
-	return pairs.map((p) => `${p.input}\n---\n${p.output}`).join("\n\n");
-}
 
 const inputStyle: React.CSSProperties = {
 	width: "100%",

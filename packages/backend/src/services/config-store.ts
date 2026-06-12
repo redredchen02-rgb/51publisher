@@ -15,7 +15,7 @@ export function configGet(key: string): string | null {
 			.get(key) as { value: string } | undefined;
 		return row ? row.value : null;
 	} catch (err) {
-		console.error(`[config-store] Failed to get key "${key}":`, err);
+		console.warn(`[config-store] Failed to get key "${key}":`, err);
 		return null;
 	}
 }
@@ -29,7 +29,7 @@ export function configSet(key: string, value: string): boolean {
 		).run(key, value);
 		return true;
 	} catch (err) {
-		console.error(`[config-store] Failed to set key "${key}":`, err);
+		console.warn(`[config-store] Failed to set key "${key}":`, err);
 		return false;
 	}
 }
@@ -42,7 +42,7 @@ export function configKeys(): string[] {
 			db.prepare("SELECT key FROM config_store").all() as { key: string }[]
 		).map((r) => r.key);
 	} catch (err) {
-		console.error("[config-store] Failed to list keys:", err);
+		console.warn("[config-store] Failed to list keys:", err);
 		return [];
 	}
 }
@@ -54,7 +54,7 @@ export function configDelete(key: string): boolean {
 		db.prepare("DELETE FROM config_store WHERE key = ?").run(key);
 		return true;
 	} catch (err) {
-		console.error(`[config-store] Failed to delete key "${key}":`, err);
+		console.warn(`[config-store] Failed to delete key "${key}":`, err);
 		return false;
 	}
 }

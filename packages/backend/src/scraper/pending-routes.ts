@@ -1,6 +1,7 @@
 import type { RejectionReason } from "@51publisher/shared";
 import type { FastifyInstance } from "fastify";
 import { err } from "../utils/error-response.js";
+import { generateId } from "../utils/generate-id.js";
 import {
 	deletePendingTopic,
 	listPendingTopics,
@@ -115,7 +116,7 @@ export async function registerPendingRoutes(
 			}
 
 			const now = new Date().toISOString();
-			const id = `pending_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+			const id = generateId("pending");
 			const topic: PendingTopic = {
 				id,
 				sourceUrl,

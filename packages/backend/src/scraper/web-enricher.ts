@@ -27,11 +27,23 @@ export interface EnrichedContext {
 // ---- 缓存（内存 + SQLite 双层）----
 const memoryCache = new Map<
 	string,
-	{ data: EnrichedContext; expiresAt: number }
+	{ data: EnrichedContext; expiresAt: number; lastAccessedAt: number }
 >();
 const MEMORY_CACHE_TTL = 60 * 60 * 1000; // 1 小时
 const MEMORY_CACHE_SIZE = 100;
 const DB_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 小时
+
+function evictLruFromMemoryCache(): void {
+	let lruKey: string | undefined;
+	let lruTime = Infinity;
+	for (const [k, v] of memoryCache) {
+		if (v.lastAccessedAt < lruTime) {
+			lruTime = v.lastAccessedAt;
+			lruKey = k;
+		}
+	}
+	if (lruKey) memoryCache.delete(lruKey);
+}
 
 function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
@@ -313,6 +325,7 @@ export async function enrichContext(
 	// 1. 检查内存缓存
 	const memoryCached = memoryCache.get(cacheKey);
 	if (memoryCached && memoryCached.expiresAt > Date.now()) {
+		memoryCached.lastAccessedAt = Date.now();
 		return memoryCached.data;
 	}
 
@@ -321,12 +334,12 @@ export async function enrichContext(
 	if (dbCached) {
 		// 回填内存缓存
 		if (memoryCache.size >= MEMORY_CACHE_SIZE) {
-			const oldestKey = memoryCache.keys().next().value;
-			if (oldestKey) memoryCache.delete(oldestKey);
+			evictLruFromMemoryCache();
 		}
 		memoryCache.set(cacheKey, {
 			data: dbCached,
 			expiresAt: Date.now() + MEMORY_CACHE_TTL,
+			lastAccessedAt: Date.now(),
 		});
 		return dbCached;
 	}
@@ -364,12 +377,12 @@ export async function enrichContext(
 
 	// 4. 写入缓存
 	if (memoryCache.size >= MEMORY_CACHE_SIZE) {
-		const oldestKey = memoryCache.keys().next().value;
-		if (oldestKey) memoryCache.delete(oldestKey);
+		evictLruFromMemoryCache();
 	}
 	memoryCache.set(cacheKey, {
 		data: result,
 		expiresAt: Date.now() + MEMORY_CACHE_TTL,
+		lastAccessedAt: Date.now(),
 	});
 	saveToDbCache(cacheKey, result);
 

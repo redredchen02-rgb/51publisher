@@ -1,6 +1,7 @@
 import type { FastifyBaseLogger } from "fastify";
 import cron from "node-cron";
 import { sendAlert } from "../services/telegram.js";
+import { generateId } from "../utils/generate-id.js";
 import { tryEnrich } from "./enrichment-utils.js";
 import { extractFacts } from "./fact-extractor.js";
 import {
@@ -100,7 +101,7 @@ async function runSingleUrl(
 
 		const now = new Date().toISOString();
 		const topic: PendingTopic = {
-			id: `scheduled_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+			id: generateId("scheduled"),
 			sourceUrl: site.url,
 			siteName: site.siteName,
 			title: rawContent.title,
@@ -205,7 +206,7 @@ async function runListDiscovery(
 
 			const now = new Date().toISOString();
 			const topic: PendingTopic = {
-				id: `discovered_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+				id: generateId("discovered"),
 				sourceUrl: url,
 				siteName: site.siteName,
 				title: rawContent.title,

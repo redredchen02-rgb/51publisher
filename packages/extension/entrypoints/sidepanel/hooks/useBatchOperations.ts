@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 export type BatchOperationStatus =
 	| "idle"
@@ -37,20 +37,23 @@ export function useBatchOperations<T, R>(): UseBatchOperationsReturn<T, R> {
 	const [results, setResults] = useState<R[]>([]);
 	const pausedRef = useRef({ value: false });
 
-	const progress: BatchProgress = {
-		total: items.length,
-		done: items.filter((i) => i.status === "done").length,
-		failed: items.filter((i) => i.status === "failed").length,
-		percent:
-			items.length === 0
-				? 0
-				: Math.round(
-						(items.filter((i) => i.status === "done" || i.status === "failed")
-							.length /
-							items.length) *
-							100,
-					),
-	};
+	const progress: BatchProgress = useMemo(() => {
+		let done = 0;
+		let failed = 0;
+		for (const i of items) {
+			if (i.status === "done") done++;
+			else if (i.status === "failed") failed++;
+		}
+		return {
+			total: items.length,
+			done,
+			failed,
+			percent:
+				items.length === 0
+					? 0
+					: Math.round(((done + failed) / items.length) * 100),
+		};
+	}, [items]);
 
 	const start = useCallback(
 		async (inputs: T[], processor: (item: T) => Promise<R>) => {

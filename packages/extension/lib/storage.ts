@@ -231,7 +231,7 @@ export async function clearTrajectory(): Promise<void> {
 
 // ---- Few-shot 范例（R11 一键存为范例）----
 
-function deriveFewShotExamples(pairs: FewShotPair[]): string {
+export function deriveFewShotExamples(pairs: FewShotPair[]): string {
 	return pairs.map((p) => `${p.input}\n---\n${p.output}`).join("\n\n");
 }
 

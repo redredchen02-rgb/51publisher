@@ -1,10 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import {
-	deriveFewShotExamples,
-	parseTagsText,
-	validateMapping,
-} from "./Settings";
+import { deriveFewShotExamples } from "../../lib/storage";
+import { parseTagsText, validateMapping } from "./Settings";
 
 describe("validateMapping", () => {
 	it("合法映射通过", () => {

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { getDb, pendingWriteQueue } from "../scraper/pending-db.js";
 import { err } from "../utils/error-response.js";
+import { generateId } from "../utils/generate-id.js";
 
 // Body shape matches extension's published-posts-client.ts recordPublishedPost().
 interface PublishedPostBody {
@@ -75,8 +76,7 @@ export async function registerPublishedPostsRoutes(
 
 			const db = getDb();
 			const now = new Date().toISOString();
-			const id =
-				bodyId ?? `pub_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+			const id = bodyId ?? generateId("pub");
 
 			const result = await pendingWriteQueue.enqueue(() => {
 				// Use publish_url as upsert key if present, otherwise id

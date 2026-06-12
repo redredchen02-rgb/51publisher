@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { err } from "../utils/error-response.js";
+import { generateId } from "../utils/generate-id.js";
 import {
 	CreatePromptBody as CreatePromptBodySchema,
 	UpdatePromptBody as UpdatePromptBodySchema,
@@ -54,7 +55,7 @@ export async function registerPromptRoutes(
 			const { name, template, fewShotExamples, model } = request.body;
 
 			const now = new Date().toISOString();
-			const id = `prompt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+			const id = generateId("prompt");
 			const prompt: PromptTemplate = {
 				id,
 				name,
