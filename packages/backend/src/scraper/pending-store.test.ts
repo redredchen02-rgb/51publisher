@@ -74,7 +74,9 @@ describe("pending-store (SQLite)", () => {
 		await new Promise((r) => setTimeout(r, 10));
 		await savePendingTopic(topic);
 		const loaded = await loadPendingTopic(topic.id);
-		expect(loaded?.updatedAt !== undefined && loaded.updatedAt >= before).toBe(true);
+		expect(loaded?.updatedAt !== undefined && loaded.updatedAt >= before).toBe(
+			true,
+		);
 	});
 
 	// ---- listPendingTopics ----

@@ -114,6 +114,61 @@ function parseContentJson(content: string): Record<string, unknown> | null {
 	}
 }
 
+type LlmJsonResult =
+	| { ok: true; raw: unknown; parsed: Record<string, unknown>; content: string }
+	| { ok: false; error: string };
+
+async function callLlmForJson(
+	prompt: string,
+	deps: LlmDeps,
+	label: string,
+): Promise<LlmJsonResult> {
+	const { settings, apiKey } = deps;
+	const fetchFn = deps.fetchFn ?? fetch;
+	const timeoutMs = deps.timeoutMs ?? 45_000;
+
+	if (!apiKey || !settings.endpoint)
+		return { ok: false, error: "未配置 API key 或端点。" };
+
+	const { url, init } = buildRequest(prompt, settings, apiKey, {
+		jsonSchema: false,
+	});
+
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), timeoutMs);
+	let res: Response;
+	try {
+		res = await fetchFn(url, { ...init, signal: controller.signal });
+	} catch (err) {
+		return {
+			ok: false,
+			error:
+				err instanceof Error && err.name === "AbortError"
+					? `${label}请求超时。`
+					: "网络错误。",
+		};
+	} finally {
+		clearTimeout(timer);
+	}
+
+	if (!res.ok)
+		return { ok: false, error: `${label}请求失败 (${res.status})。` };
+
+	let raw: unknown;
+	try {
+		raw = await res.json();
+	} catch {
+		return { ok: false, error: `${label}响应非合法 JSON。` };
+	}
+
+	const content = extractContent(raw);
+	if (!content) return { ok: false, error: `${label}响应格式不符。` };
+	const parsed = parseContentJson(content);
+	if (!parsed) return { ok: false, error: `${label}结果解析失败。` };
+
+	return { ok: true, raw, parsed, content };
+}
+
 const optStr = (v: unknown): string | undefined => {
 	const s = str(v);
 	return s === "" ? undefined : s;
@@ -448,48 +503,11 @@ export async function reviewDraftLlm(
 	criteriaPrompt: string | undefined,
 	deps: LlmDeps,
 ): Promise<ReviewDraftResult> {
-	const { settings, apiKey } = deps;
-	const fetchFn = deps.fetchFn ?? fetch;
-	const timeoutMs = deps.timeoutMs ?? 45_000;
-
-	if (!apiKey || !settings.endpoint)
-		return { ok: false, error: "未配置 API key 或端点。" };
-
 	const prompt = buildReviewPrompt(draft, criteriaPrompt);
-	const { url, init } = buildRequest(prompt, settings, apiKey, {
-		jsonSchema: false,
-	});
+	const result = await callLlmForJson(prompt, deps, "评审");
+	if (!result.ok) return { ok: false, error: result.error };
 
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-	let res: Response;
-	try {
-		res = await fetchFn(url, { ...init, signal: controller.signal });
-	} catch (err) {
-		return {
-			ok: false,
-			error:
-				err instanceof Error && err.name === "AbortError"
-					? "评审请求超时。"
-					: "网络错误。",
-		};
-	} finally {
-		clearTimeout(timer);
-	}
-
-	if (!res.ok) return { ok: false, error: `评审请求失败 (${res.status})。` };
-
-	let raw: unknown;
-	try {
-		raw = await res.json();
-	} catch {
-		return { ok: false, error: "评审响应非合法 JSON。" };
-	}
-
-	const content = extractContent(raw);
-	if (!content) return { ok: false, error: "评审响应格式不符。" };
-	const parsed = parseContentJson(content);
-	if (!parsed) return { ok: false, error: "评审结果解析失败。" };
+	const { raw, parsed } = result;
 
 	const dims = parsed.dimensions;
 	if (!Array.isArray(dims))
@@ -527,48 +545,11 @@ export async function rewriteDraftLlm(
 	failedDims: string[],
 	deps: LlmDeps,
 ): Promise<RewriteDraftResult> {
-	const { settings, apiKey } = deps;
-	const fetchFn = deps.fetchFn ?? fetch;
-	const timeoutMs = deps.timeoutMs ?? 45_000;
-
-	if (!apiKey || !settings.endpoint)
-		return { ok: false, error: "未配置 API key 或端点。" };
-
 	const prompt = buildRewritePrompt(draft, failedDims);
-	const { url, init } = buildRequest(prompt, settings, apiKey, {
-		jsonSchema: false,
-	});
+	const result = await callLlmForJson(prompt, deps, "重写");
+	if (!result.ok) return { ok: false, error: result.error };
 
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-	let res: Response;
-	try {
-		res = await fetchFn(url, { ...init, signal: controller.signal });
-	} catch (err) {
-		return {
-			ok: false,
-			error:
-				err instanceof Error && err.name === "AbortError"
-					? "重写请求超时。"
-					: "网络错误。",
-		};
-	} finally {
-		clearTimeout(timer);
-	}
-
-	if (!res.ok) return { ok: false, error: `重写请求失败 (${res.status})。` };
-
-	let raw: unknown;
-	try {
-		raw = await res.json();
-	} catch {
-		return { ok: false, error: "重写响应非合法 JSON。" };
-	}
-
-	const content = extractContent(raw);
-	if (!content) return { ok: false, error: "重写响应格式不符。" };
-	const parsed = parseContentJson(content);
-	if (!parsed) return { ok: false, error: "重写结果解析失败。" };
+	const { raw, parsed } = result;
 
 	const rewritten: ContentDraft = { ...draft };
 	if (typeof parsed.title === "string" && parsed.title.trim())

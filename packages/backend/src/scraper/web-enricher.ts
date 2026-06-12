@@ -107,14 +107,6 @@ function getCacheKey(facts: FactsBlock): string {
 	return `${facts.制作 || ""}|${facts.作品名 || ""}`;
 }
 
-export interface EnrichedContext {
-	queryResults: Array<{
-		query: string;
-		results: SearchResult[];
-	}>;
-	collectedAt: string;
-}
-
 /** 从 Jina 返回的 Markdown 中提取有用信息。 */
 function parseJinaContent(content: string, sourceUrl: string): SearchResult[] {
 	const results: SearchResult[] = [];
