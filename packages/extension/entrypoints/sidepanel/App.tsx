@@ -252,6 +252,16 @@ const [confirmNext, setConfirmNext] = useState(false);
 						⚙ 设置
 					</button>
 					<KeyboardShortcutsHelp />
+					<button
+						onClick={() => {
+							setShowLogs(!showLogs);
+							if (!showLogs) void retrieveLogs();
+						}}
+						className="btn btn-plain"
+						aria-label="错误日志"
+					>
+						📋 日志
+					</button>
 				</div>
 			</div>
 
@@ -285,6 +295,85 @@ const [confirmNext, setConfirmNext] = useState(false);
 					}}
 					onDismiss={clearError}
 				/>
+			)}
+
+			{showLogs && (
+				<div
+					style={{
+						background: "#f5f5f5",
+						border: "1px solid #d9d9d9",
+						borderRadius: 6,
+						padding: 12,
+						marginBottom: 12,
+						maxHeight: 200,
+						overflowY: "auto",
+					}}
+				>
+					<div
+						style={{
+							display: "flex",
+							justifyContent: "space-between",
+							marginBottom: 8,
+						}}
+					>
+						<span style={{ fontWeight: 600 }}>错误日志</span>
+						<div style={{ display: "flex", gap: 8 }}>
+							<button
+								onClick={() => {
+									const exported = exportLogs();
+									void navigator.clipboard?.writeText(exported);
+								}}
+								style={{
+									border: "none",
+									background: "none",
+									cursor: "pointer",
+									fontSize: 12,
+									color: "#1677ff",
+								}}
+							>
+								导出
+							</button>
+							<button
+								onClick={() => void clearLogs()}
+								style={{
+									border: "none",
+									background: "none",
+									cursor: "pointer",
+									fontSize: 12,
+									color: "#ff4d4f",
+								}}
+							>
+								清空
+							</button>
+						</div>
+					</div>
+
+					{logs.length === 0 ? (
+						<div style={{ fontSize: 13, color: "#8c8c8c" }}>暂无错误日志</div>
+					) : (
+						<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+							{logs.map((log) => (
+								<div
+									key={log.id}
+									style={{
+										background: "white",
+										border: "1px solid #d9d9d9",
+										borderRadius: 4,
+										padding: 8,
+										fontSize: 12,
+									}}
+								>
+									<div style={{ color: "#cf1322", marginBottom: 4 }}>
+										{log.message}
+									</div>
+									<div style={{ color: "#8c8c8c" }}>
+										{new Date(log.timestamp).toLocaleString()}
+									</div>
+								</div>
+							))}
+						</div>
+					)}
+				</div>
 			)}
 
 			{(mode === "empty" ||
