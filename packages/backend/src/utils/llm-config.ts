@@ -30,10 +30,18 @@ export function getLlmConfig(settings?: { model?: string }): LlmConfig {
  */
 export function validateLlmConfig(config: LlmConfig): LlmConfigValidation {
 	if (!config.apiKey) {
-		return { valid: false, error: "Backend is not configured with an LLM_API_KEY. Please check .env file." };
+		return {
+			valid: false,
+			error:
+				"Backend is not configured with an LLM_API_KEY. Please check .env file.",
+		};
 	}
 	if (!config.endpoint) {
-		return { valid: false, error: "Backend is not configured with an LLM_ENDPOINT. Please check .env file." };
+		return {
+			valid: false,
+			error:
+				"Backend is not configured with an LLM_ENDPOINT. Please check .env file.",
+		};
 	}
 	return { valid: true };
 }
@@ -42,7 +50,9 @@ export function validateLlmConfig(config: LlmConfig): LlmConfigValidation {
  * 解析 LLM 配置（读取 + 验证）
  * 返回 null 表示配置无效，错误信息已记录
  */
-export function resolveLlmConfig(settings?: { model?: string }): LlmConfig | null {
+export function resolveLlmConfig(settings?: {
+	model?: string;
+}): LlmConfig | null {
 	const config = getLlmConfig(settings);
 	const validation = validateLlmConfig(config);
 	if (!validation.valid) {

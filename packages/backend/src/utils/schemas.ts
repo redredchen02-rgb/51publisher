@@ -129,7 +129,10 @@ export const CreateBatchBody = Type.Object({
 	id: Type.String({ minLength: 1 }),
 	tabId: Type.Number(),
 	authorizedHost: Type.String({ minLength: 1 }),
-	topics: Type.Array(Type.String({ minLength: 1 }), { minItems: 1 }),
+	topics: Type.Array(Type.String({ minLength: 1 }), {
+		minItems: 1,
+		maxItems: 20,
+	}),
 	facts: Type.Optional(
 		Type.Array(Type.Optional(Type.Record(Type.String(), Type.Unknown()))),
 	),
@@ -139,4 +142,19 @@ export const CreateBatchBody = Type.Object({
 export const TriggerScrapeBody = Type.Object({
 	siteName: Type.String({ minLength: 1 }),
 	url: Type.Optional(Type.String()),
+});
+
+// ── Prompts ──────────────────────────────────────────
+export const CreatePromptBody = Type.Object({
+	name: Type.String({ minLength: 1, maxLength: 100 }),
+	template: Type.String({ minLength: 1, maxLength: 50000 }),
+	fewShotExamples: Type.Optional(Type.String({ maxLength: 50000 })),
+	model: Type.Optional(Type.String({ maxLength: 100 })),
+});
+
+export const UpdatePromptBody = Type.Object({
+	name: Type.Optional(Type.String({ minLength: 1, maxLength: 100 })),
+	template: Type.Optional(Type.String({ minLength: 1, maxLength: 50000 })),
+	fewShotExamples: Type.Optional(Type.String({ maxLength: 50000 })),
+	model: Type.Optional(Type.String({ maxLength: 100 })),
 });

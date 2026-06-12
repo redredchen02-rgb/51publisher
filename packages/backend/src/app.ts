@@ -125,8 +125,7 @@ export function registerDraftRoutes(app: FastifyInstance): void {
 	app.get("/api/v1/models", async (request, reply) => {
 		const config = getLlmConfig();
 		const validation = validateLlmConfig(config);
-		if (!validation.valid)
-			return err(reply, 500, validation.error!);
+		if (!validation.valid) return err(reply, 500, validation.error!);
 		try {
 			return await listModels(config.endpoint, config.apiKey);
 		} catch (e) {
@@ -192,8 +191,7 @@ export function registerDraftRoutes(app: FastifyInstance): void {
 			const { draft, criteriaPrompt, settings } = request.body;
 			const config = getLlmConfig(settings);
 			const validation = validateLlmConfig(config);
-			if (!validation.valid)
-				return err(reply, 500, validation.error!);
+			if (!validation.valid) return err(reply, 500, validation.error!);
 			const resolvedSettings = {
 				...settings,
 				endpoint: config.endpoint,
@@ -225,8 +223,7 @@ export function registerDraftRoutes(app: FastifyInstance): void {
 			const { draft, failedDims, settings } = request.body;
 			const config = getLlmConfig(settings);
 			const validation = validateLlmConfig(config);
-			if (!validation.valid)
-				return err(reply, 500, validation.error!);
+			if (!validation.valid) return err(reply, 500, validation.error!);
 			if (failedDims.length === 0)
 				return err(reply, 400, "failedDims must be a non-empty array.");
 			const resolvedSettings = {

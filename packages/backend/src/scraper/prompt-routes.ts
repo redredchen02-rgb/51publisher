@@ -1,6 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import { err } from "../utils/error-response.js";
 import {
+	CreatePromptBody as CreatePromptBodySchema,
+	UpdatePromptBody as UpdatePromptBodySchema,
+} from "../utils/schemas.js";
+import {
 	deletePrompt,
 	listPrompts,
 	loadPrompt,
@@ -41,12 +45,13 @@ export async function registerPromptRoutes(
 	// 创建新模板
 	app.post<{ Body: PromptTemplateCreate }>(
 		"/api/v1/prompts",
+		{
+			schema: {
+				body: CreatePromptBodySchema,
+			},
+		},
 		async (request, reply) => {
 			const { name, template, fewShotExamples, model } = request.body;
-
-			if (!name || !template) {
-				return err(reply, 400, "Missing required fields: name, template");
-			}
 
 			const now = new Date().toISOString();
 			const id = `prompt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
