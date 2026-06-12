@@ -6,7 +6,15 @@
 		"useIgnoreFile": true
 	},
 	"files": {
-		"ignoreUnknown": false
+		"ignoreUnknown": false,
+		"ignore": [
+			".pnpm-store",
+			".mimocode",
+			".context",
+			".omo",
+			".kilo",
+			".wxt"
+		]
 	},
 	"formatter": {
 		"enabled": true,
