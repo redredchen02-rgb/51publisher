@@ -285,6 +285,8 @@ export interface ApproveBatchDeps {
 	recordPost?: (record: PublishedPostRecord) => Promise<void>;
 	/** 当前时间戳生成器;省略=new Date().toISOString()。注入后测试可注入固定值。 */
 	now?: () => string;
+	/** 存在时只处理 id 匹配的单条;省略=处理全部 awaiting-approval。 */
+	itemIdFilter?: string;
 }
 
 /** 批量发布循环。返回最终 Batch;无批次 → null。 */
@@ -306,6 +308,7 @@ export async function approveBatch(
 		checkGrounding,
 		recordPost,
 		now = () => new Date().toISOString(),
+		itemIdFilter,
 	} = deps;
 
 	const loaded = await getBatch();
@@ -314,6 +317,7 @@ export async function approveBatch(
 	const dryRunItems: DryRunItemResult[] = [];
 
 	for (const snapshot of batch.items) {
+		if (itemIdFilter && snapshot.id !== itemIdFilter) continue;
 		// 每轮从最新 batch 取该项当前状态(前面的转移可能已变)。
 		const item = batch.items.find((it) => it.id === snapshot.id);
 		if (item?.status !== "awaiting-approval" || !item.draft) continue;

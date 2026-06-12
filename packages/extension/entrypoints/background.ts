@@ -343,6 +343,68 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 		}
 	}
 
+	async function handleApproveSingleItem(
+		tabId: number,
+		itemId: string,
+	): Promise<Batch | null> {
+		if (typeof tabId !== "number" || typeof itemId !== "string" || !itemId)
+			return deps.getBatch();
+		try {
+			const result = await approveBatch({
+				getBatch: deps.getBatch,
+				save: deps.saveBatch,
+				pinnedHostOk,
+				sendFill: async (draft: ContentDraft) => {
+					try {
+						return (await deps.tabsSendMessage(tabId, {
+							type: "FILL_PAGE",
+							draft,
+						})) as FillPageResponse;
+					} catch {
+						return { ok: false, error: "fill-unreachable" };
+					}
+				},
+				evaluateGate: () => evaluateGate(tabId),
+				sendGrant: async () => {
+					try {
+						return asPublishResult(
+							await deps.tabsSendMessage(tabId, { type: "PUBLISH_GRANT" }),
+						);
+					} catch {
+						return { ok: false, dryRun: false, error: "content-unreachable" };
+					}
+				},
+				appendTrajectory: deps.appendTrajectory,
+				onSnapshotDropped: (id) =>
+					console.warn(
+						`[bg] 轨迹快照含机密被丢弃(record 已落,无快照) itemId=${id}`,
+					),
+				saveDryRunReportFn: deps.saveDryRunReportFn,
+				writeTombstone: deps.writeTombstone,
+				clearTombstone: deps.clearTombstone,
+				checkGrounding: evaluateGrounding,
+				recordPost: deps.recordPost ?? recordPublishedPost,
+				itemIdFilter: itemId,
+			});
+			if (result) {
+				const confirmedTopics = result.items
+					.filter((it) => it.id === itemId && it.status === "publish-confirmed")
+					.map((it) => it.topic);
+				if (confirmedTopics.length > 0) {
+					deps
+						.addPublishedTopics(confirmedTopics)
+						.catch((e) =>
+							console.warn("[bg] addPublishedTopics 写入失败(best-effort)", e),
+						);
+				}
+			}
+			return result;
+		} catch (err) {
+			console.error("[bg] 单条发布失败", err);
+			return deps.getBatch();
+		}
+	}
+
 	async function handleKillBatch(): Promise<Batch | null> {
 		const batch = await deps.getBatch();
 		if (!batch) return null;
@@ -438,6 +500,7 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 		handlePublish,
 		handleRunBatch,
 		handleApproveBatch,
+		handleApproveSingleItem,
 		handleKillBatch,
 		handleReleaseQuarantine,
 		handleMarkItemEdited,
@@ -588,6 +651,8 @@ export default defineBackground(() => {
 			);
 		if (message?.type === "APPROVE_BATCH")
 			return handlers.handleApproveBatch(message.tabId, message.draftOverrides);
+		if (message?.type === "APPROVE_SINGLE_ITEM")
+			return handlers.handleApproveSingleItem(message.tabId, message.itemId);
 		if (message?.type === "KILL_BATCH") return handlers.handleKillBatch();
 		if (message?.type === "RELEASE_QUARANTINE")
 			return handlers.handleReleaseQuarantine(message.itemId);

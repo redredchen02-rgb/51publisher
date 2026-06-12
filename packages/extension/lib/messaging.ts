@@ -16,6 +16,7 @@ import type { DriftReport } from "./selectors";
 const SW_TIMEOUT: Partial<Record<RuntimeMessage["type"], number>> = {
 	RUN_BATCH: 300_000, // 多条 × LLM，最多 5 分钟
 	APPROVE_BATCH: 300_000,
+	APPROVE_SINGLE_ITEM: 300_000,
 	GENERATE_DRAFT: 30_000,
 	PUBLISH_PAGE: 30_000,
 	GET_BATCH: 10_000,
@@ -183,6 +184,14 @@ export async function discardBatchItem(
 		itemId,
 		...(rejectionReason ? { rejectionReason } : {}),
 	});
+}
+
+/** 单条发布:对指定 itemId 执行 approve + fill + publish，不影响其他条目。 */
+export async function approveSingleItem(
+	tabId: number,
+	itemId: string,
+): Promise<BatchResponse> {
+	return sendMsg<BatchResponse>({ type: "APPROVE_SINGLE_ITEM", tabId, itemId });
 }
 
 /** 读当前批次(加载即崩溃恢复)。 */

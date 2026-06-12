@@ -172,6 +172,8 @@ export type RuntimeMessage =
 	| { type: "GET_BATCH" }
 	// side panel → background:标记操作者已手动修改该条草稿(直发率度量)。
 	| { type: "MARK_ITEM_EDITED"; itemId: string }
+	// side panel → background:单条发布(approve + fill + publish 单条 awaiting-approval)。
+	| { type: "APPROVE_SINGLE_ITEM"; tabId: number; itemId: string }
 	// side panel → content:轻量选择器漂移自检(R6 轻量)。
 	| { type: "CHECK_SELECTORS" };
 

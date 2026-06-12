@@ -1118,3 +1118,62 @@ describe("grounding gate bypass fix (Unit 4 integration)", () => {
 		expect(batch.items[1]?.status).toBe("gate-failed"); // 不得被升格
 	});
 });
+
+// itemIdFilter
+// ================================================================
+
+describe("approveBatch itemIdFilter", () => {
+	it("只处理 id 匹配的单条，其余 awaiting-approval 保持不变", async () => {
+		const batch = makeAwaitingBatch([TOPIC_A, TOPIC_B]);
+		const sendGrant = vi.fn(async () => ({ ok: true, dryRun: false }));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => batch),
+			sendGrant,
+			itemIdFilter: "item_0",
+		});
+		const result = await approveBatch(deps);
+		expect(result?.items[0]?.status).toBe("publish-confirmed");
+		expect(result?.items[1]?.status).toBe("awaiting-approval");
+		expect(sendGrant).toHaveBeenCalledOnce();
+	});
+
+	it("itemIdFilter 指向不存在 id: batch 无变化，正常返回", async () => {
+		const batch = makeAwaitingBatch([TOPIC_A]);
+		const sendGrant = vi.fn(async () => ({ ok: true, dryRun: false }));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => batch),
+			sendGrant,
+			itemIdFilter: "nonexistent-id",
+		});
+		const result = await approveBatch(deps);
+		expect(sendGrant).not.toHaveBeenCalled();
+		expect(result?.items[0]?.status).toBe("awaiting-approval");
+	});
+
+	it("itemIdFilter + recordPost 同时传入: recordPost 仅调用一次(对应过滤条目)", async () => {
+		const batch = makeAwaitingBatch([TOPIC_A, TOPIC_B]);
+		const recordPost = vi.fn(async () => {});
+		const sendGrant = vi.fn(async () => ({ ok: true, dryRun: false }));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => batch),
+			sendGrant,
+			recordPost,
+			itemIdFilter: "item_0",
+		});
+		await approveBatch(deps);
+		expect(recordPost).toHaveBeenCalledOnce();
+	});
+
+	it("itemIdFilter 为 undefined 时行为与无过滤一致", async () => {
+		const batch = makeAwaitingBatch([TOPIC_A, TOPIC_B]);
+		const sendGrant = vi.fn(async () => ({ ok: true, dryRun: false }));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => batch),
+			sendGrant,
+		});
+		const result = await approveBatch(deps);
+		expect(result?.items[0]?.status).toBe("publish-confirmed");
+		expect(result?.items[1]?.status).toBe("publish-confirmed");
+		expect(sendGrant).toHaveBeenCalledTimes(2);
+	});
+});
