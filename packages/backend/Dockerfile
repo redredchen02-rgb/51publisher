@@ -1,10 +1,10 @@
 FROM node:20-slim AS builder
-RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y python3 make g++ git && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 COPY . .
 
-RUN npm install -g pnpm@9 && pnpm install --frozen-lockfile --ignore-scripts && pnpm rebuild better-sqlite3
+RUN git init && npm install -g pnpm@9 && pnpm install --frozen-lockfile && pnpm rebuild better-sqlite3
 
 RUN pnpm --filter @51publisher/shared build
 RUN pnpm --filter publisher-backend build
