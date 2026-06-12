@@ -64,6 +64,10 @@ CREATE TABLE IF NOT EXISTS batches (
   updated_at       TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_batches_updated ON batches(updated_at DESC);`,
+	"008-add-domain.sql": `\
+ALTER TABLE pending_topics ADD COLUMN domain TEXT NOT NULL DEFAULT 'acg'
+  CHECK(domain IN ('acg', 'gossip'));
+CREATE INDEX IF NOT EXISTS idx_pending_domain ON pending_topics(domain);`,
 };
 
 export function runMigrations(dbPath: string): void {

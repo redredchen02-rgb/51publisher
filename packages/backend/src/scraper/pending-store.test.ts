@@ -51,7 +51,7 @@ describe("pending-store (SQLite)", () => {
 		expect(loaded?.confidence).toBe(0.85);
 		expect(loaded?.status).toBe("pending");
 		expect(loaded?.coverImageUrl).toBe("https://cdn.example.com/cover.jpg");
-		expect(loaded?.facts.作品名).toBe("测试作品");
+		expect((loaded?.facts as Record<string, unknown>).作品名).toBe("测试作品");
 	});
 
 	it("load 不存在的 id → null", async () => {
@@ -264,5 +264,26 @@ describe("pending-store (SQLite)", () => {
 		expect(loaded?.rawContent?.coverImageUrl).toBe(
 			"https://cdn.example.com/img.jpg",
 		);
+	});
+
+	it("listPendingTopics(domain='gossip') 只返回 gossip 記錄，不包含 acg", async () => {
+		await savePendingTopic(makeTopic({ sourceUrl: "https://acgs.com/1", domain: "acg" }));
+		const gossipFacts = {
+			當事人: "A", 事件摘要: null, 起因: null, 經過: null,
+			結果: null, 來源連結: null, 發生時間: null, 熱度標籤: null,
+		};
+		await savePendingTopic(
+			makeTopic({ sourceUrl: "https://gossip.com/1", domain: "gossip", facts: gossipFacts }),
+		);
+		await savePendingTopic(
+			makeTopic({ sourceUrl: "https://gossip.com/2", domain: "gossip", facts: { ...gossipFacts, 當事人: "B" } }),
+		);
+
+		const gossipList = await listPendingTopics(50, undefined, undefined, "gossip");
+		expect(gossipList).toHaveLength(2);
+		expect(gossipList.every((t) => t.domain === "gossip")).toBe(true);
+
+		const acgList = await listPendingTopics(50, undefined, undefined, "acg");
+		expect(acgList.every((t) => t.domain === "acg")).toBe(true);
 	});
 });
