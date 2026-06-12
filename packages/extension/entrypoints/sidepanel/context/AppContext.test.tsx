@@ -10,8 +10,8 @@ function TestComponent() {
 		<div>
 			<span data-testid="topic">{topic}</span>
 			<span data-testid="draft">{draft?.title ?? "无草稿"}</span>
-			<button onClick={() => setTopic("测试主题")}>设置主题</button>
-			<button onClick={() => setDraft({ id: "1", title: "测试草稿" } as any)}>
+			<button type="button" onClick={() => setTopic("测试主题")}>设置主题</button>
+			<button type="button" onClick={() => setDraft({ id: "1", title: "测试草稿" } as any)}>
 				设置草稿
 			</button>
 		</div>

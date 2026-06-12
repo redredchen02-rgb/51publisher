@@ -162,7 +162,7 @@ export function appendRecord(
 export function verifyTrajectory(list: TrajectoryRecord[]): boolean {
 	let prevHash = GENESIS_HASH;
 	for (let i = 0; i < list.length; i += 1) {
-		const rec = list[i]!;
+		const rec = list[i] as TrajectoryRecord;
 		const expectedSeq = i === 0 ? 1 : (list[i - 1]?.seq ?? 0) + 1;
 		if (rec.seq !== expectedSeq) return false;
 		const { hash, ...rest } = rec;

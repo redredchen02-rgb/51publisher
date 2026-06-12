@@ -44,7 +44,7 @@ export function AuthView({ onLogin }: { onLogin: () => void }) {
 		<div style={{ padding: 24, textAlign: "center" }}>
 			<h2 style={{ fontSize: 16, margin: "0 0 12px" }}>登录</h2>
 			<form onSubmit={handleSubmit}>
-				<label style={labelStyle}>密码</label>
+				<div style={labelStyle}>密码</div>
 				<input
 					type="password"
 					style={inputStyle}

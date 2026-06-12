@@ -234,7 +234,7 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 			>
 				<h1 style={{ fontSize: 16, margin: 0 }}>待审核选题</h1>
 				<div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-					<button
+					<button type="button"
 						disabled={busy || adapters.length === 0}
 						onClick={() => void handleQuickDraft()}
 						style={{
@@ -246,7 +246,7 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 					>
 						{quickDraftStatus === "备稿中…" ? "备稿中…" : "今日一键备稿"}
 					</button>
-					<button
+					<button type="button"
 						disabled={busy || adapters.length === 0}
 						onClick={() => {
 							void (async () => {
@@ -272,7 +272,7 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 					>
 						⚡ 立即抓取
 					</button>
-					<button
+					<button type="button"
 						onClick={() => void refresh()}
 						style={{
 							...btn,
@@ -283,7 +283,7 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 					>
 						↻ 刷新
 					</button>
-					<button
+					<button type="button"
 						onClick={onBack}
 						style={{
 							...btn,
@@ -339,7 +339,7 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 						))}
 					</ul>
 					<div style={{ display: "flex", gap: 8 }}>
-						<button
+						<button type="button"
 							onClick={() => void handleQuickDraftConfirm()}
 							disabled={busy}
 							style={{
@@ -351,7 +351,7 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 						>
 							确认生成
 						</button>
-						<button
+						<button type="button"
 							onClick={() => {
 								setQuickDraftConfirm(null);
 								setQuickDraftStatus("");
@@ -435,7 +435,7 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 											{t.sourceUrl.slice(0, 60)}
 										</div>
 									</div>
-									<button
+									<button type="button"
 										onClick={() => toggleExpand(t.id, t.facts)}
 										aria-expanded={expanded.has(t.id)}
 										style={{
@@ -483,7 +483,7 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 											>
 												{FACTS_KEYS.map((key) => (
 													<React.Fragment key={key}>
-														<label
+														<div
 															style={{
 																fontSize: 11,
 																color: "#888",
@@ -491,7 +491,7 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 															}}
 														>
 															{key}
-														</label>
+														</div>
 														<input
 															type="text"
 															value={(localFacts[t.id] ?? t.facts)[key] ?? ""}
@@ -535,7 +535,7 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 					</ul>
 
 					<div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-						<button
+						<button type="button"
 							onClick={() => void handleApproveSelected()}
 							disabled={selected.size === 0 || busy}
 							style={{
@@ -546,7 +546,7 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 						>
 							{busy ? "处理中…" : `批准 (${selected.size}) → 批量`}
 						</button>
-						<button
+						<button type="button"
 							onClick={() => void handleRejectSelected()}
 							disabled={selected.size === 0 || busy}
 							style={{

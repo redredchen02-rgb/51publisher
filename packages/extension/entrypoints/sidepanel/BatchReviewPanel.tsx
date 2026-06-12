@@ -77,8 +77,8 @@ function GroundingStrip({
 			{/* 连结来源(程式注入) */}
 			{links.length > 0 && (
 				<ul style={{ margin: "4px 0 0", padding: "0 0 0 12px" }}>
-					{links.map((l, i) => (
-						<li key={i} style={{ color: l.sourced ? "#389e0d" : "#cf1322" }}>
+					{links.map((l) => (
+						<li key={l.url} style={{ color: l.sourced ? "#389e0d" : "#cf1322" }}>
 							{l.sourced ? "✓ 程式注入(不可编造)" : "✗ 非来源(疑似编造)"}{" "}
 							<code style={{ wordBreak: "break-all" }}>{l.url}</code>
 						</li>
@@ -124,8 +124,8 @@ function GroundingStrip({
 				<ul
 					style={{ margin: "2px 0 0", padding: "0 0 0 12px", color: "#cf1322" }}
 				>
-					{verdict.reasons.map((r, i) => (
-						<li key={i}>{r}</li>
+					{verdict.reasons.map((r) => (
+						<li key={r}>{r}</li>
 					))}
 				</ul>
 			)}
@@ -431,6 +431,7 @@ export function BatchReviewPanel(props: Props) {
 				}}
 			>
 				<div
+					role="status"
 					style={{
 						display: "flex",
 						alignItems: "center",
@@ -685,6 +686,7 @@ export function BatchReviewPanel(props: Props) {
 								{/* U4:已读绿色徽章 */}
 								{it.status === "awaiting-approval" && readItems?.has(it.id) && (
 									<span
+										role="img"
 										aria-label="已读"
 										style={{
 											marginLeft: 4,
@@ -728,6 +730,7 @@ export function BatchReviewPanel(props: Props) {
 									</span>
 								)}
 								<span
+									role="status"
 									aria-label={`状态 ${it.status}`}
 									style={{
 										marginLeft: 8,
@@ -744,22 +747,25 @@ export function BatchReviewPanel(props: Props) {
 								onDiscardItem &&
 								(discardPickerId === it.id ? (
 									// 展示原因选择器
-									<div
+									<span
 										style={{
-											display: "flex",
+											display: "inline-flex",
 											alignItems: "center",
 											gap: 4,
 											marginLeft: 4,
 											flexShrink: 0,
 										}}
-										onClick={(e) => e.stopPropagation()}
 									>
 										<select
 											aria-label="拒绝原因"
 											value={discardReason}
-											onChange={(e) =>
-												setDiscardReason(e.target.value as RejectionReason)
-											}
+											onChange={(e) => {
+												e.stopPropagation();
+												setDiscardReason(
+													e.target.value as RejectionReason,
+												);
+											}}
+											onClick={(e) => e.stopPropagation()}
 											style={{
 												fontSize: 11,
 												padding: "1px 2px",
@@ -780,7 +786,8 @@ export function BatchReviewPanel(props: Props) {
 										<button
 											type="button"
 											aria-label={`确认否决 ${it.topic}`}
-											onClick={() => {
+											onClick={(e) => {
+												e.stopPropagation();
 												setDiscardPickerId(null);
 												onDiscardItem(it.id, discardReason);
 											}}
@@ -812,7 +819,7 @@ export function BatchReviewPanel(props: Props) {
 										>
 											取消
 										</button>
-									</div>
+									</span>
 								) : (
 									<button
 										type="button"
@@ -851,6 +858,7 @@ export function BatchReviewPanel(props: Props) {
 								{it.status === "gate-failed" && (
 									<div style={{ marginBottom: 6 }}>
 										<span
+											role="status"
 											aria-label="接地拦截原因"
 											style={{
 												display: "inline-block",
@@ -995,6 +1003,7 @@ export function BatchReviewPanel(props: Props) {
 								it.error?.startsWith("grounding-blocked:") ? (
 									<div style={{ marginTop: 6 }}>
 										<span
+											role="alert"
 											aria-label="内容审核失败"
 											style={{
 												display: "inline-block",

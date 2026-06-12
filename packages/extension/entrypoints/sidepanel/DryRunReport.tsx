@@ -41,7 +41,7 @@ export function DryRunReport() {
 				<h2 style={{ fontSize: 14, margin: 0, color: "#0958d9" }}>
 					🧪 预演填充报告（{report.items.length} 条）
 				</h2>
-				<button onClick={() => void handleClear()} style={btn}>
+				<button type="button" onClick={() => void handleClear()} style={btn}>
 					清除报告
 				</button>
 			</div>

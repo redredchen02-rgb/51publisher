@@ -40,13 +40,7 @@ export function App() {
 	const { logs, logError, retrieveLogs, clearLogs, exportLogs } =
 		useErrorLogger();
 	const [showLogs, setShowLogs] = useState(false);
-	const {
-		history,
-		recordOperation,
-		retrieveHistory,
-		clearHistory,
-		exportHistory,
-	} = useOperationHistory();
+	const { recordOperation } = useOperationHistory();
 	const [_showHistory, _setShowHistory] = useState(false);
 	const [confirmNext, setConfirmNext] = useState(false);
 	const [toast, setToast] = useState<{
@@ -243,41 +237,51 @@ export function App() {
 			>
 				<h1 style={{ fontSize: 16, margin: 0 }}>51publisher 填充助手</h1>
 				<div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-					<span
+					<button
+						type="button"
 						onClick={() => {
 							if (!authenticated) setView("auth");
+						}}
+						onKeyDown={(e) => {
+							if (!authenticated && (e.key === "Enter" || e.key === " ")) {
+								setView("auth");
+							}
 						}}
 						style={{
 							fontSize: 11,
 							color: authenticated ? "#389e0d" : "#cf1322",
 							cursor: authenticated ? "default" : "pointer",
 							userSelect: "none",
+							background: "none",
+							border: "none",
+							padding: 0,
+							fontFamily: "inherit",
 						}}
 					>
 						{authenticated ? "已登录" : "未登录"}
-					</span>
-					<button
+					</button>
+					<button type="button"
 						onClick={() => setView("pending")}
 						className="btn btn-plain"
 						aria-label="待审核"
 					>
 						◎ 待审
 					</button>
-					<button
+					<button type="button"
 						onClick={() => setView("today")}
 						className="btn btn-plain"
 						aria-label="今日备稿"
 					>
 						☀ 今日
 					</button>
-					<button
+					<button type="button"
 						onClick={() => setView("batch")}
 						className="btn btn-plain"
 						aria-label="批量"
 					>
 						≣ 批量
 					</button>
-					<button
+					<button type="button"
 						onClick={() => setView("settings")}
 						className="btn btn-plain"
 						aria-label="设置"
@@ -285,7 +289,7 @@ export function App() {
 						⚙ 设置
 					</button>
 					<KeyboardShortcutsHelp />
-					<button
+					<button type="button"
 						onClick={() => {
 							setShowLogs(!showLogs);
 							if (!showLogs) void retrieveLogs();
@@ -351,7 +355,7 @@ export function App() {
 					>
 						<span style={{ fontWeight: 600 }}>错误日志</span>
 						<div style={{ display: "flex", gap: 8 }}>
-							<button
+							<button type="button"
 								onClick={() => {
 									const exported = exportLogs();
 									void navigator.clipboard?.writeText(exported);
@@ -366,7 +370,7 @@ export function App() {
 							>
 								导出
 							</button>
-							<button
+							<button type="button"
 								onClick={() => void clearLogs()}
 								style={{
 									border: "none",
@@ -437,7 +441,7 @@ export function App() {
 						progress={loadingState.progress}
 						label={loadingState.message}
 					/>
-					<button
+					<button type="button"
 						onClick={cancelGenerate}
 						className="btn btn-plain"
 						style={{ padding: "2px 8px", marginTop: 6 }}
@@ -474,7 +478,7 @@ export function App() {
 
 			{mode === "partial" && (
 				<div style={{ marginTop: 8, fontSize: 12 }}>
-					<button onClick={copyBody} className="btn btn-plain">
+					<button type="button" onClick={copyBody} className="btn btn-plain">
 						复制正文
 					</button>
 					<span style={{ color: "var(--text-muted)", marginLeft: 8 }}>
@@ -489,14 +493,14 @@ export function App() {
 					style={{ marginTop: 8, fontSize: 12, color: "#cf1322" }}
 				>
 					正文尚未确认填入,确定进入下一条?
-					<button
+					<button type="button"
 						onClick={handleNext}
 						className="btn btn-plain"
 						style={{ padding: "2px 8px", marginLeft: 6 }}
 					>
 						确定
 					</button>
-					<button
+					<button type="button"
 						onClick={() => setConfirmNext(false)}
 						className="btn btn-plain"
 						style={{ padding: "2px 8px", marginLeft: 4 }}
@@ -508,7 +512,7 @@ export function App() {
 
 			<div style={{ display: "flex", gap: 8, marginTop: 14 }}>
 				{(mode === "empty" || mode === "generating" || mode === "draft") && (
-					<button
+					<button type="button"
 						onClick={handleGenerate}
 						disabled={busy}
 						className="btn btn-primary"
@@ -518,7 +522,7 @@ export function App() {
 				)}
 				{draft &&
 					(mode === "draft" || mode === "filled" || mode === "partial") && (
-						<button
+						<button type="button"
 							onClick={handleFill}
 							disabled={busy}
 							className="btn btn-primary"
@@ -527,7 +531,7 @@ export function App() {
 						</button>
 					)}
 				{draft && (
-					<button
+					<button type="button"
 						onClick={handleNext}
 						disabled={busy}
 						className="btn btn-plain"

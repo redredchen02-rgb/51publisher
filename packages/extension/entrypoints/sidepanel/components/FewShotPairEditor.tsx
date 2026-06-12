@@ -50,7 +50,10 @@ export function FewShotPairEditor({
 		const next = [...pairs];
 		const target = index + dir;
 		if (target < 0 || target >= next.length) return;
-		[next[index], next[target]] = [next[target]!, next[index]!];
+		const a = next[target];
+		const b = next[index];
+		if (!a || !b) return;
+		[next[index], next[target]] = [a, b];
 		onChange(next);
 	}
 
@@ -91,7 +94,7 @@ export function FewShotPairEditor({
 
 			{pairs.map((pair, i) => (
 				<div
-					key={i}
+					key={pair.input}
 					style={{
 						border: "1px solid #e8e8e8",
 						borderRadius: 4,

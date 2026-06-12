@@ -114,8 +114,8 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 		setError("");
 		try {
 			await fn();
-		} catch {
-			setError("操作失败,请重试。");
+		} catch (e) {
+			setError(e instanceof Error ? e.message : "操作失败,请重试。");
 		} finally {
 			setBusy(false);
 		}
@@ -245,7 +245,7 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 			>
 				<div style={{ display: "flex", gap: 4, alignItems: "center" }}>
 					<h1 style={{ fontSize: 16, margin: 0 }}>批量发布</h1>
-					<button
+					<button type="button"
 						onClick={() => setView("batch")}
 						style={{
 							...btn,
@@ -257,7 +257,7 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 					>
 						批次{batchActive ? " •" : ""}
 					</button>
-					<button
+					<button type="button"
 						onClick={() => setView("history")}
 						style={{
 							...btn,
@@ -270,7 +270,7 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 						历史
 					</button>
 				</div>
-				<button
+				<button type="button"
 					onClick={onBack}
 					style={{
 						...btn,
@@ -343,7 +343,7 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 					<div style={{ color: "#874d00", fontSize: 12, marginTop: 2 }}>
 						请前往「历史」面板核对后再继续。
 					</div>
-					<button
+					<button type="button"
 						onClick={() => {
 							clearPendingQuarantineAlert().catch(() => {});
 							setQuarantineAlert(0);
@@ -475,7 +475,7 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 				batch &&
 				batchPhase(batch) === "awaiting-approval" && (
 					<div style={{ marginTop: 8 }}>
-						<button
+						<button type="button"
 							onClick={() => void handleIterate()}
 							disabled={busy}
 							title="改了 Settings 的 prompt/few-shot 后,用同批题目重跑生成(只生成不发,可对比效果)"
@@ -517,7 +517,7 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 						disabled={busy}
 						onChange={(e) => setTopics(e.target.value)}
 					/>
-					<button
+					<button type="button"
 						onClick={() => void handleStart()}
 						disabled={busy}
 						style={{

@@ -62,6 +62,46 @@ export const GenerateDraftResponse = Type.Object({
 	}),
 });
 
+export const ReviewDraftBody = Type.Object({
+	draft: Type.Object({
+		id: Type.String(),
+		title: Type.String(),
+		subtitle: Type.String(),
+		category: Type.String(),
+		coverImageUrl: Type.String(),
+		body: Type.String(),
+		tags: Type.Array(Type.String()),
+		description: Type.String(),
+		postStatus: Type.String(),
+		publishedAt: Type.String(),
+		mediaId: Type.String(),
+		status: Type.String(),
+		createdAt: Type.String(),
+	}),
+	criteriaPrompt: Type.Optional(Type.String()),
+	settings: SettingsSchema,
+});
+
+export const RewriteDraftBody = Type.Object({
+	draft: Type.Object({
+		id: Type.String(),
+		title: Type.String(),
+		subtitle: Type.String(),
+		category: Type.String(),
+		coverImageUrl: Type.String(),
+		body: Type.String(),
+		tags: Type.Array(Type.String()),
+		description: Type.String(),
+		postStatus: Type.String(),
+		publishedAt: Type.String(),
+		mediaId: Type.String(),
+		status: Type.String(),
+		createdAt: Type.String(),
+	}),
+	failedDims: Type.Array(Type.String()),
+	settings: SettingsSchema,
+});
+
 // ── Auth ──────────────────────────────────────────────
 export const LoginBody = Type.Object({
 	// maxLength bounds the synchronous scrypt cost per request (micro-DoS guard).

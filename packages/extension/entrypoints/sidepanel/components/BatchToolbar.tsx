@@ -45,7 +45,7 @@ export function BatchToolbar({
 					已选择 {selectedCount}/{totalCount} 项
 				</span>
 				<div style={{ display: "flex", gap: 8 }}>
-					<button
+					<button type="button"
 						onClick={onSelectAll}
 						disabled={isProcessing}
 						style={{
@@ -61,7 +61,7 @@ export function BatchToolbar({
 						全选
 					</button>
 					{selectedCount > 0 && (
-						<button
+						<button type="button"
 							onClick={onClearSelection}
 							disabled={isProcessing}
 							style={{
@@ -82,7 +82,7 @@ export function BatchToolbar({
 
 			{selectedCount > 0 && (
 				<div style={{ display: "flex", gap: 8 }}>
-					<button
+					<button type="button"
 						onClick={onApprove}
 						disabled={isProcessing}
 						style={{
@@ -97,7 +97,7 @@ export function BatchToolbar({
 					>
 						{isProcessing ? "处理中..." : "批量批准"}
 					</button>
-					<button
+					<button type="button"
 						onClick={onDiscard}
 						disabled={isProcessing}
 						style={{

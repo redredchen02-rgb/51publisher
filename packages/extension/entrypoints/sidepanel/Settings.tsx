@@ -251,7 +251,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
 	return (
 		<div>
-			<button onClick={onClose} style={{ fontSize: 13, marginBottom: 8 }}>
+			<button type="button" onClick={onClose} style={{ fontSize: 13, marginBottom: 8 }}>
 				← 返回
 			</button>
 			<h2 style={{ fontSize: 15, margin: "0 0 4px" }}>设置</h2>
@@ -260,20 +260,20 @@ export function Settings({ onClose }: { onClose: () => void }) {
 				⚙️ 大模型 endpoint 与 API Key 已在后端服务 .env 中配置，扩展不直接管理。
 			</p>
 
-			<label style={labelStyle}>LLM Endpoint (https://)</label>
+			<div style={labelStyle}>LLM Endpoint (https://)</div>
 			<input
 				style={inputStyle}
 				value={endpoint}
 				placeholder="https://api.openai.com/v1/chat/completions"
 				onChange={(e) => setEndpoint(e.target.value)}
 			/>
-			<label style={labelStyle}>模型名</label>
+			<div style={labelStyle}>模型名</div>
 			<input
 				style={inputStyle}
 				value={model}
 				onChange={(e) => setModel(e.target.value)}
 			/>
-			<label style={labelStyle}>API Key</label>
+			<div style={labelStyle}>API Key</div>
 			<input
 				style={inputStyle}
 				type="password"
@@ -318,7 +318,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 						<p style={{ fontSize: 11, color: "#888", margin: "0 0 6px" }}>
 							主模型失败时自动回退。留空即不启用。
 						</p>
-						<label style={labelStyle}>备用模型名(可选)</label>
+						<div style={labelStyle}>备用模型名(可选)</div>
 						<input
 							style={inputStyle}
 							value={fallbackModel}
@@ -329,14 +329,14 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			</div>
 
 			{/* 后端连接（可选，用于 published_posts 注册表双写） */}
-			<label style={labelStyle}>后端 URL（可选，http://localhost:3001）</label>
+			<div style={labelStyle}>后端 URL（可选，http://localhost:3001）</div>
 			<input
 				style={inputStyle}
 				value={backendUrl}
 				placeholder="http://localhost:3001"
 				onChange={(e) => setBackendUrl(e.target.value)}
 			/>
-			<label style={labelStyle}>后端 JWT Token（可选）</label>
+			<div style={labelStyle}>后端 JWT Token（可选）</div>
 			<input
 				style={inputStyle}
 				type="password"
@@ -345,7 +345,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			/>
 
 			{/* 今日一键备稿:每日批量上限 */}
-			<label style={labelStyle}>每日批量上限（1-20，默认 5）</label>
+			<div style={labelStyle}>每日批量上限（1-20，默认 5）</div>
 			<input
 				style={inputStyle}
 				type="number"
@@ -389,7 +389,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			<label style={labelStyle}>
 				Prompt 模板(占位符:{"{{topic}}"} 选题 / {"{{facts}}"} 事实块 /{" "}
 				{"{{fewshot}}"} 范例)
-				<button
+				<button type="button"
 					style={{ marginLeft: 8, fontSize: 11 }}
 					onClick={() => setPromptTemplate(DEFAULT_SETTINGS.promptTemplate)}
 				>
@@ -408,7 +408,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
 			<label style={labelStyle}>
 				Few-shot 原始文本(旧格式兼容,优先使用上方结构化编辑器)
-				<button
+				<button type="button"
 					style={{ marginLeft: 8, fontSize: 11 }}
 					onClick={() =>
 						setFewShotExamples(DEFAULT_SETTINGS.fewShotExamples ?? "")
@@ -426,7 +426,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 				⚠️ 范例里别写真实連結(会随每次请求发往后端);用占位即可。
 			</p>
 
-			<label style={labelStyle}>推荐标签清单 (每行一个或逗号分隔)</label>
+			<div style={labelStyle}>推荐标签清单 (每行一个或逗号分隔)</div>
 			<textarea
 				style={{ ...inputStyle, minHeight: 80 }}
 				placeholder={"漢化\n無修正\n校園日常\n…（约 20–50 条为宜）"}
@@ -437,9 +437,9 @@ export function Settings({ onClose }: { onClose: () => void }) {
 				AI 生成时只从此列表选择标签；留空则仅约束分类不约束标签。
 			</p>
 
-			<label style={labelStyle}>
+			<div style={labelStyle}>
 				AI 评审标准（Phase 3，留空使用内置四维标准）
-			</label>
+			</div>
 			<textarea
 				style={{ ...inputStyle, minHeight: 80 }}
 				placeholder={
@@ -463,7 +463,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
 			<label style={labelStyle}>
 				Prompt 管理
-				<button
+				<button type="button"
 					style={{ marginLeft: 8, fontSize: 11 }}
 					onClick={handleLoadPrompts}
 				>
@@ -484,7 +484,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 					))}
 				</select>
 			)}
-			<button
+			<button type="button"
 				style={{ fontSize: 11, marginTop: 2 }}
 				onClick={handleSaveToBackend}
 			>
@@ -498,7 +498,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
 			<label style={labelStyle}>
 				字段映射(JSON)
-				<button
+				<button type="button"
 					style={{ marginLeft: 8, fontSize: 11 }}
 					onClick={() =>
 						setMappingText(
@@ -527,7 +527,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			)}
 			{saved && <p style={{ color: "#389e0d", fontSize: 12 }}>已保存。</p>}
 
-			<button
+			<button type="button"
 				onClick={handleSave}
 				style={{
 					marginTop: 10,

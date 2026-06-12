@@ -26,7 +26,7 @@ function Field({
 }) {
 	return (
 		<div style={rowStyle}>
-			<label style={labelStyle}>{label}</label>
+			<div style={labelStyle}>{label}</div>
 			{children}
 		</div>
 	);

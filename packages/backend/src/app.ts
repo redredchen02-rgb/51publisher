@@ -28,6 +28,8 @@ import { err } from "./utils/error-response.js";
 import {
 	GenerateDraftBody as GenerateDraftBodySchema,
 	GenerateDraftResponse,
+	ReviewDraftBody as ReviewDraftBodySchema,
+	RewriteDraftBody as RewriteDraftBodySchema,
 } from "./utils/schemas.js";
 
 export function buildApp(): FastifyInstance {
@@ -188,61 +190,69 @@ export function registerDraftRoutes(app: FastifyInstance): void {
 		},
 	);
 
-	app.post("/api/v1/drafts/review", async (request, reply) => {
-		const { draft, criteriaPrompt, settings } = request.body as {
-			draft: import("@51publisher/shared").ContentDraft;
-			criteriaPrompt?: string;
-			settings: import("@51publisher/shared").Settings;
-		};
-		const apiKey = process.env.LLM_API_KEY || "";
-		const backendEndpoint = process.env.LLM_ENDPOINT || "";
-		if (!apiKey || !backendEndpoint)
-			return err(
-				reply,
-				500,
-				"Backend not configured (LLM_API_KEY/LLM_ENDPOINT missing).",
-			);
-		const resolvedSettings = {
-			...settings,
-			endpoint: backendEndpoint,
-			model: process.env.LLM_MODEL || settings.model,
-		};
-		const result = await reviewDraftLlm(draft, criteriaPrompt, {
-			settings: resolvedSettings,
-			apiKey,
-		});
-		if (!result.ok) return err(reply, 422, result.error);
-		return result;
-	});
+	app.post<{ Body: { draft: import("@51publisher/shared").ContentDraft; criteriaPrompt?: string; settings: import("@51publisher/shared").Settings } }>(
+		"/api/v1/drafts/review",
+		{
+			schema: {
+				body: ReviewDraftBodySchema,
+			},
+		},
+		async (request, reply) => {
+			const { draft, criteriaPrompt, settings } = request.body;
+			const apiKey = process.env.LLM_API_KEY || "";
+			const backendEndpoint = process.env.LLM_ENDPOINT || "";
+			if (!apiKey || !backendEndpoint)
+				return err(
+					reply,
+					500,
+					"Backend not configured (LLM_API_KEY/LLM_ENDPOINT missing).",
+				);
+			const resolvedSettings = {
+				...settings,
+				endpoint: backendEndpoint,
+				model: process.env.LLM_MODEL || settings.model,
+			};
+			const result = await reviewDraftLlm(draft, criteriaPrompt, {
+				settings: resolvedSettings,
+				apiKey,
+			});
+			if (!result.ok) return err(reply, 422, result.error);
+			return result;
+		},
+	);
 
-	app.post("/api/v1/drafts/rewrite", async (request, reply) => {
-		const { draft, failedDims, settings } = request.body as {
-			draft: import("@51publisher/shared").ContentDraft;
-			failedDims: string[];
-			settings: import("@51publisher/shared").Settings;
-		};
-		const apiKey = process.env.LLM_API_KEY || "";
-		const backendEndpoint = process.env.LLM_ENDPOINT || "";
-		if (!apiKey || !backendEndpoint)
-			return err(
-				reply,
-				500,
-				"Backend not configured (LLM_API_KEY/LLM_ENDPOINT missing).",
-			);
-		if (!Array.isArray(failedDims) || failedDims.length === 0)
-			return err(reply, 400, "failedDims must be a non-empty array.");
-		const resolvedSettings = {
-			...settings,
-			endpoint: backendEndpoint,
-			model: process.env.LLM_MODEL || settings.model,
-		};
-		const result = await rewriteDraftLlm(draft, failedDims, {
-			settings: resolvedSettings,
-			apiKey,
-		});
-		if (!result.ok) return err(reply, 422, result.error);
-		return result;
-	});
+	app.post<{ Body: { draft: import("@51publisher/shared").ContentDraft; failedDims: string[]; settings: import("@51publisher/shared").Settings } }>(
+		"/api/v1/drafts/rewrite",
+		{
+			schema: {
+				body: RewriteDraftBodySchema,
+			},
+		},
+		async (request, reply) => {
+			const { draft, failedDims, settings } = request.body;
+			const apiKey = process.env.LLM_API_KEY || "";
+			const backendEndpoint = process.env.LLM_ENDPOINT || "";
+			if (!apiKey || !backendEndpoint)
+				return err(
+					reply,
+					500,
+					"Backend not configured (LLM_API_KEY/LLM_ENDPOINT missing).",
+				);
+			if (failedDims.length === 0)
+				return err(reply, 400, "failedDims must be a non-empty array.");
+			const resolvedSettings = {
+				...settings,
+				endpoint: backendEndpoint,
+				model: process.env.LLM_MODEL || settings.model,
+			};
+			const result = await rewriteDraftLlm(draft, failedDims, {
+				settings: resolvedSettings,
+				apiKey,
+			});
+			if (!result.ok) return err(reply, 422, result.error);
+			return result;
+		},
+	);
 }
 
 export function startBackgroundJobs(app: FastifyInstance): void {

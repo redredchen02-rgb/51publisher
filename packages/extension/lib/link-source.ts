@@ -14,8 +14,9 @@ export interface LinkCheck {
 export function extractLinks(html: string): string[] {
 	const links: string[] = [];
 	const regex = /<a\s+(?:[^>]*?\s+)?href=(["'])(.*?)\1/gi;
-	let match;
-	while ((match = regex.exec(html)) !== null) {
+	while (true) {
+		const match = regex.exec(html);
+		if (match === null) break;
 		let href = (match[2] ?? "").trim();
 		// Decode basic HTML entities that might have been escaped in href
 		href = href

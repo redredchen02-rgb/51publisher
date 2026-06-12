@@ -101,7 +101,8 @@ export async function fetchPendingTopics(
 		if (!res.ok) return [];
 		const data = (await res.json()) as PendingTopicsResponse;
 		return data.ok && data.topics ? data.topics : [];
-	} catch {
+	} catch (e) {
+		console.warn("[pending-client] fetchPendingTopics:", e);
 		return [];
 	}
 }
@@ -136,7 +137,8 @@ export async function patchPendingTopic(
 			return false;
 		}
 		return res.ok;
-	} catch {
+	} catch (e) {
+		console.warn("[pending-client] patchPendingTopic:", e);
 		return false;
 	}
 }
@@ -167,7 +169,8 @@ export async function triggerScrape(
 			return false;
 		}
 		return res.ok;
-	} catch {
+	} catch (e) {
+		console.warn("[pending-client] triggerScrape:", e);
 		return false;
 	}
 }
@@ -201,7 +204,8 @@ export async function fetchAdapters(timeoutMs = 10_000): Promise<string[]> {
 			adapters?: { name: string }[];
 		};
 		return data.ok && data.adapters ? data.adapters.map((a) => a.name) : [];
-	} catch {
+	} catch (e) {
+		console.warn("[pending-client] fetchAdapters:", e);
 		return [];
 	}
 }
@@ -228,19 +232,20 @@ export async function updatePendingStatus(
 			{
 				method: "PATCH",
 				headers,
-				body: JSON.stringify({
-					status,
-					...(rejectedReason ? { rejectedReason } : {}),
-				}),
-				timeoutMs,
-			},
-		);
-		if (res.status === 401) {
-			await clearToken();
-			return false;
-		}
-		return res.ok;
-	} catch {
+			body: JSON.stringify({
+				status,
+				...(rejectedReason ? { rejectedReason } : {}),
+			}),
+			timeoutMs,
+		},
+	);
+	if (res.status === 401) {
+		await clearToken();
 		return false;
 	}
+	return res.ok;
+} catch (e) {
+	console.warn("[pending-client] updatePendingStatus:", e);
+	return false;
+}
 }
