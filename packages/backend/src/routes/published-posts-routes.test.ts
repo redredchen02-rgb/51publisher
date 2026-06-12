@@ -189,13 +189,18 @@ describe("POST /api/v1/published-posts", () => {
 // ================================================================
 
 describe("GET /api/v1/published-posts", () => {
-	it("无记录 → { ok: true, posts: [] }", async () => {
+	it("无记录 → { ok: true, posts: [], total: 0 }", async () => {
 		const res = await app.inject({
 			method: "GET",
 			url: "/api/v1/published-posts",
 		});
 		expect(res.statusCode).toBe(200);
-		expect(res.json()).toEqual({ ok: true, posts: [] });
+		const body = res.json();
+		expect(body.ok).toBe(true);
+		expect(body.posts).toEqual([]);
+		expect(body.total).toBe(0);
+		expect(body.limit).toBe(50);
+		expect(body.offset).toBe(0);
 	});
 
 	it("返回所有记录", async () => {

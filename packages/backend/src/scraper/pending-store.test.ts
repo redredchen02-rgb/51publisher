@@ -74,7 +74,7 @@ describe("pending-store (SQLite)", () => {
 		await new Promise((r) => setTimeout(r, 10));
 		await savePendingTopic(topic);
 		const loaded = await loadPendingTopic(topic.id);
-		expect(loaded!.updatedAt >= before).toBe(true);
+		expect(loaded?.updatedAt !== undefined && loaded.updatedAt >= before).toBe(true);
 	});
 
 	// ---- listPendingTopics ----
@@ -154,7 +154,7 @@ describe("pending-store (SQLite)", () => {
 		const updated = await updatePendingTopicStatus(topic.id, "approved");
 		expect(updated).not.toBeNull();
 		expect(updated?.status).toBe("approved");
-		expect(updated!.updatedAt > topic.updatedAt).toBe(true);
+		expect((updated?.updatedAt as string) > topic.updatedAt).toBe(true);
 	});
 
 	it("reject with reason → rejectedReason 被保存", async () => {

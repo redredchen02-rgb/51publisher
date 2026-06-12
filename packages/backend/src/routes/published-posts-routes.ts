@@ -130,21 +130,42 @@ export async function registerPublishedPostsRoutes(
 		},
 	);
 
-	app.get<{ Querystring: { sourceTitle?: string } }>(
-		"/api/v1/published-posts",
-		async (request) => {
-			const db = getDb();
-			const { sourceTitle } = request.query;
-			const rows = sourceTitle
-				? (db
-						.prepare(
-							"SELECT * FROM published_posts WHERE source_title = ? ORDER BY created_at DESC",
-						)
-						.all(sourceTitle) as Record<string, unknown>[])
-				: (db
-						.prepare("SELECT * FROM published_posts ORDER BY created_at DESC")
-						.all() as Record<string, unknown>[]);
-			return { ok: true, posts: rows.map(rowToPost) };
-		},
-	);
+	app.get<{
+		Querystring: { sourceTitle?: string; limit?: string; offset?: string };
+	}>("/api/v1/published-posts", async (request) => {
+		const db = getDb();
+		const { sourceTitle, limit: limitStr, offset: offsetStr } = request.query;
+		const limit = Math.min(Math.max(Number(limitStr) || 50, 1), 500);
+		const offset = Math.max(Number(offsetStr) || 0, 0);
+
+		const rows = sourceTitle
+			? (db
+					.prepare(
+						"SELECT * FROM published_posts WHERE source_title = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+					)
+					.all(sourceTitle, limit, offset) as Record<string, unknown>[])
+			: (db
+					.prepare(
+						"SELECT * FROM published_posts ORDER BY created_at DESC LIMIT ? OFFSET ?",
+					)
+					.all(limit, offset) as Record<string, unknown>[]);
+
+		const totalRow = sourceTitle
+			? (db
+					.prepare(
+						"SELECT COUNT(*) as count FROM published_posts WHERE source_title = ?",
+					)
+					.get(sourceTitle) as { count: number })
+			: (db.prepare("SELECT COUNT(*) as count FROM published_posts").get() as {
+					count: number;
+				});
+
+		return {
+			ok: true,
+			posts: rows.map(rowToPost),
+			total: totalRow.count,
+			limit,
+			offset,
+		};
+	});
 }
