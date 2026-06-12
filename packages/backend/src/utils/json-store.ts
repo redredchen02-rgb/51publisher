@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 export interface JsonFileStoreOptions<T> {
@@ -65,22 +65,39 @@ export class JsonFileStore<T extends { id: string }> {
 		const files = await readdir(this.dirPath);
 		const jsonFiles = files.filter((f) => f.endsWith(".json"));
 
-		const items: T[] = [];
+		// Optimization: stat files to get modification times, sort by mtime
+		// Then only read the top N files needed for the limit
+		type FileInfo = { name: string; mtime: number };
+		const fileInfos: FileInfo[] = [];
+
 		for (const f of jsonFiles) {
 			try {
-				const raw = await readFile(join(this.dirPath, f), "utf-8");
+				const filePath = join(this.dirPath, f);
+				const s = await stat(filePath);
+				fileInfos.push({ name: f, mtime: s.mtimeMs });
+			} catch {
+				// skip inaccessible
+			}
+		}
+
+		// Sort by modification time (newest first)
+		fileInfos.sort((a, b) => b.mtime - a.mtime);
+
+		// If limit specified, only read that many files
+		const filesToRead = opts?.limit
+			? fileInfos.slice(0, opts.limit)
+			: fileInfos;
+
+		const items: T[] = [];
+		for (const fi of filesToRead) {
+			try {
+				const raw = await readFile(join(this.dirPath, fi.name), "utf-8");
 				items.push(JSON.parse(raw) as T);
 			} catch {
 				// skip corrupt
 			}
 		}
 
-		items.sort((a, b) => {
-			const aTime = String(a[this.updatedAtKey] ?? "");
-			const bTime = String(b[this.updatedAtKey] ?? "");
-			return bTime.localeCompare(aTime);
-		});
-
-		return opts?.limit ? items.slice(0, opts.limit) : items;
+		return items;
 	}
 }
