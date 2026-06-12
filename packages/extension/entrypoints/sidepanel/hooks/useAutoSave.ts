@@ -1,42 +1,32 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useCallback, useRef } from 'react';
+import { saveCurrentDraft } from '../../../lib/storage';
+import type { ContentDraft } from '@51publisher/shared';
 
-export interface UseAutoSaveOptions<T> {
-	value: T;
-	onSave: (value: T) => Promise<void> | void;
-	debounceMs?: number;
-	enabled?: boolean;
+interface UseAutoSaveReturn {
+  saveDraft: (draft: ContentDraft, immediate?: boolean) => void;
 }
 
-export function useAutoSave<T>({
-	value,
-	onSave,
-	debounceMs = 1000,
-	enabled = true,
-}: UseAutoSaveOptions<T>): void {
-	const onSaveRef = useRef(onSave);
-	onSaveRef.current = onSave;
+export function useAutoSave(delay = 1000): UseAutoSaveReturn {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-	const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const isFirstRef = useRef(true);
+  const saveDraft = useCallback(
+    (draft: ContentDraft, immediate = false) => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
 
-	const flush = useCallback(
-		(v: T) => {
-			if (timerRef.current) clearTimeout(timerRef.current);
-			timerRef.current = setTimeout(() => void onSaveRef.current(v), debounceMs);
-		},
-		[debounceMs],
-	);
+      const doSave = () => {
+        saveCurrentDraft(draft).catch(console.error);
+      };
 
-	useEffect(() => {
-		if (!enabled) return;
-		// 跳过首次挂载
-		if (isFirstRef.current) {
-			isFirstRef.current = false;
-			return;
-		}
-		flush(value);
-		return () => {
-			if (timerRef.current) clearTimeout(timerRef.current);
-		};
-	}, [value, enabled, flush]);
+      if (immediate) {
+        doSave();
+      } else {
+        timerRef.current = setTimeout(doSave, delay);
+      }
+    },
+    [delay],
+  );
+
+  return { saveDraft };
 }

@@ -1,58 +1,71 @@
 // @vitest-environment jsdom
-import { renderHook } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { useAutoSave } from "./useAutoSave.js";
+import { renderHook, act } from "@testing-library/react";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { useAutoSave } from "./useAutoSave";
+import { saveCurrentDraft } from "../../../lib/storage";
 
-afterEach(() => vi.useRealTimers());
+vi.mock("../../../lib/storage", () => ({
+  saveCurrentDraft: vi.fn().mockResolvedValue(undefined),
+}));
 
-describe("useAutoSave", () => {
-	it("首次挂载不触发保存", () => {
-		vi.useFakeTimers();
-		const onSave = vi.fn();
-		renderHook(() => useAutoSave({ value: "initial", onSave, debounceMs: 200 }));
-		vi.advanceTimersByTime(300);
-		expect(onSave).not.toHaveBeenCalled();
-	});
+describe('useAutoSave', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+  });
 
-	it("value 变化后 debounce 触发保存", () => {
-		vi.useFakeTimers();
-		const onSave = vi.fn();
-		const { rerender } = renderHook(
-			({ value }: { value: string }) =>
-				useAutoSave({ value, onSave, debounceMs: 200 }),
-			{ initialProps: { value: "a" } },
-		);
-		rerender({ value: "b" });
-		vi.advanceTimersByTime(200);
-		expect(onSave).toHaveBeenCalledWith("b");
-	});
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
-	it("快速连续变化只触发一次保存", () => {
-		vi.useFakeTimers();
-		const onSave = vi.fn();
-		const { rerender } = renderHook(
-			({ value }: { value: string }) =>
-				useAutoSave({ value, onSave, debounceMs: 200 }),
-			{ initialProps: { value: "a" } },
-		);
-		rerender({ value: "b" });
-		rerender({ value: "c" });
-		rerender({ value: "d" });
-		vi.advanceTimersByTime(200);
-		expect(onSave).toHaveBeenCalledTimes(1);
-		expect(onSave).toHaveBeenCalledWith("d");
-	});
+  it('saves draft after delay', async () => {
+    const { result } = renderHook(() => useAutoSave());
+    const draft = { id: '1', title: '测试' };
+    
+    act(() => {
+      result.current.saveDraft(draft as any);
+    });
+    
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    
+    expect(saveCurrentDraft).toHaveBeenCalledWith(draft);
+  });
 
-	it("disabled 时不触发保存", () => {
-		vi.useFakeTimers();
-		const onSave = vi.fn();
-		const { rerender } = renderHook(
-			({ value, enabled }: { value: string; enabled: boolean }) =>
-				useAutoSave({ value, onSave, debounceMs: 200, enabled }),
-			{ initialProps: { value: "a", enabled: false } },
-		);
-		rerender({ value: "b", enabled: false });
-		vi.advanceTimersByTime(300);
-		expect(onSave).not.toHaveBeenCalled();
-	});
+  it('debounces multiple saves', async () => {
+    const { result } = renderHook(() => useAutoSave());
+    const draft1 = { id: '1', title: '测试1' };
+    const draft2 = { id: '2', title: '测试2' };
+    
+    act(() => {
+      result.current.saveDraft(draft1 as any);
+    });
+    
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    
+    act(() => {
+      result.current.saveDraft(draft2 as any);
+    });
+    
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    
+    expect(saveCurrentDraft).toHaveBeenCalledTimes(1);
+    expect(saveCurrentDraft).toHaveBeenCalledWith(draft2);
+  });
+
+  it('saves immediately when saveImmediately is true', async () => {
+    const { result } = renderHook(() => useAutoSave());
+    const draft = { id: '1', title: '测试' };
+    
+    act(() => {
+      result.current.saveDraft(draft as any, true);
+    });
+    
+    expect(saveCurrentDraft).toHaveBeenCalledWith(draft);
+  });
 });
