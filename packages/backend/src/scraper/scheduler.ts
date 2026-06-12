@@ -1,8 +1,8 @@
 import type { FastifyBaseLogger } from "fastify";
 import cron from "node-cron";
 import { sendAlert } from "../services/telegram.js";
-import { extractFacts } from "./fact-extractor.js";
 import { tryEnrich } from "./enrichment-utils.js";
+import { extractFacts } from "./fact-extractor.js";
 import {
 	type PendingTopic,
 	pendingTopicExistsBySourceUrl,
@@ -93,7 +93,9 @@ async function runSingleUrl(
 			});
 
 		// Web 搜索富化：搜作品评测/讨论/背景资料
-		deps.logger?.info(`[scheduler] Enriching via web search for ${site.siteName}`);
+		deps.logger?.info(
+			`[scheduler] Enriching via web search for ${site.siteName}`,
+		);
 		const enrichment = await tryEnrich({ facts, logger: deps.logger });
 
 		const now = new Date().toISOString();

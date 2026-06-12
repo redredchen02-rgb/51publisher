@@ -3,8 +3,8 @@
  * 统一管理 web enricher 的调用逻辑
  */
 
-import type { FastifyBaseLogger } from "fastify";
 import type { FactsBlock } from "@51publisher/shared";
+import type { FastifyBaseLogger } from "fastify";
 import { type EnrichedContext, enrichContext } from "./web-enricher.js";
 
 interface EnrichOptions {
@@ -16,7 +16,9 @@ interface EnrichOptions {
  * 尝试执行 enrichment（静默失败）
  * 返回 enrichment 结果，失败时返回 undefined
  */
-export async function tryEnrich(options: EnrichOptions): Promise<EnrichedContext | undefined> {
+export async function tryEnrich(
+	options: EnrichOptions,
+): Promise<EnrichedContext | undefined> {
 	const { facts, logger } = options;
 
 	if (process.env.ENRICHMENT_ENABLED === "false") {
