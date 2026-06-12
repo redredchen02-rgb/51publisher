@@ -12,7 +12,7 @@
 		"coverage": "pnpm -r --parallel coverage",
 		"compile": "pnpm -r compile",
 		"lint": "biome check --write",
-		"lint:ci": "biome ci .",
+		"lint:ci": "biome ci --diagnostic-level=error .",
 		"format": "biome format --write",
 		"check": "biome check",
 		"postinstall": "git config core.hooksPath scripts/git-hooks"

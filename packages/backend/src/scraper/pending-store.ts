@@ -104,7 +104,7 @@ function computeScore(topic: PendingTopic, db: BetterSqlite3DB): number {
 		[hasTitle, hasBody, hasFacts, hasCover].filter(Boolean).length / 4;
 
 	const parsedTs = Date.parse(topic.createdAt);
-	const daysSince = isNaN(parsedTs)
+	const daysSince = Number.isNaN(parsedTs)
 		? 0
 		: (Date.now() - parsedTs) / (1000 * 60 * 60 * 24);
 	const freshnessDecay = Math.exp(-daysSince / 7);
