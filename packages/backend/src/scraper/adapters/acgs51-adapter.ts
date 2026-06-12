@@ -66,30 +66,77 @@ function extractByPatterns(html: string, patterns: RegExp[]): string {
 function extractMetadata(html: string): Record<string, string> {
 	const meta: Record<string, string> = {};
 
-	// 常见模式: <li><span class="label">制作组:</span> VALUE</li>
-	// 或 <td class="key">制作组</td><td>VALUE</td>
-	const labelPatterns: Array<[string, RegExp]> = [
-		[
-			"制作",
-			/<(?:li|td|span|div)[^>]*>[^<]*制作[组社]?[^<]*<\/(?:span|td|div)>[\s\S]{0,50}?>([\w\s\-()（）]+)/i,
-		],
-		[
-			"漢化",
-			/<(?:li|td|span|div)[^>]*>[^<]*[汉漢]化[^<]*<\/(?:span|td|div)>[\s\S]{0,50}?>([\w\s\-()（）]+)/i,
-		],
-		[
-			"集数",
-			/<(?:li|td|span|div)[^>]*>[^<]*集数[^<]*<\/(?:span|td|div)>[\s\S]{0,50}?>(\d+[^<]*)/i,
-		],
-		[
-			"无修",
-			/<(?:li|td|span|div)[^>]*>[^<]*[无無]修[^<]*<\/(?:span|td|div)>[\s\S]{0,50}?>([^<]{1,20})/i,
-		],
-	];
+	// 1. 优先从 data-comic-info JSON 提取（51acgs.com 特有结构化数据）
+	const comicInfoMatch = html.match(/data-comic-info="([^"]+)"/i);
+	if (comicInfoMatch) {
+		try {
+			const decoded = comicInfoMatch[1]
+				.replace(/&quot;/g, '"')
+				.replace(/&amp;/g, "&");
+			const info = JSON.parse(decoded);
+			if (info.comic_type_name) meta["题材"] = info.comic_type_name;
+			if (info.comic_tag_name) meta["标签"] = info.comic_tag_name;
+		} catch {
+			// JSON parse failed, skip
+		}
+	}
 
-	for (const [key, re] of labelPatterns) {
-		const m = html.match(re);
-		if (m?.[1]) meta[key] = m[1].replace(/<[^>]*>/g, "").trim();
+	// 2. 提取作者信息（从 "作者：" 区域）
+	const authorMatch = html.match(
+		/<span[^>]*>作者[：:]?<\/span>\s*<a[^>]*>\s*<span[^>]*>([^<]+)<\/span>/i,
+	);
+	if (authorMatch) {
+		const authorName = authorMatch[1].trim();
+		if (authorName) meta["制作"] = authorName;
+	}
+
+	// 3. 从标题提取作者（格式通常是 [作者名] 作品名）
+	if (!meta["制作"]) {
+		const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+		if (titleMatch) {
+			const titleText = titleMatch[1].replace(/&amp;/g, "&").trim();
+			const authorInTitle = titleText.match(/^\[([^\]]+)\]/);
+			if (authorInTitle) {
+				meta["制作"] = authorInTitle[1];
+			}
+		}
+	}
+
+	// 4. 从标题提取汉化组（格式通常是 [中国翻訳] 等）
+	const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+	if (titleMatch) {
+		const titleText = titleMatch[1].replace(/&amp;/g, "&").trim();
+		const hanhuaMatch = titleText.match(/\[(中国翻訳|中国翻译[^\]]*)\]/i);
+		if (hanhuaMatch) {
+			meta["漢化"] = hanhuaMatch[1];
+		}
+	}
+
+	// 5. 从标题提取无修信息
+	if (titleMatch) {
+		const titleText = titleMatch[1].replace(/&amp;/g, "&").trim();
+		if (/无修正|無修正|uncensored|uncen/i.test(titleText)) {
+			meta["無修"] = "無修正版";
+		}
+	}
+
+	// 6. 提取状态（连载/完结）
+	if (html.includes('class="is-serial"') || html.includes("连载")) {
+		meta["状态"] = "连载";
+	} else if (html.includes('class="is-complete"') || html.includes("完结")) {
+		meta["状态"] = "完结";
+	}
+
+	// 7. 提取章节数
+	const chapterIds = new Set(html.match(/chapter\/(\d+)/g)?.map((m) => m) ?? []);
+	if (chapterIds.size > 0) {
+		meta["章节数"] = String(chapterIds.size);
+	}
+
+	// 8. 从 meta description 提取信息
+	const desc = extractMetaDescription(html);
+	if (desc && !meta["简介"]) {
+		meta["简介"] = desc;
 	}
 
 	return meta;
