@@ -56,3 +56,11 @@ export async function clearToken(): Promise<void> {
 export async function isAuthenticated(): Promise<boolean> {
 	return (await getToken()) !== null;
 }
+
+export async function getAuthHeaders(): Promise<Record<string, string>> {
+	const token = await getToken();
+	return {
+		"Content-Type": "application/json",
+		...(token ? { Authorization: `Bearer ${token}` } : {}),
+	};
+}

@@ -1,5 +1,5 @@
 import { fetchWithTimeout } from "@51publisher/shared";
-import { clearToken, getToken } from "./auth-client";
+import { clearToken, getAuthHeaders } from "./auth-client";
 import { getBackendUrl } from "./backend-url";
 
 export interface PendingTopic {
@@ -80,11 +80,7 @@ export async function fetchPendingTopics(
 	const params = qp.toString() ? `?${qp.toString()}` : "";
 
 	try {
-		const token = await getToken();
-		const headers: Record<string, string> = {
-			"Content-Type": "application/json",
-		};
-		if (token) headers.Authorization = `Bearer ${token}`;
+		const headers = await getAuthHeaders();
 
 		const backendUrl = await getBackendUrl();
 		const url = `${backendUrl}/api/v1/pending-topics${params}`;
@@ -116,11 +112,7 @@ export async function patchPendingTopic(
 	timeoutMs = 10_000,
 ): Promise<boolean> {
 	try {
-		const token = await getToken();
-		const headers: Record<string, string> = {
-			"Content-Type": "application/json",
-		};
-		if (token) headers.Authorization = `Bearer ${token}`;
+		const headers = await getAuthHeaders();
 
 		const backendUrl = await getBackendUrl();
 		const res = await fetchWithTimeout(
@@ -151,11 +143,7 @@ export async function triggerScrape(
 	timeoutMs = 15_000,
 ): Promise<boolean> {
 	try {
-		const token = await getToken();
-		const headers: Record<string, string> = {
-			"Content-Type": "application/json",
-		};
-		if (token) headers.Authorization = `Bearer ${token}`;
+		const headers = await getAuthHeaders();
 
 		const backendUrl = await getBackendUrl();
 		const res = await fetchWithTimeout(`${backendUrl}/api/v1/scraper/trigger`, {
@@ -180,11 +168,7 @@ export async function triggerScrape(
  */
 export async function fetchAdapters(timeoutMs = 10_000): Promise<string[]> {
 	try {
-		const token = await getToken();
-		const headers: Record<string, string> = {
-			"Content-Type": "application/json",
-		};
-		if (token) headers.Authorization = `Bearer ${token}`;
+		const headers = await getAuthHeaders();
 
 		const backendUrl = await getBackendUrl();
 		const res = await fetchWithTimeout(
@@ -220,11 +204,7 @@ export async function updatePendingStatus(
 	timeoutMs = 10_000,
 ): Promise<boolean> {
 	try {
-		const token = await getToken();
-		const headers: Record<string, string> = {
-			"Content-Type": "application/json",
-		};
-		if (token) headers.Authorization = `Bearer ${token}`;
+		const headers = await getAuthHeaders();
 
 		const backendUrl = await getBackendUrl();
 		const res = await fetchWithTimeout(

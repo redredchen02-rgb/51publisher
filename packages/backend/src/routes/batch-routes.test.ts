@@ -1,7 +1,11 @@
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+	initPendingDb,
+	resetPendingDb,
+} from "../scraper/pending-db.js";
 import { registerBatchRoutes } from "./batch-routes.js";
 
 // data/ 目录清理(测试隔离)。优先使用 test-setup 注入的隔离临时目录，
@@ -35,12 +39,16 @@ describe("Batch Routes", () => {
 	let app: FastifyInstance;
 
 	beforeEach(async () => {
+		resetPendingDb();
 		cleanData();
+		mkdirSync(DATA_DIR, { recursive: true });
+		initPendingDb();
 		app = await buildApp();
 	});
 
 	afterEach(async () => {
 		await app.close();
+		resetPendingDb();
 		cleanData();
 	});
 

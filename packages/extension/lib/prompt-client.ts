@@ -1,5 +1,5 @@
 import { fetchWithTimeout } from "@51publisher/shared";
-import { clearToken, getToken } from "./auth-client";
+import { clearToken, getAuthHeaders } from "./auth-client";
 import { getBackendUrl } from "./backend-url";
 
 function errorMessage(err: unknown): string {
@@ -16,15 +16,6 @@ export interface PromptTemplate {
 	updatedAt: string;
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
-	const token = await getToken();
-	const headers: Record<string, string> = {
-		"Content-Type": "application/json",
-	};
-	if (token) headers.Authorization = `Bearer ${token}`;
-	return headers;
-}
-
 async function handleUnauthorized(res: Response): Promise<void> {
 	if (res.status === 401) {
 		await clearToken();
@@ -39,7 +30,7 @@ export async function fetchPrompts(
 	timeoutMs = 10_000,
 ): Promise<{ ok: boolean; prompts?: PromptTemplate[]; error?: string }> {
 	try {
-		const headers = await authHeaders();
+		const headers = await getAuthHeaders();
 		const backendUrl = await getBackendUrl();
 		const res = await fetchWithTimeout(`${backendUrl}/api/v1/prompts`, {
 			headers,
@@ -68,7 +59,7 @@ export async function createPrompt(
 	timeoutMs = 10_000,
 ): Promise<{ ok: boolean; error?: string }> {
 	try {
-		const headers = await authHeaders();
+		const headers = await getAuthHeaders();
 		const backendUrl = await getBackendUrl();
 		const res = await fetchWithTimeout(`${backendUrl}/api/v1/prompts`, {
 			method: "POST",
@@ -100,7 +91,7 @@ export async function updatePrompt(
 	timeoutMs = 10_000,
 ): Promise<{ ok: boolean; error?: string }> {
 	try {
-		const headers = await authHeaders();
+		const headers = await getAuthHeaders();
 		const backendUrl = await getBackendUrl();
 		const res = await fetchWithTimeout(`${backendUrl}/api/v1/prompts/${id}`, {
 			method: "PUT",

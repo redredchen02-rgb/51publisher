@@ -144,6 +144,8 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 				return;
 			}
 			showToast("已保存为范例", true);
+		} catch (e) {
+			showToast(e instanceof Error ? e.message : "保存范例失败", false);
 		} finally {
 			savingItems.current.delete(itemId);
 		}

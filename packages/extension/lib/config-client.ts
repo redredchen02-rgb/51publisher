@@ -1,6 +1,6 @@
 import type { FieldMapping } from "@51publisher/shared";
 import { DEFAULT_FIELD_MAPPING } from "@51publisher/shared";
-import { clearToken, getToken } from "./auth-client";
+import { clearToken, getAuthHeaders } from "./auth-client";
 import { getBackendUrl } from "./backend-url";
 
 /**
@@ -30,11 +30,7 @@ export async function fetchRemoteMappings(
 	const timer = setTimeout(() => controller.abort(), timeoutMs);
 
 	try {
-		const token = await getToken();
-		const headers: Record<string, string> = {
-			"Content-Type": "application/json",
-		};
-		if (token) headers.Authorization = `Bearer ${token}`;
+		const headers = await getAuthHeaders();
 
 		const backendUrl = await getBackendUrl();
 		const res = await fetchFn(`${backendUrl}/api/v1/config/mappings`, {
@@ -98,11 +94,7 @@ export async function syncBatchItemStatus(
 	const timer = setTimeout(() => controller.abort(), timeoutMs);
 
 	try {
-		const token = await getToken();
-		const headers: Record<string, string> = {
-			"Content-Type": "application/json",
-		};
-		if (token) headers.Authorization = `Bearer ${token}`;
+		const headers = await getAuthHeaders();
 
 		const backendUrl = await getBackendUrl();
 		const res = await fetchFn(
@@ -155,11 +147,7 @@ export async function fetchBatchState(
 	const timer = setTimeout(() => controller.abort(), timeoutMs);
 
 	try {
-		const token = await getToken();
-		const headers: Record<string, string> = {
-			"Content-Type": "application/json",
-		};
-		if (token) headers.Authorization = `Bearer ${token}`;
+		const headers = await getAuthHeaders();
 
 		const backendUrl = await getBackendUrl();
 		const res = await fetchFn(
@@ -209,11 +197,7 @@ export async function createRemoteBatch(
 	const timer = setTimeout(() => controller.abort(), timeoutMs);
 
 	try {
-		const token = await getToken();
-		const headers: Record<string, string> = {
-			"Content-Type": "application/json",
-		};
-		if (token) headers.Authorization = `Bearer ${token}`;
+		const headers = await getAuthHeaders();
 
 		const backendUrl = await getBackendUrl();
 		const res = await fetchFn(`${backendUrl}/api/v1/batches`, {

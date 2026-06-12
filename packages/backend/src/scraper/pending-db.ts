@@ -37,4 +37,12 @@ export function getDb(): BetterSqlite3DB {
 	return _db;
 }
 
+/** 關閉並清除 singleton，供測試隔離用（每次 cleanData 後呼叫）。 */
+export function resetPendingDb(): void {
+	if (_db) {
+		_db.close();
+		_db = null;
+	}
+}
+
 export { pendingWriteQueue } from "./pending-queue.js";
