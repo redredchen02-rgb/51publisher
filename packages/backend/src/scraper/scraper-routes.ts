@@ -93,17 +93,19 @@ export async function registerScraperRoutes(
 					);
 				}
 				if (parsed.protocol !== configParsed.protocol) {
-					return reply.status(400).send({
-						ok: false,
-						error: `URL protocol not allowed for site ${siteName}: ${parsed.protocol}`,
-					});
+					return err(
+						reply,
+						400,
+						`URL protocol not allowed for site ${siteName}: ${parsed.protocol}`,
+					);
 				}
 
 				if (!isHostAllowed(parsed, loadSSRFAllowlist())) {
-					return reply.status(403).send({
-						ok: false,
-						error: `URL hostname blocked by SSRF allowlist: ${parsed.hostname}`,
-					});
+					return err(
+						reply,
+						403,
+						`URL hostname blocked by SSRF allowlist: ${parsed.hostname}`,
+					);
 				}
 			}
 

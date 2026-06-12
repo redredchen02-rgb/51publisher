@@ -29,7 +29,7 @@ export interface ContentDraft {
 	/** 描述/摘要(AI 生成)。 */
 	description: string;
 	/** 后台显示状态:'0'=隐藏,'1'=显示。 */
-	postStatus: string;
+	postStatus: "0" | "1";
 	/** 发布时间 yyyy-MM-dd。 */
 	publishedAt: string;
 	/** 关联作品 id。 */

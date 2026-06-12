@@ -768,9 +768,6 @@ describe("runBatch coverImageUrls", () => {
 			}),
 		});
 		await runBatch(deps);
-		// TOPIC_B 没有对应 URL → coverImageUrl 为 ''
-		const bIndex = capturedUrls.findIndex((_, i) => i > 0);
-		void bIndex;
 		// 验证 TOPIC_A 有 URL，TOPIC_B 没有（通过草稿状态间接检查）
 		const finalBatch = await runBatch(
 			makeRunDeps({

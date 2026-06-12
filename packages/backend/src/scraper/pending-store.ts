@@ -103,8 +103,10 @@ function computeScore(topic: PendingTopic, db: BetterSqlite3DB): number {
 	const fieldCompleteness =
 		[hasTitle, hasBody, hasFacts, hasCover].filter(Boolean).length / 4;
 
-	const daysSince =
-		(Date.now() - Date.parse(topic.createdAt)) / (1000 * 60 * 60 * 24);
+	const parsedTs = Date.parse(topic.createdAt);
+	const daysSince = isNaN(parsedTs)
+		? 0
+		: (Date.now() - parsedTs) / (1000 * 60 * 60 * 24);
 	const freshnessDecay = Math.exp(-daysSince / 7);
 
 	let publishedPenalty = 0;
@@ -114,7 +116,7 @@ function computeScore(topic: PendingTopic, db: BetterSqlite3DB): number {
 			.get(topic.title);
 		if (hit) publishedPenalty = 0.8;
 	} catch {
-		// published_posts テーブルが存在しない場合（旧 DB）はペナルティなし
+		// 旧版 DB 不含 published_posts 表，跳过惩罚项
 	}
 
 	return fieldCompleteness * freshnessDecay * (1 - publishedPenalty);

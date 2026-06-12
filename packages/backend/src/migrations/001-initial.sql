@@ -16,3 +16,4 @@ CREATE TABLE IF NOT EXISTS pending_topics (
 
 CREATE INDEX IF NOT EXISTS idx_pending_status ON pending_topics(status);
 CREATE INDEX IF NOT EXISTS idx_pending_created ON pending_topics(created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_source_url ON pending_topics(source_url);
