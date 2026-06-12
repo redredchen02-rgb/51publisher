@@ -37,6 +37,8 @@ export interface ContentDraft {
 	status: DraftStatus;
 	/** ISO 时间戳。 */
 	createdAt: string;
+	/** Web 富化上下文(可选;来自 web-enricher)。 */
+	enrichment?: string;
 }
 
 /** 字段填充策略类型。U0 确认本后台用到 text/textarea/quill/native-select/checkbox-multi/date。 */
