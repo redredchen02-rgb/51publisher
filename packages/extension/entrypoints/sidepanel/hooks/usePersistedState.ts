@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 
-// 检查 chrome/storage API 是否可用
-declare const chrome: any;
+declare const chrome: {
+	storage?: {
+		local?: {
+			get: (keys: string | string[] | Record<string, unknown>) => Promise<Record<string, unknown>>;
+			set: (items: Record<string, unknown>) => Promise<void>;
+			remove: (keys: string | string[]) => Promise<void>;
+		};
+	};
+};
 
 function isStorageAvailable(): boolean {
 	try {
@@ -13,7 +20,7 @@ function isStorageAvailable(): boolean {
 
 function getStorage() {
 	if (!isStorageAvailable()) return null;
-	return chrome.storage.local as {
+	return chrome.storage?.local as {
 		get: <T>(key: string) => Promise<T | null>;
 		set: (data: Record<string, unknown>) => Promise<void>;
 	};

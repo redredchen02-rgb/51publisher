@@ -38,9 +38,14 @@ function fillTextLike(
 	value: string,
 	doc: Document,
 ): FieldFillResult {
-	const el = doc.querySelector<HTMLInputElement | HTMLTextAreaElement>(
-		def.selector,
-	);
+	let el: HTMLInputElement | HTMLTextAreaElement | null;
+	try {
+		el = doc.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+			def.selector,
+		);
+	} catch {
+		return skip(field, `选择器语法错误:${def.selector}`);
+	}
 	if (!el) return skip(field, `未找到元素:${def.selector}`);
 	el.value = value;
 	fireValueEvents(el);
@@ -54,7 +59,12 @@ function fillNativeSelect(
 	value: string,
 	doc: Document,
 ): FieldFillResult {
-	const sel = doc.querySelector<HTMLSelectElement>(def.selector);
+	let sel: HTMLSelectElement | null;
+	try {
+		sel = doc.querySelector<HTMLSelectElement>(def.selector);
+	} catch {
+		return skip(field, `选择器语法错误:${def.selector}`);
+	}
 	if (!sel) return skip(field, `未找到下拉:${def.selector}`);
 	const options = Array.from(sel.options);
 	const matched =
@@ -89,9 +99,12 @@ function fillCheckboxMulti(
 	values: string[],
 	doc: Document,
 ): FieldFillResult {
-	const boxes = Array.from(
-		doc.querySelectorAll<HTMLInputElement>(def.selector),
-	);
+	let boxes: HTMLInputElement[];
+	try {
+		boxes = Array.from(doc.querySelectorAll<HTMLInputElement>(def.selector));
+	} catch {
+		return skip(field, `选择器语法错误:${def.selector}`);
+	}
 	if (boxes.length === 0)
 		return skip(field, `未找到 checkbox 组:${def.selector}`);
 	const byLabel = new Map<string, HTMLInputElement>();

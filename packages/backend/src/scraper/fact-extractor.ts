@@ -143,7 +143,12 @@ export async function extractFacts(
 			throw new Error(`LLM request failed: HTTP ${res.status}`);
 		}
 
-		const raw = await res.json();
+		let raw: unknown;
+		try {
+			raw = await res.json();
+		} catch {
+			throw new Error("LLM response is not valid JSON");
+		}
 		const content =
 			(raw as { choices?: Array<{ message?: { content?: string } }> })
 				?.choices?.[0]?.message?.content ?? "";

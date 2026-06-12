@@ -18,9 +18,15 @@ interface UseErrorLoggerReturn {
 
 const STORAGE_KEY = "pfa-error-logs";
 
-// 检查 chrome/storage API 是否可用
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-declare const chrome: any;
+declare const chrome: {
+	storage?: {
+		local?: {
+			get: (keys: string | string[] | Record<string, unknown>) => Promise<Record<string, unknown>>;
+			set: (items: Record<string, unknown>) => Promise<void>;
+			remove: (keys: string | string[]) => Promise<void>;
+		};
+	};
+};
 
 function isStorageAvailable(): boolean {
 	try {
@@ -32,7 +38,7 @@ function isStorageAvailable(): boolean {
 
 function getStorage() {
 	if (!isStorageAvailable()) return null;
-	return chrome.storage.local as {
+	return chrome.storage?.local as {
 		get: (key: string) => Promise<Record<string, unknown>>;
 		set: (data: Record<string, unknown>) => Promise<void>;
 		remove: (key: string) => Promise<void>;

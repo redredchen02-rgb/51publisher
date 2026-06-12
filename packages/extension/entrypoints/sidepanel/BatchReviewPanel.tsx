@@ -104,7 +104,7 @@ function GroundingStrip({
 					(draft.title.includes("【待补】") ||
 						draft.body.includes("【待补】")) &&
 					onFixPlaceholder && (
-						<button
+						<button type="button"
 							onClick={onFixPlaceholder}
 							style={{
 								background: "#fa8c16",
@@ -162,7 +162,7 @@ function FillStatusTable({
 
 	return (
 		<div style={{ marginTop: 4 }}>
-			<button
+			<button type="button"
 				onClick={() => setOpen((v) => !v)}
 				style={{
 					background: "#fafafa",
@@ -484,7 +484,7 @@ export function BatchReviewPanel(props: Props) {
 					批次已暂停:请切回授权 admin 标签页(<code>{authorizedHost}</code>
 					)。在途条目不受影响。
 					<div style={{ marginTop: 6 }}>
-						<button
+						<button type="button"
 							onClick={props.onResume}
 							style={{ ...btn, background: "#fa8c16", color: "#fff" }}
 						>
@@ -627,7 +627,7 @@ export function BatchReviewPanel(props: Props) {
 											查看帖子
 										</a>
 									)}
-									<button
+									<button type="button"
 										onClick={() => props.onRelease(it.id)}
 										style={{
 											...btn,
@@ -658,7 +658,7 @@ export function BatchReviewPanel(props: Props) {
 						}}
 					>
 						<div style={{ display: "flex", alignItems: "center" }}>
-							<button
+							<button type="button"
 								onClick={() => toggle(it.id)}
 								aria-expanded={expanded.has(it.id)}
 								style={{
@@ -983,7 +983,7 @@ export function BatchReviewPanel(props: Props) {
 												? () =>
 														handleFixPlaceholder(
 															it.id,
-															draftOverrides?.get(it.id) ?? it.draft!,
+															(draftOverrides?.get(it.id) ?? it.draft) as ContentDraft,
 														)
 												: undefined
 										}
@@ -1033,7 +1033,7 @@ export function BatchReviewPanel(props: Props) {
 									(it.status === "error" || it.status === "aborted") &&
 									onRetryItem && (
 										<div style={{ marginTop: 6 }}>
-											<button
+											<button type="button"
 												onClick={() => onRetryItem(it.id)}
 												disabled={busy}
 												style={{
@@ -1075,7 +1075,7 @@ export function BatchReviewPanel(props: Props) {
 								请在目标页确认表单已载入,或刷新页面后操作。
 							</div>
 							<div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-								<button
+								<button type="button"
 									onClick={props.onDriftCheck}
 									disabled={busy}
 									style={{
@@ -1088,7 +1088,7 @@ export function BatchReviewPanel(props: Props) {
 								>
 									重新自检
 								</button>
-								<button
+								<button type="button"
 									onClick={props.onApproveBypass}
 									disabled={busy}
 									style={{
@@ -1110,7 +1110,7 @@ export function BatchReviewPanel(props: Props) {
 			{/* 动作区 */}
 			<div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
 				{canApprove && !confirming && (
-					<button
+					<button type="button"
 						onClick={() => setConfirming(true)}
 						style={{
 							...btn,
@@ -1123,7 +1123,7 @@ export function BatchReviewPanel(props: Props) {
 							: `预演 ${summary.awaitingApproval} 条`}
 					</button>
 				)}
-				<button
+				<button type="button"
 					onClick={props.onDriftCheck}
 					disabled={busy}
 					style={{ ...btn, background: "#f0f0f0", color: "#333" }}
@@ -1131,7 +1131,7 @@ export function BatchReviewPanel(props: Props) {
 					漂移自检
 				</button>
 				{phase !== "done" && (
-					<button
+					<button type="button"
 						onClick={props.onKill}
 						disabled={busy}
 						style={{
@@ -1184,7 +1184,7 @@ export function BatchReviewPanel(props: Props) {
 						</div>
 					)}
 					<div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-						<button
+						<button type="button"
 							onClick={confirmApprove}
 							disabled={!gestureOk || !!busy}
 							style={{
@@ -1195,7 +1195,7 @@ export function BatchReviewPanel(props: Props) {
 						>
 							确认
 						</button>
-						<button
+						<button type="button"
 							onClick={() => {
 								setConfirming(false);
 								setTyped("");
