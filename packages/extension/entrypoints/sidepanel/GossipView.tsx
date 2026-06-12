@@ -66,9 +66,13 @@ export function GossipView({ onBack, onTopicAdded }: Props) {
 	}
 
 	async function handleDelete(id: string) {
-		await deleteGossipSite(id);
-		setSites((prev) => prev.filter((s) => s.id !== id));
-		setDiscovered((prev) => { const n = { ...prev }; delete n[id]; return n; });
+		try {
+			await deleteGossipSite(id);
+			setSites((prev) => prev.filter((s) => s.id !== id));
+			setDiscovered((prev) => { const n = { ...prev }; delete n[id]; return n; });
+		} catch (e) {
+			setAddError(e instanceof Error ? e.message : "刪除失敗");
+		}
 	}
 
 	async function handleDiscover(site: GossipSite) {
@@ -87,14 +91,15 @@ export function GossipView({ onBack, onTopicAdded }: Props) {
 		}
 	}
 
-	async function handleGenerate(item: DiscoveredItem, siteName: string) {
+	async function handleGenerate(item: DiscoveredItem, siteId: string, siteName: string) {
 		const key = item.url;
 		setGenBusy((p) => ({ ...p, [key]: true }));
 		try {
 			await fetchGossipTopicFromUrl(item.url, siteName);
+			// 成功後從 discovered 列表移除，避免重複生成
+			setDiscovered((p) => ({ ...p, [siteId]: (p[siteId] ?? []).filter(i => i.url !== item.url) }));
 			onTopicAdded();
 		} catch (e) {
-			// 靜默失敗：日後可加 toast
 			console.warn("[GossipView] from-url failed:", e);
 		} finally {
 			setGenBusy((p) => ({ ...p, [key]: false }));
@@ -226,7 +231,7 @@ export function GossipView({ onBack, onTopicAdded }: Props) {
 								</span>
 								<button
 									type="button"
-									onClick={() => void handleGenerate(item, site.name)}
+									onClick={() => void handleGenerate(item, site.id, site.name)}
 									disabled={genBusy[item.url]}
 									style={{ ...btn, background: "#1677ff", color: "white", whiteSpace: "nowrap" }}
 								>

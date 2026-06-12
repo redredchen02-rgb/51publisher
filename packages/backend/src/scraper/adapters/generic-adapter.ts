@@ -125,6 +125,7 @@ export async function fetchContent(url: string): Promise<RawContent> {
 	});
 
 	if (!res.ok) {
+		res.body?.cancel();
 		throw new Error(`HTTP ${res.status}: Failed to fetch ${url}`);
 	}
 

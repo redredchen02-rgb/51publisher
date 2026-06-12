@@ -58,7 +58,7 @@ interface PendingRow {
 	cover_image_url: string | null;
 	score: number | null;
 	enrichment: string | null;
-	domain: string | null;
+	domain: string;
 	created_at: string;
 	updated_at: string;
 }

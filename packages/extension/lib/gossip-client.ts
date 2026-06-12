@@ -17,20 +17,19 @@ export interface DiscoveredItem {
 }
 
 export async function fetchGossipSites(): Promise<GossipSite[]> {
-	try {
-		const headers = await getAuthHeaders();
-		const base = await getBackendUrl();
-		const res = await fetchWithTimeout(`${base}/api/v1/gossip/sites`, {
-			headers,
-			timeoutMs: 10_000,
-		});
-		if (res.status === 401) { await clearToken(); return []; }
-		if (!res.ok) return [];
-		const data = await res.json() as { ok: boolean; sites?: GossipSite[] };
-		return data.ok && data.sites ? data.sites : [];
-	} catch {
-		return [];
+	const headers = await getAuthHeaders();
+	const base = await getBackendUrl();
+	const res = await fetchWithTimeout(`${base}/api/v1/gossip/sites`, {
+		headers,
+		timeoutMs: 10_000,
+	});
+	if (res.status === 401) { await clearToken(); throw new Error("Unauthorized"); }
+	if (!res.ok) {
+		const data = await res.json() as { error?: string };
+		throw new Error(data.error ?? `HTTP ${res.status}`);
 	}
+	const data = await res.json() as { ok: boolean; sites?: GossipSite[] };
+	return data.ok && data.sites ? data.sites : [];
 }
 
 export async function createGossipSite(name: string, listUrl: string): Promise<GossipSite | null> {
@@ -55,19 +54,18 @@ export async function createGossipSite(name: string, listUrl: string): Promise<G
 	}
 }
 
-export async function deleteGossipSite(id: string): Promise<boolean> {
-	try {
-		const headers = await getAuthHeaders();
-		const base = await getBackendUrl();
-		const res = await fetchWithTimeout(`${base}/api/v1/gossip/sites/${id}`, {
-			method: "DELETE",
-			headers,
-			timeoutMs: 10_000,
-		});
-		if (res.status === 401) { await clearToken(); return false; }
-		return res.ok;
-	} catch {
-		return false;
+export async function deleteGossipSite(id: string): Promise<void> {
+	const headers = await getAuthHeaders();
+	const base = await getBackendUrl();
+	const res = await fetchWithTimeout(`${base}/api/v1/gossip/sites/${id}`, {
+		method: "DELETE",
+		headers,
+		timeoutMs: 10_000,
+	});
+	if (res.status === 401) { await clearToken(); throw new Error("Unauthorized"); }
+	if (!res.ok) {
+		const data = await res.json() as { error?: string };
+		throw new Error(data.error ?? `HTTP ${res.status}`);
 	}
 }
 

@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { err } from "../utils/error-response.js";
 import { generateId } from "../utils/generate-id.js";
 import { fetchContent, fetchList } from "./adapters/generic-adapter.js";
-import { gossipExtractFacts } from "./gossip-fact-extractor.js";
+import { gossipExtractFacts, type ExtractedGossipFacts } from "./gossip-fact-extractor.js";
 import {
 	deleteGossipSite,
 	getGossipSite,
@@ -39,7 +39,6 @@ function parseUrl(raw: string): { url: URL; error?: undefined } | { error: strin
 	}
 }
 
-interface CreateSiteBody extends GossipSiteCreate {}
 
 interface SiteParams {
 	id: string;
@@ -52,11 +51,13 @@ interface FromUrlBody {
 
 export async function registerGossipRoutes(app: FastifyInstance): Promise<void> {
 	// POST /api/v1/gossip/sites — 新增站點設定
-	app.post<{ Body: CreateSiteBody }>("/api/v1/gossip/sites", async (request, reply) => {
+	app.post<{ Body: GossipSiteCreate }>("/api/v1/gossip/sites", async (request, reply) => {
 		const { name, listUrl } = request.body ?? {};
 		if (!name || !listUrl) {
 			return err(reply, 400, "Missing required fields: name, listUrl");
 		}
+		if (name.length > 200) return err(reply, 400, "name too long (max 200 chars)");
+
 		const parsed = parseUrl(listUrl);
 		if (parsed.error) {
 			return err(reply, 400, `Invalid listUrl: ${parsed.error}`);
@@ -113,7 +114,8 @@ export async function registerGossipRoutes(app: FastifyInstance): Promise<void> 
 				}
 			}
 
-			return { ok: true, discovered: fresh.slice(0, 20) };
+			const page = fresh.slice(0, 20);
+			return { ok: true, discovered: page, hasMore: fresh.length > 20, total: fresh.length };
 		},
 	);
 
@@ -125,6 +127,7 @@ export async function registerGossipRoutes(app: FastifyInstance): Promise<void> 
 			if (!url || !siteName) {
 				return err(reply, 400, "Missing required fields: url, siteName");
 			}
+			if (siteName.length > 200) return err(reply, 400, "siteName too long (max 200 chars)");
 			const parsed = parseUrl(url);
 			if (parsed.error) {
 				return err(reply, 400, `Invalid url: ${parsed.error}`);
@@ -144,11 +147,17 @@ export async function registerGossipRoutes(app: FastifyInstance): Promise<void> 
 				return err(reply, 502, `Failed to fetch URL: ${msg}`);
 			}
 
-			const extracted = await gossipExtractFacts(rawContent, {
-				endpoint: llmEndpoint,
-				apiKey: llmApiKey,
-				model: process.env.LLM_MODEL,
-			});
+			let extracted: ExtractedGossipFacts;
+			try {
+				extracted = await gossipExtractFacts(rawContent, {
+					endpoint: llmEndpoint,
+					apiKey: llmApiKey,
+					model: process.env.LLM_MODEL,
+				});
+			} catch (e) {
+				const msg = e instanceof Error ? e.message : String(e);
+				return err(reply, 502, `Fact extraction failed: ${msg}`);
+			}
 
 			const now = new Date().toISOString();
 			const topic: PendingTopic = {

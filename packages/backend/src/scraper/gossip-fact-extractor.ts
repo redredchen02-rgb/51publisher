@@ -40,15 +40,19 @@ function str(v: unknown): string {
 }
 
 function parseGossipFacts(content: string): GossipFactsBlock {
-	let parsed: Record<string, unknown>;
+	let parsed: unknown;
 	try {
-		parsed = JSON.parse(content) as Record<string, unknown>;
+		parsed = JSON.parse(content);
 	} catch {
 		return emptyGossipFacts();
 	}
+	if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+		return emptyGossipFacts();
+	}
+	const obj = parsed as Record<string, unknown>;
 	const facts: Partial<GossipFactsBlock> = {};
 	for (const key of GOSSIP_FACT_KEYS) {
-		const val = parsed[key];
+		const val = obj[key];
 		facts[key] = typeof val === "string" && val ? val : null;
 	}
 	return facts as GossipFactsBlock;
@@ -80,6 +84,11 @@ export async function gossipExtractFacts(
 
 	const userPrompt = `${GOSSIP_PROMPT}\n\n標題：${rawContent.title}\n\n正文：${rawContent.body.slice(0, 8000)}`;
 
+	// 單個 AbortController 跨兩次 pass 共享 timeout budget
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+	try {
 	for (const useSchema of [true, false] as const) {
 		const responseFormat = useSchema
 			? { type: "json_schema" as const, json_schema: GOSSIP_SCHEMA }
@@ -90,9 +99,6 @@ export async function gossipExtractFacts(
 			messages: [{ role: "user" as const, content: userPrompt }],
 			response_format: responseFormat,
 		};
-
-		const controller = new AbortController();
-		const timer = setTimeout(() => controller.abort(), timeoutMs);
 
 		let res: Response | null = null;
 		let fetchErr: unknown = null;
@@ -108,8 +114,6 @@ export async function gossipExtractFacts(
 			});
 		} catch (err) {
 			fetchErr = err;
-		} finally {
-			clearTimeout(timer);
 		}
 
 		if (fetchErr) {
@@ -148,6 +152,9 @@ export async function gossipExtractFacts(
 			coverImageUrl: rawContent.coverImageUrl,
 			extractionMode,
 		};
+	}
+	} finally {
+		clearTimeout(timer);
 	}
 
 	throw new Error("Gossip fact extraction failed after all attempts");
