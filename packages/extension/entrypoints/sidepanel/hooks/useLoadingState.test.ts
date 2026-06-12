@@ -7,19 +7,19 @@ import { useLoadingState } from "./useLoadingState";
 describe("useLoadingState", () => {
 	afterEach(cleanup);
 
-	it("initializes with idle state", () => {
+	it("initializes with zero progress and empty message", () => {
 		const { result } = renderHook(() => useLoadingState());
-		expect(result.current.state).toBe("idle");
 		expect(result.current.progress).toBe(0);
+		expect(result.current.message).toBe("");
 	});
 
-	it("transitions to loading state", () => {
+	it("startLoading sets message and resets progress", () => {
 		const { result } = renderHook(() => useLoadingState());
 		act(() => {
 			result.current.startLoading("正在生成草稿...");
 		});
-		expect(result.current.state).toBe("loading");
 		expect(result.current.message).toBe("正在生成草稿...");
+		expect(result.current.progress).toBe(0);
 	});
 
 	it("updates progress", () => {
@@ -33,7 +33,7 @@ describe("useLoadingState", () => {
 		expect(result.current.progress).toBe(50);
 	});
 
-	it("completes loading", () => {
+	it("completeLoading resets state", () => {
 		const { result } = renderHook(() => useLoadingState());
 		act(() => {
 			result.current.startLoading("正在生成草稿...");
@@ -41,19 +41,7 @@ describe("useLoadingState", () => {
 		act(() => {
 			result.current.completeLoading();
 		});
-		expect(result.current.state).toBe("idle");
 		expect(result.current.progress).toBe(0);
-	});
-
-	it("handles error", () => {
-		const { result } = renderHook(() => useLoadingState());
-		act(() => {
-			result.current.startLoading("正在生成草稿...");
-		});
-		act(() => {
-			result.current.handleError("生成失败");
-		});
-		expect(result.current.state).toBe("error");
-		expect(result.current.error).toBe("生成失败");
+		expect(result.current.message).toBe("");
 	});
 });
