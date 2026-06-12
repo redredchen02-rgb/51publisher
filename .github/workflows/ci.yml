@@ -31,7 +31,9 @@ jobs:
         run: pnpm -r compile
 
       - name: Lint
-        run: pnpm lint:ci
+        run: |
+          pnpm lint
+          git diff --exit-code || (echo "biome made changes — run 'pnpm lint' locally before committing" && exit 1)
 
       - name: Test
         run: pnpm -r test
