@@ -65,9 +65,9 @@ pnpm build          # 产出 .output/chrome-mv3/
 
 点击 side panel 右上角 **≣ 批量** 进入批量视图:
 
-1. 输入选题列表(每行一条) →「开始批量(生成+填充)」
+1. 输入选题列表(每行一条) →「开始批量(生成+填充)」；或在**待审选题池**点击「今日一键备稿」，自动抓取质量分最高的 top-3 选题直接生成批次。
 2. 批量视图展示批次状态:待审 / 发布中 / 已发布 / 失败
-3. 点击每个选题可展开查看/编辑草稿
+3. 点击每个选题可展开查看/编辑草稿；**批次审批前须逐篇展开阅读**,面板底部显示「已读 N/M 篇」进度
 4. 在 Settings 页设置发布档位后批准:
    - `off`: 只填充,需人工手动发布
    - `dry-run`: 预演流程(填充+模拟发布),查看 DryRunReport
@@ -83,6 +83,60 @@ pnpm build          # 产出 .output/chrome-mv3/
 - API key 明文存本地、只在 background 使用、绝不进入页面上下文,也不写入错误日志;但仍会发往你配置的 endpoint——**请只配置可信地址,建议用权限受限的专用 key**。
 - 正文 HTML 来自大模型(最不可信输入),写入 Quill 前在隔离世界按白名单消毒(剥除 `<script>`/事件处理器/`javascript:` 等),防 XSS。
 - `host_permissions` 仅声明 `*://*.ympxbys.xyz/*`(后台域名)。
+
+## 后端运维
+
+### macOS 开机自动启动
+
+```bash
+pnpm build:backend
+bash scripts/launchd/install.sh      # 注册 launchd daemon,开机自启
+# 卸载:
+bash scripts/launchd/uninstall.sh
+```
+
+后端日志写入 `/tmp/51publisher-backend.log`。`GET /api/v1/healthz`(无需鉴权)可供监控探针使用。
+
+### Telegram 告警
+
+在 `packages/backend/.env` 中配置:
+
+```
+TG_ENABLED=true
+TG_BOT_TOKEN=<@BotFather 生成的 token>
+TG_CHAT_ID=<你的 chat id>
+```
+
+抓取管线连续失败 3 次或发布健康监控发现帖子离线/删除时,自动推送 Telegram 通知。
+
+## 高级功能
+
+### Web 搜索富化
+
+从 51acgs.com 抓取作品后,自动搜索 pixiv 补充作者信息和作品描述,让生成的文章更丰富。
+
+配置:
+```bash
+ENRICHMENT_ENABLED=true
+ENRICHMENT_MAX_QUERIES=3
+```
+
+### 质量门禁
+
+生成的草稿自动经过 5 维度质量评估:
+- 正文长度 (≥150 字)
+- 事实完整性 (≥50%)
+- 标题质量 (无占位符)
+- 社区口吻 (口语化词汇)
+- 标签准确性 (2-10 个)
+
+查看质量统计: `GET /api/v1/healthz`
+
+### 自动批量生成
+
+从待审选题池自动批量生成草稿,减少人工干预。
+
+详见 [`docs/auto-generate-guide.md`](docs/auto-generate-guide.md)
 
 ## 局限
 
