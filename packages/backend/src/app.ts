@@ -15,6 +15,7 @@ import { registerPendingRoutes } from "./scraper/pending-routes.js";
 import { registerPromptRoutes } from "./scraper/prompt-routes.js";
 import { jobs, startScheduler } from "./scraper/scheduler.js";
 import { scraperConfig } from "./scraper/scraper-config.js";
+import { registerGossipRoutes } from "./scraper/gossip-routes.js";
 import { registerScraperRoutes } from "./scraper/scraper-routes.js";
 import {
 	generateDraft,
@@ -90,6 +91,7 @@ export function buildApp(): FastifyInstance {
 	registerConfigRoutes(server);
 	registerBatchRoutes(server);
 	registerScraperRoutes(server);
+	registerGossipRoutes(server);
 	registerPendingRoutes(server);
 	registerPromptRoutes(server);
 	registerPublishedPostsRoutes(server);
