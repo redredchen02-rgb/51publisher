@@ -304,7 +304,8 @@ export function App() {
 
 			{mode === "filling" && (
 				<div aria-live="polite" style={{ marginBottom: 8 }}>
-					<ProgressBar progress={0} label="正在填充到当前页…" />
+					<ProgressBar progress={0} indeterminate />
+					<div style={{ fontSize: 13, color: "#555", marginTop: 4 }}>正在填充到当前页…</div>
 				</div>
 			)}
 

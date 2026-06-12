@@ -1,7 +1,7 @@
 interface ProgressBarProps {
 	progress: number;
 	label?: string;
-	/** 不确定进度时显示动画扫描效果 */
+	/** 不确定进度时显示动画扫描效果（CSS 动画定义在 index.css） */
 	indeterminate?: boolean;
 }
 
@@ -46,12 +46,6 @@ export function ProgressBar({ progress, label, indeterminate }: ProgressBarProps
 					{label}
 				</div>
 			)}
-			<style>{`
-				@keyframes progress-indeterminate {
-					0% { left: -40%; }
-					100% { left: 100%; }
-				}
-			`}</style>
 		</div>
 	);
 }

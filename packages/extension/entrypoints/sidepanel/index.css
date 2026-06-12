@@ -146,3 +146,9 @@ textarea::placeholder {
 		transform: rotate(360deg);
 	}
 }
+
+
+@keyframes progress-indeterminate {
+	0% { left: -40%; }
+	100% { left: 100%; }
+}
