@@ -55,9 +55,11 @@ describe("useErrorLogger", () => {
 	it("clears error logs", async () => {
 		const { result } = renderHook(() => useErrorLogger());
 
-		// Add some logs
+		// Add some logs — separate act to avoid stale closure
 		await act(async () => {
 			await result.current.logError(new Error("错误1"));
+		});
+		await act(async () => {
 			await result.current.logError(new Error("错误2"));
 		});
 

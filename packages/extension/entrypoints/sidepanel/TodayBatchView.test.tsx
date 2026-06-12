@@ -93,7 +93,11 @@ describe("U8 — TodayBatchView", () => {
 		vi.mocked(resolveAdminTabId).mockResolvedValue(42);
 
 		render(<TodayBatchView onBack={vi.fn()} />);
-		await waitFor(() => screen.getByText("一键备稿"));
+
+		// Wait for async effect to fully resolve — batch size text confirms settings loaded
+		await waitFor(() => {
+			expect(screen.getByText("5")).toBeTruthy();
+		});
 
 		fireEvent.click(screen.getByText("一键备稿"));
 
