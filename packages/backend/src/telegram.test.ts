@@ -59,7 +59,10 @@ describe("sendAlert", () => {
 		expect(url).toBe(`https://api.telegram.org/bot${VALID_TOKEN}/sendMessage`);
 		expect(init.method).toBe("POST");
 		const body = JSON.parse(init.body as string);
-		expect(body).toEqual({ chat_id: VALID_CHAT_ID, text: "🟡 [WARNING] test message" });
+		expect(body).toEqual({
+			chat_id: VALID_CHAT_ID,
+			text: "🟡 [WARNING] test message",
+		});
 	});
 
 	it("does not call fetch when TG_ENABLED is absent", async () => {

@@ -14,6 +14,8 @@ export interface LlmDeps {
 	settings: Settings;
 	apiKey: string;
 	facts?: FactsBlock;
+	/** Web 搜索富化的格式化文本；为空则不注入。 */
+	enrichment?: string;
 	fetchFn?: typeof fetch;
 	now?: () => string;
 	genId?: () => string;
@@ -174,6 +176,11 @@ export async function generateDraft(
 	const timeoutMs = deps.timeoutMs ?? 60_000;
 	const facts = deps.facts ?? {};
 
+	// 注入 Web 搜索富化内容到 prompt 末尾
+	const finalPrompt = deps.enrichment
+		? `${prompt}\n\n${deps.enrichment}`
+		: prompt;
+
 	if (!apiKey || !settings.endpoint) {
 		return { ok: false, kind: "no-key", error: "后端未配置 API key 或端点。" };
 	}
@@ -197,7 +204,7 @@ export async function generateDraft(
 		let successInCurrentModel = false;
 		for (const useSchema of [true, false]) {
 			const { url, init } = buildRequest(
-				prompt,
+				finalPrompt,
 				{ ...settings, model: currentModel },
 				apiKey,
 				{
