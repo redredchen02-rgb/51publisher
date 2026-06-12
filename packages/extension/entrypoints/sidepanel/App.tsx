@@ -10,6 +10,8 @@ import {
 } from "../../lib/storage";
 import { AuthView } from "./AuthView";
 import { BatchView } from "./BatchView";
+import { ProgressBar } from "./components/ProgressBar";
+import { Toast } from "./components/Toast";
 import { DraftPreview } from "./DraftPreview";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { FillResultPanel } from "./FillResultPanel";
@@ -34,6 +36,7 @@ export function App() {
 	const [results, setResults] = useState<FieldFillResult[]>([]);
 	const [error, setError] = useState("");
 	const [confirmNext, setConfirmNext] = useState(false);
+	const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 	const [authenticated, setAuthenticated] = useState(false);
 	const [authChecking, setAuthChecking] = useState(true);
 	const promptTemplateRef = useRef("");
@@ -98,6 +101,7 @@ export function App() {
 			setResults(res.results);
 			const anyProblem = res.results.some((r) => r.status !== "filled");
 			setMode(anyProblem ? "partial" : "filled");
+			if (!anyProblem) setToast({ message: "填充成功", type: "success" });
 		} else {
 			setError(res.error);
 			setMode("draft");
@@ -268,18 +272,18 @@ export function App() {
 			)}
 
 			{mode === "generating" && (
-				<div
-					aria-live="polite"
-					style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 8 }}
-				>
-					正在生成草稿…{" "}
-					<button
-						onClick={cancelGenerate}
-						className="btn btn-plain"
-						style={{ padding: "2px 8px", marginLeft: 6 }}
-					>
-						取消
-					</button>
+				<div aria-live="polite" style={{ marginBottom: 8 }}>
+					<ProgressBar progress={0} indeterminate />
+					<div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
+						正在生成草稿…{" "}
+						<button
+							onClick={cancelGenerate}
+							className="btn btn-plain"
+							style={{ padding: "2px 8px", marginLeft: 6 }}
+						>
+							取消
+						</button>
+					</div>
 				</div>
 			)}
 
@@ -288,9 +292,14 @@ export function App() {
 			)}
 
 			{mode === "filling" && (
-				<div aria-live="polite" style={{ fontSize: 13, color: "#555" }}>
-					正在填充到当前页…
+				<div aria-live="polite" style={{ marginBottom: 8 }}>
+					<ProgressBar progress={0} indeterminate />
+					<div style={{ fontSize: 13, color: "#555", marginTop: 4 }}>正在填充到当前页…</div>
 				</div>
+			)}
+
+			{toast && (
+				<Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
 			)}
 
 			{(mode === "filled" || mode === "partial") && (

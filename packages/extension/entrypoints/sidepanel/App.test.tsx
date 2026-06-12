@@ -131,4 +131,44 @@ describe("App", () => {
 		expect(screen.getByText(/未完整填入/)).toBeTruthy();
 		expect(screen.getByText("复制正文")).toBeTruthy();
 	});
+
+	it("生成中显示进度条", async () => {
+		requestGenerate.mockImplementation(
+			() => new Promise(() => {}),
+		);
+		render(<App />);
+		await waitForAppReady();
+		fireEvent.change(screen.getByPlaceholderText(/输入选题/), {
+			target: { value: "某新番" },
+		});
+		fireEvent.click(screen.getByText("生成草稿"));
+		const progressbar = await screen.findByRole("progressbar");
+		expect(progressbar).toBeTruthy();
+	});
+
+	it("生成完成后进度条消失", async () => {
+		requestGenerate.mockResolvedValue({ ok: true, draft });
+		render(<App />);
+		await waitForAppReady();
+		fireEvent.change(screen.getByPlaceholderText(/输入选题/), {
+			target: { value: "某新番" },
+		});
+		fireEvent.click(screen.getByText("生成草稿"));
+		await screen.findByDisplayValue("AI 标题");
+		expect(screen.queryByRole("progressbar")).toBeNull();
+	});
+
+	it("生成失败时显示错误信息", async () => {
+		requestGenerate.mockResolvedValue({
+			ok: false,
+			error: "网络超时，请重试",
+		});
+		render(<App />);
+		await waitForAppReady();
+		fireEvent.change(screen.getByPlaceholderText(/输入选题/), {
+			target: { value: "某新番" },
+		});
+		fireEvent.click(screen.getByText("生成草稿"));
+		expect(await screen.findByText("网络超时，请重试")).toBeTruthy();
+	});
 });
