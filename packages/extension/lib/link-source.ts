@@ -5,29 +5,29 @@
 // 不自动改写/剥除连结,只返回判定结果,由审核区(U4)渲染给人决定。
 
 export interface LinkCheck {
-  url: string;
-  /** 该连结能否在输入事实里找到来源。false = 疑似 AI 自造。 */
-  sourced: boolean;
+	url: string;
+	/** 该连结能否在输入事实里找到来源。false = 疑似 AI 自造。 */
+	sourced: boolean;
 }
 
 /** 从正文 HTML 抽 <a href>。纯字串正则解析，无 DOM 环境(如 SW)亦可。 */
 export function extractLinks(html: string): string[] {
-  const links: string[] = [];
-  const regex = /<a\s+(?:[^>]*?\s+)?href=(["'])(.*?)\1/gi;
-  let match;
-  while ((match = regex.exec(html)) !== null) {
-    let href = (match[2] ?? '').trim();
-    // Decode basic HTML entities that might have been escaped in href
-    href = href
-      .replace(/&quot;/g, '"')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&amp;/g, '&');
-    if (href) {
-      links.push(href);
-    }
-  }
-  return links;
+	const links: string[] = [];
+	const regex = /<a\s+(?:[^>]*?\s+)?href=(["'])(.*?)\1/gi;
+	let match;
+	while ((match = regex.exec(html)) !== null) {
+		let href = (match[2] ?? "").trim();
+		// Decode basic HTML entities that might have been escaped in href
+		href = href
+			.replace(/&quot;/g, '"')
+			.replace(/&lt;/g, "<")
+			.replace(/&gt;/g, ">")
+			.replace(/&amp;/g, "&");
+		if (href) {
+			links.push(href);
+		}
+	}
+	return links;
 }
 
 /**
@@ -35,15 +35,15 @@ export function extractLinks(html: string): string[] {
  * 解析失败 → 返回 trim+小写的原串(仍可相等比对)。
  */
 export function normalizeUrl(u: string): string {
-  const raw = u.trim();
-  try {
-    const url = new URL(raw);
-    const host = url.host.toLowerCase().replace(/^www\./, '');
-    let path = url.pathname.replace(/\/+$/, '');
-    return `${host}${path}${url.search}`;
-  } catch {
-    return raw.toLowerCase().replace(/\/+$/, '');
-  }
+	const raw = u.trim();
+	try {
+		const url = new URL(raw);
+		const host = url.host.toLowerCase().replace(/^www\./, "");
+		const path = url.pathname.replace(/\/+$/, "");
+		return `${host}${path}${url.search}`;
+	} catch {
+		return raw.toLowerCase().replace(/\/+$/, "");
+	}
 }
 
 /**
@@ -51,19 +51,19 @@ export function normalizeUrl(u: string): string {
  * 返回每条 body 连结的判定(去重,保序)。
  */
 export function verifyLinks(html: string, allowedUrls: string[]): LinkCheck[] {
-  const allowed = new Set(allowedUrls.map(normalizeUrl));
-  const seen = new Set<string>();
-  const out: LinkCheck[] = [];
-  for (const href of extractLinks(html)) {
-    const norm = normalizeUrl(href);
-    if (seen.has(norm)) continue;
-    seen.add(norm);
-    out.push({ url: href, sourced: allowed.has(norm) });
-  }
-  return out;
+	const allowed = new Set(allowedUrls.map(normalizeUrl));
+	const seen = new Set<string>();
+	const out: LinkCheck[] = [];
+	for (const href of extractLinks(html)) {
+		const norm = normalizeUrl(href);
+		if (seen.has(norm)) continue;
+		seen.add(norm);
+		out.push({ url: href, sourced: allowed.has(norm) });
+	}
+	return out;
 }
 
 /** 是否存在任何无来源连结(疑似幻觉)。 */
 export function hasUnsourcedLink(checks: LinkCheck[]): boolean {
-  return checks.some((c) => !c.sourced);
+	return checks.some((c) => !c.sourced);
 }

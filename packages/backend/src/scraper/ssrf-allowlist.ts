@@ -27,7 +27,7 @@ function matches(pattern: Pattern, candidate: URL): boolean {
 	if (pattern.wildcard) {
 		return (
 			ch === pattern.hostname.toLowerCase() ||
-			ch.endsWith("." + pattern.hostname.toLowerCase())
+			ch.endsWith(`.${pattern.hostname.toLowerCase()}`)
 		);
 	}
 	return ch === pattern.hostname.toLowerCase();

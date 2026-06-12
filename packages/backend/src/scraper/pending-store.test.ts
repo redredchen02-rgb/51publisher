@@ -46,12 +46,12 @@ describe("pending-store (SQLite)", () => {
 		await savePendingTopic(topic);
 		const loaded = await loadPendingTopic(topic.id);
 		expect(loaded).not.toBeNull();
-		expect(loaded!.title).toBe(topic.title);
-		expect(loaded!.siteName).toBe("acgs51");
-		expect(loaded!.confidence).toBe(0.85);
-		expect(loaded!.status).toBe("pending");
-		expect(loaded!.coverImageUrl).toBe("https://cdn.example.com/cover.jpg");
-		expect(loaded!.facts["作品名"]).toBe("测试作品");
+		expect(loaded?.title).toBe(topic.title);
+		expect(loaded?.siteName).toBe("acgs51");
+		expect(loaded?.confidence).toBe(0.85);
+		expect(loaded?.status).toBe("pending");
+		expect(loaded?.coverImageUrl).toBe("https://cdn.example.com/cover.jpg");
+		expect(loaded?.facts.作品名).toBe("测试作品");
 	});
 
 	it("load 不存在的 id → null", async () => {
@@ -65,7 +65,7 @@ describe("pending-store (SQLite)", () => {
 		const updated = { ...topic, title: "更新后标题" };
 		await savePendingTopic(updated);
 		const loaded = await loadPendingTopic(topic.id);
-		expect(loaded!.title).toBe("更新后标题");
+		expect(loaded?.title).toBe("更新后标题");
 	});
 
 	it("savePendingTopic 自动刷新 updatedAt", async () => {
@@ -153,7 +153,7 @@ describe("pending-store (SQLite)", () => {
 		await new Promise((r) => setTimeout(r, 10));
 		const updated = await updatePendingTopicStatus(topic.id, "approved");
 		expect(updated).not.toBeNull();
-		expect(updated!.status).toBe("approved");
+		expect(updated?.status).toBe("approved");
 		expect(updated!.updatedAt > topic.updatedAt).toBe(true);
 	});
 
@@ -165,8 +165,8 @@ describe("pending-store (SQLite)", () => {
 			"rejected",
 			"内容质量不足",
 		);
-		expect(updated!.status).toBe("rejected");
-		expect(updated!.rejectedReason).toBe("内容质量不足");
+		expect(updated?.status).toBe("rejected");
+		expect(updated?.rejectedReason).toBe("内容质量不足");
 	});
 
 	it("updatePendingTopicStatus 不存在的 id → null", async () => {
@@ -211,7 +211,7 @@ describe("pending-store (SQLite)", () => {
 		const result = await savePendingTopic(updated);
 		expect(result).toEqual({ inserted: false });
 		const loaded = await loadPendingTopic("dedup-same");
-		expect(loaded!.title).toBe("新标题");
+		expect(loaded?.title).toBe("新标题");
 	});
 
 	it("两个不同 sourceUrl → 各自 inserted: true，DB 保留两条", async () => {
@@ -240,7 +240,7 @@ describe("pending-store (SQLite)", () => {
 		await savePendingTopic(topic);
 		const loaded = await loadPendingTopic("compat-1");
 		expect(loaded).not.toBeNull();
-		expect(loaded!.title).toBe(topic.title);
+		expect(loaded?.title).toBe(topic.title);
 	});
 
 	// ---- rawContent JSON 往返 ----
@@ -257,9 +257,9 @@ describe("pending-store (SQLite)", () => {
 		});
 		await savePendingTopic(topic);
 		const loaded = await loadPendingTopic(topic.id);
-		expect(loaded!.rawContent?.title).toBe("原始标题");
-		expect(loaded!.rawContent?.metadata?.["制作"]).toBe("Studio X");
-		expect(loaded!.rawContent?.coverImageUrl).toBe(
+		expect(loaded?.rawContent?.title).toBe("原始标题");
+		expect(loaded?.rawContent?.metadata?.制作).toBe("Studio X");
+		expect(loaded?.rawContent?.coverImageUrl).toBe(
 			"https://cdn.example.com/img.jpg",
 		);
 	});

@@ -1,9 +1,10 @@
 import type { FastifyInstance } from "fastify";
-import { err } from "../error-response.js";
+import { err } from "../utils/error-response.js";
 import { extractFacts } from "./fact-extractor.js";
 import { type PendingTopic, savePendingTopic } from "./pending-store.js";
 import { scraperConfig } from "./scraper-config.js";
 import { isHostAllowed, loadSSRFAllowlist } from "./ssrf-allowlist.js";
+import { type EnrichedContext, enrichContext } from "./web-enricher.js";
 
 interface TriggerBody {
 	siteName: string;
@@ -24,7 +25,7 @@ export async function registerScraperRoutes(
 			}
 
 			const config = scraperConfig.getSiteConfig(siteName);
-			if (!config || !config.enabled) {
+			if (!config?.enabled) {
 				return err(
 					reply,
 					404,
@@ -37,7 +38,35 @@ export async function registerScraperRoutes(
 				return err(reply, 500, `Adapter not registered: ${config.adapterName}`);
 			}
 
-			const targetUrl = url || config.url;
+			// List-discovery mode: if no URL supplied and config.listUrl exists, scan the list page.
+			let targetUrl: string;
+			if (url) {
+				targetUrl = url;
+			} else if (!url && config.listUrl && adapter.fetchList) {
+				request.log.info(`List-discovery mode: scanning ${config.listUrl}`);
+				let discovered: string[];
+				try {
+					discovered = await adapter.fetchList(config.listUrl);
+				} catch (e) {
+					const msg = e instanceof Error ? e.message : String(e);
+					return err(reply, 500, `fetchList failed: ${msg}`);
+				}
+				if (discovered.length === 0) {
+					return err(
+						reply,
+						404,
+						`No articles found at list URL: ${config.listUrl}`,
+					);
+				}
+				// Pick a random article from the discovered list.
+				targetUrl = discovered[Math.floor(Math.random() * discovered.length)]!;
+				request.log.info(
+					`Discovered ${discovered.length} URLs, selected: ${targetUrl}`,
+				);
+			} else {
+				targetUrl = config.url;
+			}
+
 			if (!targetUrl) {
 				return err(reply, 400, "No URL provided and no default URL in config");
 			}
@@ -64,17 +93,19 @@ export async function registerScraperRoutes(
 					);
 				}
 				if (parsed.protocol !== configParsed.protocol) {
-					return reply.status(400).send({
-						ok: false,
-						error: `URL protocol not allowed for site ${siteName}: ${parsed.protocol}`,
-					});
+					return err(
+						reply,
+						400,
+						`URL protocol not allowed for site ${siteName}: ${parsed.protocol}`,
+					);
 				}
 
 				if (!isHostAllowed(parsed, loadSSRFAllowlist())) {
-					return reply.status(403).send({
-						ok: false,
-						error: `URL hostname blocked by SSRF allowlist: ${parsed.hostname}`,
-					});
+					return err(
+						reply,
+						403,
+						`URL hostname blocked by SSRF allowlist: ${parsed.hostname}`,
+					);
 				}
 			}
 
@@ -107,7 +138,30 @@ export async function registerScraperRoutes(
 					},
 				);
 
-				// Step 3: Save as pending topic
+				// Step 3: Web search enrichment
+				let enrichment: EnrichedContext | undefined;
+				if (process.env.ENRICHMENT_ENABLED !== "false") {
+					request.log.info("Enriching via web search");
+					try {
+						const maxQ = Math.min(
+							Math.max(
+								Number(process.env.ENRICHMENT_MAX_QUERIES ?? "3") || 3,
+								1,
+							),
+							10,
+						);
+						enrichment = await enrichContext({ facts, maxQueries: maxQ });
+						const totalResults = enrichment.queryResults.reduce(
+							(sum, qr) => sum + qr.results.length,
+							0,
+						);
+						request.log.info(`Enrichment complete: ${totalResults} results`);
+					} catch (enrichErr) {
+						request.log.warn(`Enrichment failed (non-fatal): ${enrichErr}`);
+					}
+				}
+
+				// Step 4: Save as pending topic
 				const now = new Date().toISOString();
 				const id = `scrape_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 				const pendingTopic: PendingTopic = {
@@ -119,6 +173,7 @@ export async function registerScraperRoutes(
 					facts,
 					confidence,
 					...(coverImageUrl ? { coverImageUrl } : {}),
+					...(enrichment ? { enrichment } : {}),
 					status: "pending",
 					createdAt: now,
 					updatedAt: now,
@@ -129,7 +184,7 @@ export async function registerScraperRoutes(
 				return { ok: true, pendingTopic };
 			} catch (e) {
 				const msg = e instanceof Error ? e.message : String(e);
-				request.log.error(err, `Scrape failed for ${siteName}`);
+				request.log.error(e, `Scrape failed for ${siteName}`);
 				return err(reply, 500, `Scrape failed: ${msg}`);
 			}
 		},

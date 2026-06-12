@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { err } from "../error-response.js";
+import { err } from "../utils/error-response.js";
 import {
 	deletePrompt,
 	listPrompts,

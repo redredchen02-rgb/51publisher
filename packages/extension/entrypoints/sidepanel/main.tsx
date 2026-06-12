@@ -1,16 +1,16 @@
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import { App } from './App';
-import { ErrorBoundary } from './ErrorBoundary';
-import './index.css';
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { App } from "./App";
+import { ErrorBoundary } from "./ErrorBoundary";
+import "./index.css";
 
-const rootEl = document.getElementById('root');
-if (!rootEl) throw new Error('未找到 #root 容器,无法挂载 side panel。');
+const rootEl = document.getElementById("root");
+if (!rootEl) throw new Error("未找到 #root 容器,无法挂载 side panel。");
 
 createRoot(rootEl).render(
-  <StrictMode>
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
-  </StrictMode>,
+	<StrictMode>
+		<ErrorBoundary>
+			<App />
+		</ErrorBoundary>
+	</StrictMode>,
 );

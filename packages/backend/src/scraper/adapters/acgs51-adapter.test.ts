@@ -22,7 +22,7 @@ function makeResponse(html: string, ok = true, status = 200): Response {
 
 /** 构造包含 N 条同 host 详情页链接的列表 HTML */
 function listHtml(
-	host: string,
+	_host: string,
 	paths: string[],
 	extras: string[] = [],
 ): string {
@@ -48,7 +48,7 @@ describe("acgs51Adapter.fetchList", () => {
 		];
 		mockFetch.mockResolvedValue(makeResponse(listHtml("51acgs.com", paths)));
 
-		const result = await acgs51Adapter.fetchList!(BASE);
+		const result = await acgs51Adapter.fetchList?.(BASE);
 
 		expect(result).toHaveLength(5);
 		for (const path of paths) {
@@ -64,10 +64,10 @@ describe("acgs51Adapter.fetchList", () => {
     `;
 		mockFetch.mockResolvedValue(makeResponse(html));
 
-		const result = await acgs51Adapter.fetchList!(BASE);
+		const result = await acgs51Adapter.fetchList?.(BASE);
 
 		expect(result).toHaveLength(1);
-		expect(result[0]).toBe("https://51acgs.com/acg/2001.html");
+		expect(result?.[0]).toBe("https://51acgs.com/acg/2001.html");
 	});
 
 	it("页面内重复链接只返回一次", async () => {
@@ -78,7 +78,7 @@ describe("acgs51Adapter.fetchList", () => {
     `;
 		mockFetch.mockResolvedValue(makeResponse(html));
 
-		const result = await acgs51Adapter.fetchList!(BASE);
+		const result = await acgs51Adapter.fetchList?.(BASE);
 
 		expect(result).toHaveLength(1);
 	});
@@ -86,7 +86,7 @@ describe("acgs51Adapter.fetchList", () => {
 	it("HTTP 请求失败 → 返回空数组（不抛出）", async () => {
 		mockFetch.mockRejectedValue(new Error("network error"));
 
-		const result = await acgs51Adapter.fetchList!(BASE);
+		const result = await acgs51Adapter.fetchList?.(BASE);
 
 		expect(result).toEqual([]);
 	});
@@ -94,7 +94,7 @@ describe("acgs51Adapter.fetchList", () => {
 	it("非 2xx 状态码 → 返回空数组", async () => {
 		mockFetch.mockResolvedValue(makeResponse("", false, 503));
 
-		const result = await acgs51Adapter.fetchList!(BASE);
+		const result = await acgs51Adapter.fetchList?.(BASE);
 
 		expect(result).toEqual([]);
 	});
@@ -107,7 +107,7 @@ describe("acgs51Adapter.fetchList", () => {
     `;
 		mockFetch.mockResolvedValue(makeResponse(html));
 
-		const result = await acgs51Adapter.fetchList!(BASE);
+		const result = await acgs51Adapter.fetchList?.(BASE);
 
 		expect(result).toEqual([]);
 	});
@@ -116,9 +116,9 @@ describe("acgs51Adapter.fetchList", () => {
 		const html = `<a href="/anime/4001">无后缀详情页</a>`;
 		mockFetch.mockResolvedValue(makeResponse(html));
 
-		const result = await acgs51Adapter.fetchList!(BASE);
+		const result = await acgs51Adapter.fetchList?.(BASE);
 
 		expect(result).toHaveLength(1);
-		expect(result[0]).toBe("https://51acgs.com/anime/4001");
+		expect(result?.[0]).toBe("https://51acgs.com/anime/4001");
 	});
 });

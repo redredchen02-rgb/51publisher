@@ -194,7 +194,7 @@ flowchart TB
 
 ---
 
-- [ ] **U1: `published_posts` backend table + R8 endpoint**
+- [x] **U1: `published_posts` backend table + R8 endpoint**
 
 **Goal:** Implement the backend half of the already-wired `published-posts-client.ts` contract.
 Closes the silent-404 gap. Provides the `published_posts` table that R21 cross-session dedup and
@@ -242,7 +242,7 @@ R24 revisit depend on.
 
 ---
 
-- [ ] **U2: `source_url` UNIQUE migration + `savePendingTopic` dedup**
+- [x] **U2: `source_url` UNIQUE migration + `savePendingTopic` dedup**
 
 **Goal:** Implement 2-layer topic deduplication: cross-session via UNIQUE index (DB layer) + within
 a single cron run via an in-memory Set (scheduler layer, added in U4).
@@ -283,7 +283,7 @@ a single cron run via an in-memory Set (scheduler layer, added in U4).
 
 ---
 
-- [ ] **U3: `SiteAdapter.fetchList` interface + acgs51 list parser + `ACGS51_LIST_URL` env**
+- [x] **U3: `SiteAdapter.fetchList` interface + acgs51 list parser + `ACGS51_LIST_URL` env**
 
 **Goal:** Give the acgs51 adapter the ability to discover new detail-page URLs from a list page.
 Add the env var + env-check validation required to enable it safely.
@@ -333,7 +333,7 @@ Add the env var + env-check validation required to enable it safely.
 
 ---
 
-- [ ] **U4: Scheduler list-discovery loop**
+- [x] **U4: Scheduler list-discovery loop**
 
 **Goal:** Wire the list-discovery pipeline into the cron scheduler: per-cycle session Set,
 budget cap, UNIQUE-guarded save, consecutive-failure tracking.
@@ -384,7 +384,7 @@ budget cap, UNIQUE-guarded save, consecutive-failure tracking.
 
 ---
 
-- [ ] **U5: Telegram alert client**
+- [x] **U5: Telegram alert client**
 
 **Goal:** One-way Telegram push channel. Fire-and-forget helper used by scheduler (U4), revisit
 job (U6), and any future alerting call sites.
@@ -439,7 +439,7 @@ job (U6), and any future alerting call sites.
 
 ---
 
-- [ ] **U6: Unified revisit job**
+- [x] **U6: Unified revisit job**
 
 **Goal:** One cron-based job that (a) immediately validates newly published posts and (b) performs
 periodic health checks on all online posts. Outcomes written to `published_posts`; failures trigger
@@ -503,7 +503,7 @@ TG alerts.
 
 ---
 
-- [ ] **U7: Quality score column + API sort params**
+- [x] **U7: Quality score column + API sort params**
 
 **Goal:** Compute a simple quality score on topic save and expose it via the pending-topics API so
 operators can see high-value topics first.
@@ -552,7 +552,7 @@ operators can see high-value topics first.
 
 ---
 
-- [ ] **U8: Structured rejection reasons**
+- [x] **U8: Structured rejection reasons**
 
 **Goal:** Replace the free-text `rejected_reason` field with a typed enum at the API + type layer.
 Enables downstream aggregation (R23's "聚合回流") without DB schema changes.
@@ -593,7 +593,7 @@ Enables downstream aggregation (R23's "聚合回流") without DB schema changes.
 
 ---
 
-- [ ] **U9: launchd daemon scripts**
+- [x] **U9: launchd daemon scripts**
 
 **Goal:** Enable the backend to start automatically on Mac boot, restart on crash, and load secrets
 from a chmod-600 `.env` file. Aligns with R29a "后端常驻".
@@ -647,14 +647,14 @@ from a chmod-600 `.env` file. Aligns with R29a "后端常驻".
 
 **Test expectation:**
 Verified manually via checklist:
-- [ ] plist XML is well-formed (`plutil -lint`)
-- [ ] plist contains no keys from `EnvironmentVariables` that carry secrets
-- [ ] `start-backend.sh` rejects `.env` with permissions other than 600
-- [ ] `start-backend.sh` rejects `.env` that has a macOS extended ACL (`ls -le` shows `+`)
-- [ ] `install.sh` is idempotent (second run does not error)
-- [ ] `install.sh` embeds resolved absolute `dist/index.js` path (not a placeholder)
-- [ ] After `install.sh`, `launchctl list | grep 51publisher` shows the daemon
-- [ ] `data/` directory exists and is writable before first boot (verify in install checklist)
+- [x] plist XML is well-formed (`plutil -lint`)
+- [x] plist contains no keys from `EnvironmentVariables` that carry secrets
+- [x] `start-backend.sh` rejects `.env` with permissions other than 600
+- [x] `start-backend.sh` rejects `.env` that has a macOS extended ACL (`ls -le` shows `+`)
+- [x] `install.sh` is idempotent (second run does not error)
+- [x] `install.sh` embeds resolved absolute `dist/index.js` path (not a placeholder)
+- [x] After `install.sh`, `launchctl list | grep 51publisher` shows the daemon
+- [x] `data/` directory exists and is writable before first boot (verify in install checklist)
 
 **Verification:**
 - `plutil -lint scripts/launchd/com.51publisher.backend.plist` exits 0

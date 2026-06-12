@@ -52,6 +52,8 @@ DELETE FROM pending_topics WHERE rowid NOT IN (
   SELECT MIN(rowid) FROM pending_topics GROUP BY source_url
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_source_url ON pending_topics(source_url);`,
+	"006-enrichment.sql": `\
+ALTER TABLE pending_topics ADD COLUMN enrichment TEXT DEFAULT NULL;`,
 };
 
 export function runMigrations(dbPath: string): void {

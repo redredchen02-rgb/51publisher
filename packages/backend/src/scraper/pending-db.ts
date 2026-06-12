@@ -1,7 +1,6 @@
 // SQLite 持久层初始化。
 // better-sqlite3 是 CJS native addon，在 NodeNext ESM 下必须用 createRequire 导入。
 
-import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

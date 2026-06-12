@@ -5,6 +5,7 @@ import {
 	pendingWriteQueue,
 } from "./pending-db.js";
 import type { RawContent } from "./site-adapter.js";
+import type { EnrichedContext } from "./web-enricher.js";
 
 export type PendingStatus = "pending" | "approved" | "rejected";
 
@@ -20,6 +21,7 @@ export interface PendingTopic {
 	rejectedReason?: string;
 	coverImageUrl?: string;
 	score?: number;
+	enrichment?: EnrichedContext;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -43,8 +45,26 @@ interface PendingRow {
 	rejected_reason: string | null;
 	cover_image_url: string | null;
 	score: number | null;
+	enrichment: string | null;
 	created_at: string;
 	updated_at: string;
+}
+
+function safeJsonParse<T>(raw: string | null | undefined, fallback: T): T;
+function safeJsonParse<T>(
+	raw: string | null | undefined,
+	fallback: undefined,
+): T | undefined;
+function safeJsonParse<T>(
+	raw: string | null | undefined,
+	fallback: T | undefined,
+): T | undefined {
+	if (!raw) return fallback;
+	try {
+		return JSON.parse(raw) as T;
+	} catch {
+		return fallback;
+	}
 }
 
 function rowToTopic(row: PendingRow): PendingTopic {
@@ -53,15 +73,14 @@ function rowToTopic(row: PendingRow): PendingTopic {
 		sourceUrl: row.source_url,
 		siteName: row.site_name,
 		title: row.title,
-		rawContent: row.raw_content
-			? (JSON.parse(row.raw_content) as RawContent)
-			: undefined,
-		facts: JSON.parse(row.facts) as FactsBlock,
+		rawContent: safeJsonParse<RawContent>(row.raw_content, undefined),
+		facts: safeJsonParse<FactsBlock>(row.facts, {}),
 		confidence: row.confidence,
 		status: row.status as PendingStatus,
 		rejectedReason: row.rejected_reason ?? undefined,
 		coverImageUrl: row.cover_image_url ?? undefined,
 		score: row.score ?? undefined,
+		enrichment: safeJsonParse<EnrichedContext>(row.enrichment, undefined),
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
@@ -84,8 +103,10 @@ function computeScore(topic: PendingTopic, db: BetterSqlite3DB): number {
 	const fieldCompleteness =
 		[hasTitle, hasBody, hasFacts, hasCover].filter(Boolean).length / 4;
 
-	const daysSince =
-		(Date.now() - Date.parse(topic.createdAt)) / (1000 * 60 * 60 * 24);
+	const parsedTs = Date.parse(topic.createdAt);
+	const daysSince = Number.isNaN(parsedTs)
+		? 0
+		: (Date.now() - parsedTs) / (1000 * 60 * 60 * 24);
 	const freshnessDecay = Math.exp(-daysSince / 7);
 
 	let publishedPenalty = 0;
@@ -95,7 +116,7 @@ function computeScore(topic: PendingTopic, db: BetterSqlite3DB): number {
 			.get(topic.title);
 		if (hit) publishedPenalty = 0.8;
 	} catch {
-		// published_posts テーブルが存在しない場合（旧 DB）はペナルティなし
+		// 旧版 DB 不含 published_posts 表，跳过惩罚项
 	}
 
 	return fieldCompleteness * freshnessDecay * (1 - publishedPenalty);
@@ -142,10 +163,10 @@ export async function savePendingTopic(
 			`
       INSERT INTO pending_topics
         (id, source_url, site_name, title, raw_content, facts, confidence, status,
-         rejected_reason, cover_image_url, score, created_at, updated_at)
+         rejected_reason, cover_image_url, score, enrichment, created_at, updated_at)
       VALUES
         (@id, @sourceUrl, @siteName, @title, @rawContent, @facts, @confidence, @status,
-         @rejectedReason, @coverImageUrl, @score, @createdAt, @updatedAt)
+         @rejectedReason, @coverImageUrl, @score, @enrichment, @createdAt, @updatedAt)
       ON CONFLICT(id) DO UPDATE SET
         source_url = excluded.source_url,
         site_name  = excluded.site_name,
@@ -157,6 +178,7 @@ export async function savePendingTopic(
         rejected_reason = excluded.rejected_reason,
         cover_image_url = excluded.cover_image_url,
         score      = excluded.score,
+        enrichment = excluded.enrichment,
         updated_at = excluded.updated_at
     `,
 		).run({
@@ -171,6 +193,7 @@ export async function savePendingTopic(
 			rejectedReason: topic.rejectedReason ?? null,
 			coverImageUrl: topic.coverImageUrl ?? null,
 			score,
+			enrichment: topic.enrichment ? JSON.stringify(topic.enrichment) : null,
 			createdAt: topic.createdAt,
 			updatedAt: topic.updatedAt,
 		});

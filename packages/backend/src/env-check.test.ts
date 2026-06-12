@@ -1,6 +1,6 @@
 import { randomBytes, scryptSync } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { checkEnv, validateEnv } from "./env-check.js";
+import { checkEnv, validateEnv } from "./config/env-check.js";
 
 function goodHash(): string {
 	const salt = randomBytes(16);

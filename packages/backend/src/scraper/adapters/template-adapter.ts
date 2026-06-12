@@ -18,7 +18,10 @@ import { safeFetch } from "../ssrf-guard.js";
 // ---- HTML 解析辅助 ----
 // 简单正则足够应对无 DOM 环境的服务端；如目标站点有复杂 DOM 需求可引入 cheerio。
 
-function extractBySelector(html: string, selector: string): string | undefined {
+function _extractBySelector(
+	html: string,
+	selector: string,
+): string | undefined {
 	// TODO: 替换为适合目标站点的提取逻辑
 	// 示例：从 <meta property="og:title"> 提取
 	const ogTitleMatch = html.match(

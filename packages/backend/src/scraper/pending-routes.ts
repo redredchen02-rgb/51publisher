@@ -1,6 +1,6 @@
 import type { RejectionReason } from "@51publisher/shared";
 import type { FastifyInstance } from "fastify";
-import { err } from "../error-response.js";
+import { err } from "../utils/error-response.js";
 import {
 	deletePendingTopic,
 	listPendingTopics,
@@ -11,6 +11,17 @@ import {
 	savePendingTopic,
 	updatePendingTopicStatus,
 } from "./pending-store.js";
+import { formatEnrichmentForPrompt } from "./web-enricher.js";
+
+/** 把后端 PendingTopic 转成 API 响应格式，附加预格式化的 enrichmentText 字段。 */
+function toApiTopic(
+	t: PendingTopic,
+): PendingTopic & { enrichmentText?: string } {
+	const enrichmentText = t.enrichment
+		? formatEnrichmentForPrompt(t.enrichment) || undefined
+		: undefined;
+	return { ...t, enrichmentText };
+}
 
 const VALID_REJECTION_REASONS = new Set<RejectionReason>([
 	"duplicate",
@@ -67,7 +78,7 @@ export async function registerPendingRoutes(
 					}))
 				: rawTopics;
 
-		return { ok: true, topics };
+		return { ok: true, topics: topics.map(toApiTopic) };
 	});
 
 	// 获取单个待审核选题
@@ -76,7 +87,7 @@ export async function registerPendingRoutes(
 		async (request, reply) => {
 			const topic = await loadPendingTopic(request.params.id);
 			if (!topic) return err(reply, 404, "Pending topic not found");
-			return { ok: true, topic };
+			return { ok: true, topic: toApiTopic(topic) };
 		},
 	);
 

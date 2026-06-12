@@ -1,6 +1,6 @@
 import type { FactsBlock } from "@51publisher/shared";
-import { FACT_ORDER } from "@51publisher/shared";
-import { chatCompletionsUrl } from "../llm.js";
+import { CORE_FACT_KEYS, FACT_ORDER } from "@51publisher/shared";
+import { chatCompletionsUrl } from "../services/llm.js";
 import type { ExtractedFacts, RawContent } from "./site-adapter.js";
 
 /** json_schema 约束——保证 LLM 输出结构化事实。 */
@@ -23,18 +23,24 @@ const FACTS_SCHEMA = {
 	},
 } as const;
 
-const EXTRACTOR_PROMPT = `你是一个内容分析助手。你接收一篇网页内容（标题 + 正文），从中提取结构化事实。
+const EXTRACTOR_PROMPT = `你是一个内容分析助手。你接收一篇网页内容（标题 + 正文 + 结构化元数据），从中提取结构化事实。
 
 请提取以下字段（如果某字段在原文中不存在，设为 null）：
 - 作品名
-- 集数
-- 制作（制作方/工作室/原作）
-- 漢化（汉化组信息）
+- 集数（话数/期数，如 "第1话" "10限目"，从标题或正文中找数字）
+- 制作（制作方/工作室/原作/作者，优先用元数据中的"制作"字段）
+- 漢化（汉化组信息，如 "中国翻訳"）
 - 無修（無修正版本信息）
-- 题材（标签/分类）
+- 题材（分类+详细标签，用逗号分隔，如 "多人群交, 丝袜, 萝莉"）
 - 简介
 
-只从原文中提取信息，绝不编造。字段如找不到对应内容则设为 null。以 JSON 格式返回上述字段。`;
+重要提示：
+- 如果提供了"结构化元数据"，优先使用其中的信息
+- 标题中 [作者名] 格式的文字通常是作者/制作方
+- 标题中 [中国翻訳] 等通常是汉化组
+- 标题中的数字（如 "10限目"）可能是集数
+- 题材字段应包含主要分类和详细标签（从元数据的"标签"字段获取）
+- 只从原文中提取信息，绝不编造。字段如找不到对应内容则设为 null。以 JSON 格式返回上述字段。`;
 
 const FALLBACK_CONFIDENCE_CAP = 0.3;
 
@@ -43,7 +49,12 @@ function str(v: unknown): string {
 }
 
 function parseFactsFromContent(content: string): FactsBlock {
-	const parsed = JSON.parse(content) as Record<string, unknown>;
+	let parsed: Record<string, unknown>;
+	try {
+		parsed = JSON.parse(content) as Record<string, unknown>;
+	} catch {
+		return {};
+	}
 	const facts: FactsBlock = {};
 	for (const key of FACT_ORDER) {
 		const val = str(parsed[key]);
@@ -70,7 +81,18 @@ export async function extractFacts(
 		fetchFn = fetch,
 	} = opts;
 
-	const userPrompt = `${EXTRACTOR_PROMPT}\n\n标题：${rawContent.title}\n\n正文：${rawContent.body.slice(0, 8000)}`;
+	let userPrompt = `${EXTRACTOR_PROMPT}\n\n标题：${rawContent.title}\n\n正文：${rawContent.body.slice(0, 8000)}`;
+
+	// 如果有结构化元数据，附加到 prompt 中
+	if (rawContent.metadata && Object.keys(rawContent.metadata).length > 0) {
+		const metaLines = Object.entries(rawContent.metadata)
+			.filter(([, v]) => v)
+			.map(([k, v]) => `- ${k}: ${v}`)
+			.join("\n");
+		if (metaLines) {
+			userPrompt += `\n\n结构化元数据（来自页面提取，可直接使用）：\n${metaLines}`;
+		}
+	}
 
 	// Two-pass: json_schema strict → json_object fallback (mirrors llm.ts pattern)
 	for (const useSchema of [true, false] as const) {
@@ -127,9 +149,9 @@ export async function extractFacts(
 				?.choices?.[0]?.message?.content ?? "";
 
 		const facts = parseFactsFromContent(content);
-		const filled = FACT_ORDER.filter((k) => facts[k]).length;
+		const filled = CORE_FACT_KEYS.filter((k) => facts[k]).length;
 		const rawConfidence =
-			FACT_ORDER.length > 0 ? filled / FACT_ORDER.length : 0;
+			CORE_FACT_KEYS.length > 0 ? filled / CORE_FACT_KEYS.length : 0;
 		const extractionMode = useSchema ? "strict" : "fallback";
 		const confidence =
 			extractionMode === "fallback"

@@ -1,6 +1,6 @@
 import type { FastifyBaseLogger } from "fastify";
 import cron from "node-cron";
-import { sendAlert } from "../telegram.js";
+import { sendAlert } from "../services/telegram.js";
 import { extractFacts } from "./fact-extractor.js";
 import {
 	type PendingTopic,
@@ -9,6 +9,7 @@ import {
 } from "./pending-store.js";
 import { scraperConfig } from "./scraper-config.js";
 import type { ScraperSiteConfig, SiteAdapter } from "./site-adapter.js";
+import { type EnrichedContext, enrichContext } from "./web-enricher.js";
 
 interface SchedulerDeps {
 	logger?: FastifyBaseLogger;
@@ -90,6 +91,29 @@ async function runSingleUrl(
 				model: deps.llmModel || "gpt-4o-mini",
 			});
 
+		// Web 搜索富化：搜作品评测/讨论/背景资料
+		let enrichment: EnrichedContext | undefined;
+		if (process.env.ENRICHMENT_ENABLED !== "false") {
+			try {
+				const maxQ = Math.min(
+					Math.max(Number(process.env.ENRICHMENT_MAX_QUERIES ?? "3") || 3, 1),
+					10,
+				);
+				enrichment = await enrichContext({ facts, maxQueries: maxQ });
+				const totalResults = enrichment.queryResults.reduce(
+					(sum, qr) => sum + qr.results.length,
+					0,
+				);
+				deps.logger?.info(
+					`[scheduler] Enrichment complete for ${site.siteName}: ${totalResults} results`,
+				);
+			} catch (enrichErr) {
+				deps.logger?.warn(
+					`[scheduler] Enrichment failed (non-fatal): ${enrichErr}`,
+				);
+			}
+		}
+
 		const now = new Date().toISOString();
 		const topic: PendingTopic = {
 			id: `scheduled_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -100,6 +124,7 @@ async function runSingleUrl(
 			facts,
 			confidence,
 			...(coverImageUrl ? { coverImageUrl } : {}),
+			...(enrichment ? { enrichment } : {}),
 			status: "pending",
 			createdAt: now,
 			updatedAt: now,
@@ -115,6 +140,7 @@ async function runSingleUrl(
 			durationMs: Date.now() - runStart,
 			confidence,
 			extractionMode,
+			enriched: !!enrichment,
 		});
 		deps.logger?.info(
 			`[scheduler] Saved pending topic from ${site.siteName}: ${rawContent.title}`,
@@ -148,7 +174,7 @@ async function runListDiscovery(
 		`[scheduler] List-discovery start: ${site.siteName} listUrl=${site.listUrl}`,
 	);
 
-	const candidateUrls = await adapter.fetchList!(site.listUrl!);
+	const candidateUrls = (await adapter.fetchList?.(site.listUrl!)) ?? [];
 
 	// Session-level dedup（防止同一次 run 内重复抓取同一 URL）
 	const sessionSet = new Set<string>();
@@ -184,6 +210,20 @@ async function runListDiscovery(
 				},
 			);
 
+			// Web 搜索富化（list-discovery 模式也执行）
+			let enrichment: EnrichedContext | undefined;
+			if (process.env.ENRICHMENT_ENABLED !== "false") {
+				try {
+					const maxQ = Math.min(
+						Math.max(Number(process.env.ENRICHMENT_MAX_QUERIES ?? "3") || 3, 1),
+						10,
+					);
+					enrichment = await enrichContext({ facts, maxQueries: maxQ });
+				} catch {
+					// 非致命错误，静默降级
+				}
+			}
+
 			const now = new Date().toISOString();
 			const topic: PendingTopic = {
 				id: `discovered_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -194,6 +234,7 @@ async function runListDiscovery(
 				facts,
 				confidence,
 				...(coverImageUrl ? { coverImageUrl } : {}),
+				...(enrichment ? { enrichment } : {}),
 				status: "pending",
 				createdAt: now,
 				updatedAt: now,
