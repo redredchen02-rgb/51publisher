@@ -1,7 +1,7 @@
 ---
 title: "feat: Phase 5 — 每日一键备稿 & 逐篇审读发布"
 type: feat
-status: active
+status: completed
 date: 2026-06-11
 origin: docs/brainstorms/2026-06-10-intelligent-publisher-roadmap-requirements.md
 ---
@@ -194,7 +194,7 @@ graph TB
 
 ---
 
-- [ ] **U1: 后端 `/healthz` 端点 + 一键启动脚本**
+- [x] **U1: 后端 `/healthz` 端点 + 一键启动脚本**
 
 **Goal:** R29 运维收尾 — 无鉴权健康检查端点 + 消除"pnpm start 跑旧 dist"的一键启动脚本
 
@@ -227,7 +227,7 @@ graph TB
 
 ---
 
-- [ ] **U2: `gate-failed` BatchItemStatus + gateFailReason 字段**
+- [x] **U2: `gate-failed` BatchItemStatus + gateFailReason 字段**
 
 **Goal:** 扩展状态机支持"内容 gate 失败"语义，与"系统错误"分离；同步更新 `abortBatch`、`batchPhase`、后端 ALLOWED_TRANSITIONS
 
@@ -272,7 +272,7 @@ graph TB
 
 ---
 
-- [ ] **U3: `pending-client.ts` 扩展 sortBy + foldThreshold 参数**
+- [x] **U3: `pending-client.ts` 扩展 sortBy + foldThreshold 参数**
 
 **Goal:** 让扩展前端能使用 Phase 4 已实现的 `sort_by=score` 和 `fold_threshold` API
 
@@ -305,7 +305,7 @@ graph TB
 
 ---
 
-- [ ] **U4: `runBatch` 内提前跑 grounding gate（备稿阶段分流）**
+- [x] **U4: `runBatch` 内提前跑 grounding gate（备稿阶段分流）**
 
 **Goal:** 在 `markFilled` 后立即做内容质量预筛，gate 失败进 `gate-failed`，通过进 `awaiting-approval`
 
@@ -340,7 +340,7 @@ graph TB
 
 ---
 
-- [ ] **U5: SW 重启时 `generating → error` 恢复**
+- [x] **U5: SW 重启时 `generating → error` 恢复**
 
 **Goal:** 消除"生成阶段 SW kill"后永久卡死在 `generating` 的僵尸 items
 
@@ -373,7 +373,7 @@ graph TB
 
 ---
 
-- [ ] **U6: `readItems` 持久化 + read gating**
+- [x] **U6: `readItems` 持久化 + read gating**
 
 **Goal:** 将"已读"标记写入 `chrome.storage.local`，保证"每篇必读"约束跨 SW kill 有效
 
@@ -407,7 +407,7 @@ graph TB
 
 ---
 
-- [ ] **U7: 扩展 `DISCARD_BATCH_ITEM` 支持否决语义**
+- [x] **U7: 扩展 `DISCARD_BATCH_ITEM` 支持否决语义**
 
 **Goal:** 操作者可对单条草稿执行否决，BatchItem → aborted，PendingTopic → rejected
 
@@ -448,7 +448,7 @@ graph TB
 
 ---
 
-- [ ] **U8: `TodayBatchView.tsx` — 每日批次起飞视图**
+- [x] **U8: `TodayBatchView.tsx` — 每日批次起飞视图**
 
 **Goal:** 新的侧边栏视图，展示待审池状态、top-N 预览、触发今日批次
 
@@ -492,7 +492,7 @@ graph TB
 
 ---
 
-- [ ] **U9: BatchReviewPanel Phase 5 增强**
+- [x] **U9: BatchReviewPanel Phase 5 增强**
 
 **Goal:** 在现有 BatchReviewPanel 中集成 read gating、gate-failed 展示、单条否决，完成 R28 审读发布流
 
@@ -537,7 +537,7 @@ graph TB
 
 ---
 
-- [ ] **U10: 接通 `recordPublishedPost`（修死代码）**
+- [x] **U10: 接通 `recordPublishedPost`（修死代码）**
 
 **Goal:** `publish-confirmed` 后实际写入 `published_posts` 表，使去重和 revisit job 能正常工作
 
