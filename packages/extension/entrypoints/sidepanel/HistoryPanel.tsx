@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getTrajectory } from "../../lib/storage";
 import type { TrajectoryRecord } from "../../lib/trajectory";
 import { rollbackTargets, verifyTrajectory } from "../../lib/trajectory";
@@ -21,9 +21,13 @@ export function HistoryPanel() {
 		);
 	}
 
-	const intact = verifyTrajectory([...records].reverse()); // verifyTrajectory expects oldest-first
-	const rollbackSet = new Set(
-		rollbackTargets([...records].reverse()).map((r) => r.id),
+	// records は newest-first;verifyTrajectory / rollbackTargets は oldest-first を期待。
+	// records が変わるときだけ再計算する。
+	const oldestFirst = useMemo(() => [...records].reverse(), [records]);
+	const intact = useMemo(() => verifyTrajectory(oldestFirst), [oldestFirst]);
+	const rollbackSet = useMemo(
+		() => new Set(rollbackTargets(oldestFirst).map((r) => r.id)),
+		[oldestFirst],
 	);
 	const visible = records.slice(0, page * PAGE_SIZE);
 	const hasMore = records.length > page * PAGE_SIZE;

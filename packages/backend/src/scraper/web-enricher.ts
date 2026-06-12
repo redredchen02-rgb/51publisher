@@ -66,7 +66,9 @@ function initEnrichmentCacheTable(): void {
 			CREATE INDEX IF NOT EXISTS idx_enrichment_created ON enrichment_cache(created_at);
 		`);
 		// 清理过期缓存（24小时）
-		db.prepare("DELETE FROM enrichment_cache WHERE created_at < datetime('now', '-1 day')").run();
+		db.prepare(
+			"DELETE FROM enrichment_cache WHERE created_at < datetime('now', '-1 day')",
+		).run();
 	} catch {
 		// 初始化失败不影响主流程
 	}
