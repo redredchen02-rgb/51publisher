@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { getStorage } from "../../../lib/chrome-storage-utils";
 
 interface OperationRecord {
 	id: string;
@@ -17,33 +18,6 @@ interface UseOperationHistoryReturn {
 	retrieveHistory: () => Promise<void>;
 	clearHistory: () => Promise<void>;
 	exportHistory: () => string;
-}
-
-declare const chrome: {
-	storage?: {
-		local?: {
-			get: (keys: string | string[] | Record<string, unknown>) => Promise<Record<string, unknown>>;
-			set: (items: Record<string, unknown>) => Promise<void>;
-			remove: (keys: string | string[]) => Promise<void>;
-		};
-	};
-};
-
-function isStorageAvailable(): boolean {
-	try {
-		return typeof chrome !== "undefined" && chrome?.storage?.local != null;
-	} catch {
-		return false;
-	}
-}
-
-function getStorage() {
-	if (!isStorageAvailable()) return null;
-	return chrome.storage?.local as {
-		get: (key: string) => Promise<Record<string, unknown>>;
-		set: (data: Record<string, unknown>) => Promise<void>;
-		remove: (key: string) => Promise<void>;
-	};
 }
 
 const STORAGE_KEY = "pfa-operation-history";
@@ -75,9 +49,9 @@ export function useOperationHistory(): UseOperationHistoryReturn {
 		try {
 			const storage = getStorage();
 			if (storage) {
-				const result = await storage.get(STORAGE_KEY);
+				const result = await storage.get<Record<string, unknown>>(STORAGE_KEY);
 				setHistory(
-					(result[STORAGE_KEY] as OperationRecord[] | undefined) ?? [],
+					(result?.[STORAGE_KEY] as OperationRecord[] | undefined) ?? [],
 				);
 			}
 		} catch {

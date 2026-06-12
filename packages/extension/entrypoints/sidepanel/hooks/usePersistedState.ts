@@ -1,30 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-
-declare const chrome: {
-	storage?: {
-		local?: {
-			get: (keys: string | string[] | Record<string, unknown>) => Promise<Record<string, unknown>>;
-			set: (items: Record<string, unknown>) => Promise<void>;
-			remove: (keys: string | string[]) => Promise<void>;
-		};
-	};
-};
-
-function isStorageAvailable(): boolean {
-	try {
-		return typeof chrome !== "undefined" && chrome?.storage?.local != null;
-	} catch {
-		return false;
-	}
-}
-
-function getStorage() {
-	if (!isStorageAvailable()) return null;
-	return chrome.storage?.local as {
-		get: <T>(key: string) => Promise<T | null>;
-		set: (data: Record<string, unknown>) => Promise<void>;
-	};
-}
+import { getStorage } from "../../../lib/chrome-storage-utils";
 
 export function usePersistedState<T>(
 	key: string,

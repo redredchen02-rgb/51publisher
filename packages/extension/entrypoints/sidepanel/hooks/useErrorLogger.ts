@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { getStorage } from "../../../lib/chrome-storage-utils";
 
 interface ErrorLog {
 	id: string;
@@ -17,33 +18,6 @@ interface UseErrorLoggerReturn {
 }
 
 const STORAGE_KEY = "pfa-error-logs";
-
-declare const chrome: {
-	storage?: {
-		local?: {
-			get: (keys: string | string[] | Record<string, unknown>) => Promise<Record<string, unknown>>;
-			set: (items: Record<string, unknown>) => Promise<void>;
-			remove: (keys: string | string[]) => Promise<void>;
-		};
-	};
-};
-
-function isStorageAvailable(): boolean {
-	try {
-		return typeof chrome !== "undefined" && chrome?.storage?.local != null;
-	} catch {
-		return false;
-	}
-}
-
-function getStorage() {
-	if (!isStorageAvailable()) return null;
-	return chrome.storage?.local as {
-		get: (key: string) => Promise<Record<string, unknown>>;
-		set: (data: Record<string, unknown>) => Promise<void>;
-		remove: (key: string) => Promise<void>;
-	};
-}
 
 export function useErrorLogger(): UseErrorLoggerReturn {
 	const [logs, setLogs] = useState<ErrorLog[]>([]);
@@ -73,8 +47,8 @@ export function useErrorLogger(): UseErrorLoggerReturn {
 		try {
 			const storage = getStorage();
 			if (storage) {
-				const result = await storage.get(STORAGE_KEY);
-				setLogs((result[STORAGE_KEY] as ErrorLog[] | undefined) ?? []);
+				const result = await storage.get<Record<string, unknown>>(STORAGE_KEY);
+				setLogs((result?.[STORAGE_KEY] as ErrorLog[] | undefined) ?? []);
 			}
 		} catch {
 			// 静默失败
