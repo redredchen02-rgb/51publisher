@@ -58,6 +58,7 @@ export async function registerPendingRoutes(
 			status?: string;
 			sort_by?: string;
 			fold_threshold?: string;
+			domain?: string;
 		};
 	}>("/api/v1/pending-topics", async (request) => {
 		const limit = Math.min(Math.max(Number(request.query.limit) || 50, 1), 200);
@@ -74,8 +75,12 @@ export async function registerPendingRoutes(
 			request.query.fold_threshold !== undefined
 				? Number(request.query.fold_threshold)
 				: undefined;
+		const domain =
+			request.query.domain === "acg" || request.query.domain === "gossip"
+				? (request.query.domain as "acg" | "gossip")
+				: undefined;
 
-		const rawTopics = await listPendingTopics(limit, status, sortBy);
+		const rawTopics = await listPendingTopics(limit, status, sortBy, domain);
 
 		const topics =
 			foldThreshold !== undefined && !Number.isNaN(foldThreshold)

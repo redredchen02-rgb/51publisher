@@ -51,7 +51,7 @@ describe("pending-store (SQLite)", () => {
 		expect(loaded?.confidence).toBe(0.85);
 		expect(loaded?.status).toBe("pending");
 		expect(loaded?.coverImageUrl).toBe("https://cdn.example.com/cover.jpg");
-		expect(loaded?.facts.作品名).toBe("测试作品");
+		expect((loaded?.facts as Record<string, unknown>).作品名).toBe("测试作品");
 	});
 
 	it("load 不存在的 id → null", async () => {
