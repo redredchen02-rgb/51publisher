@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import {
 	mkdir,
 	readdir,
@@ -36,13 +35,11 @@ export class JsonFileStore<T extends { id: string }> {
 	}
 
 	private async ensureDir(): Promise<void> {
-		if (!existsSync(this.dirPath))
-			await mkdir(this.dirPath, { recursive: true });
+		await mkdir(this.dirPath, { recursive: true });
 	}
 
 	async read(id: string): Promise<T | null> {
 		const fp = this.filePath(id);
-		if (!existsSync(fp)) return null;
 		try {
 			const raw = await readFile(fp, "utf-8");
 			return JSON.parse(raw) as T;
@@ -62,9 +59,15 @@ export class JsonFileStore<T extends { id: string }> {
 		);
 	}
 
-	async delete(id: string): Promise<void> {
+	async delete(id: string): Promise<boolean> {
 		const fp = this.filePath(id);
-		if (existsSync(fp)) await unlink(fp);
+		try {
+			await unlink(fp);
+			return true;
+		} catch (e) {
+			if ((e as NodeJS.ErrnoException).code === "ENOENT") return false;
+			throw e;
+		}
 	}
 
 	async list(opts?: { limit?: number }): Promise<T[]> {
@@ -77,13 +80,18 @@ export class JsonFileStore<T extends { id: string }> {
 		type FileInfo = { name: string; mtime: number };
 		const fileInfos: FileInfo[] = [];
 
-		for (const f of jsonFiles) {
-			try {
+		// Parallel stat all files
+		const statResults = await Promise.allSettled(
+			jsonFiles.map(async (f) => {
 				const filePath = join(this.dirPath, f);
 				const s = await stat(filePath);
-				fileInfos.push({ name: f, mtime: s.mtimeMs });
-			} catch {
-				// skip inaccessible
+				return { name: f, mtime: s.mtimeMs };
+			}),
+		);
+
+		for (const result of statResults) {
+			if (result.status === "fulfilled") {
+				fileInfos.push(result.value);
 			}
 		}
 
@@ -95,13 +103,18 @@ export class JsonFileStore<T extends { id: string }> {
 			? fileInfos.slice(0, opts.limit)
 			: fileInfos;
 
-		const items: T[] = [];
-		for (const fi of filesToRead) {
-			try {
+		// Parallel read all files
+		const readResults = await Promise.allSettled(
+			filesToRead.map(async (fi) => {
 				const raw = await readFile(join(this.dirPath, fi.name), "utf-8");
-				items.push(JSON.parse(raw) as T);
-			} catch {
-				// skip corrupt
+				return JSON.parse(raw) as T;
+			}),
+		);
+
+		const items: T[] = [];
+		for (const result of readResults) {
+			if (result.status === "fulfilled") {
+				items.push(result.value);
 			}
 		}
 

@@ -52,8 +52,5 @@ export async function listPrompts(): Promise<PromptTemplate[]> {
 }
 
 export async function deletePrompt(id: string): Promise<boolean> {
-	const existed = await promptStore.read(id);
-	if (!existed) return false;
-	await promptStore.delete(id);
-	return true;
+	return promptStore.delete(id);
 }

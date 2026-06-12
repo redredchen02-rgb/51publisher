@@ -134,10 +134,12 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
 			if (!batch) return err(reply, 404, "Batch not found");
 
 			// 自动崩溃恢复:publish-dispatched 无回执 → 隔离
-			const recovered = recoverBatch(batch);
-			// 如果恢复有变动,持久化
-			const changed = JSON.stringify(recovered) !== JSON.stringify(batch);
-			if (changed) await saveBatch(recovered);
+			// recoverBatch 只处理 publish-dispatched 项，直接检查避免 JSON.stringify 序列化开销
+			const needsRecovery = batch.items.some(
+				(it) => it.status === "publish-dispatched",
+			);
+			const recovered = needsRecovery ? recoverBatch(batch) : batch;
+			if (needsRecovery) await saveBatch(recovered);
 
 			return { ok: true, batch: recovered };
 		},
