@@ -109,7 +109,8 @@ export function HistoryPanel() {
 				))}
 			</ul>
 			{hasMore && (
-				<button type="button"
+				<button
+					type="button"
 					onClick={() => setPage((p) => p + 1)}
 					style={{
 						marginTop: 6,

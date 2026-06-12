@@ -45,12 +45,16 @@ export async function registerScraperRoutes(
 			} else if (!url && config.listUrl && adapter.fetchList) {
 				request.log.info(`List-discovery mode: scanning ${config.listUrl}`);
 				let discovered: string[];
-			try {
-				discovered = await adapter.fetchList(config.listUrl);
-			} catch (e) {
-				request.log.error(e, `fetchList failed for ${config.listUrl}`);
-				return err(reply, 500, "Failed to fetch list. Check server logs for details.");
-			}
+				try {
+					discovered = await adapter.fetchList(config.listUrl);
+				} catch (e) {
+					request.log.error(e, `fetchList failed for ${config.listUrl}`);
+					return err(
+						reply,
+						500,
+						"Failed to fetch list. Check server logs for details.",
+					);
+				}
 				if (discovered.length === 0) {
 					return err(
 						reply,
@@ -250,7 +254,11 @@ export async function registerScraperRoutes(
 			};
 		} catch (e) {
 			request.log.error(e, "Auto-generate failed");
-			return err(reply, 500, "Auto-generate failed. Check server logs for details.");
+			return err(
+				reply,
+				500,
+				"Auto-generate failed. Check server logs for details.",
+			);
 		}
 	});
 }

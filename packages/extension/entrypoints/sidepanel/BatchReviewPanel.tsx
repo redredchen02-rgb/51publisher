@@ -78,7 +78,10 @@ function GroundingStrip({
 			{links.length > 0 && (
 				<ul style={{ margin: "4px 0 0", padding: "0 0 0 12px" }}>
 					{links.map((l) => (
-						<li key={l.url} style={{ color: l.sourced ? "#389e0d" : "#cf1322" }}>
+						<li
+							key={l.url}
+							style={{ color: l.sourced ? "#389e0d" : "#cf1322" }}
+						>
 							{l.sourced ? "✓ 程式注入(不可编造)" : "✗ 非来源(疑似编造)"}{" "}
 							<code style={{ wordBreak: "break-all" }}>{l.url}</code>
 						</li>
@@ -104,7 +107,8 @@ function GroundingStrip({
 					(draft.title.includes("【待补】") ||
 						draft.body.includes("【待补】")) &&
 					onFixPlaceholder && (
-						<button type="button"
+						<button
+							type="button"
 							onClick={onFixPlaceholder}
 							style={{
 								background: "#fa8c16",
@@ -162,7 +166,8 @@ function FillStatusTable({
 
 	return (
 		<div style={{ marginTop: 4 }}>
-			<button type="button"
+			<button
+				type="button"
 				onClick={() => setOpen((v) => !v)}
 				style={{
 					background: "#fafafa",
@@ -485,7 +490,8 @@ export function BatchReviewPanel(props: Props) {
 					批次已暂停:请切回授权 admin 标签页(<code>{authorizedHost}</code>
 					)。在途条目不受影响。
 					<div style={{ marginTop: 6 }}>
-						<button type="button"
+						<button
+							type="button"
 							onClick={props.onResume}
 							style={{ ...btn, background: "#fa8c16", color: "#fff" }}
 						>
@@ -628,7 +634,8 @@ export function BatchReviewPanel(props: Props) {
 											查看帖子
 										</a>
 									)}
-									<button type="button"
+									<button
+										type="button"
 										onClick={() => props.onRelease(it.id)}
 										style={{
 											...btn,
@@ -659,7 +666,8 @@ export function BatchReviewPanel(props: Props) {
 						}}
 					>
 						<div style={{ display: "flex", alignItems: "center" }}>
-							<button type="button"
+							<button
+								type="button"
 								onClick={() => toggle(it.id)}
 								aria-expanded={expanded.has(it.id)}
 								style={{
@@ -761,9 +769,7 @@ export function BatchReviewPanel(props: Props) {
 											value={discardReason}
 											onChange={(e) => {
 												e.stopPropagation();
-												setDiscardReason(
-													e.target.value as RejectionReason,
-												);
+												setDiscardReason(e.target.value as RejectionReason);
 											}}
 											onClick={(e) => e.stopPropagation()}
 											style={{
@@ -991,7 +997,8 @@ export function BatchReviewPanel(props: Props) {
 												? () =>
 														handleFixPlaceholder(
 															it.id,
-															(draftOverrides?.get(it.id) ?? it.draft) as ContentDraft,
+															(draftOverrides?.get(it.id) ??
+																it.draft) as ContentDraft,
 														)
 												: undefined
 										}
@@ -1042,7 +1049,8 @@ export function BatchReviewPanel(props: Props) {
 									(it.status === "error" || it.status === "aborted") &&
 									onRetryItem && (
 										<div style={{ marginTop: 6 }}>
-											<button type="button"
+											<button
+												type="button"
 												onClick={() => onRetryItem(it.id)}
 												disabled={busy}
 												style={{
@@ -1084,7 +1092,8 @@ export function BatchReviewPanel(props: Props) {
 								请在目标页确认表单已载入,或刷新页面后操作。
 							</div>
 							<div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-								<button type="button"
+								<button
+									type="button"
 									onClick={props.onDriftCheck}
 									disabled={busy}
 									style={{
@@ -1097,7 +1106,8 @@ export function BatchReviewPanel(props: Props) {
 								>
 									重新自检
 								</button>
-								<button type="button"
+								<button
+									type="button"
 									onClick={props.onApproveBypass}
 									disabled={busy}
 									style={{
@@ -1119,7 +1129,8 @@ export function BatchReviewPanel(props: Props) {
 			{/* 动作区 */}
 			<div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
 				{canApprove && !confirming && (
-					<button type="button"
+					<button
+						type="button"
 						onClick={() => setConfirming(true)}
 						style={{
 							...btn,
@@ -1132,7 +1143,8 @@ export function BatchReviewPanel(props: Props) {
 							: `预演 ${summary.awaitingApproval} 条`}
 					</button>
 				)}
-				<button type="button"
+				<button
+					type="button"
 					onClick={props.onDriftCheck}
 					disabled={busy}
 					style={{ ...btn, background: "#f0f0f0", color: "#333" }}
@@ -1140,7 +1152,8 @@ export function BatchReviewPanel(props: Props) {
 					漂移自检
 				</button>
 				{phase !== "done" && (
-					<button type="button"
+					<button
+						type="button"
 						onClick={props.onKill}
 						disabled={busy}
 						style={{
@@ -1193,7 +1206,8 @@ export function BatchReviewPanel(props: Props) {
 						</div>
 					)}
 					<div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-						<button type="button"
+						<button
+							type="button"
 							onClick={confirmApprove}
 							disabled={!gestureOk || !!busy}
 							style={{
@@ -1204,7 +1218,8 @@ export function BatchReviewPanel(props: Props) {
 						>
 							确认
 						</button>
-						<button type="button"
+						<button
+							type="button"
 							onClick={() => {
 								setConfirming(false);
 								setTyped("");

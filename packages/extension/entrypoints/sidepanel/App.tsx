@@ -259,28 +259,32 @@ export function App() {
 					>
 						{authenticated ? "已登录" : "未登录"}
 					</button>
-					<button type="button"
+					<button
+						type="button"
 						onClick={() => setView("pending")}
 						className="btn btn-plain"
 						aria-label="待审核"
 					>
 						◎ 待审
 					</button>
-					<button type="button"
+					<button
+						type="button"
 						onClick={() => setView("today")}
 						className="btn btn-plain"
 						aria-label="今日备稿"
 					>
 						☀ 今日
 					</button>
-					<button type="button"
+					<button
+						type="button"
 						onClick={() => setView("batch")}
 						className="btn btn-plain"
 						aria-label="批量"
 					>
 						≣ 批量
 					</button>
-					<button type="button"
+					<button
+						type="button"
 						onClick={() => setView("settings")}
 						className="btn btn-plain"
 						aria-label="设置"
@@ -288,7 +292,8 @@ export function App() {
 						⚙ 设置
 					</button>
 					<KeyboardShortcutsHelp />
-					<button type="button"
+					<button
+						type="button"
 						onClick={() => {
 							setShowLogs(!showLogs);
 							if (!showLogs) void retrieveLogs();
@@ -354,7 +359,8 @@ export function App() {
 					>
 						<span style={{ fontWeight: 600 }}>错误日志</span>
 						<div style={{ display: "flex", gap: 8 }}>
-							<button type="button"
+							<button
+								type="button"
 								onClick={() => {
 									const exported = exportLogs();
 									void navigator.clipboard?.writeText(exported);
@@ -369,7 +375,8 @@ export function App() {
 							>
 								导出
 							</button>
-							<button type="button"
+							<button
+								type="button"
 								onClick={() => void clearLogs()}
 								style={{
 									border: "none",
@@ -440,7 +447,8 @@ export function App() {
 						progress={loadingState.progress}
 						label={loadingState.message}
 					/>
-					<button type="button"
+					<button
+						type="button"
 						onClick={cancelGenerate}
 						className="btn btn-plain"
 						style={{ padding: "2px 8px", marginTop: 6 }}
@@ -492,14 +500,16 @@ export function App() {
 					style={{ marginTop: 8, fontSize: 12, color: "#cf1322" }}
 				>
 					正文尚未确认填入,确定进入下一条?
-					<button type="button"
+					<button
+						type="button"
 						onClick={handleNext}
 						className="btn btn-plain"
 						style={{ padding: "2px 8px", marginLeft: 6 }}
 					>
 						确定
 					</button>
-					<button type="button"
+					<button
+						type="button"
 						onClick={() => setConfirmNext(false)}
 						className="btn btn-plain"
 						style={{ padding: "2px 8px", marginLeft: 4 }}
@@ -511,7 +521,8 @@ export function App() {
 
 			<div style={{ display: "flex", gap: 8, marginTop: 14 }}>
 				{(mode === "empty" || mode === "generating" || mode === "draft") && (
-					<button type="button"
+					<button
+						type="button"
 						onClick={handleGenerate}
 						disabled={busy}
 						className="btn btn-primary"
@@ -521,7 +532,8 @@ export function App() {
 				)}
 				{draft &&
 					(mode === "draft" || mode === "filled" || mode === "partial") && (
-						<button type="button"
+						<button
+							type="button"
 							onClick={handleFill}
 							disabled={busy}
 							className="btn btn-primary"
@@ -530,7 +542,8 @@ export function App() {
 						</button>
 					)}
 				{draft && (
-					<button type="button"
+					<button
+						type="button"
 						onClick={handleNext}
 						disabled={busy}
 						className="btn btn-plain"

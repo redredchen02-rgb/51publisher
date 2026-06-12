@@ -4,7 +4,9 @@
 declare const chrome: {
 	storage?: {
 		local?: {
-			get: (keys: string | string[] | Record<string, unknown>) => Promise<Record<string, unknown>>;
+			get: (
+				keys: string | string[] | Record<string, unknown>,
+			) => Promise<Record<string, unknown>>;
 			set: (items: Record<string, unknown>) => Promise<void>;
 			remove: (keys: string | string[]) => Promise<void>;
 		};
