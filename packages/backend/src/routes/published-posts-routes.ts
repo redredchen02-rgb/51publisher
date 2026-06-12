@@ -72,6 +72,14 @@ export async function registerPublishedPostsRoutes(
 						"Invalid publish_url: only http/https schemes are allowed",
 					);
 				}
+				// Check for userinfo (username:password) to prevent SSRF bypass
+				if (parsed.username || parsed.password) {
+					return err(
+						reply,
+						400,
+						"Invalid publish_url: userinfo (username:password) is not allowed",
+					);
+				}
 			}
 
 			const db = getDb();
