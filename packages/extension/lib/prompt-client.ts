@@ -1,5 +1,6 @@
 import { clearToken, getToken } from "./auth-client";
 import { getBackendUrl } from "./backend-url";
+import { fetchWithTimeout } from "@51publisher/shared";
 
 function errorMessage(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
@@ -37,14 +38,12 @@ export async function fetchPrompts(
 	fetchFn: typeof fetch = fetch,
 	timeoutMs = 10_000,
 ): Promise<{ ok: boolean; prompts?: PromptTemplate[]; error?: string }> {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
 	try {
 		const headers = await authHeaders();
 		const backendUrl = await getBackendUrl();
-		const res = await fetchFn(`${backendUrl}/api/v1/prompts`, {
+		const res = await fetchWithTimeout(`${backendUrl}/api/v1/prompts`, {
 			headers,
-			signal: controller.signal,
+			timeoutMs,
 		});
 		if (!res.ok) {
 			await handleUnauthorized(res);
@@ -53,8 +52,6 @@ export async function fetchPrompts(
 		return await res.json();
 	} catch (err) {
 		return { ok: false, error: errorMessage(err) };
-	} finally {
-		clearTimeout(timer);
 	}
 }
 
@@ -68,15 +65,16 @@ export async function createPrompt(
 		fewShotExamples: string;
 		model?: string;
 	},
-	fetchFn: typeof fetch = fetch,
+	timeoutMs = 10_000,
 ): Promise<{ ok: boolean; error?: string }> {
 	try {
 		const headers = await authHeaders();
 		const backendUrl = await getBackendUrl();
-		const res = await fetchFn(`${backendUrl}/api/v1/prompts`, {
+		const res = await fetchWithTimeout(`${backendUrl}/api/v1/prompts`, {
 			method: "POST",
 			headers,
 			body: JSON.stringify(data),
+			timeoutMs,
 		});
 		if (!res.ok) {
 			await handleUnauthorized(res);
@@ -99,15 +97,16 @@ export async function updatePrompt(
 		fewShotExamples: string;
 		model?: string;
 	},
-	fetchFn: typeof fetch = fetch,
+	timeoutMs = 10_000,
 ): Promise<{ ok: boolean; error?: string }> {
 	try {
 		const headers = await authHeaders();
 		const backendUrl = await getBackendUrl();
-		const res = await fetchFn(`${backendUrl}/api/v1/prompts/${id}`, {
+		const res = await fetchWithTimeout(`${backendUrl}/api/v1/prompts/${id}`, {
 			method: "PUT",
 			headers,
 			body: JSON.stringify(data),
+			timeoutMs,
 		});
 		if (!res.ok) {
 			await handleUnauthorized(res);
