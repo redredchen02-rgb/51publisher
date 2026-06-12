@@ -162,7 +162,7 @@ origin: docs/brainstorms/2026-06-11-release-readiness-requirements.md
 
 **Verification:** 三步验证序列全过;观察并记录扩展端缓存 token 的失效表现(供 runbook)。
 
-- [ ] **Unit 4: CORS 收紧(U13)**
+- [x] **Unit 4: CORS 收紧(U13)**
 
 **Goal:** `CORS_ORIGIN` 从宽配置钉到扩展 origin allowlist。
 
