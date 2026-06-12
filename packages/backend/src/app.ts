@@ -197,12 +197,17 @@ export function registerDraftRoutes(app: FastifyInstance): void {
 				endpoint: config.endpoint,
 				model: config.model,
 			};
-			const result = await reviewDraftLlm(draft, criteriaPrompt, {
-				settings: resolvedSettings,
-				apiKey: config.apiKey,
-			});
-			if (!result.ok) return err(reply, 422, result.error);
-			return result;
+			try {
+				const result = await reviewDraftLlm(draft, criteriaPrompt, {
+					settings: resolvedSettings,
+					apiKey: config.apiKey,
+				});
+				if (!result.ok) return err(reply, 422, result.error);
+				return result;
+			} catch (e) {
+				const msg = e instanceof Error ? e.message : String(e);
+				return err(reply, 500, `Review failed: ${msg}`);
+			}
 		},
 	);
 
@@ -231,12 +236,17 @@ export function registerDraftRoutes(app: FastifyInstance): void {
 				endpoint: config.endpoint,
 				model: config.model,
 			};
-			const result = await rewriteDraftLlm(draft, failedDims, {
-				settings: resolvedSettings,
-				apiKey: config.apiKey,
-			});
-			if (!result.ok) return err(reply, 422, result.error);
-			return result;
+			try {
+				const result = await rewriteDraftLlm(draft, failedDims, {
+					settings: resolvedSettings,
+					apiKey: config.apiKey,
+				});
+				if (!result.ok) return err(reply, 422, result.error);
+				return result;
+			} catch (e) {
+				const msg = e instanceof Error ? e.message : String(e);
+				return err(reply, 500, `Rewrite failed: ${msg}`);
+			}
 		},
 	);
 }

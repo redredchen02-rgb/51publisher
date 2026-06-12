@@ -83,6 +83,11 @@ export async function registerPromptRoutes(
 	// 更新模板
 	app.put<{ Params: PromptIdParams; Body: PromptTemplateUpdate }>(
 		"/api/v1/prompts/:id",
+		{
+			schema: {
+				body: UpdatePromptBodySchema,
+			},
+		},
 		async (request, reply) => {
 			const { id } = request.params;
 			const existing = await loadPrompt(id);
