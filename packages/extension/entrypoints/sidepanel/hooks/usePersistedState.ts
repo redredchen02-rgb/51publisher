@@ -55,9 +55,7 @@ export function usePersistedState<T>(
 		(value: T | ((prev: T) => T)) => {
 			setState((prev) => {
 				const newValue =
-					typeof value === "function"
-						? (value as (prev: T) => T)(prev)
-						: value;
+					typeof value === "function" ? (value as (prev: T) => T)(prev) : value;
 
 				// 异步保存到存储
 				const storage = getStorage();

@@ -35,10 +35,11 @@ export function App() {
 	const [topic, setTopic] = useState("");
 	const [draft, setDraft] = useState<ContentDraft | null>(null);
 	const [results, setResults] = useState<FieldFillResult[]>([]);
-const { error, handleError, clearError } = useErrorHandler();
-const { logs, logError, retrieveLogs, clearLogs, exportLogs } = useErrorLogger();
-const [showLogs, setShowLogs] = useState(false);
-const [confirmNext, setConfirmNext] = useState(false);
+	const { error, handleError, clearError } = useErrorHandler();
+	const { logs, logError, retrieveLogs, clearLogs, exportLogs } =
+		useErrorLogger();
+	const [showLogs, setShowLogs] = useState(false);
+	const [confirmNext, setConfirmNext] = useState(false);
 	const [toast, setToast] = useState<{
 		message: string;
 		type: "success" | "error" | "info";

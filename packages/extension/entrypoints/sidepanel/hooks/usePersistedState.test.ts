@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, renderHook, act } from "@testing-library/react";
+import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { usePersistedState } from "./usePersistedState";
 
@@ -9,12 +9,16 @@ describe("usePersistedState", () => {
 	});
 
 	it("initializes with default value", () => {
-		const { result } = renderHook(() => usePersistedState("test-key", "默认值"));
+		const { result } = renderHook(() =>
+			usePersistedState("test-key", "默认值"),
+		);
 		expect(result.current[0]).toBe("默认值");
 	});
 
 	it("updates value", () => {
-		const { result } = renderHook(() => usePersistedState("test-key", "默认值"));
+		const { result } = renderHook(() =>
+			usePersistedState("test-key", "默认值"),
+		);
 
 		act(() => {
 			result.current[1]("新值");
