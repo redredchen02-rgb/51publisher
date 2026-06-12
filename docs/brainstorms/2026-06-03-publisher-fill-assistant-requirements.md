@@ -29,6 +29,7 @@ flowchart TB
 ## Requirements
 
 **核心填充闭环**
+
 - R1. 单条闭环:一次只处理一条草稿(生成 → 预览 → 填充 → 人工审核 → 人工发布 → 下一条)。**不做**后台任务队列、节流、失败重试。
 - R2. Side Panel 提供三个主操作:「生成草稿」「填充到当前页」「下一条」。
 - R3. 生成的草稿在填充前可在 Side Panel 内预览并手动编辑(改标题/正文/标签等)。
@@ -36,21 +37,25 @@ flowchart TB
 - R5. 填充完成后高亮已填字段,并显式提示「插件不会自动发布,请人工审核后手动发布」。
 
 **字段映射与表单交互**
-- R6. 字段映射集中在一份可配置的 map 里(title / subtitle / category / body / tags),选择器优先用稳定属性(name / id / data-* / aria-label),避免易变 class 链,方便后台改版时只改这一处。
+
+- R6. 字段映射集中在一份可配置的 map 里(title / subtitle / category / body / tags),选择器优先用稳定属性(name / id / data-\* / aria-label),避免易变 class 链,方便后台改版时只改这一处。
 - R7. 正文为 **Quill 编辑器**:通过 Quill 实例自身 API 设置内容(如 `clipboard.dangerouslyPasteHTML` / `setContents`),不直接覆盖 innerHTML,以免破坏编辑器内部状态。
 - R8. 分类(category)等下拉:兼容原生 `<select>`(赋值 + 触发 change)与自定义下拉组件(模拟点击 + 选项文本匹配)。
 - R9. 标签(tags)按后台实际输入形态填充(如逐个输入 + 回车,具体形态待页面确认)。
 
 **AI 生成**
+
 - R10. 插件直连大模型 API(如 OpenAI / Claude)。所有外部请求在 Background Service Worker 发起,集中处理鉴权与 CORS。
 - R11. API key 存 `chrome.storage.local`,**不硬编码**;设置页保存时显式提示用户"明文存储于本地浏览器"的风险。
 - R12. 设置页可配置:大模型 endpoint、API key、prompt 模板、字段映射。
 - R13. 所有 AI 生成内容初始状态标记为 `draft`(待审核)。
 
 **数据结构**
+
 - R14. 定义 TypeScript `ContentDraft` 接口:`id, title, subtitle, category, coverImageUrl, body(HTML), tags[], status(draft|filled|published), createdAt`。`coverImageUrl` 字段保留(供预览/参考),但 MVP 不负责把它填进表单。
 
 **安全与权限**
+
 - R15. `host_permissions` 只声明 51publisher 自己的后台域名,最小权限原则。
 - R16. 不存储任何敏感凭证明文(除用户自填的 API key,且需风险提示)。
 
@@ -84,12 +89,15 @@ flowchart TB
 ## Outstanding Questions
 
 ### Resolve Before Planning
+
 - (无)— 产品层面的范围与边界已锁定。
 
 ### Deferred to Planning
+
 - [Affects R6/R7][Technical][Needs research] 51publisher 发帖页实际 DOM:各字段的稳定选择器、Quill 实例如何挂载与访问(主世界注入方式)、分类与标签控件的真实形态——需用浏览器实地打开发帖页检查后再写映射。
 - [Affects R10/R12][Technical] 直连哪家大模型、请求/响应格式、流式与否、错误处理。
 - [Affects 构建] 构建工具选型(倾向 **WXT**:对 MV3 + side panel + content script 主世界注入的脚手架与类型支持更完整,省去 crxjs 手工配置;最终在 plan 阶段定)。
 
 ## Next Steps
+
 → `/ce:plan` for structured implementation planning(产品边界已清晰,可直接进技术规划;规划第一步应实地检查 51publisher 发帖页 DOM)

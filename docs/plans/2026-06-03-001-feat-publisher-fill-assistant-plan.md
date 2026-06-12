@@ -1,5 +1,5 @@
 ---
-title: "feat: 51publisher 发帖填充助手(Chrome 扩展)"
+title: 'feat: 51publisher 发帖填充助手(Chrome 扩展)'
 type: feat
 status: completed
 date: 2026-06-03
@@ -24,7 +24,7 @@ deepened: 2026-06-03
 - R3. 草稿填充前可在 side panel 内预览并手动编辑(see origin: R3)
 - R4. 填充只写字段 + 触发必要事件,**绝不**触发提交或点发布(see origin: R4)
 - R5. 填充后高亮已填字段 + 显式提示"请人工审核后手动发布"(see origin: R5)
-- R6. 字段映射集中在一份可配置 map,选择器优先稳定属性(name/id/data-*/aria-label)(see origin: R6)
+- R6. 字段映射集中在一份可配置 map,选择器优先稳定属性(name/id/data-\*/aria-label)(see origin: R6)
 - R7. 正文用 Quill 实例 API(`dangerouslyPasteHTML`/`setContents`),不覆盖 innerHTML(see origin: R7)
 - R8. 分类下拉:兼容原生 `<select>` 与自定义下拉(模拟点击 + 选项文本匹配)(see origin: R8)
 - R9. 标签按后台实际输入形态填充(逐个输入 + 回车,形态待现场确认)(see origin: R9)
@@ -37,6 +37,7 @@ deepened: 2026-06-03
 - R16. 不存储敏感凭证明文(用户自填 API key 除外,需风险提示)(see origin: R16)
 
 **review 新增(深化派生,非新增产品范围)**
+
 - R17. 正文 HTML 在写入 `dangerouslyPasteHTML` 前必须在隔离世界按白名单消毒(防 XSS,LLM 是最不可信输入)(deepen: security)
 - R18. 用户可配 endpoint 限 `https://`、保存时校验 URL,并提示"API key 会发往该 endpoint"(防 key 外泄/SSRF)(deepen: security)
 - R19. side panel 提供"填充结果摘要"面板:每字段显示 已填 / 跳过(未找到)/ 降级(需手动);存在跳过项时顶部汇总警示——服务"人工审核是硬性环节"的可靠性(deepen: design+product)
@@ -112,7 +113,7 @@ deepened: 2026-06-03
 
 ## High-Level Technical Design
 
-> *以下用于沟通整体形态,是给 review 的方向性指引,不是实现规范。实现 agent 应将其当作上下文,而非照抄的代码。*
+> _以下用于沟通整体形态,是给 review 的方向性指引,不是实现规范。实现 agent 应将其当作上下文,而非照抄的代码。_
 
 填充一条草稿时的跨层信息流:
 
@@ -164,6 +165,7 @@ flowchart TB
 **Dependencies:** 无(可与 U1 并行)
 
 **Files:**
+
 - Create: `docs/field-mapping-guide.md`(先落勘查结果;U7 再补使用说明)
 
 **Approach:** 用浏览器 devtools 在发帖页确认并记录:① 各字段(title/subtitle/category/tags)的稳定选择器;② 分类是原生 `<select>` 还是自定义下拉、标签是 tag-input 还是别的形态;③ `typeof window.Quill` 与 `Quill.find(document.querySelector('.ql-editor'))` 是否可用,编辑器是否为受控组件(如 react-quill)——写入后手动触发一次无关 re-render,看正文是否被回写覆盖;④ 填一条后确认页面未发生 form submit / 未自动存为已发布 / 未跳转;⑤ 后台确切域名。
@@ -181,16 +183,19 @@ flowchart TB
 **Dependencies:** 无
 
 **Files:**
+
 - Create: `package.json`, `tsconfig.json`, `wxt.config.ts`, `.gitignore`
 - Create: `entrypoints/background.ts`(占位)、`entrypoints/content.ts`(占位)、`entrypoints/sidepanel/index.html` + `main.tsx`(占位)
 
 **Approach:**
+
 - 用 WXT 的 React 模板初始化;`wxt.config.ts` 里声明 `host_permissions` 仅含 51publisher 域名占位符(实现时替换真实域名)。`permissions` 取最小:`['storage', 'sidePanel']`——**确认是否真需 `scripting`**:若 U5 走静态 `world:'MAIN'` 入口(WXT 自动写进 `content_scripts`)则不需要;若改走 `injectScript`,被注入脚本需声明为 unlisted + `web_accessible_resources`(deepen: feasibility,R15 最小权限)。
 - side panel 用 `default_path` 指向 sidepanel 入口;在 `background.main()` 里调 `chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })` 实现点图标打开(deepen: feasibility)。
 
 **Patterns to follow:** WXT 文件式入口默认约定。
 
 **Test scenarios:**
+
 - Test expectation: none — 纯脚手架/配置,无行为逻辑。验收靠构建产物正确。
 
 **Verification:** `wxt build` 产出合法 MV3 manifest;扩展能加载,点图标能打开空 side panel。
@@ -204,11 +209,13 @@ flowchart TB
 **Dependencies:** U1
 
 **Files:**
+
 - Create: `lib/types.ts`(`ContentDraft`、`DraftStatus`、消息 union 类型、**字段映射类型 `FieldType`(枚举 text/quill/native-select/custom-dropdown/tag-input)与 `FieldDefinition`(selector + fieldType + label?)与 `FieldMapping`**)
 - Create: `lib/storage.ts`(`getSettings`/`saveSettings`/`getApiKey`/`saveApiKey`)
 - Test: `lib/storage.test.ts`
 
 **Approach:**
+
 - `ContentDraft`: `id, title, subtitle, category, coverImageUrl, body, tags[], status('draft'|'filled'|'published'), createdAt`。`coverImageUrl` 字段保留:U6 `DraftPreview` **应渲染其缩略图作预览**(否则该字段在 MVP 无消费者,见 deepen: scope-guardian)。
 - **U0 新增字段(用户已确认全部纳入填充,deepen)**:`description`(描述/摘要)、`postStatus`(后台显示/隐藏,映射 0/1,**注意与内部 `status` 草稿状态字段区分**)、`publishedAt`(发布时间 yyyy-MM-dd)、`mediaId`(作品 id)。来源区分:**`description` 由 AI 生成**;`postStatus`/`publishedAt`/`mediaId` **不由 LLM 生成**,在 side panel 由用户填写或取默认值后随草稿一起填入。
 - storage 封装提供带默认值的读取;key 单独存取,写入时不混入其他对象。
@@ -217,6 +224,7 @@ flowchart TB
 **Patterns to follow:** WXT 的 `storage` API 或 `browser.storage.local` 包一层。
 
 **Test scenarios:**
+
 - Happy path:`saveSettings` 后 `getSettings` 取回同值。
 - Edge case:storage 为空时 `getSettings` 返回带默认值的对象(不抛错)。
 - Edge case:`getApiKey` 在未设置时返回空字符串/undefined 而非崩溃。
@@ -232,11 +240,13 @@ flowchart TB
 **Dependencies:** U2
 
 **Files:**
+
 - Modify: `entrypoints/background.ts`
 - Create: `lib/llm.ts`(窄 provider adapter:`buildRequest`/`parseResponse`,首版只实现 OpenAI 兼容 chat/completions)
 - Test: `lib/llm.test.ts`
 
 **Approach:**
+
 - background 注册消息监听,路由 `GENERATE_DRAFT` 到 `lib/llm.ts`。**消息契约钉死**:监听器**同步 `return true`**,fetch 完成后再 `sendResponse`(否则 MV3 会立即关通道,side panel 静默卡死——MV3 最常见坑);fetch 加 `AbortController` 超时(deepen: feasibility,P1)。
 - `lib/llm.ts` 经 adapter `buildRequest(prompt,settings)` 发请求,`parseResponse(raw)` 解析出 title/subtitle/category/body/tags/**description** 组装 `ContentDraft`,`status='draft'`,`createdAt` 填当前时间。`postStatus`/`publishedAt`/`mediaId` 不由 LLM 产出(由 side panel 取默认/用户填)。
 - endpoint 保存前已校验为 `https://`(R18);鉴权头从 storage 读,不硬编码。
@@ -245,6 +255,7 @@ flowchart TB
 **Patterns to follow:** WXT `defineBackground` + `browser.runtime.onMessage`(或封装好 promise 语义的 `@webext-core/messaging`)。
 
 **Test scenarios:**
+
 - Happy path:给定正常 LLM 响应(mock fetch),解析出完整 `ContentDraft`,status='draft'。
 - Happy path:异步响应正确回传(监听器 `return true` 路径)——防实现者写成 `async` 直接 return(deepen: feasibility)。
 - Error path:fetch 返回 4xx/5xx 时,返回结构化错误而非抛未捕获异常。
@@ -264,6 +275,7 @@ flowchart TB
 **Dependencies:** U0, U2
 
 **Files:**
+
 - Create: `lib/field-mapping.ts`(映射配置实例;**类型 `FieldType`/`FieldDefinition`/`FieldMapping` 从 U2 的 `lib/types.ts` 引入,本文件只提供配置数据**)
 - Create: `lib/fillers.ts`(各类型填充函数 + 高亮 + 逐字段结果状态)
 - Create: `lib/sanitize.ts`(正文 HTML 白名单消毒,基于 DOMPurify)
@@ -271,6 +283,7 @@ flowchart TB
 - Test: `lib/fillers.test.ts`、`lib/sanitize.test.ts`(jsdom)
 
 **Approach:**
+
 - 每个字段在映射里给:稳定选择器 + 类型。**U0 已确认本表单的实际形态,只实现命中的分支**(deepen: scope-guardian):
   - text(`title`/`subtitle`):set value + dispatch `input`/`change`。
   - native-select(`type` 分类):set value + dispatch `change`;按 value 或文本匹配(选项 2=漫畫文章/4=動漫文章)。**无需 custom-dropdown 分支。**
@@ -288,6 +301,7 @@ flowchart TB
 **Patterns to follow:** WXT `defineContentScript`(ISOLATED)。
 
 **Test scenarios:**
+
 - Happy path(text):填 title → input.value 正确且 `input` 事件触发。
 - Happy path(命中的下拉分支):按 U0 确认的形态(native-select 或 custom-dropdown)选中正确项并触发事件。
 - Happy path(tag-input):多个 tag 写入;**回车被 `preventDefault`,不触发 form submit**。
@@ -307,11 +321,13 @@ flowchart TB
 **Dependencies:** U0, U4
 
 **Files:**
+
 - Create: 主世界脚本(优先 `injectScript` 注入的 unlisted 脚本;若用入口则 `entrypoints/quill-bridge.content.ts` 设 `world: 'MAIN'`)
 - Modify: `entrypoints/content.ts`(dispatch `fill-body`、listen `body-filled` + ready 握手 + 超时)
 - Test: `lib/quill-bridge.test.ts`
 
 **Approach:**
+
 - **就绪握手 + 共享目标**(deepen: feasibility,P1):优先用 WXT 文档化的 `injectScript`+`defineUnlistedScript`,以返回的 script 元素作共享事件目标;若用 `world:'MAIN'` 入口,则以 `document` 为目标,MAIN 加载后 dispatch `quill-bridge-ready`,隔离端发 `fill-body` 后启动**超时**(如 3s),超时未收 `body-filled` 即判定桥未就绪 → 降级"手动粘贴"。
 - **写入策略 — U0 已确认走 tier ①**(deepen: feasibility,P0):`window.Quill`(2.0.2 vanilla)全局可用 → `Quill.find(document.querySelector('#editor')).clipboard.dangerouslyPasteHTML(已消毒 html)`。tier ②(`.ql-editor` 受控兜底)保留作极端情形,正常不会触发。不直接覆盖 `.ql-editor.innerHTML`。
 - **受控组件回写防护 — U0 确认不适用**(deepen: adversarial,P1):本站为 vanilla Quill(非 react-quill),无 React re-render 回写覆盖问题。此防护降级为"仅在未来后台换成受控组件时才需要"的备注。
@@ -319,11 +335,12 @@ flowchart TB
 
 **Execution note:** 依赖 U0 的勘查结论(Quill 可用性、是否受控、回写是否覆盖)决定走哪档与是否需受控入口。
 
-**Technical design:** *(方向性指引,非实现规范)* `fill-body(已消毒 html)` → 主世界 handler → 取实例(档①)或受控兜底(档②)→ dispatch `body-filled{ok|err}`;隔离端超时未收即降级。
+**Technical design:** _(方向性指引,非实现规范)_ `fill-body(已消毒 html)` → 主世界 handler → 取实例(档①)或受控兜底(档②)→ dispatch `body-filled{ok|err}`;隔离端超时未收即降级。
 
 **Patterns to follow:** WXT `injectScript` / `world: 'MAIN'` + CustomEvent 双向通信(见 External References)。
 
 **Test scenarios:**
+
 - Happy path:给定可用 mock Quill 实例,已消毒 HTML 经 `dangerouslyPasteHTML` 以正确参数写入,回传 ok。
 - Error path:拿不到任何 Quill 实例 → 回传结构化错误(side panel 提示"正文需手动粘贴"),不抛异常。
 - Edge case:空 HTML 不报错。
@@ -340,12 +357,14 @@ flowchart TB
 **Dependencies:** U3, U5
 
 **Files:**
+
 - Modify: `entrypoints/sidepanel/main.tsx`
 - Create: `entrypoints/sidepanel/App.tsx`、`Settings.tsx`、`DraftPreview.tsx`、`FillResultPanel.tsx`
 - Create: `lib/messaging.ts`(side panel→background / →active tab content script 的发送封装)
 - Test: `entrypoints/sidepanel/App.test.tsx`、`Settings.test.tsx`、`FillResultPanel.test.tsx`
 
 **Approach:**
+
 - 状态机:`empty → generating → draft(可编辑) → filling → filled | partial`;"下一条"重置回 empty。
 - "生成草稿"发 `GENERATE_DRAFT`;"填充到当前页"把当前(可能已编辑的)草稿发给 active tab 的 content script。
 - 预览/编辑区除 AI 生成字段(title/subtitle/category/body/tags/description)外,还提供 `postStatus`(默认显示/隐藏)、`publishedAt`(默认今天或留空)、`mediaId`(用户填)三项**非 AI 字段**的输入,随草稿一起填入(U0 新增)。
@@ -361,6 +380,7 @@ flowchart TB
 **Patterns to follow:** WXT React side panel 入口;`browser.runtime.sendMessage` / `browser.tabs.sendMessage`。
 
 **Test scenarios:**
+
 - Happy path:点"生成草稿"→ `generating`(显示加载+禁用按钮)→ 收到草稿渲染可编辑预览。
 - Happy path:预览里改标题后"填充到当前页",payload 含编辑后的值(R3)。
 - Happy path:`FillResultPanel` 按返回的逐字段状态渲染 已填/跳过/降级,有跳过项时显示顶部警示(R19)。
@@ -382,14 +402,17 @@ flowchart TB
 **Dependencies:** U6
 
 **Files:**
+
 - Create: `README.md`
 - Create: `docs/field-mapping-guide.md`
 
 **Approach:**
+
 - README:加载未打包扩展步骤、设置页配置、单条闭环用法、"绝不自动发布"边界声明;**安全说明**:API key 明文存储于本地浏览器、key 会发往所配 endpoint、仅 Chromium 内核支持。
 - 字段映射指南(承接 U0 勘查结果):用 devtools 找稳定选择器的步骤、每种字段类型怎么填、**改版可吸收范围分级(Tier-A 改 config / Tier-B 改 fillers / Tier-C 需改架构)**、Quill **两档**写入路径与"正文可能需手动粘贴"的局限。
 
 **Test scenarios:**
+
 - Test expectation: none — 文档单元。
 
 **Verification:** 一个没看过代码的人能照 README 装好、配好、填好映射并跑通一条。
@@ -408,29 +431,29 @@ flowchart TB
 
 > 为一个持有 API key 并向登录态后台注入外部 HTML 的工具,先点名 top 攻击路径,确保缓解被设计进去而非事后补。
 
-| 攻击路径 | 影响 | 缓解(对应单元) |
-|---|---|---|
-| LLM/endpoint 返回恶意 HTML,经 `dangerouslyPasteHTML` 在主世界(后台 origin)执行脚本 | 最可能;以运营登录态执行 | 隔离世界白名单消毒后再过桥(U4,R17) |
-| 误配/恶意 endpoint 从特权 background fetch 时连带 Authorization 头外泄 key,或打内网/loopback(SSRF) | 最高影响 | endpoint 限 `https://` + URL 校验 + "key 会发往此处"提示(U3/U6,R18) |
-| 页面自身 dispatch `fill-body` 驱动主世界桥,或监听 `body-filled` 探测 | 中;主世界与页面同上下文 | 桥只暴露正文填充、永不收发机密、入站事件按不可信校验(U5) |
-| 错误日志/返回体带出 key 或 Authorization 头 | 中 | 返回前 redact(U3,P3) |
+| 攻击路径                                                                                           | 影响                    | 缓解(对应单元)                                                      |
+| -------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------- |
+| LLM/endpoint 返回恶意 HTML,经 `dangerouslyPasteHTML` 在主世界(后台 origin)执行脚本                 | 最可能;以运营登录态执行 | 隔离世界白名单消毒后再过桥(U4,R17)                                  |
+| 误配/恶意 endpoint 从特权 background fetch 时连带 Authorization 头外泄 key,或打内网/loopback(SSRF) | 最高影响                | endpoint 限 `https://` + URL 校验 + "key 会发往此处"提示(U3/U6,R18) |
+| 页面自身 dispatch `fill-body` 驱动主世界桥,或监听 `body-filled` 探测                               | 中;主世界与页面同上下文 | 桥只暴露正文填充、永不收发机密、入站事件按不可信校验(U5)            |
+| 错误日志/返回体带出 key 或 Authorization 头                                                        | 中                      | 返回前 redact(U3,P3)                                                |
 
 ## Risks & Dependencies
 
-| Risk | Mitigation |
-|------|------------|
-| ~~页面未暴露 `Quill`~~ | ✅ U0 已解:`window.Quill` 2.0.2 全局可用,走 tier ①;兜底档保留作极端情形 |
-| ~~react-quill 受控回写覆盖~~ | ✅ U0 已解:本站 vanilla Quill,不适用;仅后台未来改受控组件时才需重审 |
+| Risk                                                             | Mitigation                                                                                 |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| ~~页面未暴露 `Quill`~~                                           | ✅ U0 已解:`window.Quill` 2.0.2 全局可用,走 tier ①;兜底档保留作极端情形                    |
+| ~~react-quill 受控回写覆盖~~                                     | ✅ U0 已解:本站 vanilla Quill,不适用;仅后台未来改受控组件时才需重审                        |
 | **间接自动提交**(标签回车原生提交 / change handler 自动保存跳转) | 零提交断言守 `submit` 事件=0 + 无导航;回车 `preventDefault`;U0 真机确认填一条不提交(U4,P0) |
-| 后台改版导致选择器失效 | 选择器集中一处 + Tier-A/B/C 分级(不再宣称"任何改版只改一处");指南教用户更新 |
-| 主世界↔隔离世界桥接竞态/未就绪 | 优先 `injectScript` 模式;否则 ready 握手 + 超时重试 + 降级(U5) |
-| MV3 SW 在长 fetch 被回收 / 异步消息丢失 | 监听器同步 `return true` + `sendResponse`;`AbortController` 超时(U3) |
-| LLM 返回恶意 HTML 经 `dangerouslyPasteHTML` 在后台 origin 执行 | 隔离世界白名单消毒后再过桥(U4,R17) |
-| 可配 endpoint 致 key 外泄 / SSRF | 限 `https://` + URL 校验 + "key 会发往此处"提示(U3/U6,R18) |
-| 主世界 content script 仅 Chromium 支持且有限制 | 目标即 Chrome,可接受;README 注明仅 Chromium |
-| API key 明文存于 `chrome.storage.local`,或经日志泄露 | 设置页风险提示;不硬编码;错误/日志 redact(R11/R16) |
-| LLM 响应格式因厂商而异 | 窄 provider adapter;首版只实现 OpenAI 兼容;失败区分"网络错/格式不兼容"不崩溃 |
-| 核心省时价值不成立(生成+审核 ≥ 手敲) | 用 5–10 条真实帖做耗时对比当验收门槛(见 Success Criteria) |
+| 后台改版导致选择器失效                                           | 选择器集中一处 + Tier-A/B/C 分级(不再宣称"任何改版只改一处");指南教用户更新                |
+| 主世界↔隔离世界桥接竞态/未就绪                                   | 优先 `injectScript` 模式;否则 ready 握手 + 超时重试 + 降级(U5)                             |
+| MV3 SW 在长 fetch 被回收 / 异步消息丢失                          | 监听器同步 `return true` + `sendResponse`;`AbortController` 超时(U3)                       |
+| LLM 返回恶意 HTML 经 `dangerouslyPasteHTML` 在后台 origin 执行   | 隔离世界白名单消毒后再过桥(U4,R17)                                                         |
+| 可配 endpoint 致 key 外泄 / SSRF                                 | 限 `https://` + URL 校验 + "key 会发往此处"提示(U3/U6,R18)                                 |
+| 主世界 content script 仅 Chromium 支持且有限制                   | 目标即 Chrome,可接受;README 注明仅 Chromium                                                |
+| API key 明文存于 `chrome.storage.local`,或经日志泄露             | 设置页风险提示;不硬编码;错误/日志 redact(R11/R16)                                          |
+| LLM 响应格式因厂商而异                                           | 窄 provider adapter;首版只实现 OpenAI 兼容;失败区分"网络错/格式不兼容"不崩溃               |
+| 核心省时价值不成立(生成+审核 ≥ 手敲)                             | 用 5–10 条真实帖做耗时对比当验收门槛(见 Success Criteria)                                  |
 
 ## Documentation / Operational Notes
 
