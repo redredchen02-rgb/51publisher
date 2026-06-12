@@ -20,32 +20,54 @@ if needs_build; then
   (cd "$REPO_ROOT" && pnpm --filter publisher-backend build)
 fi
 
-# Load env from the standard location (mirrors launchd/start-backend.sh logic).
-ENV_FILE="${PUBLISHER_ENV_PATH:-$HOME/.51publisher/.env}"
-if [[ ! -f "$ENV_FILE" ]]; then
-  echo "[start-backend] ERROR: .env not found at $ENV_FILE" >&2
-  echo "  Copy packages/backend/.env.example → $ENV_FILE and fill in values." >&2
+# Check if backend is already running.
+if curl -sf "$HEALTHZ_URL" >/dev/null 2>&1; then
+  echo "[start-backend] Backend is already running. $HEALTHZ_URL → ok"
+  exit 0
+fi
+
+# Locate .env: custom path > ~/.51publisher/.env > packages/backend/.env (new user default).
+if [[ -n "${PUBLISHER_ENV_PATH:-}" && -f "$PUBLISHER_ENV_PATH" ]]; then
+  ENV_FILE="$PUBLISHER_ENV_PATH"
+elif [[ -f "$HOME/.51publisher/.env" ]]; then
+  ENV_FILE="$HOME/.51publisher/.env"
+elif [[ -f "$REPO_ROOT/packages/backend/.env" ]]; then
+  ENV_FILE="$REPO_ROOT/packages/backend/.env"
+else
+  echo "[start-backend] ERROR: .env not found. Run: bash scripts/setup.sh" >&2
   exit 1
 fi
+echo "[start-backend] Loading env from $ENV_FILE"
 set -a
 # shellcheck source=/dev/null
 source "$ENV_FILE"
 set +a
 
-echo "[start-backend] Starting backend…"
-node "$DIST_JS" &
+LOG_FILE="/tmp/51publisher-backend.log"
+PID_FILE="/tmp/51publisher-backend.pid"
+
+echo "[start-backend] Starting backend (background, log: $LOG_FILE)…"
+nohup node "$DIST_JS" >> "$LOG_FILE" 2>&1 &
 BACKEND_PID=$!
+echo "$BACKEND_PID" > "$PID_FILE"
 
 # Poll healthz up to 10 times (1 s apart) to confirm the server is up.
 for i in $(seq 1 10); do
   sleep 1
   if curl -sf "$HEALTHZ_URL" >/dev/null 2>&1; then
     echo "[start-backend] Backend is up (pid $BACKEND_PID). $HEALTHZ_URL → ok"
+    echo "[start-backend] Stop: kill \$(cat $PID_FILE)"
     exit 0
+  fi
+  if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+    echo "[start-backend] ERROR: process exited unexpectedly. Log:" >&2
+    tail -20 "$LOG_FILE" >&2
+    exit 1
   fi
   echo "[start-backend] Waiting for healthz… ($i/10)"
 done
 
 echo "[start-backend] ERROR: healthz did not return 200 after 10 s." >&2
+echo "[start-backend] Check log: cat $LOG_FILE" >&2
 kill "$BACKEND_PID" 2>/dev/null || true
 exit 1
