@@ -425,7 +425,7 @@ export async function approveBatch(
 				publishUrl: result.url,
 				status: cur?.status ?? "unknown",
 				ts: new Date().toISOString(),
-				publishedAsDraft: item.draft.postStatus === "0",
+				publishedAsDraft: item.draft?.postStatus === "0",
 				...(cur?.aiReviewTriggered !== undefined
 					? { aiReviewTriggered: cur.aiReviewTriggered }
 					: {}),
