@@ -23,22 +23,20 @@ export async function requireAuth(
 ): Promise<void> {
 	const authHeader = request.headers.authorization;
 	if (!authHeader?.startsWith("Bearer ")) {
-		err(reply, 401, "unauthorized");
-		return;
+		return err(reply, 401, "unauthorized");
 	}
 
 	const token = authHeader.slice(7);
 	const secret = process.env.JWT_SECRET;
 
 	if (!secret) {
-		err(reply, 500, "auth not configured");
-		return;
+		return err(reply, 500, "auth not configured");
 	}
 
 	try {
 		jwt.verify(token, secret, { algorithms: ["HS256"], clockTolerance: 30 });
 		request.user = { authenticated: true };
 	} catch {
-		err(reply, 401, "unauthorized");
+		return err(reply, 401, "unauthorized");
 	}
 }
