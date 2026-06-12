@@ -1,45 +1,14 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { FactsBlock, FieldFillResult } from "@51publisher/shared";
+import {
+	type Batch,
+	type BatchItemStatus,
+	recoverBatch,
+} from "@51publisher/shared";
 
-// ---- 类型定义(与前端 batch.ts 保持结构一致) ----
-
-export type BatchItemStatus =
-	| "queued"
-	| "generating"
-	| "filled"
-	| "gate-failed"
-	| "awaiting-approval"
-	| "publish-dispatched"
-	| "publish-confirmed"
-	| "needs-human-verification"
-	| "aborted"
-	| "error";
-
-export interface BatchItem {
-	id: string;
-	topic: string;
-	facts?: FactsBlock;
-	status: BatchItemStatus;
-	draft?: import("@51publisher/shared").ContentDraft;
-	publishUrl?: string;
-	error?: string;
-	fillResults?: FieldFillResult[];
-	/** gate-failed 拦截原因(与前端 batch.ts 对齐) */
-	gateFailReason?: string;
-	/** 来源待审池题目 ID(与前端 batch.ts 对齐) */
-	pendingTopicId?: string;
-}
-
-export interface Batch {
-	id: string;
-	tabId: number;
-	authorizedHost: string;
-	items: BatchItem[];
-	createdAt: string;
-	updatedAt: string;
-}
+export type { Batch, BatchItemStatus };
+export { recoverBatch };
 
 // ---- 文件持久层(轻量 JSON) ----
 
@@ -102,39 +71,9 @@ export async function listBatches(limit = 50): Promise<Batch[]> {
 	}
 	// 最近更新排前
 	batches.sort(
-		(a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+		(a, b) =>
+			new Date(b.updatedAt ?? b.createdAt).getTime() -
+			new Date(a.updatedAt ?? a.createdAt).getTime(),
 	);
 	return batches.slice(0, limit);
-}
-
-// ---- 崩溃恢复(与前端 recoverBatch 保持一致) ----
-
-const TERMINAL: ReadonlySet<BatchItemStatus> = new Set([
-	"publish-confirmed",
-	"aborted",
-	"error",
-	"needs-human-verification",
-]);
-
-/**
- * 崩溃恢复:任何 publish-dispatched(无回执)→ needs-human-verification 隔离。
- * **绝不自动重发**。
- */
-export function recoverBatch(batch: Batch): Batch {
-	return {
-		...batch,
-		items: batch.items.map((it) =>
-			it.status === "publish-dispatched"
-				? {
-						...it,
-						status: "needs-human-verification" as const,
-						error: "recovered-dispatched-no-confirm",
-					}
-				: it,
-		),
-	};
-}
-
-export function isTerminal(s: BatchItemStatus): boolean {
-	return TERMINAL.has(s);
 }

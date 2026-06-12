@@ -3,6 +3,17 @@ import type {
 	FactsBlock,
 	FieldFillResult,
 } from "@51publisher/shared";
+import {
+	TERMINAL,
+	type Batch,
+	type BatchItem,
+	type BatchItemStatus,
+	isTerminal,
+	recoverBatch,
+} from "@51publisher/shared";
+
+export type { Batch, BatchItem, BatchItemStatus };
+export { TERMINAL, isTerminal, recoverBatch };
 
 // 批量发布队列状态机(纯函数,无副作用/不碰 chrome)。
 // background 拿它做编排,把异步效果(生成/填充/发布)的结果喂进来推进状态。
@@ -17,87 +28,12 @@ import type {
 //   - 隔离退出:needs-human-verification 只能经显式人工动作离开;新批次不得重入已隔离同选题。
 //   - 急停:KILL 把未发布项打到 aborted;已 confirmed 不回退;在途 dispatched 不动(在飞)。
 
-export type BatchItemStatus =
-	| "queued"
-	| "generating"
-	| "filled"
-	| "gate-failed"
-	| "awaiting-approval"
-	| "publish-dispatched"
-	| "publish-confirmed"
-	| "needs-human-verification"
-	| "aborted"
-	| "error";
-
-export interface BatchItem {
-	id: string;
-	topic: string;
-	/** 源接地结构化事实(R4);生成时喂给 buildPrompt,AI 只用这些事实不得编造。 */
-	facts?: FactsBlock;
-	status: BatchItemStatus;
-	/** 选题封面图 URL(批次创建时持久化;retry 重生成后回注 draft,防丢失)。 */
-	coverImageUrl?: string;
-	/** 生成阶段存下的草稿;批准时填进表单 + 发布。 */
-	draft?: ContentDraft;
-	publishUrl?: string;
-	error?: string;
-	/** 表单填充结果(填充完成后写入);用于展示降级警告。 */
-	fillResults?: FieldFillResult[];
-	/** 操作者在批量审核界面是否手动编辑了草稿(直发率分母判断依据)。 */
-	userEdited?: boolean;
-	/** LLM 实际 token 用量(来自 response.usage;不可得时为估算,estimated=true)。 */
-	llmCostTokens?: { prompt: number; completion: number; estimated?: boolean };
-	/** 草稿生成耗时(ms)。 */
-	generationDurationMs?: number;
-	/** 发布时草稿快照(供 R5b slot-level diff 用)。 */
-	publishedDraft?: ContentDraft;
-	/** AI 评审是否触发并改善草稿（Phase 3）。undefined=未触发/fail-open；false=通过无需重写；true=重写成功。 */
-	aiReviewTriggered?: boolean;
-	/** AI 评审 LLM token 用量（Phase 3）；独立于生成用量记录。 */
-	reviewCostTokens?: {
-		prompt: number;
-		completion: number;
-		estimated?: boolean;
-	};
-	/** 接地闸门拦截原因（gate-failed 状态时写入;用户点"重新生成"后重置）。 */
-	gateFailReason?: string;
-	/**
-	 * post-assembler 原稿快照(重写前);grounding gate 的判定依据。
-	 * 只写一次(markFilled),只读不覆盖——重写/save 绝不碰它。
-	 * 旧批次缺此字段时 gate fail-safe 回落 item.draft。
-	 */
-	assembledDraftSnapshot?: ContentDraft;
-	/** 关联选题 ID（来自后端抓取的 pending_topics.id;handleRunBatch 写入）。 */
-	pendingTopicId?: string;
-}
-
-export interface Batch {
-	id: string;
-	/** 钉住的目标 tab;每步发布前 background 须断言活动 tab==此 id 且 host 在名单。 */
-	tabId: number;
-	/** 创建时记录的授权 host(供 UI 字面展示核对)。 */
-	authorizedHost: string;
-	items: BatchItem[];
-	createdAt: string;
-}
-
 export type BatchPhase =
 	| "empty"
 	| "generating"
 	| "awaiting-approval"
 	| "publishing"
 	| "done";
-
-const TERMINAL: ReadonlySet<BatchItemStatus> = new Set([
-	"publish-confirmed",
-	"aborted",
-	"error",
-	"needs-human-verification",
-]);
-
-export function isTerminal(s: BatchItemStatus): boolean {
-	return TERMINAL.has(s);
-}
 
 export function createBatch(
 	id: string,
@@ -327,22 +263,6 @@ export function abortBatch(batch: Batch): Batch {
 		...batch,
 		items: batch.items.map((it) =>
 			ABORTABLE.has(it.status) ? { ...it, status: "aborted" as const } : it,
-		),
-	};
-}
-
-/** 崩溃恢复:任何 publish-dispatched(无回执)→ needs-human-verification 隔离,绝不自动重发。 */
-export function recoverBatch(batch: Batch): Batch {
-	return {
-		...batch,
-		items: batch.items.map((it) =>
-			it.status === "publish-dispatched"
-				? {
-						...it,
-						status: "needs-human-verification" as const,
-						error: "recovered-dispatched-no-confirm",
-					}
-				: it,
 		),
 	};
 }

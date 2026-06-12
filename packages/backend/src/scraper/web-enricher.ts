@@ -3,6 +3,7 @@
 // 搜索失败时静默降级，不影响主管线。
 
 import type { FactsBlock } from "@51publisher/shared";
+import { getDb } from "./pending-db.js";
 
 const UA =
 	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
@@ -23,6 +24,12 @@ export interface EnrichedContext {
 	collectedAt: string;
 }
 
+// ---- 缓存（内存 + SQLite 双层）----
+const memoryCache = new Map<string, { data: EnrichedContext; expiresAt: number }>();
+const MEMORY_CACHE_TTL = 60 * 60 * 1000; // 1 小时
+const MEMORY_CACHE_SIZE = 100;
+const DB_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 小时
+
 function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -35,6 +42,74 @@ function _decodeHtmlEntities(s: string): string {
 		.replace(/&#x27;/g, "'")
 		.replace(/&quot;/g, '"')
 		.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
+}
+
+/** 初始化富化缓存表。 */
+function initEnrichmentCacheTable(): void {
+	try {
+		const db = getDb();
+		db.exec(`
+			CREATE TABLE IF NOT EXISTS enrichment_cache (
+				cache_key TEXT PRIMARY KEY,
+				data TEXT NOT NULL,
+				created_at TEXT NOT NULL
+			);
+			CREATE INDEX IF NOT EXISTS idx_enrichment_created ON enrichment_cache(created_at);
+		`);
+	} catch {
+		// 初始化失败不影响主流程
+	}
+}
+
+/** 从 SQLite 加载缓存。 */
+function loadFromDbCache(key: string): EnrichedContext | null {
+	try {
+		initEnrichmentCacheTable();
+		const db = getDb();
+		const row = db
+			.prepare(
+				`SELECT data, created_at FROM enrichment_cache WHERE cache_key = ?`,
+			)
+			.get(key) as { data: string; created_at: string } | undefined;
+
+		if (!row) return null;
+
+		const age = Date.now() - new Date(row.created_at).getTime();
+		if (age > DB_CACHE_TTL) {
+			db.prepare("DELETE FROM enrichment_cache WHERE cache_key = ?").run(key);
+			return null;
+		}
+
+		return JSON.parse(row.data) as EnrichedContext;
+	} catch {
+		return null;
+	}
+}
+
+/** 保存到 SQLite 缓存。 */
+function saveToDbCache(key: string, data: EnrichedContext): void {
+	try {
+		initEnrichmentCacheTable();
+		const db = getDb();
+		db.prepare(
+			`INSERT OR REPLACE INTO enrichment_cache (cache_key, data, created_at)
+			 VALUES (?, ?, ?)`,
+		).run(key, JSON.stringify(data), new Date().toISOString());
+	} catch {
+		// 保存失败不影响主流程
+	}
+}
+
+function getCacheKey(facts: FactsBlock): string {
+	return `${facts.制作 || ""}|${facts.作品名 || ""}`;
+}
+
+export interface EnrichedContext {
+	queryResults: Array<{
+		query: string;
+		results: SearchResult[];
+	}>;
+	collectedAt: string;
 }
 
 /** 从 Jina 返回的 Markdown 中提取有用信息。 */
@@ -238,38 +313,70 @@ export async function enrichContext(
 		maxConcurrency = 2,
 	} = deps;
 
+	const cacheKey = getCacheKey(facts);
+
+	// 1. 检查内存缓存
+	const memoryCached = memoryCache.get(cacheKey);
+	if (memoryCached && memoryCached.expiresAt > Date.now()) {
+		return memoryCached.data;
+	}
+
+	// 2. 检查 SQLite 缓存
+	const dbCached = loadFromDbCache(cacheKey);
+	if (dbCached) {
+		// 回填内存缓存
+		if (memoryCache.size >= MEMORY_CACHE_SIZE) {
+			const oldestKey = memoryCache.keys().next().value;
+			if (oldestKey) memoryCache.delete(oldestKey);
+		}
+		memoryCache.set(cacheKey, {
+			data: dbCached,
+			expiresAt: Date.now() + MEMORY_CACHE_TTL,
+		});
+		return dbCached;
+	}
+
+	// 3. 执行搜索
 	const tasks = buildSearchTasks(facts, maxQueries);
 	if (tasks.length === 0) {
 		return { queryResults: [], collectedAt: new Date().toISOString() };
 	}
 
-	// 并行执行搜索任务（受并发数限制）
 	const queryResults: EnrichedContext["queryResults"] = [];
 
 	if (tasks.length <= maxConcurrency) {
-		// 任务数 ≤ 并发限制，全部并行
 		const results = await Promise.all(
 			tasks.map((task) => executeSearchTask(task, fetchFn, timeoutMs)),
 		);
 		queryResults.push(...results);
 	} else {
-		// 分批并行执行
 		for (let i = 0; i < tasks.length; i += maxConcurrency) {
 			const batch = tasks.slice(i, i + maxConcurrency);
 			const results = await Promise.all(
 				batch.map((task) => executeSearchTask(task, fetchFn, timeoutMs)),
 			);
 			queryResults.push(...results);
-
-			// 批次间延迟，避免触发限流
 			if (i + maxConcurrency < tasks.length) {
 				await sleep(500 + Math.random() * 300);
 			}
 		}
 	}
 
-	return {
+	const result: EnrichedContext = {
 		queryResults,
 		collectedAt: new Date().toISOString(),
 	};
+
+	// 4. 写入缓存
+	if (memoryCache.size >= MEMORY_CACHE_SIZE) {
+		const oldestKey = memoryCache.keys().next().value;
+		if (oldestKey) memoryCache.delete(oldestKey);
+	}
+	memoryCache.set(cacheKey, {
+		data: result,
+		expiresAt: Date.now() + MEMORY_CACHE_TTL,
+	});
+	saveToDbCache(cacheKey, result);
+
+	return result;
 }

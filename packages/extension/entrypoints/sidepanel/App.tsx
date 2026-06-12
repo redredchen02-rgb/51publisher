@@ -119,6 +119,22 @@ export function App() {
 					details: { error: errMsg },
 				});
 			}
+		} catch (err) {
+			// 处理未预期的异常（如网络超时、SW 崩溃等）
+			const errMsg = err instanceof Error ? err.message : "生成失败";
+			handleError(errMsg);
+			setMode(draft ? "draft" : "empty");
+			loadingState.completeLoading();
+			void logError(
+				err instanceof Error ? err : new Error(errMsg),
+				{ topic, action: "generate" },
+			);
+			void recordOperation({
+				type: "generate",
+				topic,
+				success: false,
+				details: { error: errMsg },
+			});
 		} finally {
 			clearInterval(progressInterval);
 		}

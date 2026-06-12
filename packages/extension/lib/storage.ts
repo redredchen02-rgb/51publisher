@@ -8,6 +8,7 @@ import { DEFAULT_FIELD_MAPPING } from "@51publisher/shared";
 import { storage } from "#imports";
 import type { Batch } from "./batch";
 import { recoverBatch } from "./batch";
+import { clearBackendUrlCache } from "./backend-url";
 import { fetchRemoteMappings } from "./config-client";
 import type { TrajectoryInput, TrajectoryRecord } from "./trajectory";
 import { appendRecord } from "./trajectory";
@@ -115,6 +116,8 @@ export async function saveSettings(settings: Settings): Promise<void> {
 		dailyBatchSize: clampDailyBatchSize(settings.dailyBatchSize),
 	};
 	await storage.setItem(SETTINGS_KEY, toSave);
+	// 清除后端 URL 缓存，确保下次请求使用新地址
+	clearBackendUrlCache();
 }
 
 /** API key 单独存取(明文存于 chrome.storage.local,设置页须提示风险)。 */

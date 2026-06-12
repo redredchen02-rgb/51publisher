@@ -70,6 +70,7 @@ export async function getQualityStats(): Promise<{
 	passRate: number;
 	totalGenerations: number;
 	recentScores: number[];
+	trend: Array<{ date: string; avgScore: number; count: number }>;
 }> {
 	const db = getDb();
 
@@ -98,10 +99,29 @@ export async function getQualityStats(): Promise<{
 		`)
 		.all() as { overall: number }[];
 
+	// 最近 7 天趋势
+	const trendRows = db
+		.prepare(`
+			SELECT
+				DATE(created_at) as date,
+				AVG(overall) as avg_score,
+				COUNT(*) as count
+			FROM quality_metrics
+			WHERE created_at >= DATE('now', '-7 days')
+			GROUP BY DATE(created_at)
+			ORDER BY date DESC
+		`)
+		.all() as { date: string; avg_score: number; count: number }[];
+
 	return {
 		avgScore: stats.avg_score,
 		passRate: stats.total > 0 ? stats.pass_count / stats.total : 0,
 		totalGenerations: stats.total,
 		recentScores: recentRows.map((r) => r.overall),
+		trend: trendRows.map((r) => ({
+			date: r.date,
+			avgScore: r.avg_score,
+			count: r.count,
+		})),
 	};
 }
