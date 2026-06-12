@@ -17,6 +17,8 @@ export {
 	PLACEHOLDER,
 	sanitizeToPlainText,
 } from "./post-assembler.js";
+export type { QualityCheck, QualityVerdict } from "./quality-gate.js";
+export { evaluateQuality } from "./quality-gate.js";
 export type {
 	ContentDraft,
 	DraftStatus,

@@ -85,6 +85,7 @@ function savedTopic(): PendingTopic {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	process.env.ENRICHMENT_ENABLED = "false";
 	testId++;
 	currentSite = `sched-site-${testId}`;
 	currentUrl = `https://test-site.example.com/list/${testId}`;
@@ -92,6 +93,7 @@ beforeEach(() => {
 
 afterEach(() => {
 	vi.clearAllMocks();
+	delete process.env.ENRICHMENT_ENABLED;
 });
 
 // ================================================================
