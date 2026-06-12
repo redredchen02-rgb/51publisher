@@ -155,6 +155,7 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
 	// 封面持久化进 BatchItem:retry 重生成时才能回注(闭包 Map 不跨调用存活)。
 	const freshCovers = fresh.map((t) => coverUrlsByTopic.get(t));
 	const freshTopicIds = fresh.map((t) => topicIdsByTopic.get(t));
+	const freshEnrichments = fresh.map((t) => enrichmentByTopic.get(t));
 	let batch = createBatch(
 		genBatchId(),
 		tabId,
@@ -165,6 +166,7 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
 		freshFacts,
 		freshCovers,
 		freshTopicIds,
+		freshEnrichments,
 	);
 	await save(batch);
 
@@ -488,6 +490,7 @@ export interface RetryItemDeps {
 	generateDraft: (
 		topic: string,
 		facts?: FactsBlock,
+		enrichment?: string,
 	) => Promise<GenerateDraftResponse>;
 }
 
@@ -513,7 +516,7 @@ export async function retryItem(
 	batch = markGenerating(batch, itemId);
 	await deps.save(batch);
 
-	const gen = await deps.generateDraft(item.topic, item.facts);
+	const gen = await deps.generateDraft(item.topic, item.facts, item.enrichment);
 	if (!gen.ok) {
 		batch = markGenerateFailed(batch, itemId, gen.error);
 		await deps.save(batch);

@@ -596,7 +596,11 @@ describe("retryItem", () => {
 		expect(result).not.toBeNull();
 		expect(result?.items[0]?.status).toBe("awaiting-approval");
 		expect(deps.generateDraft).toHaveBeenCalledOnce();
-		expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_A, undefined);
+		expect(deps.generateDraft).toHaveBeenCalledWith(
+			TOPIC_A,
+			undefined,
+			undefined,
+		);
 	});
 
 	it("other items in batch not modified", async () => {
@@ -721,7 +725,7 @@ describe("retryItem", () => {
 		};
 		const deps = makeRetryDeps(batch);
 		await retryItem(deps, "item_0");
-		expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_A, facts);
+		expect(deps.generateDraft).toHaveBeenCalledWith(TOPIC_A, facts, undefined);
 	});
 });
 
