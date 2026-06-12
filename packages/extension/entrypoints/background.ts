@@ -92,6 +92,8 @@ export interface BackgroundHandlerDeps {
 	) => Promise<void>;
 	writeTombstone?: (itemId: string) => Promise<void>;
 	clearTombstone?: (itemId: string) => Promise<void>;
+	/** published_posts 回写(best-effort);可注入 mock 供测试。默认用 recordPublishedPost。 */
+	recordPost?: (record: PublishedPostRecord) => Promise<void>;
 }
 
 /** 构造 prompt 末尾的分类/标签约束块。recommendedTags 为空时只含分类约束。 */
@@ -320,6 +322,7 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 				writeTombstone: deps.writeTombstone,
 				clearTombstone: deps.clearTombstone,
 				checkGrounding: evaluateGrounding,
+				recordPost: deps.recordPost ?? recordPublishedPost,
 			});
 			if (result) {
 				const confirmedTopics = result.items
