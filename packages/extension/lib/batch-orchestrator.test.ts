@@ -210,6 +210,52 @@ describe("runBatch", () => {
 		expect(deps.save).not.toHaveBeenCalled();
 		expect(deps.generateDraft).not.toHaveBeenCalled();
 	});
+
+	it("并发: 同时最多 3 路 generateDraft 在飞(5 条 → 峰值并发 = 3)", async () => {
+		let active = 0;
+		let peak = 0;
+		const topics = Array.from({ length: 5 }, (_, i) => `conc-${i}`);
+		const deps = makeRunDeps({
+			topics,
+			generateDraft: vi.fn(async () => {
+				active += 1;
+				peak = Math.max(peak, active);
+				await new Promise((r) => setTimeout(r, 0)); // 让其他 worker 有机会并行进入
+				active -= 1;
+				return { ok: true as const, draft: { ...DRAFT } };
+			}),
+		});
+		const result = await runBatch(deps);
+		expect(deps.generateDraft).toHaveBeenCalledTimes(5);
+		expect(peak).toBe(3); // 池上限,非全部 5 路一拥而上
+		expect(result?.items.every((it) => it.status === "awaiting-approval")).toBe(
+			true,
+		);
+	});
+
+	it("save 失败 → 异常经 applyMutation 向上传播(不被串行队列吞掉)", async () => {
+		// 初始 save 成功,首个 applyMutation 的 save 抛错;串行队列只吞自身 tail,调用方仍拿到异常。
+		let n = 0;
+		const deps = makeRunDeps({
+			save: vi.fn(async () => {
+				n += 1;
+				if (n >= 2) throw new Error("storage-full");
+			}),
+		});
+		await expect(runBatch(deps)).rejects.toThrow("storage-full");
+	});
+
+	it("并发不互相覆盖: 6 条均成功 → 全部 awaiting-approval 且各有 draft(mutex 守护)", async () => {
+		const topics = Array.from({ length: 6 }, (_, i) => `mtx-${i}`);
+		const deps = makeRunDeps({ topics });
+		const result = await runBatch(deps);
+		expect(result?.items).toHaveLength(6);
+		expect(result?.items.every((it) => it.status === "awaiting-approval")).toBe(
+			true,
+		);
+		// 每条都保留了自己的 draft(并发 save 未丢失任何 worker 的状态变更)
+		expect(result?.items.every((it) => it.draft != null)).toBe(true);
+	});
 });
 
 // ================================================================

@@ -37,6 +37,49 @@ import type { TrajectoryInput } from "./trajectory";
 // 批量编排逻辑(效果全注入,无 chrome/browser/* 直接依赖)。
 // 参照 lib/publish-orchestrator.ts 模式:background.ts 只做接线,逻辑在此可单测。
 
+/**
+ * 生成阶段并发度:每条 item 的 LLM 工作(generate + review + rewrite)彼此独立,
+ * 并发跑可把大批量(100 条 ~1h)压到 ~15min。配合 LLM 层既有 429/5xx 退避,3 路并发对供应商 rate-limit 友好。
+ */
+const GENERATION_CONCURRENCY = 3;
+
+/**
+ * 串行互斥队列:把并发 worker 的状态变更逐个排队执行,保证对共享 batch 累积态的「读→改→save」原子化,
+ * 避免多个 worker 持过期 batch 互相覆盖。返回的函数 await 即等到本次变更落盘。
+ */
+function createSerialQueue(): <T>(fn: () => Promise<T>) => Promise<T> {
+	let tail: Promise<unknown> = Promise.resolve();
+	return <T>(fn: () => Promise<T>): Promise<T> => {
+		const run = tail.then(fn);
+		// 吞掉错误以免毒化队列;调用方各自 await run 拿真实结果/异常。
+		tail = run.then(
+			() => undefined,
+			() => undefined,
+		);
+		return run;
+	};
+}
+
+/** 有界并发 map:最多 limit 个 worker 同时跑,顺序无关。worker 内部异常向上抛(由调用方 fail-open 包裹)。 */
+async function mapWithConcurrency<T>(
+	items: T[],
+	limit: number,
+	worker: (item: T) => Promise<void>,
+): Promise<void> {
+	let next = 0;
+	async function runner(): Promise<void> {
+		while (true) {
+			const i = next++;
+			if (i >= items.length) return;
+			const item = items[i];
+			if (item === undefined) return;
+			await worker(item);
+		}
+	}
+	const runners = Array.from({ length: Math.min(limit, items.length) }, runner);
+	await Promise.all(runners);
+}
+
 // ---- RUN BATCH ----
 
 export interface RunBatchDeps {
@@ -170,10 +213,33 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
 	);
 	await save(batch);
 
-	for (const item of batch.items) {
-		if (!(await pinnedHostOk(batch))) break; // tab 漂移 → 暂停
-		batch = markGenerating(batch, item.id);
-		await save(batch);
+	// 并发生成:每条 item 的 LLM 工作并行跑(并发度 GENERATION_CONCURRENCY),
+	// 但所有对 batch 累积态的变更经 serialQueue 串行落盘,保证「读→改→save」原子化、零竞态。
+	// UI 轮询 getBatchState 仍能看到逐条流式进度(每条完成即 save)。
+	const serialQueue = createSerialQueue();
+	/**
+	 * 原子地套用一次 batch 变更并落盘。并发 worker 各自 await,互不覆盖。
+	 * 先算 next、save 成功后才提交内存 batch:避免某条 save 失败后,其未落盘的内存改动
+	 * 被后一个 worker 的成功 save 一起持久化,造成磁盘出现「半提交」不一致态。
+	 */
+	const applyMutation = (fn: (b: Batch) => Batch): Promise<void> =>
+		serialQueue(async () => {
+			const next = fn(batch);
+			await save(next);
+			batch = next;
+		});
+
+	// tab 漂移 → 暂停:一旦检测到 host 失配,置位 paused,后续 worker 不再启动 LLM 工作(item 留在 queued)。
+	let paused = false;
+	const workItems = batch.items; // 快照初始 items;mark* 按 id 在当前 batch 内查找,引用稳定。
+
+	await mapWithConcurrency(workItems, GENERATION_CONCURRENCY, async (item) => {
+		if (paused) return;
+		if (!(await pinnedHostOk(batch))) {
+			paused = true;
+			return;
+		}
+		await applyMutation((b) => markGenerating(b, item.id));
 
 		const gen = await generateDraft(
 			item.topic,
@@ -181,9 +247,8 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
 			enrichmentByTopic.get(item.topic),
 		);
 		if (!gen.ok) {
-			batch = markGenerateFailed(batch, item.id, gen.error);
-			await save(batch);
-			continue;
+			await applyMutation((b) => markGenerateFailed(b, item.id, gen.error));
+			return;
 		}
 		// 注入封面图 URL(统一从持久化的 item.coverImageUrl 读,与 retryItem 同源)。
 		let draft = item.coverImageUrl
@@ -224,16 +289,17 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
 			// reviewRes.ok===false → fail-open，reviewMeta 保持 undefined
 		}
 
-		batch = markFilled(
-			batch,
-			item.id,
-			draft,
-			gen.llmCostTokens,
-			undefined,
-			reviewMeta,
-			assembledDraft,
+		await applyMutation((b) =>
+			markFilled(
+				b,
+				item.id,
+				draft,
+				gen.llmCostTokens,
+				undefined,
+				reviewMeta,
+				assembledDraft,
+			),
 		);
-		await save(batch);
 
 		// Phase 5 (U4) — 备稿阶段 grounding gate 预筛:
 		// filled → gate-failed(内容问题,可重试) 或 保留 filled(末尾 presentForApproval 批量升格)。
@@ -246,10 +312,11 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
 			verdict = { ok: true, reasons: [] }; // fail-open
 		}
 		if (!verdict.ok) {
-			batch = markGateFailed(batch, item.id, verdict.reasons.join(" "));
-			await save(batch);
+			await applyMutation((b) =>
+				markGateFailed(b, item.id, verdict.reasons.join(" ")),
+			);
 		}
-	}
+	});
 
 	// presentForApproval 是 bulk 操作:仅将 filled 状态的 item 升格为 awaiting-approval。
 	// gate-failed items 已离开 filled 状态,自然不受此调用影响。
