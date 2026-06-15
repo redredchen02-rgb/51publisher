@@ -178,6 +178,10 @@ export type RuntimeMessage =
 	| { type: "MARK_ITEM_EDITED"; itemId: string }
 	// side panel → background:单条发布(approve + fill + publish 单条 awaiting-approval)。
 	| { type: "APPROVE_SINGLE_ITEM"; tabId: number; itemId: string }
+	// side panel → background:操作者补齐缺失事实 → 重组装 + 重跑闸门(gate-failed → awaiting-approval)。
+	// 特权通道:仅 side panel 可发;mutate facts/draft/snapshot 并驱动提升,绝不自我授权发布。
+	// facts 为操作者补的事实覆盖(Partial<FactsBlock>);background 与 item.facts 合并后重跑 assembleDraft。
+	| { type: "REFILL_ITEM_FACTS"; itemId: string; facts: Partial<FactsBlock> }
 	// side panel → content:轻量选择器漂移自检(R6 轻量)。
 	| { type: "CHECK_SELECTORS" };
 
