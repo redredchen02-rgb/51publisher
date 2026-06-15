@@ -17,6 +17,7 @@ import {
 	presentForApproval,
 	quarantinedTopics,
 	recoverBatch,
+	releaseAllQuarantine,
 	releaseQuarantine,
 	retryBatchItem,
 	retryFromGateFailed,
@@ -139,6 +140,27 @@ describe("batch 状态机", () => {
 			);
 			b = releaseQuarantine(b, "item_0");
 			expect(b.items[0]?.status).toBe("aborted");
+		});
+
+		it("releaseAllQuarantine:全部 needs-human-verification → aborted(原子累积)", () => {
+			let b = fillAll(newBatch(["a", "b", "c"]));
+			b = markDispatched(b, "item_0");
+			b = markDispatched(b, "item_1");
+			b = recoverBatch(b); // item_0/item_1 → 隔离;item_2 仍 filled
+			expect(
+				b.items.filter((it) => it.status === "needs-human-verification"),
+			).toHaveLength(2);
+			const released = releaseAllQuarantine(b);
+			expect(released.items[0]?.status).toBe("aborted");
+			expect(released.items[1]?.status).toBe("aborted");
+			expect(released.items[0]?.error).toBe("quarantine-released");
+			// 非隔离条目不动(item_2 经 recover 已升为 awaiting-approval)
+			expect(released.items[2]?.status).toBe("awaiting-approval");
+		});
+
+		it("releaseAllQuarantine:无隔离条目 → 返回不变(引用相等)", () => {
+			const b = fillAll(newBatch(["a"]));
+			expect(releaseAllQuarantine(b)).toBe(b);
 		});
 
 		it("新批次不重入已隔离的同选题", () => {

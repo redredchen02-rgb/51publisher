@@ -1,7 +1,7 @@
 ---
 title: "feat: 产品体验升级(Theme E,4 独立特性)"
 type: feat
-status: active
+status: completed
 date: 2026-06-15
 ---
 
@@ -145,7 +145,7 @@ date: 2026-06-15
 - 安全:429 重试路径的日志/返回串不含 key/header/原始 body。
 **Verification:** 新增/改造测试绿;现有 429→next-model / 400→降级断言不破;退避用注入时钟、不真 sleep;`pnpm --filter publisher-backend test` + `compile` 绿。
 
-- [ ] **Unit E3: 隔离区视图 + 批量撤出**
+- [x] **Unit E3: 隔离区视图 + 批量撤出**
 
 **Goal:** 隔离全景(needs-human-verification 条目)+ 一键批量撤出。
 **Requirements:** R3

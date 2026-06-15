@@ -11,6 +11,7 @@ import {
 	abortBatch,
 	type Batch,
 	patchBatchDrafts,
+	releaseAllQuarantine,
 	releaseQuarantine,
 } from "../lib/batch";
 import {
@@ -388,6 +389,15 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 		return next;
 	}
 
+	async function handleReleaseQuarantineBatch(): Promise<Batch | null> {
+		const batch = await deps.getBatch();
+		if (!batch) return null;
+		const next = releaseAllQuarantine(batch);
+		if (next === batch) return batch; // 无隔离项,不写
+		await deps.saveBatch(next); // 单次原子保存(全或无)
+		return next;
+	}
+
 	async function handleMarkItemEdited(itemId: string): Promise<void> {
 		const batch = await deps.getBatch();
 		if (!batch) return;
@@ -462,6 +472,7 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 		handleApproveSingleItem,
 		handleKillBatch,
 		handleReleaseQuarantine,
+		handleReleaseQuarantineBatch,
 		handleMarkItemEdited,
 		handleRetryBatchItem,
 		handleDiscardBatchItem,
@@ -615,6 +626,8 @@ export default defineBackground(() => {
 		if (message?.type === "KILL_BATCH") return handlers.handleKillBatch();
 		if (message?.type === "RELEASE_QUARANTINE")
 			return handlers.handleReleaseQuarantine(message.itemId);
+		if (message?.type === "RELEASE_QUARANTINE_BATCH")
+			return handlers.handleReleaseQuarantineBatch();
 		if (message?.type === "MARK_ITEM_EDITED")
 			return handlers.handleMarkItemEdited(message.itemId);
 		if (message?.type === "RETRY_BATCH_ITEM")

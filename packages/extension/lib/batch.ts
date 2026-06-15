@@ -292,6 +292,18 @@ export function retryBatchItem(batch: Batch, itemId: string): Batch {
 	});
 }
 
+/**
+ * 批量撤出:把所有 needs-human-verification 条目累积撤出为一个新 Batch(原子,
+ * 供调用方单次 saveBatch、全或无)。复用 releaseQuarantine 的单条语义
+ * (→aborted + quarantine-released,绝不自动重发)。无隔离条目时返回原 batch。
+ */
+export function releaseAllQuarantine(batch: Batch): Batch {
+	const ids = batch.items
+		.filter((it) => it.status === "needs-human-verification")
+		.map((it) => it.id);
+	return ids.reduce((acc, id) => releaseQuarantine(acc, id), batch);
+}
+
 /** 已隔离项的选题集合(新批次须排除,防自动重入同选题)。 */
 export function quarantinedTopics(batch: Batch): string[] {
 	return batch.items

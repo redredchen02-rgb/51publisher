@@ -12,6 +12,7 @@ import {
 	killBatch,
 	markItemEdited,
 	releaseQuarantine,
+	releaseQuarantineBatch,
 	resolveAdminTabId,
 	retryBatchItemMsg,
 	runBatch,
@@ -390,6 +391,12 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 						onRelease={(itemId) =>
 							void withBusy(async () => {
 								await releaseQuarantine(itemId);
+								await refresh();
+							})
+						}
+						onReleaseAll={() =>
+							void withBusy(async () => {
+								await releaseQuarantineBatch();
 								await refresh();
 							})
 						}

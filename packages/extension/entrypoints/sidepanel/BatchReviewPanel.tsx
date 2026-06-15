@@ -48,6 +48,7 @@ interface Props {
 	onApproveBypass: () => void;
 	onKill: () => void;
 	onRelease: (itemId: string) => void;
+	onReleaseAll?: () => void;
 	onDriftCheck: () => void;
 	onResume: () => void;
 	/** 操作者手动修改了草稿后调用,用于直发率度量。 */
@@ -318,6 +319,23 @@ export function BatchReviewPanel(props: Props) {
 					<div style={{ fontSize: 12, margin: "4px 0" }}>
 						这些条目发布中断且无回执,可能已发也可能没发——请去后台核对后再处置,系统绝不自动重发。
 					</div>
+					{props.onReleaseAll && quarantined.length > 1 && (
+						<button
+							type="button"
+							className="btn btn-plain btn-sm"
+							style={{ margin: "4px 0" }}
+							onClick={() => {
+								if (
+									window.confirm(
+										`将清除整批 ${quarantined.length} 条的人工核验闸(全部撤出隔离 → aborted)。请确认已逐条在后台核对。继续?`,
+									)
+								)
+									props.onReleaseAll?.();
+							}}
+						>
+							批量撤出全部({quarantined.length})
+						</button>
+					)}
 					{quarantined.map((it) => {
 						const traj = trajectoryContext?.get(it.id);
 						return (
