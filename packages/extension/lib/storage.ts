@@ -399,6 +399,20 @@ export async function clearFirstFlightPending(): Promise<void> {
 	await storage.removeItem(FIRST_FLIGHT_PENDING_KEY);
 }
 
+// 连续强制复位计数(持久,跨 SW 重启)。每次启动复位 +1;干净 settle(成功退档)归 0。
+// 达阈值 → 回落 off + 需显式重启用(防持续 wedge 被当噪音)。
+const FIRST_FLIGHT_RESET_COUNT_KEY = "local:firstFlightResetCount";
+
+/** 读连续复位计数;非法/缺失 → 0。 */
+export async function getFirstFlightResetCount(): Promise<number> {
+	const v = await storage.getItem<unknown>(FIRST_FLIGHT_RESET_COUNT_KEY);
+	return typeof v === "number" && v > 0 ? v : 0;
+}
+
+export async function setFirstFlightResetCount(n: number): Promise<void> {
+	await storage.setItem(FIRST_FLIGHT_RESET_COUNT_KEY, n);
+}
+
 // ---- Dry-run 填充报告 ----
 // 每次 dry-run 批准后写入;下次覆盖;side panel 读出展示。fail-closed:非法值 → null。
 

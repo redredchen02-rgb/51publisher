@@ -22,6 +22,7 @@ import {
 	getBackendToken,
 	getBatch,
 	getFirstFlightPending,
+	getFirstFlightResetCount,
 	getSafetyMode,
 	getSettings,
 	getTrajectory,
@@ -32,6 +33,7 @@ import {
 	saveSettings,
 	setAuthorizedHosts,
 	setFirstFlightPending,
+	setFirstFlightResetCount,
 	setSafetyMode,
 } from "./storage";
 
@@ -178,6 +180,14 @@ describe("storage", () => {
 			it("坏值:nonce 缺失 → corrupt:true", async () => {
 				await storage.setItem("local:firstFlightPending", { ...P, nonce: "" });
 				expect((await getFirstFlightPending()).corrupt).toBe(true);
+			});
+
+			it("复位计数:缺省 0、往返、坏值回落 0(fail-closed)", async () => {
+				expect(await getFirstFlightResetCount()).toBe(0);
+				await setFirstFlightResetCount(2);
+				expect(await getFirstFlightResetCount()).toBe(2);
+				await storage.setItem("local:firstFlightResetCount", "NaN");
+				expect(await getFirstFlightResetCount()).toBe(0);
 			});
 		});
 
