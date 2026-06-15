@@ -1,7 +1,7 @@
 ---
 title: "refactor: 全面优化迭代 — 上线就绪修复（A→C→B→D）"
 type: refactor
-status: active
+status: completed
 date: 2026-06-15
 origin: docs/brainstorms/2026-06-15-project-optimization-iteration-requirements.md
 deepened: 2026-06-15
