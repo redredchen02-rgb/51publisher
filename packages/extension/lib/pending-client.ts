@@ -1,6 +1,4 @@
-import { fetchWithTimeout } from "@51publisher/shared";
-import { clearToken, getAuthHeaders } from "./auth-client";
-import { getBackendUrl } from "./backend-url";
+import { apiFetch } from "./api-fetch";
 
 export interface PendingTopic {
 	id: string;
@@ -83,20 +81,10 @@ export async function fetchPendingTopics(
 	const params = qp.toString() ? `?${qp.toString()}` : "";
 
 	try {
-		const headers = await getAuthHeaders();
-
-		const backendUrl = await getBackendUrl();
-		const url = `${backendUrl}/api/v1/pending-topics${params}`;
-		const res = fetchFn
-			? await fetchFn(url, { headers })
-			: await fetchWithTimeout(url, {
-					headers,
-					timeoutMs: timeoutMs ?? 10_000,
-				});
-		if (res.status === 401) {
-			await clearToken();
-			return [];
-		}
+		const res = await apiFetch(`/api/v1/pending-topics${params}`, {
+			fetchFn,
+			timeoutMs: timeoutMs ?? 10_000,
+		});
 		if (!res.ok) return [];
 		const data = (await res.json()) as PendingTopicsResponse;
 		return data.ok && data.topics ? data.topics : [];
@@ -115,22 +103,15 @@ export async function patchPendingTopic(
 	timeoutMs = 10_000,
 ): Promise<boolean> {
 	try {
-		const headers = await getAuthHeaders();
-
-		const backendUrl = await getBackendUrl();
-		const res = await fetchWithTimeout(
-			`${backendUrl}/api/v1/pending-topics/${encodeURIComponent(id)}`,
+		const res = await apiFetch(
+			`/api/v1/pending-topics/${encodeURIComponent(id)}`,
 			{
 				method: "PATCH",
-				headers,
 				body: JSON.stringify(patch),
 				timeoutMs,
 			},
 		);
-		if (res.status === 401) {
-			await clearToken();
-			return false;
-		}
+		if (res.status === 401) return false;
 		return res.ok;
 	} catch (e) {
 		console.warn("[pending-client] patchPendingTopic:", e);
@@ -146,19 +127,12 @@ export async function triggerScrape(
 	timeoutMs = 15_000,
 ): Promise<boolean> {
 	try {
-		const headers = await getAuthHeaders();
-
-		const backendUrl = await getBackendUrl();
-		const res = await fetchWithTimeout(`${backendUrl}/api/v1/scraper/trigger`, {
+		const res = await apiFetch("/api/v1/scraper/trigger", {
 			method: "POST",
-			headers,
 			body: JSON.stringify({ siteName }),
 			timeoutMs,
 		});
-		if (res.status === 401) {
-			await clearToken();
-			return false;
-		}
+		if (res.status === 401) return false;
 		return res.ok;
 	} catch (e) {
 		console.warn("[pending-client] triggerScrape:", e);
@@ -171,20 +145,7 @@ export async function triggerScrape(
  */
 export async function fetchAdapters(timeoutMs = 10_000): Promise<string[]> {
 	try {
-		const headers = await getAuthHeaders();
-
-		const backendUrl = await getBackendUrl();
-		const res = await fetchWithTimeout(
-			`${backendUrl}/api/v1/scraper/adapters`,
-			{
-				headers,
-				timeoutMs,
-			},
-		);
-		if (res.status === 401) {
-			await clearToken();
-			return [];
-		}
+		const res = await apiFetch("/api/v1/scraper/adapters", { timeoutMs });
 		if (!res.ok) return [];
 		const data = (await res.json()) as {
 			ok: boolean;
@@ -207,14 +168,10 @@ export async function updatePendingStatus(
 	timeoutMs = 10_000,
 ): Promise<boolean> {
 	try {
-		const headers = await getAuthHeaders();
-
-		const backendUrl = await getBackendUrl();
-		const res = await fetchWithTimeout(
-			`${backendUrl}/api/v1/pending-topics/${encodeURIComponent(id)}`,
+		const res = await apiFetch(
+			`/api/v1/pending-topics/${encodeURIComponent(id)}`,
 			{
 				method: "PATCH",
-				headers,
 				body: JSON.stringify({
 					status,
 					...(rejectedReason ? { rejectedReason } : {}),
@@ -222,10 +179,7 @@ export async function updatePendingStatus(
 				timeoutMs,
 			},
 		);
-		if (res.status === 401) {
-			await clearToken();
-			return false;
-		}
+		if (res.status === 401) return false;
 		return res.ok;
 	} catch (e) {
 		console.warn("[pending-client] updatePendingStatus:", e);
