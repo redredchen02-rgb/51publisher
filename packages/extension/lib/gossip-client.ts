@@ -1,6 +1,4 @@
-import { fetchWithTimeout } from "@51publisher/shared";
-import { clearToken, getAuthHeaders } from "./auth-client";
-import { getBackendUrl } from "./backend-url";
+import { apiFetch } from "./api-fetch";
 
 export interface GossipSite {
 	id: string;
@@ -19,14 +17,11 @@ export interface DiscoveredItem {
 export async function fetchGossipSites(
 	fetchFn?: typeof fetch,
 ): Promise<GossipSite[]> {
-	const headers = await getAuthHeaders();
-	const base = await getBackendUrl();
-	const url = `${base}/api/v1/gossip/sites`;
-	const res = fetchFn
-		? await fetchFn(url, { headers })
-		: await fetchWithTimeout(url, { headers, timeoutMs: 10_000 });
+	const res = await apiFetch("/api/v1/gossip/sites", {
+		fetchFn,
+		timeoutMs: 10_000,
+	});
 	if (res.status === 401) {
-		await clearToken();
 		throw new Error("Unauthorized");
 	}
 	if (!res.ok) {
@@ -43,19 +38,14 @@ export async function createGossipSite(
 	fetchFn?: typeof fetch,
 ): Promise<GossipSite | null> {
 	try {
-		const headers = await getAuthHeaders();
-		const base = await getBackendUrl();
-		const url = `${base}/api/v1/gossip/sites`;
-		const init = {
+		const res = await apiFetch("/api/v1/gossip/sites", {
 			method: "POST",
-			headers: { ...headers, "Content-Type": "application/json" },
+			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ name, listUrl }),
-		};
-		const res = fetchFn
-			? await fetchFn(url, init)
-			: await fetchWithTimeout(url, { ...init, timeoutMs: 10_000 });
+			fetchFn,
+			timeoutMs: 10_000,
+		});
 		if (res.status === 401) {
-			await clearToken();
 			return null;
 		}
 		if (!res.ok) {
@@ -73,15 +63,12 @@ export async function deleteGossipSite(
 	id: string,
 	fetchFn?: typeof fetch,
 ): Promise<void> {
-	const headers = await getAuthHeaders();
-	const base = await getBackendUrl();
-	const url = `${base}/api/v1/gossip/sites/${id}`;
-	const init = { method: "DELETE", headers };
-	const res = fetchFn
-		? await fetchFn(url, init)
-		: await fetchWithTimeout(url, { ...init, timeoutMs: 10_000 });
+	const res = await apiFetch(`/api/v1/gossip/sites/${id}`, {
+		method: "DELETE",
+		fetchFn,
+		timeoutMs: 10_000,
+	});
 	if (res.status === 401) {
-		await clearToken();
 		throw new Error("Unauthorized");
 	}
 	if (!res.ok) {
@@ -95,15 +82,12 @@ export async function discoverGossipSite(
 	fetchFn?: typeof fetch,
 ): Promise<DiscoveredItem[]> {
 	try {
-		const headers = await getAuthHeaders();
-		const base = await getBackendUrl();
-		const url = `${base}/api/v1/gossip/sites/${siteId}/discover`;
-		const init = { method: "POST", headers };
-		const res = fetchFn
-			? await fetchFn(url, init)
-			: await fetchWithTimeout(url, { ...init, timeoutMs: 30_000 });
+		const res = await apiFetch(`/api/v1/gossip/sites/${siteId}/discover`, {
+			method: "POST",
+			fetchFn,
+			timeoutMs: 30_000,
+		});
 		if (res.status === 401) {
-			await clearToken();
 			return [];
 		}
 		if (!res.ok) {
@@ -125,19 +109,14 @@ export async function fetchGossipTopicFromUrl(
 	siteName: string,
 	fetchFn?: typeof fetch,
 ): Promise<{ id: string; title: string }> {
-	const headers = await getAuthHeaders();
-	const base = await getBackendUrl();
-	const endpoint = `${base}/api/v1/gossip/topics/from-url`;
-	const init = {
+	const res = await apiFetch("/api/v1/gossip/topics/from-url", {
 		method: "POST",
-		headers: { ...headers, "Content-Type": "application/json" },
+		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify({ url, siteName }),
-	};
-	const res = fetchFn
-		? await fetchFn(endpoint, init)
-		: await fetchWithTimeout(endpoint, { ...init, timeoutMs: 60_000 });
+		fetchFn,
+		timeoutMs: 60_000,
+	});
 	if (res.status === 401) {
-		await clearToken();
 		throw new Error("Unauthorized");
 	}
 	if (res.status === 409) throw new Error("DUPLICATE_URL");

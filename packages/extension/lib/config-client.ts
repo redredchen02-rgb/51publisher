@@ -1,7 +1,6 @@
 import type { FieldMapping } from "@51publisher/shared";
 import { DEFAULT_FIELD_MAPPING } from "@51publisher/shared";
-import { clearToken, getAuthHeaders } from "./auth-client";
-import { getBackendUrl } from "./backend-url";
+import { apiFetch } from "./api-fetch";
 
 /**
  * 后端配置客户端。
@@ -23,23 +22,16 @@ export interface MappingsResponse {
  * @returns 映射对象;后端不可达或返回异常时回落 DEFAULT_FIELD_MAPPING。
  */
 export async function fetchRemoteMappings(
-	fetchFn: typeof fetch = fetch,
+	fetchFn?: typeof fetch,
 	timeoutMs = 5_000,
 ): Promise<{ mappings: FieldMapping; remote: boolean }> {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-
 	try {
-		const headers = await getAuthHeaders();
-
-		const backendUrl = await getBackendUrl();
-		const res = await fetchFn(`${backendUrl}/api/v1/config/mappings`, {
-			headers,
-			signal: controller.signal,
+		const res = await apiFetch("/api/v1/config/mappings", {
+			fetchFn,
+			timeoutMs,
 		});
 
 		if (res.status === 401) {
-			await clearToken();
 			return { mappings: DEFAULT_FIELD_MAPPING, remote: false };
 		}
 
@@ -66,8 +58,6 @@ export async function fetchRemoteMappings(
 			aborted ? "拉取映射超时" : "无法连接后端",
 		);
 		return { mappings: DEFAULT_FIELD_MAPPING, remote: false };
-	} finally {
-		clearTimeout(timer);
 	}
 }
 
@@ -87,28 +77,21 @@ export async function syncBatchItemStatus(
 		error?: string;
 		fillResults?: unknown[];
 	},
-	fetchFn: typeof fetch = fetch,
+	fetchFn?: typeof fetch,
 	timeoutMs = 10_000,
 ): Promise<{ ok: boolean; error?: string }> {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-
 	try {
-		const headers = await getAuthHeaders();
-
-		const backendUrl = await getBackendUrl();
-		const res = await fetchFn(
-			`${backendUrl}/api/v1/batches/${encodeURIComponent(batchId)}/items/${encodeURIComponent(itemId)}`,
+		const res = await apiFetch(
+			`/api/v1/batches/${encodeURIComponent(batchId)}/items/${encodeURIComponent(itemId)}`,
 			{
 				method: "PATCH",
-				headers,
 				body: JSON.stringify(patch),
-				signal: controller.signal,
+				fetchFn,
+				timeoutMs,
 			},
 		);
 
 		if (res.status === 401) {
-			await clearToken();
 			return { ok: false, error: "登录已过期" };
 		}
 
@@ -129,8 +112,6 @@ export async function syncBatchItemStatus(
 			ok: false,
 			error: err instanceof Error ? err.message : String(err),
 		};
-	} finally {
-		clearTimeout(timer);
 	}
 }
 
@@ -140,26 +121,19 @@ export async function syncBatchItemStatus(
  */
 export async function fetchBatchState(
 	batchId: string,
-	fetchFn: typeof fetch = fetch,
+	fetchFn?: typeof fetch,
 	timeoutMs = 10_000,
 ): Promise<{ ok: boolean; batch?: unknown; error?: string }> {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-
 	try {
-		const headers = await getAuthHeaders();
-
-		const backendUrl = await getBackendUrl();
-		const res = await fetchFn(
-			`${backendUrl}/api/v1/batches/${encodeURIComponent(batchId)}`,
+		const res = await apiFetch(
+			`/api/v1/batches/${encodeURIComponent(batchId)}`,
 			{
-				headers,
-				signal: controller.signal,
+				fetchFn,
+				timeoutMs,
 			},
 		);
 
 		if (res.status === 401) {
-			await clearToken();
 			return { ok: false, error: "登录已过期" };
 		}
 
@@ -174,8 +148,6 @@ export async function fetchBatchState(
 			ok: false,
 			error: err instanceof Error ? err.message : String(err),
 		};
-	} finally {
-		clearTimeout(timer);
 	}
 }
 
@@ -190,25 +162,18 @@ export async function createRemoteBatch(
 		topics: string[];
 		facts?: (Record<string, unknown> | undefined)[];
 	},
-	fetchFn: typeof fetch = fetch,
+	fetchFn?: typeof fetch,
 	timeoutMs = 10_000,
 ): Promise<{ ok: boolean; error?: string }> {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-
 	try {
-		const headers = await getAuthHeaders();
-
-		const backendUrl = await getBackendUrl();
-		const res = await fetchFn(`${backendUrl}/api/v1/batches`, {
+		const res = await apiFetch("/api/v1/batches", {
 			method: "POST",
-			headers,
 			body: JSON.stringify(payload),
-			signal: controller.signal,
+			fetchFn,
+			timeoutMs,
 		});
 
 		if (res.status === 401) {
-			await clearToken();
 			return { ok: false, error: "登录已过期" };
 		}
 
@@ -223,7 +188,5 @@ export async function createRemoteBatch(
 			ok: false,
 			error: err instanceof Error ? err.message : String(err),
 		};
-	} finally {
-		clearTimeout(timer);
 	}
 }

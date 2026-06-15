@@ -1,6 +1,4 @@
-import { fetchWithTimeout } from "@51publisher/shared";
-import { clearToken, getAuthHeaders } from "./auth-client";
-import { getBackendUrl } from "./backend-url";
+import { apiFetch } from "./api-fetch";
 
 function errorMessage(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
@@ -16,12 +14,6 @@ export interface PromptTemplate {
 	updatedAt: string;
 }
 
-async function handleUnauthorized(res: Response): Promise<void> {
-	if (res.status === 401) {
-		await clearToken();
-	}
-}
-
 /**
  * 从后端获取所有 Prompt 模板列表。
  */
@@ -30,17 +22,8 @@ export async function fetchPrompts(
 	timeoutMs = 10_000,
 ): Promise<{ ok: boolean; prompts?: PromptTemplate[]; error?: string }> {
 	try {
-		const headers = await getAuthHeaders();
-		const backendUrl = await getBackendUrl();
-		const url = `${backendUrl}/api/v1/prompts`;
-		const res = fetchFn
-			? await fetchFn(url, { headers })
-			: await fetchWithTimeout(url, {
-					headers,
-					timeoutMs,
-				});
+		const res = await apiFetch("/api/v1/prompts", { fetchFn, timeoutMs });
 		if (!res.ok) {
-			await handleUnauthorized(res);
 			return { ok: false, error: `HTTP ${res.status}` };
 		}
 		return await res.json();
@@ -63,19 +46,13 @@ export async function createPrompt(
 	fetchFn?: typeof fetch,
 ): Promise<{ ok: boolean; error?: string }> {
 	try {
-		const headers = await getAuthHeaders();
-		const backendUrl = await getBackendUrl();
-		const url = `${backendUrl}/api/v1/prompts`;
-		const init = {
+		const res = await apiFetch("/api/v1/prompts", {
 			method: "POST",
-			headers,
 			body: JSON.stringify(data),
-		};
-		const res = fetchFn
-			? await fetchFn(url, init)
-			: await fetchWithTimeout(url, { ...init, timeoutMs });
+			fetchFn,
+			timeoutMs,
+		});
 		if (!res.ok) {
-			await handleUnauthorized(res);
 			return { ok: false, error: `HTTP ${res.status}` };
 		}
 		return await res.json();
@@ -99,19 +76,13 @@ export async function updatePrompt(
 	fetchFn?: typeof fetch,
 ): Promise<{ ok: boolean; error?: string }> {
 	try {
-		const headers = await getAuthHeaders();
-		const backendUrl = await getBackendUrl();
-		const url = `${backendUrl}/api/v1/prompts/${id}`;
-		const init = {
+		const res = await apiFetch(`/api/v1/prompts/${id}`, {
 			method: "PUT",
-			headers,
 			body: JSON.stringify(data),
-		};
-		const res = fetchFn
-			? await fetchFn(url, init)
-			: await fetchWithTimeout(url, { ...init, timeoutMs });
+			fetchFn,
+			timeoutMs,
+		});
 		if (!res.ok) {
-			await handleUnauthorized(res);
 			return { ok: false, error: `HTTP ${res.status}` };
 		}
 		return await res.json();
