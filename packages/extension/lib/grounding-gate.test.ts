@@ -82,6 +82,17 @@ describe("evaluateGrounding", () => {
 		expect(v.reasons.join()).toContain("副标题");
 	});
 
+	it("副标题被手编留下【待补】→ 拦", () => {
+		const clean = draftFrom(FULL);
+		const tampered: ContentDraft = {
+			...clean,
+			subtitle: `${clean.subtitle}【待补】`,
+		};
+		const v = evaluateGrounding(tampered, FULL);
+		expect(v.ok).toBe(false);
+		expect(v.reasons.join()).toContain("副标题");
+	});
+
 	it("简介(description)含【待补】→ 拦(此前会漏过)", () => {
 		const clean = draftFrom(FULL);
 		const tampered: ContentDraft = {
@@ -102,5 +113,28 @@ describe("evaluateGrounding", () => {
 		const v = evaluateGrounding(tampered, FULL);
 		expect(v.ok).toBe(false);
 		expect(v.reasons.join()).toContain("正文");
+	});
+
+	it("描述被手编留下【待补】→ 拦", () => {
+		const clean = draftFrom(FULL);
+		const tampered: ContentDraft = {
+			...clean,
+			description: `${clean.description}【待补】`,
+		};
+		const v = evaluateGrounding(tampered, FULL);
+		expect(v.ok).toBe(false);
+		// 实现对 description 字段的提示文案用「简介」(PR #26 口径),非「描述」。
+		expect(v.reasons.join()).toContain("简介");
+	});
+
+	it("干净副标题/描述 → 放行(不误拦)", () => {
+		const clean = draftFrom(FULL);
+		const edited: ContentDraft = {
+			...clean,
+			subtitle: "操作者润色后的副标题",
+			description: "操作者润色后的描述。",
+		};
+		const v = evaluateGrounding(edited, FULL);
+		expect(v.ok).toBe(true);
 	});
 });

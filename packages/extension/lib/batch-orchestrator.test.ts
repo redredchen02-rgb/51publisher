@@ -1165,6 +1165,104 @@ describe("grounding gate bypass fix (Unit 4 integration)", () => {
 	});
 });
 
+// ================================================================
+// approveBatch 发布期 grounding 闸(publish-basis fix)
+// 闸求值对象 = 实际发布对象:对 snapshot 与最终 draft 各求值,任一不过即拦;
+// snapshot 缺失 fail-closed。不 mock gate,走真实 evaluateGrounding。
+// ================================================================
+
+describe("approveBatch publish-basis grounding gate", () => {
+	const clean = { ...DRAFT, id: "item_0", title: "《斗破苍穹》第1集" };
+
+	it("snapshot 干净但最终 draft 被手编注入【待补】→ gate-failed,不发布(核心泄漏回归)", async () => {
+		const batch: Batch = {
+			id: "batch_1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "2026-06-04T00:00:00.000Z",
+			items: [
+				{
+					id: "item_0",
+					topic: TOPIC_A,
+					status: "awaiting-approval",
+					// 操作者把 title 改成含【待补】(旧逻辑只看 snapshot 会放行 = 泄漏)
+					draft: { ...clean, title: "《【待补】》第1集" },
+					assembledDraftSnapshot: { ...clean },
+				},
+			],
+		};
+		const sendFill = vi.fn(async () => ({ ok: true as const, results: [] }));
+		const sendGrant = vi.fn(async () => ({ ok: true, dryRun: false }));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => batch),
+			sendFill,
+			sendGrant,
+			checkGrounding: evaluateGrounding,
+		});
+		const result = await approveBatch(deps);
+		expect(result?.items[0]?.status).toBe("gate-failed");
+		expect(sendFill).not.toHaveBeenCalled();
+		expect(sendGrant).not.toHaveBeenCalled();
+	});
+
+	it("snapshot 缺失 → fail-closed gate-failed,不发布", async () => {
+		const batch: Batch = {
+			id: "batch_1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "2026-06-04T00:00:00.000Z",
+			items: [
+				{
+					id: "item_0",
+					topic: TOPIC_A,
+					status: "awaiting-approval",
+					draft: { ...clean },
+					// 无 assembledDraftSnapshot
+				},
+			],
+		};
+		const sendFill = vi.fn(async () => ({ ok: true as const, results: [] }));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => batch),
+			sendFill,
+			checkGrounding: evaluateGrounding,
+		});
+		const result = await approveBatch(deps);
+		expect(result?.items[0]?.status).toBe("gate-failed");
+		expect(result?.items[0]?.gateFailReason).toContain("缺发布快照");
+		expect(sendFill).not.toHaveBeenCalled();
+	});
+
+	it("snapshot 与最终 draft 均干净 → 正常发布(不误拦)", async () => {
+		const batch: Batch = {
+			id: "batch_1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "2026-06-04T00:00:00.000Z",
+			items: [
+				{
+					id: "item_0",
+					topic: TOPIC_A,
+					status: "awaiting-approval",
+					draft: { ...clean },
+					assembledDraftSnapshot: { ...clean },
+				},
+			],
+		};
+		const sendFill = vi.fn(async () => ({ ok: true as const, results: [] }));
+		const sendGrant = vi.fn(async () => ({ ok: true, dryRun: false }));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => batch),
+			sendFill,
+			sendGrant,
+			checkGrounding: evaluateGrounding,
+		});
+		const result = await approveBatch(deps);
+		expect(result?.items[0]?.status).not.toBe("gate-failed");
+		expect(sendFill).toHaveBeenCalledOnce();
+	});
+});
+
 // itemIdFilter
 // ================================================================
 

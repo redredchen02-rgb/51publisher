@@ -30,7 +30,7 @@ import { evaluateGrounding as defaultEvaluateGrounding } from "./grounding-gate"
 import type { ReviewDraftResponse, RewriteDraftResponse } from "./llm";
 import { mergeRewriteResult } from "./llm";
 import type { GateDecision } from "./publish-orchestrator";
-import { orchestratePublish } from "./publish-orchestrator";
+import { isGateBlocked, orchestratePublish } from "./publish-orchestrator";
 import type { PublishedPostRecord } from "./published-posts-client";
 import type { TrajectoryInput } from "./trajectory";
 
@@ -393,39 +393,35 @@ export async function approveBatch(
 		if (item?.status !== "awaiting-approval" || !item.draft) continue;
 		if (!(await pinnedHostOk(batch))) break;
 
-		// 发布前 grounding 硬闸:仅 authorized 档拦截(残留【待补】/无来源连结 → 该条转 error,不 dispatch)。
-		// 提到块外:① 快照闸(下)与 ② 填充前复检(sendFill 前)共用同一 gate.mode 判定。
-		const gate = checkGrounding ? await evaluateGate() : undefined;
-		if (checkGrounding && gate?.mode === "authorized") {
-			const verdict = checkGrounding(
-				item.assembledDraftSnapshot ?? item.draft,
-				item.facts,
-			);
-			if (!verdict.ok) {
-				batch = markGenerateFailed(
-					batch,
-					item.id,
-					`grounding-blocked: ${verdict.reasons.join(" ")}`,
+		// 发布前 grounding 硬闸:仅 authorized 档拦截。
+		// 闸必须覆盖「实际将发布的 artifact」—— sendFill 填的是 item.draft(含手编)。
+		// 故对 snapshot(防 AI 重写洗【待补】,见 2026-06-11 修复)与最终 draft(防手编注入)
+		// 各求值一次,任一不过即拦;snapshot 缺失 fail-closed 直接拦,不回退可编辑 draft。
+		if (checkGrounding) {
+			const gate = await evaluateGate();
+			if (gate.mode === "authorized") {
+				if (!item.assembledDraftSnapshot) {
+					batch = markGateFailed(
+						batch,
+						item.id,
+						"缺发布快照(assembledDraftSnapshot),请重新生成后再发。",
+					);
+					await save(batch);
+					continue;
+				}
+				const vSnapshot = checkGrounding(
+					item.assembledDraftSnapshot,
+					item.facts,
 				);
-				await save(batch);
-				continue;
-			}
-		}
-
-		// 填充前 grounding 复检(纵深防御,R10):上面的快照闸判 `snapshot ?? draft`,但 sendFill 实际填的是
-		// item.draft。patchBatchDrafts 可在 awaiting-approval 态只改 draft(不动 snapshot),
-		// 故升格后的内联编辑可能把【待补】/无来源连结重新塞进 draft,而快照闸已基于干净快照放行。
-		// 在真填充前用同一检测器(四字段)+ 同一 factUrls 源对「实际要填的内容」复检,堵掉这一旁路。
-		if (checkGrounding && gate?.mode === "authorized") {
-			const verdict = checkGrounding(item.draft, item.facts);
-			if (!verdict.ok) {
-				batch = markGenerateFailed(
-					batch,
-					item.id,
-					`grounding-blocked: ${verdict.reasons.join(" ")}`,
-				);
-				await save(batch);
-				continue;
+				const vFinal = checkGrounding(item.draft, item.facts);
+				if (!vSnapshot.ok || !vFinal.ok) {
+					const reasons = [
+						...new Set([...vSnapshot.reasons, ...vFinal.reasons]),
+					];
+					batch = markGateFailed(batch, item.id, reasons.join(" "));
+					await save(batch);
+					continue;
+				}
 			}
 		}
 
@@ -531,7 +527,7 @@ export async function approveBatch(
 		}
 
 		// blocked → 暂停,不继续后续条目。
-		if (!result.ok && result.error === "blocked") break;
+		if (!result.ok && isGateBlocked(result.error)) break;
 	}
 
 	// dry-run 结束:持久化填充报告(best-effort,失败不抛出)。

@@ -8,6 +8,7 @@ import { assembleDraft, toDraft } from "@51publisher/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeBrowser } from "wxt/testing";
 import {
+	asPublishResult,
 	type BackgroundHandlerDeps,
 	buildConstraintSuffix,
 	createHandlers,
@@ -51,7 +52,16 @@ function makeBatch(
 		tabId: 1,
 		authorizedHost: HOST,
 		createdAt: "2026-06-04T00:00:00.000Z",
-		items: [{ id: "item_0", topic: "topic-a", status, draft: DRAFT }],
+		// assembledDraftSnapshot 反映真实生成项:markFilled 落盘快照,供发布期 grounding 双求值闸。
+		items: [
+			{
+				id: "item_0",
+				topic: "topic-a",
+				status,
+				draft: DRAFT,
+				assembledDraftSnapshot: DRAFT,
+			},
+		],
 	};
 }
 
@@ -291,12 +301,14 @@ function makeTwoItemBatch(): Batch {
 				topic: "topic-a",
 				status: "awaiting-approval",
 				draft: { ...DRAFT, id: "item_0" },
+				assembledDraftSnapshot: { ...DRAFT, id: "item_0" },
 			},
 			{
 				id: "item_1",
 				topic: "topic-b",
 				status: "awaiting-approval",
 				draft: { ...DRAFT, id: "item_1", title: "T1" },
+				assembledDraftSnapshot: { ...DRAFT, id: "item_1", title: "T1" },
 			},
 		],
 	};
@@ -875,5 +887,52 @@ describe("handleRefillItemFacts", () => {
 		const verdict = evaluateGrounding(afterSnap as ContentDraft, after?.facts);
 		expect(verdict.ok).toBe(true);
 		expect(after?.status).toBe("awaiting-approval");
+	});
+});
+
+describe("asPublishResult(R4 判别式形状校验)", () => {
+	it("合法成功(ok:true 无 error)原样通过", () => {
+		expect(
+			asPublishResult({ ok: true, dryRun: false, url: "https://x/1" }),
+		).toEqual({ ok: true, dryRun: false, url: "https://x/1" });
+	});
+	it("合法失败(ok:false + error)原样通过", () => {
+		expect(
+			asPublishResult({ ok: false, dryRun: false, error: "boom" }),
+		).toEqual({ ok: false, dryRun: false, error: "boom" });
+	});
+	it("畸形 { ok:true, error } → 降级为失败(杜绝假确认)", () => {
+		expect(
+			asPublishResult({ ok: true, dryRun: false, error: "sneaky" }),
+		).toEqual({
+			ok: false,
+			dryRun: false,
+			error: "content-response-malformed",
+		});
+	});
+	it("畸形 { ok:false 无 error } → content-response-invalid", () => {
+		expect(asPublishResult({ ok: false, dryRun: false })).toEqual({
+			ok: false,
+			dryRun: false,
+			error: "content-response-invalid",
+		});
+	});
+	it("dry-run 成功(ok:true, dryRun:true 无 error)通过", () => {
+		expect(asPublishResult({ ok: true, dryRun: true })).toEqual({
+			ok: true,
+			dryRun: true,
+		});
+	});
+	it("非对象 / 缺 dryRun → content-response-invalid", () => {
+		expect(asPublishResult(null)).toEqual({
+			ok: false,
+			dryRun: false,
+			error: "content-response-invalid",
+		});
+		expect(asPublishResult({ ok: true })).toEqual({
+			ok: false,
+			dryRun: false,
+			error: "content-response-invalid",
+		});
 	});
 });

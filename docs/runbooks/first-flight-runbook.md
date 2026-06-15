@@ -36,7 +36,8 @@
 
 ## Step 3 — Dry-run 预演 🟢
 
-- [ ] 发布档位设 `dry-run`，跑一遍 `orchestratePublish`，确认出 DryRunReport、闸链行为正常、**零真实提交**。
+- [x] **代码层已验证（2026-06-15，main `38bd759c`）**：U3 授权矩阵 e2e（`tests/e2e/publish-gate.test.ts`，6/6 绿）在真实表单 + 真实 fetch 拦截上证 `dry-run` 走完闸链且**真实提交=0**（对照 `authorized`+名单内=1；`off` / host 不符 / 伪装相似 host / 空名单 均=0）；批量 `dry-run` 路径产出 `DryRunReport`（每项：选题 / 标题 / ✓已填·↷跳过·⚠降级）。「结构性零提交 + 闸链正确」是硬证据。
+- [ ] 🔴**真实环境亲眼核验（并入 Step 4 开场，同一浏览器会话）**：加载扩展 + 开真实后台页，档位设 `dry-run` 跑一批 → 侧边栏看「🧪 预演填充报告」核对标题/字段填充无误 → 再切 `authorized` 真发。
 
 ## Step 4 — 真实发布冒烟 🔴（确立填充基线有效）
 

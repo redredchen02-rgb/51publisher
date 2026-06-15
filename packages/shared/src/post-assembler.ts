@@ -73,8 +73,8 @@ export function sanitizeToPlainText(s: string | undefined): string {
 	return t.replace(/\s+/g, " ").trim();
 }
 
-/** HTML 文本转义(仅用于写进 body 的文本片段)。 */
-function esc(s: string): string {
+/** HTML 文本转义(写进 body 的文本片段;grounding-gate verbatim 比对复用同一函数,确保同层规范化)。 */
+export function esc(s: string): string {
 	return s
 		.replace(/&/g, "&amp;")
 		.replace(/</g, "&lt;")

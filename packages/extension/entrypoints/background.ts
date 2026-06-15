@@ -27,10 +27,7 @@ import { evaluateGrounding } from "../lib/grounding-gate";
 import { generateDraft, reviewDraft, rewriteDraft } from "../lib/llm";
 import { updatePendingStatus } from "../lib/pending-client";
 import { assemblePrompt, buildConstraintSuffix } from "../lib/prompt-assembly";
-import {
-	type GateDecision,
-	orchestratePublish,
-} from "../lib/publish-orchestrator";
+import { type GateDecision, gateReason } from "../lib/publish-orchestrator";
 import {
 	type PublishedPostRecord,
 	recordPublishedPost,
@@ -61,7 +58,8 @@ import {
 // Background service worker:调度中心 + 发布闸门。
 // - 点扩展图标打开 side panel
 // - 路由 GENERATE_DRAFT → 调大模型(鉴权 + CORS 集中在此;key 绝不进 content)
-// - 路由 PUBLISH_PAGE → 闸门求值(host 取自 chrome.tabs.get(tabId).url)→ 仅授权才发准许
+// - 路由 APPROVE_BATCH/APPROVE_SINGLE_ITEM → grounding 双求值闸 + 发布编排
+//   (host 取自 chrome.tabs.get(tabId).url)→ 仅授权才发准许。单条裸奔发布路径已退役。
 
 export interface BackgroundHandlerDeps {
 	getBatch: () => Promise<Batch | null>;
@@ -116,23 +114,36 @@ function makeResolveTabHost(deps: Pick<BackgroundHandlerDeps, "tabsGet">) {
 }
 
 /** content 经消息边界回来的值是 unknown → 校验形状。 */
-function asPublishResult(value: unknown): PublishResult {
+export function asPublishResult(value: unknown): PublishResult {
 	if (value && typeof value === "object") {
 		const o = value as Record<string, unknown>;
 		if (typeof o.ok === "boolean" && typeof o.dryRun === "boolean") {
+			const hasError = typeof o.error === "string";
+			// 判别式形状校验(fail-closed):成功结果不得携带 error(畸形 → 降级为失败,
+			// 杜绝把 { ok:true, error } 记成 publish-confirmed 的假确认);失败结果必须带可读 error。
+			if (o.ok === true && hasError) {
+				return {
+					ok: false,
+					dryRun: o.dryRun,
+					error: "content-response-malformed",
+				};
+			}
+			if (o.ok === false && !hasError) {
+				return {
+					ok: false,
+					dryRun: o.dryRun,
+					error: "content-response-invalid",
+				};
+			}
 			return {
 				ok: o.ok,
 				dryRun: o.dryRun,
 				...(typeof o.url === "string" ? { url: o.url } : {}),
-				...(typeof o.error === "string" ? { error: o.error } : {}),
+				...(hasError ? { error: o.error as string } : {}),
 			};
 		}
 	}
 	return { ok: false, dryRun: false, error: "content-response-invalid" };
-}
-
-function markerKey(tabId: number): `local:${string}` {
-	return `local:publishMarker:${tabId}`;
 }
 
 export function createHandlers(deps: BackgroundHandlerDeps) {
@@ -146,7 +157,7 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 			resolveTabHost(tabId),
 		]);
 		const allowed = host != null && canSubmit({ host, mode, authorizedHosts });
-		return { mode, allowed, host };
+		return { mode, allowed, host, reason: gateReason(mode, host, allowed) };
 	}
 
 	function pinnedHostOk(batch: Batch): Promise<boolean> {
@@ -176,37 +187,6 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 				kind: "network",
 				error: "生成草稿时发生内部错误,请重试。",
 			};
-		}
-	}
-
-	async function handlePublish(tabId: number): Promise<PublishResult> {
-		try {
-			return await orchestratePublish({
-				evaluateGate: () => evaluateGate(tabId),
-				isAlreadyDispatched: async () =>
-					(await deps.storageGetItem(markerKey(tabId))) ===
-					"publish-dispatched",
-				writeDispatched: () =>
-					deps.storageSetItem(markerKey(tabId), "publish-dispatched"),
-				sendGrant: async () => {
-					try {
-						const res = await deps.tabsSendMessage(tabId, {
-							type: "PUBLISH_GRANT",
-						});
-						return asPublishResult(res);
-					} catch {
-						return { ok: false, dryRun: false, error: "content-unreachable" };
-					}
-				},
-				writeConfirmed: (r) =>
-					deps.storageSetItem(
-						markerKey(tabId),
-						r.ok ? "publish-confirmed" : `error:${r.error ?? "unknown"}`,
-					),
-			});
-		} catch (err) {
-			console.error("[bg] 发布编排失败", err);
-			return { ok: false, dryRun: false, error: "internal" };
 		}
 	}
 
@@ -525,7 +505,6 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 
 	return {
 		handleGenerate,
-		handlePublish,
 		handleRunBatch,
 		handleApproveBatch,
 		handleApproveSingleItem,
@@ -667,8 +646,6 @@ export default defineBackground(() => {
 	browser.runtime.onMessage.addListener((message: RuntimeMessage) => {
 		if (message?.type === "GENERATE_DRAFT")
 			return handlers.handleGenerate(message.prompt);
-		if (message?.type === "PUBLISH_PAGE")
-			return handlers.handlePublish(message.tabId);
 		if (message?.type === "RUN_BATCH")
 			return handlers.handleRunBatch(
 				message.topics,

@@ -1,7 +1,11 @@
 import type { PublishResult } from "@51publisher/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { GateDecision, OrchestratorDeps } from "./publish-orchestrator";
-import { orchestratePublish } from "./publish-orchestrator";
+import {
+	gateReason,
+	isGateBlocked,
+	orchestratePublish,
+} from "./publish-orchestrator";
 
 function makeDeps(
 	gate: GateDecision,
@@ -120,5 +124,74 @@ describe("orchestratePublish", () => {
 		const res = await orchestratePublish(deps);
 		expect(res).toEqual(fail);
 		expect(order).toEqual(["dispatched", "grant", "confirmed:false"]);
+	});
+});
+
+describe("gateReason", () => {
+	it("off → off", () => {
+		expect(gateReason("off", "dx-999-adm.ympxbys.xyz", false)).toBe("off");
+	});
+	it("dry-run → dry-run", () => {
+		expect(gateReason("dry-run", "dx-999-adm.ympxbys.xyz", false)).toBe(
+			"dry-run",
+		);
+	});
+	it("authorized 但 tab 取不到 host → host-unreachable", () => {
+		expect(gateReason("authorized", null, false)).toBe("host-unreachable");
+	});
+	it("authorized 但 host 不在名单 → not-authorized", () => {
+		expect(gateReason("authorized", "evil.com", false)).toBe("not-authorized");
+	});
+	it("authorized + host 命中 → authorized", () => {
+		expect(gateReason("authorized", "dx-999-adm.ympxbys.xyz", true)).toBe(
+			"authorized",
+		);
+	});
+});
+
+describe("isGateBlocked", () => {
+	it("识别具体阻断 reason 与历史回退值 blocked", () => {
+		for (const e of ["off", "not-authorized", "host-unreachable", "blocked"]) {
+			expect(isGateBlocked(e)).toBe(true);
+		}
+	});
+	it("非阻断错误 / undefined → false", () => {
+		expect(isGateBlocked("already-publishing")).toBe(false);
+		expect(isGateBlocked("fill-failed")).toBe(false);
+		expect(isGateBlocked(undefined)).toBe(false);
+	});
+});
+
+describe("orchestratePublish:阻断携带 reason", () => {
+	it("具体 reason(host-unreachable)进入 error", async () => {
+		const order: string[] = [];
+		const deps = makeDeps(
+			{
+				mode: "authorized",
+				allowed: false,
+				host: null,
+				reason: "host-unreachable",
+			},
+			OK,
+			order,
+		);
+		const res = await orchestratePublish(deps);
+		expect(res).toEqual({
+			ok: false,
+			dryRun: false,
+			error: "host-unreachable",
+		});
+		expect(order).toEqual([]);
+		expect(deps.sendGrant).not.toHaveBeenCalled();
+	});
+	it("reason 省略 → 回退 blocked(向后兼容)", async () => {
+		const order: string[] = [];
+		const deps = makeDeps(
+			{ mode: "off", allowed: false, host: "dx-999-adm.ympxbys.xyz" },
+			OK,
+			order,
+		);
+		const res = await orchestratePublish(deps);
+		expect(res).toEqual({ ok: false, dryRun: false, error: "blocked" });
 	});
 });

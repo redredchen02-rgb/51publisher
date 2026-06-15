@@ -170,7 +170,8 @@ export function markGateFailed(
 	itemId: string,
 	gateFailReason: string,
 ): Batch {
-	return transition(batch, itemId, "filled", {
+	// filled:runBatch 生成期预筛;awaiting-approval:approveBatch 发布期硬闸(手编后复核)。
+	return transition(batch, itemId, ["filled", "awaiting-approval"], {
 		status: "gate-failed",
 		gateFailReason,
 	});
