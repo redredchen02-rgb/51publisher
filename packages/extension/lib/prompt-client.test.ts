@@ -1,29 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeBrowser } from "wxt/testing";
+import { authHeader, mockFetch } from "./__test-utils__/mock-fetch";
 import { getToken, setToken } from "./auth-client";
 import { createPrompt, fetchPrompts, updatePrompt } from "./prompt-client";
 
-interface MockResult {
-	capturedUrls: string[];
-	capturedInits: (RequestInit | undefined)[];
-	fn: typeof fetch;
-}
-
-function mockFetch(body: unknown, status = 200): MockResult {
-	const capturedUrls: string[] = [];
-	const capturedInits: (RequestInit | undefined)[] = [];
-	const fn = async (url: string | URL | Request, init?: RequestInit) => {
-		capturedUrls.push(String(url));
-		capturedInits.push(init);
-		return new Response(JSON.stringify(body), { status });
+// 生产默认路径:不注入 fetchFn 时,客户端应回落到 shared 的 fetchWithTimeout。
+// vi.mock 会被提升到模块顶部,故此处 mock 仅影响本文件全部导入。
+vi.mock("@51publisher/shared", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@51publisher/shared")>();
+	return {
+		...actual,
+		fetchWithTimeout: vi.fn(
+			async () => new Response(JSON.stringify({ ok: true, prompts: [] })),
+		),
 	};
-	return { capturedUrls, capturedInits, fn: fn as unknown as typeof fetch };
-}
+});
 
-function authHeader(init: RequestInit | undefined): string | undefined {
-	const h = init?.headers as Record<string, string> | undefined;
-	return h?.Authorization;
-}
+import { fetchWithTimeout } from "@51publisher/shared";
 
 describe("prompt-client — fetchPrompts", () => {
 	beforeEach(async () => {
@@ -146,5 +139,26 @@ describe("prompt-client — updatePrompt", () => {
 		);
 		expect(result.ok).toBe(false);
 		expect(result.error).toContain("500");
+	});
+});
+
+describe("prompt-client — 生产默认路径 (省略 fetchFn → fetchWithTimeout)", () => {
+	beforeEach(async () => {
+		fakeBrowser.reset();
+		await setToken("tok-abc");
+		vi.mocked(fetchWithTimeout).mockClear();
+	});
+
+	it("fetchPrompts 省略 fetchFn → fetchWithTimeout 被调用,timeoutMs=10_000", async () => {
+		await fetchPrompts();
+		expect(fetchWithTimeout).toHaveBeenCalledOnce();
+		const call = vi.mocked(fetchWithTimeout).mock.calls[0];
+		if (!call) throw new Error("fetchWithTimeout 未被调用");
+		const [url, opts] = call as [
+			string | URL | Request,
+			{ timeoutMs?: number }?,
+		];
+		expect(String(url)).toContain("/api/v1/prompts");
+		expect(opts?.timeoutMs).toBe(10_000);
 	});
 });

@@ -1,6 +1,7 @@
 import { DEFAULT_FIELD_MAPPING } from "@51publisher/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeBrowser } from "wxt/testing";
+import { authHeader, mockFetch } from "./__test-utils__/mock-fetch";
 import { getToken, setToken } from "./auth-client";
 import {
 	createRemoteBatch,
@@ -8,28 +9,6 @@ import {
 	fetchRemoteMappings,
 	syncBatchItemStatus,
 } from "./config-client";
-
-interface MockResult {
-	capturedUrls: string[];
-	capturedInits: (RequestInit | undefined)[];
-	fn: typeof fetch;
-}
-
-function mockFetch(body: unknown, status = 200): MockResult {
-	const capturedUrls: string[] = [];
-	const capturedInits: (RequestInit | undefined)[] = [];
-	const fn = async (url: string | URL | Request, init?: RequestInit) => {
-		capturedUrls.push(String(url));
-		capturedInits.push(init);
-		return new Response(JSON.stringify(body), { status });
-	};
-	return { capturedUrls, capturedInits, fn: fn as unknown as typeof fetch };
-}
-
-function authHeader(init: RequestInit | undefined): string | undefined {
-	const h = init?.headers as Record<string, string> | undefined;
-	return h?.Authorization;
-}
 
 describe("config-client — fetchRemoteMappings", () => {
 	beforeEach(async () => {
