@@ -83,7 +83,7 @@ export interface BackgroundHandlerDeps {
 		},
 	) => Promise<GenerateDraftResponse>;
 	buildBatchId: () => string;
-	buildItemId: (i: number) => string;
+	buildItemId: (batchId: string, i: number) => string;
 	now: () => string;
 	saveDryRunReportFn?: (
 		report: import("@51publisher/shared").DryRunReport,
@@ -260,7 +260,6 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 					_batchSeq += 1;
 					return deps.buildBatchId();
 				},
-				genItemId: deps.buildItemId,
 				now: deps.now,
 				persistentBlockedTopics: publishedTopics,
 				bypassReentry: iterate,
@@ -622,7 +621,7 @@ export default defineBackground(() => {
 			batchSeq += 1;
 			return `batch_${Date.now()}_${batchSeq}`;
 		},
-		buildItemId: (i) => `item_${i}`,
+		buildItemId: (batchId: string, i: number) => `${batchId}:${i}`,
 		now: () => new Date().toISOString(),
 		saveDryRunReportFn: saveDryRunReport,
 		writeTombstone: (itemId) =>
