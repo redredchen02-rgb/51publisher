@@ -22,6 +22,11 @@ import {
 	runBatch,
 } from "../lib/batch-orchestrator";
 import { withBackendSync } from "../lib/batch-sync";
+import {
+	type FirstFlightDeps,
+	revertFirstFlight,
+	runStartupFirstFlightReset,
+} from "../lib/first-flight";
 import { evaluateGrounding } from "../lib/grounding-gate";
 import { generateDraft, reviewDraft, rewriteDraft } from "../lib/llm";
 import { updatePendingStatus } from "../lib/pending-client";
@@ -38,18 +43,24 @@ import {
 	appendTrajectory,
 	clearAllFillTombstones,
 	clearFillTombstone,
+	clearFirstFlightPending,
 	getApiKey,
 	getAuthorizedHosts,
 	getBatch,
 	getBatch as getBatchRaw,
 	getFillTombstones,
+	getFirstFlightPending,
+	getFirstFlightResetCount,
 	getPublishedTopics,
 	getSafetyMode,
 	getSettings,
 	refreshRemoteMappings,
 	saveBatch,
 	saveDryRunReport,
+	setFirstFlightPending,
+	setFirstFlightResetCount,
 	setPendingQuarantineAlert,
+	setSafetyMode,
 	writeFillTombstone,
 } from "../lib/storage";
 
@@ -92,11 +103,20 @@ export interface BackgroundHandlerDeps {
 	clearTombstone?: (itemId: string) => Promise<void>;
 	/** published_posts 回写(best-effort);可注入 mock 供测试。默认用 recordPublishedPost。 */
 	recordPost?: (record: PublishedPostRecord) => Promise<void>;
+	/**
+	 * 首飞启动复位完成的 promise。publish 路径(runApprove)在发 grant 前必须 await 它,
+	 * 绝不在「残留授权窗口尚未复位」时发布(R7 fail-safe:复位先于 grant)。
+	 * 省略 = 不门控(测试 / 无首飞场景)。
+	 */
+	firstFlightReady?: Promise<unknown>;
 }
 
 // buildConstraintSuffix / assemblePrompt 已抽到 lib/prompt-assembly.ts。
 // re-export 保留既有导出面(background.test.ts 仍从 background 导入 buildConstraintSuffix)。
 export { buildConstraintSuffix };
+
+// 首飞看门狗 alarm 名(arm 时创建一次性闹钟,见 U6;此处仅注册到时处理器)。
+const FIRST_FLIGHT_WATCHDOG_ALARM = "first-flight-watchdog";
 
 /** 从 chrome.tabs.get(tabId).url 取 host;tab 关/无 url → null。 */
 function makeResolveTabHost(deps: Pick<BackgroundHandlerDeps, "tabsGet">) {
@@ -296,6 +316,14 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 		itemIdFilter?: string,
 	): Promise<Batch | null> {
 		try {
+			// 首飞门控:启动复位必须先于任何 grant 完成(残留授权窗口绝不延续过 SW 回收)。
+			if (deps.firstFlightReady) {
+				try {
+					await deps.firstFlightReady;
+				} catch {
+					/* 复位失败已在别处 warn;不阻断常态发布 */
+				}
+			}
 			const result = await approveBatch(buildApproveDeps(tabId, itemIdFilter));
 			if (result) {
 				const confirmedTopics = result.items
@@ -530,6 +558,31 @@ export default defineBackground(() => {
 	// SW 启动恢复:将上次 SW 被杀时卡在 generating 状态的条目标记为 error,让操作者可以重试。
 	void runStartupGeneratingRecovery();
 
+	// 首飞授权状态机依赖。activeArmNonce 是 SW 内存值,随回收消失 → 残留 pending 必不匹配。
+	let activeArmNonce: string | null = null;
+	const ffDeps: FirstFlightDeps = {
+		getSafetyMode,
+		setSafetyMode,
+		getPending: getFirstFlightPending,
+		setPending: setFirstFlightPending,
+		clearPending: clearFirstFlightPending,
+		getResetCount: getFirstFlightResetCount,
+		setResetCount: setFirstFlightResetCount,
+		getActiveNonce: () => activeArmNonce,
+		setActiveNonce: (n) => {
+			activeArmNonce = n;
+		},
+		now: () => new Date().toISOString(),
+		newNonce: () => crypto.randomUUID(),
+		onAlert: (m) => console.warn(`[bg][first-flight] ${m}`),
+	};
+	// 启动复位:残留授权窗口绝不延续过 SW 回收。publish 路径(runApprove)await 此 promise 再发 grant。
+	const firstFlightReady = runStartupFirstFlightReset(ffDeps).catch(
+		(e: unknown) => {
+			console.warn("[bg] 首飞启动复位失败", e);
+		},
+	);
+
 	// 启动时拉取后端最新字段映射(选择器配置热更新)。
 	// 后端不可达时 fail-closed,不覆盖本地已有映射。
 	refreshRemoteMappings()
@@ -546,6 +599,17 @@ export default defineBackground(() => {
 		browser.alarms.onAlarm.addListener((alarm: { name: string }) => {
 			if (alarm.name === "keep-alive") {
 				console.debug("[bg] keep-alive ping");
+			} else if (alarm.name === FIRST_FLIGHT_WATCHDOG_ALARM) {
+				// 看门狗:兜「派发卡死且 SW 仍存活」窄缝 —— 若仍有 pending,强制退档。
+				// (SW 被回收的情形由启动复位兜;此处只处理 SW 未死但派发未 settle。)
+				void getFirstFlightPending().then(({ pending }) => {
+					if (pending) {
+						console.warn(
+							"[bg][first-flight] 看门狗超时:强制退档(派发未 settle)",
+						);
+						void revertFirstFlight(ffDeps);
+					}
+				});
 			}
 		});
 	} else {
@@ -579,6 +643,8 @@ export default defineBackground(() => {
 		writeTombstone: (itemId) =>
 			writeFillTombstone(itemId, { tabId: 0, ts: new Date().toISOString() }),
 		clearTombstone: clearFillTombstone,
+		// 首飞门控:runApprove 在发 grant 前 await 启动复位完成。
+		firstFlightReady,
 	};
 
 	const handlers = createHandlers(liveDeps);

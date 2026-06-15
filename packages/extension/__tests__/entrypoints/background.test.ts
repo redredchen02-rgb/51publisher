@@ -771,3 +771,54 @@ describe("asPublishResult(R4 判别式形状校验)", () => {
 		});
 	});
 });
+
+// ================================================================
+// 首飞门控(firstFlightReady):runApprove 须在启动复位完成后才发 grant
+// ================================================================
+
+describe("首飞门控 firstFlightReady", () => {
+	beforeEach(() => {
+		fakeBrowser.reset();
+	});
+
+	it("启动复位未完成前,runApprove 不发任何 fill/grant 消息(复位先于 grant)", async () => {
+		let release: (() => void) | undefined;
+		const gate = new Promise<void>((r) => {
+			release = r;
+		});
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => makeBatch("awaiting-approval")),
+			firstFlightReady: gate,
+		});
+		const h = createHandlers(deps);
+		const p = h.handleApproveBatch(1); // 不 await
+		// 跑几轮微任务,确认被门控在 firstFlightReady 处
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(deps.tabsSendMessage).not.toHaveBeenCalled();
+		release?.();
+		await p;
+		// 复位完成后才发 fill/grant
+		expect(deps.tabsSendMessage).toHaveBeenCalled();
+	});
+
+	it("启动复位 reject 不阻断常态发布(复位失败仅 warn,不卡死发布路径)", async () => {
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => makeBatch("awaiting-approval")),
+			firstFlightReady: Promise.reject(new Error("reset failed")),
+		});
+		const h = createHandlers(deps);
+		const result = await h.handleApproveBatch(1);
+		expect(result).not.toBeNull();
+		expect(deps.tabsSendMessage).toHaveBeenCalled();
+	});
+
+	it("无 firstFlightReady(测试/无首飞场景)→ 正常发布,不门控", async () => {
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => makeBatch("awaiting-approval")),
+		});
+		const h = createHandlers(deps);
+		await h.handleApproveBatch(1);
+		expect(deps.tabsSendMessage).toHaveBeenCalled();
+	});
+});
