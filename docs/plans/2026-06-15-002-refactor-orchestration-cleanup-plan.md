@@ -1,7 +1,7 @@
 ---
 title: "refactor: 编排层技术债清理(高价低风精选)"
 type: refactor
-status: active
+status: completed
 date: 2026-06-15
 ---
 
@@ -126,7 +126,7 @@ date: 2026-06-15
 - Integration:两路径的 sendFill/sendGrant/appendTrajectory 调用次数与合并前逐一相等。
 **Verification:** Unit 1 测试 + 全套 background/orchestrator 测试全绿;`pnpm test`+`pnpm compile` 绿;diff 显示净减重复行、无行为分支丢失。
 
-- [ ] **Unit 3: 抽共享 prompt 组装 / config-read helper**
+- [x] **Unit 3: 抽共享 prompt 组装 / config-read helper**
 
 **Goal:** 消除 `handleRunBatch` 与 `handleRetryBatchItem` **两处逐字节相同**的 `buildPrompt`+`buildConstraintSuffix` 组装(handleGenerate 形状不同,仅在零成本时纳入)。
 **Requirements:** R3

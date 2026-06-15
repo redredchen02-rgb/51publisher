@@ -23,8 +23,8 @@ import {
 import { withBackendSync } from "../lib/batch-sync";
 import { evaluateGrounding } from "../lib/grounding-gate";
 import { generateDraft, reviewDraft, rewriteDraft } from "../lib/llm";
-import { buildPrompt } from "../lib/messaging";
 import { updatePendingStatus } from "../lib/pending-client";
+import { assemblePrompt, buildConstraintSuffix } from "../lib/prompt-assembly";
 import {
 	type GateDecision,
 	orchestratePublish,
@@ -95,14 +95,9 @@ export interface BackgroundHandlerDeps {
 	recordPost?: (record: PublishedPostRecord) => Promise<void>;
 }
 
-/** 构造 prompt 末尾的分类/标签约束块。recommendedTags 为空时只含分类约束。 */
-export function buildConstraintSuffix(recommendedTags: string[]): string {
-	const category =
-		"分类约束：只能选「漫畫文章」或「動漫文章」，不能使用其他分类。";
-	if (recommendedTags.length === 0) return `\n\n---\n${category}`;
-	const tags = recommendedTags.join("，");
-	return `\n\n---\n${category}\n标签约束：只能从以下列表中选择标签（如无匹配可留空，不要自造新词）：${tags}`;
-}
+// buildConstraintSuffix / assemblePrompt 已抽到 lib/prompt-assembly.ts。
+// re-export 保留既有导出面(background.test.ts 仍从 background 导入 buildConstraintSuffix)。
+export { buildConstraintSuffix };
 
 /** 从 chrome.tabs.get(tabId).url 取 host;tab 关/无 url → null。 */
 function makeResolveTabHost(deps: Pick<BackgroundHandlerDeps, "tabsGet">) {
@@ -242,13 +237,7 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 				getExistingBatch: deps.getBatch,
 				pinnedHostOk,
 				generateDraft: (topic, itemFacts, enrichment) => {
-					const prompt =
-						buildPrompt(
-							settings.promptTemplate,
-							topic,
-							itemFacts,
-							settings.fewShotExamples,
-						) + buildConstraintSuffix(settings.recommendedTags ?? []);
+					const prompt = assemblePrompt(settings, topic, itemFacts);
 					return deps.generateDraftFn(prompt, {
 						settings,
 						apiKey,
@@ -424,13 +413,7 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 					getBatch: deps.getBatch,
 					save: deps.saveBatch,
 					generateDraft: (topic, itemFacts) => {
-						const prompt =
-							buildPrompt(
-								settings.promptTemplate,
-								topic,
-								itemFacts,
-								settings.fewShotExamples,
-							) + buildConstraintSuffix(settings.recommendedTags ?? []);
+						const prompt = assemblePrompt(settings, topic, itemFacts);
 						return deps.generateDraftFn(prompt, {
 							settings,
 							apiKey,
