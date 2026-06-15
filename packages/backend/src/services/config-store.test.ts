@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { getDb, initPendingDb } from "../scraper/pending-db.js";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { getDb, initPendingDb, resetPendingDb } from "../scraper/pending-db.js";
 import {
 	configDelete,
 	configGet,
@@ -13,6 +13,7 @@ function resetConfig() {
 }
 
 beforeEach(resetConfig);
+afterAll(resetPendingDb); // 关闭泄漏的 SQLite 句柄
 
 describe("config-store", () => {
 	it("set → get 往返", () => {

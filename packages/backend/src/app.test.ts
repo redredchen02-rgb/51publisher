@@ -30,6 +30,7 @@ vi.mock("./scraper/scheduler.js", async (importOriginal) => {
 vi.mock("./services/revisit-job.js", () => ({ startRevisitJob: vi.fn() }));
 
 import { buildApp, registerDraftRoutes, startBackgroundJobs } from "./app.js";
+import { resetPendingDb } from "./scraper/pending-db.js";
 import {
 	generateDraft,
 	listModels,
@@ -92,6 +93,7 @@ describe("buildApp", () => {
 
 	afterAll(async () => {
 		await app.close();
+		resetPendingDb(); // 关闭 buildApp 打开的 SQLite 句柄(app.ts 无 onClose hook)
 		if (prevSecret === undefined) delete process.env.JWT_SECRET;
 		else process.env.JWT_SECRET = prevSecret;
 	});
@@ -138,10 +140,16 @@ describe("buildApp", () => {
 		expect(res.statusCode).not.toBe(401);
 	});
 
-	it("OpenAPI 文档已注册（/docs 可达）", async () => {
-		const res = await app.inject({ method: "GET", url: "/docs/json" });
-		// swagger-ui 提供 /docs，swagger 提供 /docs/json；任一 2xx/3xx 即视为已挂载
-		expect(res.statusCode).toBeLessThan(500);
+	it("OpenAPI 文档已注册（带 token → 200 且返回 spec）", async () => {
+		// /docs/json 在全局鉴权闸后(不在 PUBLIC_ROUTES):无 token=401、带 token=200。
+		// 断言 200+spec body,才能在 swagger 注册回归(404)时真正失败。
+		const res = await app.inject({
+			method: "GET",
+			url: "/docs/json",
+			headers: { authorization: `Bearer ${validToken()}` },
+		});
+		expect(res.statusCode).toBe(200);
+		expect(res.json().info).toBeTruthy();
 	});
 });
 
