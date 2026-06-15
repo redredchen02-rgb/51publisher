@@ -69,6 +69,18 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 	const [expandedBodies, setExpandedBodies] = useState<Set<string>>(new Set());
 
 	const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	const progressPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+	// 卸载时清掉批量启动期间的进度轮询:progressPoll 在 runBatch 期间存活,
+	// 若用户在批量未结束时切走页面,需保证 interval 被回收、不再对已卸载组件 setState。
+	useEffect(() => {
+		return () => {
+			if (progressPollRef.current) {
+				clearInterval(progressPollRef.current);
+				progressPollRef.current = null;
+			}
+		};
+	}, []);
 
 	useEffect(() => {
 		void (async () => {
@@ -133,7 +145,6 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 		setExpandedBodies(new Set());
 		setStage("generating");
 
-		let progressPoll: ReturnType<typeof setInterval> | undefined;
 		try {
 			const pendingTopics = await fetchPendingTopics({
 				status: "pending",
@@ -151,7 +162,7 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 			const topicIds = topN.map((t) => t.id);
 			const enrichments = topN.map((t) => t.enrichmentText);
 
-			progressPoll = setInterval(() => {
+			progressPollRef.current = setInterval(() => {
 				void getBatchState().then((batch) => {
 					if (batch) setItems(batch.items);
 				});
@@ -167,7 +178,10 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 				enrichments,
 			);
 
-			clearInterval(progressPoll);
+			if (progressPollRef.current) {
+				clearInterval(progressPollRef.current);
+				progressPollRef.current = null;
+			}
 
 			const finalItems =
 				batch?.items ??
@@ -184,7 +198,10 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 			setReadItems(reads);
 			setStage("review");
 		} catch {
-			clearInterval(progressPoll);
+			if (progressPollRef.current) {
+				clearInterval(progressPollRef.current);
+				progressPollRef.current = null;
+			}
 			setError("启动批量失败,请重试。");
 			setStage("idle");
 		} finally {
