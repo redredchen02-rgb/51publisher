@@ -217,11 +217,16 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
 	// 但所有对 batch 累积态的变更经 serialQueue 串行落盘,保证「读→改→save」原子化、零竞态。
 	// UI 轮询 getBatchState 仍能看到逐条流式进度(每条完成即 save)。
 	const serialQueue = createSerialQueue();
-	/** 原子地套用一次 batch 变更并落盘。并发 worker 各自 await,互不覆盖。 */
+	/**
+	 * 原子地套用一次 batch 变更并落盘。并发 worker 各自 await,互不覆盖。
+	 * 先算 next、save 成功后才提交内存 batch:避免某条 save 失败后,其未落盘的内存改动
+	 * 被后一个 worker 的成功 save 一起持久化,造成磁盘出现「半提交」不一致态。
+	 */
 	const applyMutation = (fn: (b: Batch) => Batch): Promise<void> =>
 		serialQueue(async () => {
-			batch = fn(batch);
-			await save(batch);
+			const next = fn(batch);
+			await save(next);
+			batch = next;
 		});
 
 	// tab 漂移 → 暂停:一旦检测到 host 失配,置位 paused,后续 worker 不再启动 LLM 工作(item 留在 queued)。

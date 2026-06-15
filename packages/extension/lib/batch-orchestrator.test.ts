@@ -233,6 +233,18 @@ describe("runBatch", () => {
 		);
 	});
 
+	it("save 失败 → 异常经 applyMutation 向上传播(不被串行队列吞掉)", async () => {
+		// 初始 save 成功,首个 applyMutation 的 save 抛错;串行队列只吞自身 tail,调用方仍拿到异常。
+		let n = 0;
+		const deps = makeRunDeps({
+			save: vi.fn(async () => {
+				n += 1;
+				if (n >= 2) throw new Error("storage-full");
+			}),
+		});
+		await expect(runBatch(deps)).rejects.toThrow("storage-full");
+	});
+
 	it("并发不互相覆盖: 6 条均成功 → 全部 awaiting-approval 且各有 draft(mutex 守护)", async () => {
 		const topics = Array.from({ length: 6 }, (_, i) => `mtx-${i}`);
 		const deps = makeRunDeps({ topics });
