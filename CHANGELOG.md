@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1.0] - 2026-06-15
+
+### Added
+
+- **单元/组件测试覆盖**：新增 124 个测试。后端覆盖 config-store、metrics、scraper adapters(demo/template)、enrichment-utils、prompt store/routes、llm-config、app 路由；扩展覆盖 AuthView、DraftPreview、DryRunReport、ErrorBoundary、Settings、pending-client actions
+
+### Fixed
+
+- **测试加固(落地前评审)**：`app.test.ts` 的 `/docs/json` 断言改为带 token 校验 `200` + OpenAPI spec(此前 `< 500` 连 `404` 注册回归都放过)；`config-store`/`app` 测试新增 teardown 关闭泄漏的 better-sqlite3 WAL 句柄
+- **去除测试噪声**：移除两处空断言(`toHaveProperty("textContent")`)、修正一个名不副实的测试标题(声称 `201/200` 实则硬断言 `200`)
+
 ## [0.2.0.0] - 2026-06-11
 
 ### Added
