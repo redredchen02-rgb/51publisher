@@ -50,7 +50,6 @@ export type {
 	FieldType,
 	FillPageResponse,
 	GenerateDraftResponse,
-	PublishPageResponse,
 	PublishResult,
 	RejectionReason,
 	ReviewDimension,

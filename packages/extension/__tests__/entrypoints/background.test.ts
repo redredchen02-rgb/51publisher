@@ -2,6 +2,7 @@ import type { ContentDraft, Settings } from "@51publisher/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeBrowser } from "wxt/testing";
 import {
+	asPublishResult,
 	type BackgroundHandlerDeps,
 	buildConstraintSuffix,
 	createHandlers,
@@ -721,5 +722,52 @@ describe("runStartupGeneratingRecovery", () => {
 		const saved = (deps.saveBatch as ReturnType<typeof vi.fn>).mock
 			.calls[0]?.[0] as Batch;
 		expect(saved.items[0]?.error).toBe("SW restarted during generation");
+	});
+});
+
+describe("asPublishResult(R4 判别式形状校验)", () => {
+	it("合法成功(ok:true 无 error)原样通过", () => {
+		expect(
+			asPublishResult({ ok: true, dryRun: false, url: "https://x/1" }),
+		).toEqual({ ok: true, dryRun: false, url: "https://x/1" });
+	});
+	it("合法失败(ok:false + error)原样通过", () => {
+		expect(
+			asPublishResult({ ok: false, dryRun: false, error: "boom" }),
+		).toEqual({ ok: false, dryRun: false, error: "boom" });
+	});
+	it("畸形 { ok:true, error } → 降级为失败(杜绝假确认)", () => {
+		expect(
+			asPublishResult({ ok: true, dryRun: false, error: "sneaky" }),
+		).toEqual({
+			ok: false,
+			dryRun: false,
+			error: "content-response-malformed",
+		});
+	});
+	it("畸形 { ok:false 无 error } → content-response-invalid", () => {
+		expect(asPublishResult({ ok: false, dryRun: false })).toEqual({
+			ok: false,
+			dryRun: false,
+			error: "content-response-invalid",
+		});
+	});
+	it("dry-run 成功(ok:true, dryRun:true 无 error)通过", () => {
+		expect(asPublishResult({ ok: true, dryRun: true })).toEqual({
+			ok: true,
+			dryRun: true,
+		});
+	});
+	it("非对象 / 缺 dryRun → content-response-invalid", () => {
+		expect(asPublishResult(null)).toEqual({
+			ok: false,
+			dryRun: false,
+			error: "content-response-invalid",
+		});
+		expect(asPublishResult({ ok: true })).toEqual({
+			ok: false,
+			dryRun: false,
+			error: "content-response-invalid",
+		});
 	});
 });

@@ -2,7 +2,6 @@ import type {
 	ContentDraft,
 	FillPageResponse,
 	GenerateDraftResponse,
-	PublishPageResponse,
 	RuntimeMessage,
 } from "@51publisher/shared";
 import { applyPromptTemplate, type FactsBlock } from "@51publisher/shared";
@@ -18,7 +17,6 @@ const SW_TIMEOUT: Partial<Record<RuntimeMessage["type"], number>> = {
 	APPROVE_BATCH: 300_000,
 	APPROVE_SINGLE_ITEM: 300_000,
 	GENERATE_DRAFT: 30_000,
-	PUBLISH_PAGE: 30_000,
 	GET_BATCH: 10_000,
 	KILL_BATCH: 10_000,
 	RELEASE_QUARANTINE: 10_000,
@@ -107,17 +105,6 @@ export async function requestFill(
 				"无法连接页面填充脚本——请在发帖页打开「添加」表单;若刚重载过扩展,请按 F5 刷新该页。",
 		};
 	}
-}
-
-/**
- * side panel → background:请求发布指定 tab。
- * 发布**改道经 background**(不再 side panel 直连 content):闸门求值 + host 取自浏览器
- * 都在 background;此处只传**显式 tabId**(绝不让 background 查 active tab)。
- */
-export async function requestPublish(
-	tabId: number,
-): Promise<PublishPageResponse> {
-	return sendMsg<PublishPageResponse>({ type: "PUBLISH_PAGE", tabId });
 }
 
 // ---- 批量编排(side panel → background)----
