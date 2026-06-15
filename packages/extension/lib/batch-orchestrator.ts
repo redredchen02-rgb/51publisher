@@ -30,7 +30,7 @@ import { evaluateGrounding as defaultEvaluateGrounding } from "./grounding-gate"
 import type { ReviewDraftResponse, RewriteDraftResponse } from "./llm";
 import { mergeRewriteResult } from "./llm";
 import type { GateDecision } from "./publish-orchestrator";
-import { orchestratePublish } from "./publish-orchestrator";
+import { isGateBlocked, orchestratePublish } from "./publish-orchestrator";
 import type { PublishedPostRecord } from "./published-posts-client";
 import type { TrajectoryInput } from "./trajectory";
 
@@ -526,7 +526,7 @@ export async function approveBatch(
 		}
 
 		// blocked → 暂停,不继续后续条目。
-		if (!result.ok && result.error === "blocked") break;
+		if (!result.ok && isGateBlocked(result.error)) break;
 	}
 
 	// dry-run 结束:持久化填充报告(best-effort,失败不抛出)。

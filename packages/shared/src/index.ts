@@ -9,11 +9,12 @@ export {
 	TERMINAL,
 } from "./batch.js";
 export { toDraft } from "./draft.js";
-export type { FactKey, FactsBlock, ParsedTopic } from "./facts.js";
+export type { FactKey, FactsBlock, FactTarget, ParsedTopic } from "./facts.js";
 export {
 	applyPromptTemplate,
 	CORE_FACT_KEYS,
 	FACT_ORDER,
+	FACT_TARGET,
 	factUrls,
 	formatFactsForPrompt,
 	isEmptyFacts,
@@ -31,6 +32,7 @@ export { GOSSIP_FACT_KEYS, GOSSIP_FACTS_SCHEMA } from "./gossip-facts.js";
 export type { AssembledDraft, DraftSlots } from "./post-assembler.js";
 export {
 	assembleDraft,
+	esc,
 	PLACEHOLDER,
 	sanitizeToPlainText,
 } from "./post-assembler.js";
@@ -48,7 +50,6 @@ export type {
 	FieldType,
 	FillPageResponse,
 	GenerateDraftResponse,
-	PublishPageResponse,
 	PublishResult,
 	RejectionReason,
 	ReviewDimension,

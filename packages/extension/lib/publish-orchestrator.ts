@@ -7,11 +7,46 @@ import type { PublishResult, SafetyMode } from "@51publisher/shared";
 //   - off / dry-run / host 不符:绝不发准许、绝不写 dispatched。
 // host 由调用方(background)从 chrome.tabs.get(tabId).url 取,绝不接受消息携带的 host。
 
+/** 阻断类判决原因(供诊断/呈现;区分 off / 未授权 host / tab 取不到 url)。 */
+export type GateBlockReason = "off" | "not-authorized" | "host-unreachable";
+/** 闸门判决的可读原因。 */
+export type GateReason = "authorized" | "dry-run" | GateBlockReason;
+
 export interface GateDecision {
 	mode: SafetyMode;
 	/** canSubmit 结果:仅 authorized + host 命中名单为真。 */
 	allowed: boolean;
 	host: string | null;
+	/**
+	 * 可读判决原因(诊断/呈现用)。省略时 orchestratePublish 阻断回退历史值 "blocked"。
+	 * 生产路径(evaluateGate)恒填具体值;仅部分测试 mock 省略。
+	 */
+	reason?: GateReason;
+}
+
+/** (mode, host, allowed) → 可读判决原因。纯函数,供 evaluateGate 与单测复用。 */
+export function gateReason(
+	mode: SafetyMode,
+	host: string | null,
+	allowed: boolean,
+): GateReason {
+	if (mode === "off") return "off";
+	if (mode === "dry-run") return "dry-run";
+	if (host == null) return "host-unreachable";
+	return allowed ? "authorized" : "not-authorized";
+}
+
+/** orchestratePublish 阻断时 error 的取值集合(含历史回退值 "blocked")。 */
+const GATE_BLOCK_ERRORS = new Set<string>([
+	"off",
+	"not-authorized",
+	"host-unreachable",
+	"blocked",
+]);
+
+/** result.error 是否为闸门阻断(供批量循环判断是否暂停)。 */
+export function isGateBlocked(error: string | undefined): boolean {
+	return error != null && GATE_BLOCK_ERRORS.has(error);
 }
 
 export interface OrchestratorDeps {
@@ -36,9 +71,10 @@ export async function orchestratePublish(
 		return { ok: true, dryRun: true };
 	}
 
-	// off,或 authorized 但 host 不符 → 阻断,不发准许、不写 dispatched。
+	// off,或 authorized 但 host 不符/不可达 → 阻断,不发准许、不写 dispatched。
+	// error 带可读 reason(off / not-authorized / host-unreachable),省略时回退 "blocked"。
 	if (!gate.allowed) {
-		return { ok: false, dryRun: false, error: "blocked" };
+		return { ok: false, dryRun: false, error: gate.reason ?? "blocked" };
 	}
 
 	// 重入守卫:已有在途 dispatched(双击/并发/SW 重放)→ 拒绝,绝不二次发准许致重复发布。
