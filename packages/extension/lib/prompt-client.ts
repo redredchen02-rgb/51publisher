@@ -1,6 +1,4 @@
-import { fetchWithTimeout } from "@51publisher/shared";
-import { clearToken, getAuthHeaders } from "./auth-client";
-import { getBackendUrl } from "./backend-url";
+import { apiFetch } from "./api-fetch";
 
 function errorMessage(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
@@ -16,30 +14,17 @@ export interface PromptTemplate {
 	updatedAt: string;
 }
 
-async function handleUnauthorized(res: Response): Promise<void> {
-	if (res.status === 401) {
-		await clearToken();
-	}
-}
-
 /**
  * 从后端获取所有 Prompt 模板列表。
+ * (_fetchFn 历史遗留参数,实际请求走 apiFetch；保留签名避免破坏调用方。)
  */
 export async function fetchPrompts(
 	_fetchFn: typeof fetch = fetch,
 	timeoutMs = 10_000,
 ): Promise<{ ok: boolean; prompts?: PromptTemplate[]; error?: string }> {
 	try {
-		const headers = await getAuthHeaders();
-		const backendUrl = await getBackendUrl();
-		const res = await fetchWithTimeout(`${backendUrl}/api/v1/prompts`, {
-			headers,
-			timeoutMs,
-		});
-		if (!res.ok) {
-			await handleUnauthorized(res);
-			return { ok: false, error: `HTTP ${res.status}` };
-		}
+		const res = await apiFetch("/api/v1/prompts", { timeoutMs });
+		if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
 		return await res.json();
 	} catch (err) {
 		return { ok: false, error: errorMessage(err) };
@@ -59,18 +44,12 @@ export async function createPrompt(
 	timeoutMs = 10_000,
 ): Promise<{ ok: boolean; error?: string }> {
 	try {
-		const headers = await getAuthHeaders();
-		const backendUrl = await getBackendUrl();
-		const res = await fetchWithTimeout(`${backendUrl}/api/v1/prompts`, {
+		const res = await apiFetch("/api/v1/prompts", {
 			method: "POST",
-			headers,
 			body: JSON.stringify(data),
 			timeoutMs,
 		});
-		if (!res.ok) {
-			await handleUnauthorized(res);
-			return { ok: false, error: `HTTP ${res.status}` };
-		}
+		if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
 		return await res.json();
 	} catch (err) {
 		return { ok: false, error: errorMessage(err) };
@@ -91,18 +70,12 @@ export async function updatePrompt(
 	timeoutMs = 10_000,
 ): Promise<{ ok: boolean; error?: string }> {
 	try {
-		const headers = await getAuthHeaders();
-		const backendUrl = await getBackendUrl();
-		const res = await fetchWithTimeout(`${backendUrl}/api/v1/prompts/${id}`, {
+		const res = await apiFetch(`/api/v1/prompts/${id}`, {
 			method: "PUT",
-			headers,
 			body: JSON.stringify(data),
 			timeoutMs,
 		});
-		if (!res.ok) {
-			await handleUnauthorized(res);
-			return { ok: false, error: `HTTP ${res.status}` };
-		}
+		if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
 		return await res.json();
 	} catch (err) {
 		return { ok: false, error: errorMessage(err) };

@@ -1,7 +1,6 @@
 import type { FieldMapping } from "@51publisher/shared";
 import { DEFAULT_FIELD_MAPPING } from "@51publisher/shared";
-import { clearToken, getAuthHeaders } from "./auth-client";
-import { getBackendUrl } from "./backend-url";
+import { apiFetch } from "./api-fetch";
 
 /**
  * 后端配置客户端。
@@ -9,6 +8,9 @@ import { getBackendUrl } from "./backend-url";
  * 扩展启动时拉取 GET /api/v1/config/mappings，获得最新的选择器映射;
  * 后端不可达时 fail-closed 回落到编译期默认值(DEFAULT_FIELD_MAPPING),
  * 保证离线环境下扩展仍可正常工作。
+ *
+ * 注:各方法历史上带 `fetchFn` 注入参数,迁移到 apiFetch 后该参数为遗留
+ * (实际请求统一走 apiFetch + fetchWithTimeout 超时);保留签名避免破坏调用方。
  */
 
 export interface MappingsResponse {
@@ -23,26 +25,15 @@ export interface MappingsResponse {
  * @returns 映射对象;后端不可达或返回异常时回落 DEFAULT_FIELD_MAPPING。
  */
 export async function fetchRemoteMappings(
-	fetchFn: typeof fetch = fetch,
+	_fetchFn: typeof fetch = fetch,
 	timeoutMs = 5_000,
 ): Promise<{ mappings: FieldMapping; remote: boolean }> {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-
 	try {
-		const headers = await getAuthHeaders();
-
-		const backendUrl = await getBackendUrl();
-		const res = await fetchFn(`${backendUrl}/api/v1/config/mappings`, {
-			headers,
-			signal: controller.signal,
-		});
+		const res = await apiFetch("/api/v1/config/mappings", { timeoutMs });
 
 		if (res.status === 401) {
-			await clearToken();
 			return { mappings: DEFAULT_FIELD_MAPPING, remote: false };
 		}
-
 		if (!res.ok) {
 			console.warn("[config-client] 后端返回非 2xx，回落默认映射");
 			return { mappings: DEFAULT_FIELD_MAPPING, remote: false };
@@ -66,8 +57,6 @@ export async function fetchRemoteMappings(
 			aborted ? "拉取映射超时" : "无法连接后端",
 		);
 		return { mappings: DEFAULT_FIELD_MAPPING, remote: false };
-	} finally {
-		clearTimeout(timer);
 	}
 }
 
@@ -87,31 +76,22 @@ export async function syncBatchItemStatus(
 		error?: string;
 		fillResults?: unknown[];
 	},
-	fetchFn: typeof fetch = fetch,
+	_fetchFn: typeof fetch = fetch,
 	timeoutMs = 10_000,
 ): Promise<{ ok: boolean; error?: string }> {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-
 	try {
-		const headers = await getAuthHeaders();
-
-		const backendUrl = await getBackendUrl();
-		const res = await fetchFn(
-			`${backendUrl}/api/v1/batches/${encodeURIComponent(batchId)}/items/${encodeURIComponent(itemId)}`,
+		const res = await apiFetch(
+			`/api/v1/batches/${encodeURIComponent(batchId)}/items/${encodeURIComponent(itemId)}`,
 			{
 				method: "PATCH",
-				headers,
 				body: JSON.stringify(patch),
-				signal: controller.signal,
+				timeoutMs,
 			},
 		);
 
 		if (res.status === 401) {
-			await clearToken();
 			return { ok: false, error: "登录已过期" };
 		}
-
 		if (!res.ok) {
 			const errText = await res.text().catch(() => "");
 			console.warn(
@@ -129,8 +109,6 @@ export async function syncBatchItemStatus(
 			ok: false,
 			error: err instanceof Error ? err.message : String(err),
 		};
-	} finally {
-		clearTimeout(timer);
 	}
 }
 
@@ -140,29 +118,18 @@ export async function syncBatchItemStatus(
  */
 export async function fetchBatchState(
 	batchId: string,
-	fetchFn: typeof fetch = fetch,
+	_fetchFn: typeof fetch = fetch,
 	timeoutMs = 10_000,
 ): Promise<{ ok: boolean; batch?: unknown; error?: string }> {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-
 	try {
-		const headers = await getAuthHeaders();
-
-		const backendUrl = await getBackendUrl();
-		const res = await fetchFn(
-			`${backendUrl}/api/v1/batches/${encodeURIComponent(batchId)}`,
-			{
-				headers,
-				signal: controller.signal,
-			},
+		const res = await apiFetch(
+			`/api/v1/batches/${encodeURIComponent(batchId)}`,
+			{ timeoutMs },
 		);
 
 		if (res.status === 401) {
-			await clearToken();
 			return { ok: false, error: "登录已过期" };
 		}
-
 		if (!res.ok) {
 			return { ok: false, error: `HTTP ${res.status}` };
 		}
@@ -174,8 +141,6 @@ export async function fetchBatchState(
 			ok: false,
 			error: err instanceof Error ? err.message : String(err),
 		};
-	} finally {
-		clearTimeout(timer);
 	}
 }
 
@@ -190,28 +155,19 @@ export async function createRemoteBatch(
 		topics: string[];
 		facts?: (Record<string, unknown> | undefined)[];
 	},
-	fetchFn: typeof fetch = fetch,
+	_fetchFn: typeof fetch = fetch,
 	timeoutMs = 10_000,
 ): Promise<{ ok: boolean; error?: string }> {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-
 	try {
-		const headers = await getAuthHeaders();
-
-		const backendUrl = await getBackendUrl();
-		const res = await fetchFn(`${backendUrl}/api/v1/batches`, {
+		const res = await apiFetch("/api/v1/batches", {
 			method: "POST",
-			headers,
 			body: JSON.stringify(payload),
-			signal: controller.signal,
+			timeoutMs,
 		});
 
 		if (res.status === 401) {
-			await clearToken();
 			return { ok: false, error: "登录已过期" };
 		}
-
 		if (!res.ok) {
 			const errText = await res.text().catch(() => "");
 			return { ok: false, error: `HTTP ${res.status}: ${errText}` };
@@ -223,7 +179,5 @@ export async function createRemoteBatch(
 			ok: false,
 			error: err instanceof Error ? err.message : String(err),
 		};
-	} finally {
-		clearTimeout(timer);
 	}
 }
