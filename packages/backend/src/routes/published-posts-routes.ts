@@ -162,13 +162,13 @@ export async function registerPublishedPostsRoutes(
 			? (db
 					.prepare(
 						"SELECT * FROM published_posts WHERE source_title = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
-				)
-				.all(sourceTitle, limit, offset) as PublishedPostRow[])
-		: (db
-				.prepare(
-					"SELECT * FROM published_posts ORDER BY created_at DESC LIMIT ? OFFSET ?",
-				)
-				.all(limit, offset) as PublishedPostRow[]);
+					)
+					.all(sourceTitle, limit, offset) as PublishedPostRow[])
+			: (db
+					.prepare(
+						"SELECT * FROM published_posts ORDER BY created_at DESC LIMIT ? OFFSET ?",
+					)
+					.all(limit, offset) as PublishedPostRow[]);
 
 		const totalRow = sourceTitle
 			? (db

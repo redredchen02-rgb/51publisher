@@ -267,19 +267,40 @@ describe("pending-store (SQLite)", () => {
 	});
 
 	it("listPendingTopics(domain='gossip') 只返回 gossip 記錄，不包含 acg", async () => {
-		await savePendingTopic(makeTopic({ sourceUrl: "https://acgs.com/1", domain: "acg" }));
+		await savePendingTopic(
+			makeTopic({ sourceUrl: "https://acgs.com/1", domain: "acg" }),
+		);
 		const gossipFacts = {
-			當事人: "A", 事件摘要: null, 起因: null, 經過: null,
-			結果: null, 來源連結: null, 發生時間: null, 熱度標籤: null,
+			當事人: "A",
+			事件摘要: null,
+			起因: null,
+			經過: null,
+			結果: null,
+			來源連結: null,
+			發生時間: null,
+			熱度標籤: null,
 		};
 		await savePendingTopic(
-			makeTopic({ sourceUrl: "https://gossip.com/1", domain: "gossip", facts: gossipFacts }),
+			makeTopic({
+				sourceUrl: "https://gossip.com/1",
+				domain: "gossip",
+				facts: gossipFacts,
+			}),
 		);
 		await savePendingTopic(
-			makeTopic({ sourceUrl: "https://gossip.com/2", domain: "gossip", facts: { ...gossipFacts, 當事人: "B" } }),
+			makeTopic({
+				sourceUrl: "https://gossip.com/2",
+				domain: "gossip",
+				facts: { ...gossipFacts, 當事人: "B" },
+			}),
 		);
 
-		const gossipList = await listPendingTopics(50, undefined, undefined, "gossip");
+		const gossipList = await listPendingTopics(
+			50,
+			undefined,
+			undefined,
+			"gossip",
+		);
 		expect(gossipList).toHaveLength(2);
 		expect(gossipList.every((t) => t.domain === "gossip")).toBe(true);
 

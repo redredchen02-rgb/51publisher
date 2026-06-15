@@ -55,7 +55,11 @@ function extractBody(html: string): string {
 	const bodyRe =
 		/<(?:div|article|section)[^>]+(?:class|id)=["'][^"']*(?:post-content|article-content|entry-content|content-detail|main-content)[^"']*["'][^>]*>([\s\S]*?)<\/(?:div|article|section)>/i;
 	const m = html.match(bodyRe);
-	if (m) return m[1].replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+	if (m)
+		return m[1]
+			.replace(/<[^>]*>/g, " ")
+			.replace(/\s+/g, " ")
+			.trim();
 	return "";
 }
 
@@ -80,7 +84,10 @@ export async function fetchList(listUrl: string): Promise<DiscoveredUrl[]> {
 
 	const MAX_BYTES = 5 * 1024 * 1024;
 	const cl = Number(res.headers.get("content-length") ?? "0");
-	if (cl > MAX_BYTES) { res.body?.cancel(); return []; }
+	if (cl > MAX_BYTES) {
+		res.body?.cancel();
+		return [];
+	}
 
 	const html = await res.text();
 	const base = new URL(listUrl);
@@ -88,7 +95,11 @@ export async function fetchList(listUrl: string): Promise<DiscoveredUrl[]> {
 	const results: DiscoveredUrl[] = [];
 
 	const hrefRe = /<a\s[^>]*href=["']([^"'#][^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi;
-	for (let m = hrefRe.exec(html); m !== null && results.length < 20; m = hrefRe.exec(html)) {
+	for (
+		let m = hrefRe.exec(html);
+		m !== null && results.length < 20;
+		m = hrefRe.exec(html)
+	) {
 		const href = m[1].trim();
 		const anchorHtml = m[2];
 		let absolute: URL;

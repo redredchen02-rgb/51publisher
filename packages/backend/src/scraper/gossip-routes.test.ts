@@ -2,8 +2,8 @@ import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { initPendingDb, resetPendingDb } from "./pending-db.js";
 import { registerGossipRoutes } from "./gossip-routes.js";
+import { initPendingDb, resetPendingDb } from "./pending-db.js";
 
 // Mock generic-adapter and gossip-fact-extractor
 vi.mock("./adapters/generic-adapter.js", () => ({
@@ -57,7 +57,10 @@ describe("gossip-routes", () => {
 		const res = await app.inject({
 			method: "POST",
 			url: "/api/v1/gossip/sites",
-			payload: { name: "測試站點", listUrl: "https://example-gossip.com/latest" },
+			payload: {
+				name: "測試站點",
+				listUrl: "https://example-gossip.com/latest",
+			},
 		});
 		expect(res.statusCode).toBe(201);
 		const body = res.json();
@@ -103,7 +106,10 @@ describe("gossip-routes", () => {
 			url: "/api/v1/gossip/sites",
 			payload: { name: "站點A", listUrl: "https://gossip-a.com/latest" },
 		});
-		const res = await app.inject({ method: "GET", url: "/api/v1/gossip/sites" });
+		const res = await app.inject({
+			method: "GET",
+			url: "/api/v1/gossip/sites",
+		});
 		expect(res.statusCode).toBe(200);
 		expect(res.json().sites).toHaveLength(1);
 	});
@@ -177,7 +183,12 @@ describe("gossip-routes", () => {
 			facts: {
 				當事人: "A",
 				事件摘要: "test",
-				起因: null, 經過: null, 結果: null, 來源連結: null, 發生時間: null, 熱度標籤: null,
+				起因: null,
+				經過: null,
+				結果: null,
+				來源連結: null,
+				發生時間: null,
+				熱度標籤: null,
 			},
 			confidence: 0.5,
 			extractionMode: "strict",
@@ -199,8 +210,12 @@ describe("gossip-routes", () => {
 			url: `/api/v1/gossip/sites/${site.id}/discover`,
 		});
 		const discovered = res.json().discovered as { url: string }[];
-		expect(discovered.map((d) => d.url)).not.toContain("https://gossip.com/article/1");
-		expect(discovered.map((d) => d.url)).toContain("https://gossip.com/article/2");
+		expect(discovered.map((d) => d.url)).not.toContain(
+			"https://gossip.com/article/1",
+		);
+		expect(discovered.map((d) => d.url)).toContain(
+			"https://gossip.com/article/2",
+		);
 	});
 
 	// ---- POST /gossip/topics/from-url ----
@@ -219,7 +234,12 @@ describe("gossip-routes", () => {
 			facts: {
 				當事人: "明星A",
 				事件摘要: "出軌事件",
-				起因: null, 經過: null, 結果: null, 來源連結: null, 發生時間: null, 熱度標籤: "出軌",
+				起因: null,
+				經過: null,
+				結果: null,
+				來源連結: null,
+				發生時間: null,
+				熱度標籤: "出軌",
 			},
 			confidence: 0.75,
 			coverImageUrl: "https://cdn.example.com/cover.jpg",
@@ -265,13 +285,23 @@ describe("gossip-routes", () => {
 
 		const mockFacts = {
 			facts: {
-				當事人: "A", 事件摘要: "test",
-				起因: null, 經過: null, 結果: null, 來源連結: null, 發生時間: null, 熱度標籤: null,
+				當事人: "A",
+				事件摘要: "test",
+				起因: null,
+				經過: null,
+				結果: null,
+				來源連結: null,
+				發生時間: null,
+				熱度標籤: null,
 			},
 			confidence: 0.5,
 			extractionMode: "strict" as const,
 		};
-		const mockRaw = { title: "文章", body: "body", url: "https://gossip.com/article/dup" };
+		const mockRaw = {
+			title: "文章",
+			body: "body",
+			url: "https://gossip.com/article/dup",
+		};
 
 		mockFetchContent.mockResolvedValue(mockRaw);
 		mockGossipExtractFacts.mockResolvedValue(mockFacts);
@@ -328,7 +358,9 @@ describe("gossip-routes", () => {
 		process.env.LLM_ENDPOINT = "https://api.test";
 		process.env.LLM_API_KEY = "test-key";
 		mockFetchContent.mockResolvedValueOnce({
-			title: "文章", body: "body", url: "https://gossip.com/article/err",
+			title: "文章",
+			body: "body",
+			url: "https://gossip.com/article/err",
 		});
 		mockGossipExtractFacts.mockRejectedValueOnce(new Error("LLM timed out"));
 		const res = await app.inject({

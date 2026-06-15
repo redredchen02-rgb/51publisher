@@ -7,11 +7,17 @@ vi.mock("../ssrf-guard.js", () => ({
 }));
 
 import { safeFetch } from "../ssrf-guard.js";
+
 const mockSafeFetch = vi.mocked(safeFetch);
 
-function makeResponse(body: string, status = 200, contentLength?: number): Response {
+function makeResponse(
+	body: string,
+	status = 200,
+	contentLength?: number,
+): Response {
 	const headers = new Headers();
-	if (contentLength !== undefined) headers.set("content-length", String(contentLength));
+	if (contentLength !== undefined)
+		headers.set("content-length", String(contentLength));
 	return {
 		ok: status >= 200 && status < 300,
 		status,
@@ -48,20 +54,32 @@ describe("generic-adapter.fetchList", () => {
 	it("正確過濾詳情頁 URL，帶 anchor text", async () => {
 		mockSafeFetch.mockResolvedValueOnce(makeResponse(LIST_HTML));
 		const results = await fetchList("https://example.com/latest");
-		expect(results.map((r) => r.url)).toContain("https://example.com/gossip/12345");
-		expect(results.map((r) => r.url)).toContain("https://example.com/gossip/67890.html");
+		expect(results.map((r) => r.url)).toContain(
+			"https://example.com/gossip/12345",
+		);
+		expect(results.map((r) => r.url)).toContain(
+			"https://example.com/gossip/67890.html",
+		);
 		// 外站不應出現
-		expect(results.map((r) => r.url)).not.toContain("https://other.com/gossip/111");
+		expect(results.map((r) => r.url)).not.toContain(
+			"https://other.com/gossip/111",
+		);
 		// /about 不符 detail path
-		expect(results.map((r) => r.url)).not.toContain("https://example.com/about");
+		expect(results.map((r) => r.url)).not.toContain(
+			"https://example.com/about",
+		);
 		// 重複 URL 只出現一次
-		expect(results.filter((r) => r.url === "https://example.com/gossip/12345")).toHaveLength(1);
+		expect(
+			results.filter((r) => r.url === "https://example.com/gossip/12345"),
+		).toHaveLength(1);
 	});
 
 	it("anchor text 作為 title 回傳", async () => {
 		mockSafeFetch.mockResolvedValueOnce(makeResponse(LIST_HTML));
 		const results = await fetchList("https://example.com/latest");
-		const item = results.find((r) => r.url === "https://example.com/gossip/12345");
+		const item = results.find(
+			(r) => r.url === "https://example.com/gossip/12345",
+		);
 		expect(item?.title).toBe("明星出軌事件");
 	});
 
@@ -97,7 +115,9 @@ describe("generic-adapter.fetchList", () => {
 	});
 
 	it("content-length 超過 5 MB → 返回空陣列", async () => {
-		mockSafeFetch.mockResolvedValueOnce(makeResponse("x", 200, 6 * 1024 * 1024));
+		mockSafeFetch.mockResolvedValueOnce(
+			makeResponse("x", 200, 6 * 1024 * 1024),
+		);
 		const results = await fetchList("https://example.com/latest");
 		expect(results).toHaveLength(0);
 	});
@@ -115,12 +135,18 @@ describe("generic-adapter.fetchContent", () => {
 
 	it("HTTP 4xx 時拋出含狀態碼的 Error", async () => {
 		mockSafeFetch.mockResolvedValueOnce(makeResponse("", 404));
-		await expect(fetchContent("https://example.com/gossip/99999")).rejects.toThrow("HTTP 404");
+		await expect(
+			fetchContent("https://example.com/gossip/99999"),
+		).rejects.toThrow("HTTP 404");
 	});
 
 	it("content-length 超過 5 MB → 拋出 too large 錯誤", async () => {
-		mockSafeFetch.mockResolvedValueOnce(makeResponse("x", 200, 6 * 1024 * 1024));
-		await expect(fetchContent("https://example.com/gossip/12345")).rejects.toThrow("too large");
+		mockSafeFetch.mockResolvedValueOnce(
+			makeResponse("x", 200, 6 * 1024 * 1024),
+		);
+		await expect(
+			fetchContent("https://example.com/gossip/12345"),
+		).rejects.toThrow("too large");
 	});
 
 	it("og:* meta 缺失時 fallback 用 <title> 和 <h1>，body 可能為空", async () => {

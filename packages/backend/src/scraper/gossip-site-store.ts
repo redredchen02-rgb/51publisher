@@ -29,7 +29,9 @@ export async function listGossipSites(): Promise<GossipSiteConfig[]> {
 	return siteStore.list();
 }
 
-export async function getGossipSite(id: string): Promise<GossipSiteConfig | null> {
+export async function getGossipSite(
+	id: string,
+): Promise<GossipSiteConfig | null> {
 	return siteStore.read(id);
 }
 

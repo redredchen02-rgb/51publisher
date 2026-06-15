@@ -2,16 +2,22 @@ import type { FastifyInstance } from "fastify";
 import { err } from "../utils/error-response.js";
 import { generateId } from "../utils/generate-id.js";
 import { fetchContent, fetchList } from "./adapters/generic-adapter.js";
-import { gossipExtractFacts, type ExtractedGossipFacts } from "./gossip-fact-extractor.js";
+import {
+	type ExtractedGossipFacts,
+	gossipExtractFacts,
+} from "./gossip-fact-extractor.js";
 import {
 	deleteGossipSite,
+	type GossipSiteCreate,
 	getGossipSite,
 	listGossipSites,
 	saveGossipSite,
-	type GossipSiteCreate,
 } from "./gossip-site-store.js";
-import { pendingTopicExistsBySourceUrl, savePendingTopic } from "./pending-store.js";
 import type { PendingTopic } from "./pending-store.js";
+import {
+	pendingTopicExistsBySourceUrl,
+	savePendingTopic,
+} from "./pending-store.js";
 
 /** 返回 400 如果 hostname 是 IP literal（IPv4、decimal-encoded IPv4 或 IPv6）。 */
 function isIpLiteral(hostname: string): boolean {
@@ -26,7 +32,9 @@ function isIpLiteral(hostname: string): boolean {
 	return false;
 }
 
-function parseUrl(raw: string): { url: URL; error?: undefined } | { error: string; url?: undefined } {
+function parseUrl(
+	raw: string,
+): { url: URL; error?: undefined } | { error: string; url?: undefined } {
 	try {
 		const u = new URL(raw);
 		if (u.protocol !== "https:" && u.protocol !== "http:") {
@@ -41,7 +49,6 @@ function parseUrl(raw: string): { url: URL; error?: undefined } | { error: strin
 	}
 }
 
-
 interface SiteParams {
 	id: string;
 }
@@ -51,32 +58,38 @@ interface FromUrlBody {
 	siteName: string;
 }
 
-export async function registerGossipRoutes(app: FastifyInstance): Promise<void> {
+export async function registerGossipRoutes(
+	app: FastifyInstance,
+): Promise<void> {
 	// POST /api/v1/gossip/sites — 新增站點設定
-	app.post<{ Body: GossipSiteCreate }>("/api/v1/gossip/sites", async (request, reply) => {
-		const { name, listUrl } = request.body ?? {};
-		if (!name || !listUrl) {
-			return err(reply, 400, "Missing required fields: name, listUrl");
-		}
-		if (name.length > 200) return err(reply, 400, "name too long (max 200 chars)");
+	app.post<{ Body: GossipSiteCreate }>(
+		"/api/v1/gossip/sites",
+		async (request, reply) => {
+			const { name, listUrl } = request.body ?? {};
+			if (!name || !listUrl) {
+				return err(reply, 400, "Missing required fields: name, listUrl");
+			}
+			if (name.length > 200)
+				return err(reply, 400, "name too long (max 200 chars)");
 
-		const parsed = parseUrl(listUrl);
-		if (parsed.error) {
-			return err(reply, 400, `Invalid listUrl: ${parsed.error}`);
-		}
-		const now = new Date().toISOString();
-		const site = {
-			id: generateId("site"),
-			name,
-			listUrl,
-			enabled: true,
-			createdAt: now,
-			updatedAt: now,
-		};
-		await saveGossipSite(site);
-		reply.code(201);
-		return { ok: true, site };
-	});
+			const parsed = parseUrl(listUrl);
+			if (parsed.error) {
+				return err(reply, 400, `Invalid listUrl: ${parsed.error}`);
+			}
+			const now = new Date().toISOString();
+			const site = {
+				id: generateId("site"),
+				name,
+				listUrl,
+				enabled: true,
+				createdAt: now,
+				updatedAt: now,
+			};
+			await saveGossipSite(site);
+			reply.code(201);
+			return { ok: true, site };
+		},
+	);
 
 	// GET /api/v1/gossip/sites — 列出站點
 	app.get("/api/v1/gossip/sites", async () => {
@@ -85,12 +98,15 @@ export async function registerGossipRoutes(app: FastifyInstance): Promise<void> 
 	});
 
 	// DELETE /api/v1/gossip/sites/:id — 刪除站點
-	app.delete<{ Params: SiteParams }>("/api/v1/gossip/sites/:id", async (request, reply) => {
-		const site = await getGossipSite(request.params.id);
-		if (!site) return err(reply, 404, "Site not found");
-		await deleteGossipSite(request.params.id);
-		return { ok: true };
-	});
+	app.delete<{ Params: SiteParams }>(
+		"/api/v1/gossip/sites/:id",
+		async (request, reply) => {
+			const site = await getGossipSite(request.params.id);
+			if (!site) return err(reply, 404, "Site not found");
+			await deleteGossipSite(request.params.id);
+			return { ok: true };
+		},
+	);
 
 	// POST /api/v1/gossip/sites/:id/discover — 觸發資源發現
 	app.post<{ Params: SiteParams }>(
@@ -117,7 +133,12 @@ export async function registerGossipRoutes(app: FastifyInstance): Promise<void> 
 			}
 
 			const page = fresh.slice(0, 20);
-			return { ok: true, discovered: page, hasMore: fresh.length > 20, total: fresh.length };
+			return {
+				ok: true,
+				discovered: page,
+				hasMore: fresh.length > 20,
+				total: fresh.length,
+			};
 		},
 	);
 
@@ -129,7 +150,8 @@ export async function registerGossipRoutes(app: FastifyInstance): Promise<void> 
 			if (!url || !siteName) {
 				return err(reply, 400, "Missing required fields: url, siteName");
 			}
-			if (siteName.length > 200) return err(reply, 400, "siteName too long (max 200 chars)");
+			if (siteName.length > 200)
+				return err(reply, 400, "siteName too long (max 200 chars)");
 			const parsed = parseUrl(url);
 			if (parsed.error) {
 				return err(reply, 400, `Invalid url: ${parsed.error}`);
@@ -138,7 +160,11 @@ export async function registerGossipRoutes(app: FastifyInstance): Promise<void> 
 			const llmEndpoint = process.env.LLM_ENDPOINT;
 			const llmApiKey = process.env.LLM_API_KEY;
 			if (!llmEndpoint || !llmApiKey) {
-				return err(reply, 503, "LLM not configured (LLM_ENDPOINT / LLM_API_KEY missing)");
+				return err(
+					reply,
+					503,
+					"LLM not configured (LLM_ENDPOINT / LLM_API_KEY missing)",
+				);
 			}
 
 			let rawContent: Awaited<ReturnType<typeof fetchContent>>;
