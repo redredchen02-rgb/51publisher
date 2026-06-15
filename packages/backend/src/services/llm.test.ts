@@ -188,6 +188,30 @@ describe("generateDraft (结构化组装)", () => {
 		}
 	});
 
+	it("返回 slots(供扩展端重新组装);非空且字段反映模型槽位", async () => {
+		const slots = {
+			titleSuffix: "介紹",
+			subtitle: "副标题",
+			intro: "引子",
+			highlights: "看点",
+		};
+		const res = await generateDraft("主题", {
+			settings,
+			apiKey: "k",
+			facts: FACTS,
+			fetchFn: mockFetch(slotsReply(slots)),
+			...base,
+		});
+		expect(res.ok).toBe(true);
+		if (res.ok) {
+			// anti-false-green:新生成的草稿必须带 slots
+			expect(res.slots).toBeDefined();
+			expect(res.slots?.intro).toBe("引子");
+			expect(res.slots?.highlights).toBe("看点");
+			expect(res.slots?.titleSuffix).toBe("介紹");
+		}
+	});
+
 	it("content 带 ```json 围栏也能解析", async () => {
 		const content = '```json\n{"intro":"I","highlights":"H"}\n```';
 		const res = await generateDraft("主题", {

@@ -1,6 +1,7 @@
 // 三层(side panel / background / content script)共享的类型定义。
 // Migrated from both packages/backend/src/shared/types.ts and packages/extension/lib/types.ts
 import type { FactsBlock } from "./facts.js";
+import type { DraftSlots } from "./post-assembler.js";
 
 /** Few-shot 范例对(结构化版;R11-R13)。source of truth;fewShotExamples 由此派生。 */
 export interface FewShotPair {
@@ -218,6 +219,8 @@ export type GenerateDraftResponse =
 	| {
 			ok: true;
 			draft: ContentDraft;
+			/** 模型叙事槽位;扩展端据此重新组装(re-assemble)。旧响应可能缺省。 */
+			slots?: DraftSlots;
 			llmCostTokens?: {
 				prompt: number;
 				completion: number;
