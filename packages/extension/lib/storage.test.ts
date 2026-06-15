@@ -14,12 +14,14 @@ import {
 	addFewShotPair,
 	appendTrajectory,
 	clearBatch,
+	clearFirstFlightPending,
 	clearTrajectory,
 	DEFAULT_SETTINGS,
 	getApiKey,
 	getAuthorizedHosts,
 	getBackendToken,
 	getBatch,
+	getFirstFlightPending,
 	getSafetyMode,
 	getSettings,
 	getTrajectory,
@@ -29,6 +31,7 @@ import {
 	saveBatch,
 	saveSettings,
 	setAuthorizedHosts,
+	setFirstFlightPending,
 	setSafetyMode,
 } from "./storage";
 
@@ -119,6 +122,63 @@ describe("storage", () => {
 		it("坏档位值回落 off", async () => {
 			await storage.setItem("local:safetyMode", "YOLO");
 			expect(await getSafetyMode()).toBe("off");
+		});
+
+		describe("首飞授权标记(firstFlightPending)", () => {
+			const P = {
+				itemId: "i1",
+				tabId: 7,
+				host: "dx-999-adm.ympxbys.xyz",
+				contentHash: "abc123",
+				nonce: "n-1",
+				ts: "2026-06-15T00:00:00.000Z",
+			};
+
+			it("缺失 → {null, 非 corrupt}(常态无窗口)", async () => {
+				expect(await getFirstFlightPending()).toEqual({
+					pending: null,
+					corrupt: false,
+				});
+			});
+
+			it("set/get 往返", async () => {
+				await setFirstFlightPending(P);
+				expect(await getFirstFlightPending()).toEqual({
+					pending: P,
+					corrupt: false,
+				});
+			});
+
+			it("clear 后回到 null(幂等)", async () => {
+				await setFirstFlightPending(P);
+				await clearFirstFlightPending();
+				expect(await getFirstFlightPending()).toEqual({
+					pending: null,
+					corrupt: false,
+				});
+				await clearFirstFlightPending(); // 再清不报错
+			});
+
+			it("坏值:存在但缺字段 → corrupt:true(启动复位据此强制降档)", async () => {
+				await storage.setItem("local:firstFlightPending", { itemId: "i1" });
+				expect(await getFirstFlightPending()).toEqual({
+					pending: null,
+					corrupt: true,
+				});
+			});
+
+			it("坏值:非对象 → corrupt:true", async () => {
+				await storage.setItem("local:firstFlightPending", "garbage");
+				expect(await getFirstFlightPending()).toEqual({
+					pending: null,
+					corrupt: true,
+				});
+			});
+
+			it("坏值:nonce 缺失 → corrupt:true", async () => {
+				await storage.setItem("local:firstFlightPending", { ...P, nonce: "" });
+				expect((await getFirstFlightPending()).corrupt).toBe(true);
+			});
 		});
 
 		it("名单从未设置 → 种子(含 admin 站)", async () => {
