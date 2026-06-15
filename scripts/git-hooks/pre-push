@@ -29,7 +29,9 @@ fi
 
 if command -v gitleaks >/dev/null 2>&1; then
   echo "[pre-push] gitleaks 扫描推送范围…"
-  if ! gitleaks detect --no-banner --redact -l error >/dev/null 2>&1; then
+  # 必须 scoped 到 $range:否则 gitleaks 默认扫全 repo 所有 ref,使任一本地分支
+  # (如他人 WIP)夹带的命中字符串误拦本次推送。与下方 fallback 用 $range 对齐。
+  if ! gitleaks detect --no-banner --redact -l error --log-opts "$range" >/dev/null 2>&1; then
     echo "[pre-push] ✗ gitleaks 命中疑似机密，已阻止推送。核实/轮换后重试。" >&2
     exit 1
   fi
