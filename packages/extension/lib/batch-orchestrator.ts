@@ -394,22 +394,38 @@ export async function approveBatch(
 		if (!(await pinnedHostOk(batch))) break;
 
 		// 发布前 grounding 硬闸:仅 authorized 档拦截(残留【待补】/无来源连结 → 该条转 error,不 dispatch)。
-		if (checkGrounding) {
-			const gate = await evaluateGate();
-			if (gate.mode === "authorized") {
-				const verdict = checkGrounding(
-					item.assembledDraftSnapshot ?? item.draft,
-					item.facts,
+		// 提到块外:① 快照闸(下)与 ② 填充前复检(sendFill 前)共用同一 gate.mode 判定。
+		const gate = checkGrounding ? await evaluateGate() : undefined;
+		if (checkGrounding && gate?.mode === "authorized") {
+			const verdict = checkGrounding(
+				item.assembledDraftSnapshot ?? item.draft,
+				item.facts,
+			);
+			if (!verdict.ok) {
+				batch = markGenerateFailed(
+					batch,
+					item.id,
+					`grounding-blocked: ${verdict.reasons.join(" ")}`,
 				);
-				if (!verdict.ok) {
-					batch = markGenerateFailed(
-						batch,
-						item.id,
-						`grounding-blocked: ${verdict.reasons.join(" ")}`,
-					);
-					await save(batch);
-					continue;
-				}
+				await save(batch);
+				continue;
+			}
+		}
+
+		// 填充前 grounding 复检(纵深防御,R10):上面的快照闸判 `snapshot ?? draft`,但 sendFill 实际填的是
+		// item.draft。patchBatchDrafts 可在 awaiting-approval 态只改 draft(不动 snapshot),
+		// 故升格后的内联编辑可能把【待补】/无来源连结重新塞进 draft,而快照闸已基于干净快照放行。
+		// 在真填充前用同一检测器(四字段)+ 同一 factUrls 源对「实际要填的内容」复检,堵掉这一旁路。
+		if (checkGrounding && gate?.mode === "authorized") {
+			const verdict = checkGrounding(item.draft, item.facts);
+			if (!verdict.ok) {
+				batch = markGenerateFailed(
+					batch,
+					item.id,
+					`grounding-blocked: ${verdict.reasons.join(" ")}`,
+				);
+				await save(batch);
+				continue;
 			}
 		}
 

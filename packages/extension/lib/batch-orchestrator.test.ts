@@ -1223,3 +1223,185 @@ describe("approveBatch itemIdFilter", () => {
 		expect(sendGrant).toHaveBeenCalledTimes(2);
 	});
 });
+
+// ================================================================
+// Unit 7: 填充前 grounding 复检 — 堵升格后内联编辑旁路(R10)
+// 注入真实 evaluateGrounding 作 checkGrounding,验证四字段检测器 + factUrls 源。
+// ================================================================
+
+describe("approveBatch 填充前 grounding 复检 (Unit 7)", () => {
+	it("旁路回归: snapshot 干净但 item.draft 被改入【待补】→ authorized 发布被拦,sendFill 不调,标 grounding-blocked", async () => {
+		// snapshot 干净(早先快照闸已放行),但 awaiting-approval 态 patchBatchDrafts 把【待补】塞回 draft。
+		const cleanSnapshot: ContentDraft = {
+			...DRAFT,
+			title: "《斗破苍穹》第1集",
+		};
+		const tamperedDraft: ContentDraft = {
+			...DRAFT,
+			title: "《【待补】》第1集",
+		};
+		const batch: Batch = {
+			id: "batch_1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "2026-06-04T00:00:00.000Z",
+			items: [
+				{
+					id: "item_0",
+					topic: TOPIC_A,
+					status: "awaiting-approval" as const,
+					draft: tamperedDraft,
+					assembledDraftSnapshot: cleanSnapshot,
+				},
+			],
+		};
+		const sendFill = vi.fn(async () => ({ ok: true as const, results: [] }));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => batch),
+			sendFill,
+			checkGrounding: evaluateGrounding, // 真实函数
+		});
+		await approveBatch(deps);
+		// 关键安全属性:被填充内容不干净 → 绝不 sendFill(堵掉旁路)。
+		expect(sendFill).not.toHaveBeenCalled();
+	});
+
+	it("happy: 干净已升格条目通过填充前复检,sendFill 被调", async () => {
+		const cleanDraft: ContentDraft = { ...DRAFT, title: "《斗破苍穹》第1集" };
+		const batch: Batch = {
+			id: "batch_1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "2026-06-04T00:00:00.000Z",
+			items: [
+				{
+					id: "item_0",
+					topic: TOPIC_A,
+					status: "awaiting-approval" as const,
+					draft: cleanDraft,
+					assembledDraftSnapshot: cleanDraft,
+				},
+			],
+		};
+		const sendFill = vi.fn(async () => ({ ok: true as const, results: [] }));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => batch),
+			sendFill,
+			checkGrounding: evaluateGrounding,
+		});
+		await approveBatch(deps);
+		expect(sendFill).toHaveBeenCalledOnce();
+	});
+
+	it("集成: 复检用四字段检测器 —— item.draft 的 subtitle 含【待补】也拦", async () => {
+		const cleanSnapshot: ContentDraft = { ...DRAFT, subtitle: "干净副标" };
+		const tamperedDraft: ContentDraft = { ...DRAFT, subtitle: "副标【待补】" };
+		const batch: Batch = {
+			id: "batch_1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "2026-06-04T00:00:00.000Z",
+			items: [
+				{
+					id: "item_0",
+					topic: TOPIC_A,
+					status: "awaiting-approval" as const,
+					draft: tamperedDraft,
+					assembledDraftSnapshot: cleanSnapshot,
+				},
+			],
+		};
+		const sendFill = vi.fn(async () => ({ ok: true as const, results: [] }));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => batch),
+			sendFill,
+			checkGrounding: evaluateGrounding,
+		});
+		await approveBatch(deps);
+		expect(sendFill).not.toHaveBeenCalled();
+	});
+
+	it("集成: 复检用 factUrls 源 —— item.draft 含无来源链接拦,facts 含该链接则放行", async () => {
+		const url = "https://h.example.com/a";
+		const draftWithLink: ContentDraft = {
+			...DRAFT,
+			title: "《斗破苍穹》第1集",
+			body: `<p>正文 <a href="${url}">来源</a></p>`,
+		};
+		const makeBatch = (): Batch => ({
+			id: "batch_1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "2026-06-04T00:00:00.000Z",
+			items: [
+				{
+					id: "item_0",
+					topic: TOPIC_A,
+					status: "awaiting-approval" as const,
+					draft: draftWithLink,
+					assembledDraftSnapshot: { ...DRAFT, title: "《斗破苍穹》第1集" },
+				},
+			],
+		});
+
+		// 无 facts → 链接无来源 → 拦
+		const unsourced = makeBatch();
+		const sendFillA = vi.fn(async () => ({ ok: true as const, results: [] }));
+		await approveBatch(
+			makeApproveDeps({
+				getBatch: vi.fn(async () => unsourced),
+				sendFill: sendFillA,
+				checkGrounding: evaluateGrounding,
+			}),
+		);
+		expect(sendFillA).not.toHaveBeenCalled();
+
+		// facts 含该链接(漢化)→ 有来源 → 放行
+		const sourced = makeBatch();
+		sourced.items[0]!.facts = { 漢化: url };
+		const sendFillB = vi.fn(async () => ({ ok: true as const, results: [] }));
+		await approveBatch(
+			makeApproveDeps({
+				getBatch: vi.fn(async () => sourced),
+				sendFill: sendFillB,
+				checkGrounding: evaluateGrounding,
+			}),
+		);
+		expect(sendFillB).toHaveBeenCalledOnce();
+	});
+
+	it("非 authorized 档(dry-run)不跑填充前复检: item.draft 含【待补】仍照常 sendFill", async () => {
+		const tamperedDraft: ContentDraft = {
+			...DRAFT,
+			title: "《【待补】》第1集",
+		};
+		const batch: Batch = {
+			id: "batch_1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "2026-06-04T00:00:00.000Z",
+			items: [
+				{
+					id: "item_0",
+					topic: TOPIC_A,
+					status: "awaiting-approval" as const,
+					draft: tamperedDraft,
+					assembledDraftSnapshot: { ...DRAFT, title: "《斗破苍穹》第1集" },
+				},
+			],
+		};
+		const sendFill = vi.fn(async () => ({ ok: true as const, results: [] }));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => batch),
+			evaluateGate: vi.fn(async () => ({
+				mode: "dry-run" as const,
+				allowed: false,
+				host: HOST,
+			})),
+			sendFill,
+			checkGrounding: evaluateGrounding,
+		});
+		await approveBatch(deps);
+		expect(sendFill).toHaveBeenCalledOnce();
+	});
+});
