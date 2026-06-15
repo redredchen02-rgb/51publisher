@@ -36,7 +36,25 @@ import {
 
 export function buildApp(): FastifyInstance {
 	initPendingDb();
-	const server = Fastify({ logger: true });
+	// 日志:env 控制 level(默认 info);redaction 防鉴权头/密钥落日志(secret-hygiene)。
+	const server = Fastify({
+		logger: {
+			level: process.env.LOG_LEVEL ?? "info",
+			redact: {
+				paths: [
+					"req.headers.authorization",
+					"req.headers.cookie",
+					'req.headers["x-api-key"]',
+					"*.password",
+					"*.token",
+					"*.apiKey",
+					"*.JWT_SECRET",
+					"*.LLM_API_KEY",
+				],
+				censor: "[REDACTED]",
+			},
+		},
+	});
 
 	const corsOrigins = (process.env.CORS_ORIGIN ?? "")
 		.split(",")

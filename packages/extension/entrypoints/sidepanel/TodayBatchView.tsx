@@ -202,14 +202,10 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 		}
 	}
 
-	async function handlePublish(item: BatchItem, postStatus: string) {
+	async function handlePublish(item: BatchItem) {
 		if (adminTabId == null) return;
 		setPublishingItems((prev) => new Set([...prev, item.id]));
 		try {
-			// postStatus 覆盖:用 draftOverrides 在 background 层注入(如不为 "0" 则覆盖)
-			// 注:approveSingleItem 目前不传 draftOverrides,postStatus 非"0"时需另行处理
-			// 简化实现:直接发 approveSingleItem,postStatus 覆盖由后续迭代处理
-			void postStatus; // 计划中的字段,暂时记录但不改变消息
 			const batch = await approveSingleItem(adminTabId, item.id);
 			if (batch) setItems(batch.items);
 		} finally {
@@ -536,7 +532,7 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 											<button
 												type="button"
 												disabled={!isRead || isPublishing}
-												onClick={() => void handlePublish(item, "0")}
+												onClick={() => void handlePublish(item)}
 												title={!isRead ? "请先展开预览后才能发布" : ""}
 												style={{
 													...btn,
