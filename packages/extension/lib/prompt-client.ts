@@ -26,16 +26,19 @@ async function handleUnauthorized(res: Response): Promise<void> {
  * 从后端获取所有 Prompt 模板列表。
  */
 export async function fetchPrompts(
-	_fetchFn: typeof fetch = fetch,
+	fetchFn?: typeof fetch,
 	timeoutMs = 10_000,
 ): Promise<{ ok: boolean; prompts?: PromptTemplate[]; error?: string }> {
 	try {
 		const headers = await getAuthHeaders();
 		const backendUrl = await getBackendUrl();
-		const res = await fetchWithTimeout(`${backendUrl}/api/v1/prompts`, {
-			headers,
-			timeoutMs,
-		});
+		const url = `${backendUrl}/api/v1/prompts`;
+		const res = fetchFn
+			? await fetchFn(url, { headers })
+			: await fetchWithTimeout(url, {
+					headers,
+					timeoutMs,
+				});
 		if (!res.ok) {
 			await handleUnauthorized(res);
 			return { ok: false, error: `HTTP ${res.status}` };
@@ -57,16 +60,20 @@ export async function createPrompt(
 		model?: string;
 	},
 	timeoutMs = 10_000,
+	fetchFn?: typeof fetch,
 ): Promise<{ ok: boolean; error?: string }> {
 	try {
 		const headers = await getAuthHeaders();
 		const backendUrl = await getBackendUrl();
-		const res = await fetchWithTimeout(`${backendUrl}/api/v1/prompts`, {
+		const url = `${backendUrl}/api/v1/prompts`;
+		const init = {
 			method: "POST",
 			headers,
 			body: JSON.stringify(data),
-			timeoutMs,
-		});
+		};
+		const res = fetchFn
+			? await fetchFn(url, init)
+			: await fetchWithTimeout(url, { ...init, timeoutMs });
 		if (!res.ok) {
 			await handleUnauthorized(res);
 			return { ok: false, error: `HTTP ${res.status}` };
@@ -89,16 +96,20 @@ export async function updatePrompt(
 		model?: string;
 	},
 	timeoutMs = 10_000,
+	fetchFn?: typeof fetch,
 ): Promise<{ ok: boolean; error?: string }> {
 	try {
 		const headers = await getAuthHeaders();
 		const backendUrl = await getBackendUrl();
-		const res = await fetchWithTimeout(`${backendUrl}/api/v1/prompts/${id}`, {
+		const url = `${backendUrl}/api/v1/prompts/${id}`;
+		const init = {
 			method: "PUT",
 			headers,
 			body: JSON.stringify(data),
-			timeoutMs,
-		});
+		};
+		const res = fetchFn
+			? await fetchFn(url, init)
+			: await fetchWithTimeout(url, { ...init, timeoutMs });
 		if (!res.ok) {
 			await handleUnauthorized(res);
 			return { ok: false, error: `HTTP ${res.status}` };
