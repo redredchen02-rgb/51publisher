@@ -17,6 +17,7 @@ import { evaluateGrounding } from "../../lib/grounding-gate";
 import { verifyLinks } from "../../lib/link-source";
 import type { DriftReport } from "../../lib/selectors";
 import type { TrajectoryRecord } from "../../lib/trajectory";
+import { GateFailedDetail } from "./batch-review/GateFailedDetail";
 import { DraftPreview } from "./DraftPreview";
 
 /**
@@ -862,63 +863,11 @@ export function BatchReviewPanel(props: Props) {
 							>
 								{/* U9:gate-failed — 接地闸门拦截,显示原因 + 重新生成按钮,不显示审批按钮 */}
 								{it.status === "gate-failed" && (
-									<div style={{ marginBottom: 6 }}>
-										<span
-											role="status"
-											aria-label="接地拦截原因"
-											style={{
-												display: "inline-block",
-												background: "#fffbe6",
-												border: "1px solid #ffe58f",
-												color: "#874d00",
-												borderRadius: 4,
-												padding: "2px 8px",
-												fontSize: 11,
-												fontWeight: 600,
-											}}
-										>
-											⚠ 接地拦截:{it.gateFailReason ?? "未知原因"}
-										</span>
-										{/* 展示原稿快照(含【待补】)让操作者知道缺哪些事实 */}
-										{it.assembledDraftSnapshot && (
-											<div
-												style={{
-													marginTop: 6,
-													padding: "4px 8px",
-													background: "#fff8f0",
-													border: "1px solid #ffd591",
-													borderRadius: 4,
-													fontSize: 11,
-													color: "#5c3c00",
-												}}
-											>
-												<div style={{ fontWeight: 600, marginBottom: 2 }}>
-													原稿(含缺失事实):
-												</div>
-												<div style={{ wordBreak: "break-all" }}>
-													{it.assembledDraftSnapshot.title || "(无标题)"}
-												</div>
-											</div>
-										)}
-										{onRetryItem && (
-											<button
-												type="button"
-												onClick={() => onRetryItem(it.id)}
-												disabled={busy}
-												style={{
-													...btn,
-													marginLeft: 6,
-													padding: "2px 8px",
-													fontSize: 11,
-													background: "#fff7e6",
-													border: "1px solid #ffd591",
-													color: "#874d00",
-												}}
-											>
-												重新生成
-											</button>
-										)}
-									</div>
+									<GateFailedDetail
+										item={it}
+										busy={busy}
+										onRetryItem={onRetryItem}
+									/>
 								)}
 								{it.status === "awaiting-approval" &&
 								it.draft &&

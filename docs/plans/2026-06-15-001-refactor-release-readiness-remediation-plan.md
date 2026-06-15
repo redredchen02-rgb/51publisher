@@ -264,7 +264,7 @@ graph TB
 
 **Verification:** 6 client（除核实后的 published-posts）走单一 apiFetch；`pnpm --filter publisher-fill-assistant test` 全绿。
 
-- [ ] **Unit D2: 动态提交 e2e fixture 变体（R11 前置）**
+- [x] **Unit D2: 动态提交 e2e fixture 变体（R11 前置）**
 
 **Goal:** 补上「永不自动提交」不变量目前唯一靠人工冒烟兜底的盲区——证明 fillers 不触发 blur/keydown 动态提交。
 
@@ -290,7 +290,10 @@ graph TB
 
 **Verification:** 新 e2e 变体绿；`check:fixtures` 绿；该变体确实能在「故意让 filler 提交」的反例下变红（自检有效性）。
 
-- [ ] **Unit D3: 拆分 BatchReviewPanel 巨组件**
+- [~] **Unit D3: 拆分 BatchReviewPanel 巨组件（部分）**
+  - 零回归守护补完整：gate-failed 7 项契约全有组件测试（badge/原因/retry/onRetryItem/无批准/原稿快照/无快照）。
+  - 已抽出安全关键的 `batch-review/GateFailedDetail.tsx`（防幻觉审核入口),BatchReviewPanel 缩 ~55 行,629 测试零回归。
+  - **剩余（留待专注后续）**：per-item card body（~688-1100,闭包十几个 state/handler）的 ItemCard 抽取——风险集中处,守护已在,可安全单独做。
 
 **Goal:** 把 `BatchReviewPanel.tsx`（~1236 行）拆为 item-card / approval-bar / diff 子组件，抽离与 `TodayBatchView`/`BatchView` 重叠的 batch-state 逻辑，行为零回归。
 
