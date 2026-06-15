@@ -1,12 +1,12 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { scraperConfig } from "./scraper-config.js";
+import { scraperConfig } from "../scraper/scraper-config.js";
+import type { RawContent, SiteAdapter } from "../scraper/site-adapter.js";
 import { registerScraperRoutes } from "./scraper-routes.js";
-import type { RawContent, SiteAdapter } from "./site-adapter.js";
 
 // ---- mocks ----
 
-vi.mock("./fact-extractor.js", () => ({
+vi.mock("../scraper/fact-extractor.js", () => ({
 	extractFacts: vi.fn(async () => ({
 		facts: { 作品名: "测试作品" },
 		confidence: 0.85,
@@ -15,11 +15,11 @@ vi.mock("./fact-extractor.js", () => ({
 	})),
 }));
 
-vi.mock("./pending-store.js", () => ({
+vi.mock("../scraper/pending-store.js", () => ({
 	savePendingTopic: vi.fn(async () => undefined),
 }));
 
-vi.mock("./web-enricher.js", () => ({
+vi.mock("../scraper/web-enricher.js", () => ({
 	enrichContext: vi.fn(async () => ({ queryResults: [] })),
 }));
 

@@ -1,10 +1,4 @@
 import type { FastifyInstance } from "fastify";
-import { err } from "../utils/error-response.js";
-import { generateId } from "../utils/generate-id.js";
-import {
-	CreatePromptBody as CreatePromptBodySchema,
-	UpdatePromptBody as UpdatePromptBodySchema,
-} from "../utils/schemas.js";
 import {
 	deletePrompt,
 	listPrompts,
@@ -13,7 +7,13 @@ import {
 	type PromptTemplateCreate,
 	type PromptTemplateUpdate,
 	savePrompt,
-} from "./prompt-store.js";
+} from "../scraper/prompt-store.js";
+import { err } from "../utils/error-response.js";
+import { generateId } from "../utils/generate-id.js";
+import {
+	CreatePromptBody as CreatePromptBodySchema,
+	UpdatePromptBody as UpdatePromptBodySchema,
+} from "../utils/schemas.js";
 
 /**
  * Prompt 模板管理 API。

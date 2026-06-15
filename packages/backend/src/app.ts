@@ -7,16 +7,16 @@ import { PUBLIC_ROUTES, requireAuth } from "./middleware/auth-middleware.js";
 import { registerAuthRoutes } from "./routes/auth-routes.js";
 import { registerBatchRoutes } from "./routes/batch-routes.js";
 import { registerConfigRoutes } from "./routes/config-routes.js";
+import { registerGossipRoutes } from "./routes/gossip-routes.js";
+import { registerPendingRoutes } from "./routes/pending-routes.js";
+import { registerPromptRoutes } from "./routes/prompt-routes.js";
 import { registerPublishedPostsRoutes } from "./routes/published-posts-routes.js";
+import { registerScraperRoutes } from "./routes/scraper-routes.js";
 import { acgs51Adapter } from "./scraper/adapters/acgs51-adapter.js";
 import { demoAdapter } from "./scraper/adapters/demo-adapter.js";
-import { registerGossipRoutes } from "./scraper/gossip-routes.js";
 import { getDb, initPendingDb } from "./scraper/pending-db.js";
-import { registerPendingRoutes } from "./scraper/pending-routes.js";
-import { registerPromptRoutes } from "./scraper/prompt-routes.js";
 import { jobs, startScheduler } from "./scraper/scheduler.js";
 import { scraperConfig } from "./scraper/scraper-config.js";
-import { registerScraperRoutes } from "./scraper/scraper-routes.js";
 import {
 	generateDraft,
 	listModels,
