@@ -16,16 +16,22 @@
   - [ ] 在 LLM 供应商控制台**显式 revoke 旧 key**（生成新 key ≠ 撤销旧 key）。
   - [ ] **验证旧 key 已死**：用旧 key 调一次供应商接口，确认返回 401/403。
   - [ ] 生成新 key，经 `.env`（运行时）/ GitHub Actions secrets（CI）注入——**绝不提交进 git**。
-  - [ ] 确认 release 构建**不把 `LLM_API_KEY` 打进扩展 bundle**（grep 产物）。
-  - [ ] 若旧 key 曾进 git 历史/打包产物：`git filter-repo`/BFG 清史 + force-push（**纵深防御，非主控**——清不掉已有 fork/clone/GitHub 缓存 SHA；revoke 才是真边界）。清史后跑**一次全史 gitleaks**（CI secret-scan job 的能力）确认旧 key 已除。
+  - [x] ~~确认 release 构建**不把 `LLM_API_KEY` 打进扩展 bundle**~~ ✅ **已查(2026-06-15)**:`LLM_API_KEY` 仅在 `packages/backend/**` 经 `process.env` 读取,扩展代码**从不引用**,结构上不可能进 bundle。
+  - [x] ~~若旧 key 曾进 git 历史:`git filter-repo`/BFG 清史~~ ✅ **已查(2026-06-15)可省**:全史 `git log -S "sk-"` 搜不到任何 key 字面值,`.env` 未被追踪(仅 `.env.example`),CI gitleaks 全史扫描(`fetch-depth:0`)当前 passing。**git 历史无密钥,清史不需要。**(撤销旧 key 仍须做——防它从打包/日志等别处泄漏;revoke 才是真边界。)
 - [ ] **JWT_SECRET**：换强随机值（≥32 字节）。轮换后所有旧 token 失效，扩展须重登。
 - [ ] **JWT_ADMIN_PASSWORD_HASH**：scrypt 生成（命令见 `AGENTS.md` 第 24–26 行 / `hash-password.mjs`）。
 - [ ] 改 `.env` 后启动后端，确认 fail-closed 校验**通过**（弱值会被拒启动）。
 
 ## Step 2 — CORS 收紧 🟢前置 + 🔴核验
 
-- [ ] 用扩展的 `chrome-extension://<id>` origin 填 `CORS_ORIGIN`（逗号分隔，含 dev + 打包 id）。id 由 `wxt.config.ts` 的 `EXTENSION_KEY` 默认值派生、已固定。
-- [ ] **push 前先定 dev/prod 的 `EXTENSION_KEY` 是否一致**：若 CI/release 经 env 覆盖产生不同 id，allowlist 须含两者。**绝不为迁就 id 不符而放宽到 `*`/通配**（后端 fail-closed 会拒 `*`）。
+> ✅ **EXTENSION_KEY 之谜已解(2026-06-15)**:`wxt.config.ts` 硬编默认公钥,CI/release **未** 经 env 覆盖 `EXTENSION_KEY`(workflow 无此 env)→ dev 与 prod **同一固定 id**。无需双 id。
+> 已用公钥计算并与仓库注释逐字符核对,确认 id = **`iljimdgfajpgnmanklehhmapojbcjecd`**。
+
+- [ ] 把 `CORS_ORIGIN` 设为(单一值,直接 paste):
+  ```
+  CORS_ORIGIN=chrome-extension://iljimdgfajpgnmanklehhmapojbcjecd
+  ```
+  载入扩展后到 `chrome://extensions` 确认实际 id 与此一致(理论上必一致;仅当你改了 `EXTENSION_KEY` env 才会变)。**绝不为 id 不符而放宽到 `*`/通配**(后端 fail-closed 会拒 `*`)。
 - [ ] 🔴**CORS 负向核验**：伪造一个非 allowlist 的 `Origin` 请求后端 → 确认被拒；真实扩展 `Origin` → 放行。
 
 ## Step 3 — Dry-run 预演 🟢
