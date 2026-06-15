@@ -122,7 +122,7 @@ date: 2026-06-15
 - 安全:后端错误体含疑似 endpoint/key 文本时,UI 仍显示**固定文案**、不回显原始 body。
 **Verification:** 各态固定文案正确、无原始错误体回显;`pnpm --filter publisher-fill-assistant test` + `compile` 绿;手动点一次真实测连接(冒烟)。
 
-- [ ] **Unit E4: LLM 429/503 退避重试(后端)**
+- [x] **Unit E4: LLM 429/503 退避重试(后端)**
 
 **Goal:** LLM 过载时有限次指数退避重试,再 fallback;不波及 gemma4 格式问题。
 **Requirements:** R4
