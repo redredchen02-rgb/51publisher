@@ -2,20 +2,18 @@
 
 ## Backend / Infrastructure
 
-- **Fix backend test dependencies in CI** | **Priority:** P0
-  packages/backend/dist/ 下 8 个测试文件因缺失依赖（fastify、better-sqlite3、@51publisher/shared）而持续失败。
-  这些包在 extension 的 node_modules 中未安装，需要为后端单独配置测试环境或将依赖移到工作区根目录。
-  失败文件: auth-routes.test.js, batch-routes.test.js, config-routes.test.js, cors.test.js, llm.test.js,
-  scraper/fact-extractor.test.js, scraper/pending-store.test.js, scraper/scraper-routes.test.js
-  发现于: feat/phase-2-measurement (2026-06-11)
+(无未决项)
+
+## Completed (Backend / Infrastructure)
+
+- **Fix backend test dependencies in CI** | **Priority:** P0 | **Resolved (not reproducing):** 2026-06-15
+  原报告:packages/backend/dist/ 下 8 个测试文件因缺失依赖（fastify、better-sqlite3、@51publisher/shared）而持续失败。
+  核实:`packages/backend/vitest.config.ts` 已 `exclude: ["dist/**"]`,vitest 只跑 `src/` 源码,不收集 dist 下编译产物。
+  `pnpm --filter publisher-backend test` 实跑 = 275 passed / 26 files,无依赖失败。`pnpm -r test` 亦绿。
+  dist 下的 `*.test.js` 仅是旧 build 产物,不进测试。该 P0 在当前 GitHub Actions CI(`pnpm -r test`)下不复现。
+  发现于: feat/phase-2-measurement (2026-06-11);关闭于: feat/harden-safety-net (2026-06-15)
 
 ## Architecture / Known Gaps
-
-- **slotDiff semantic issue (non-blocking)** | **Priority:** P2
-  `computeSlotDiff` in BatchReviewPanel 以 `(freshItem?.publishedDraft, item.draft)` 调用，
-  但 item.draft 本身就是 AI 原稿（无操作者编辑持久化路径），导致始终比较 AI 稿 vs AI 稿，
-  diff 永远为空。需要将操作者的内联编辑写回 item.draft（或单独存 userDraft 字段）才能得到有意义的 diff。
-  发现于: feat/phase-2-measurement (2026-06-11)
 
 - **off-mode trajectory status 命名误导 (non-blocking)** | **Priority:** P3
   `handleApproveBatch` 在 `result.error === 'blocked'`（off 模式）时写入 `status: 'fill-completed'`，
@@ -23,12 +21,13 @@
   建议：引入 `status: 'gateway-blocked'` 或 `'fill-only'` 明确区分；off 模式下 kill 亦应记录轨迹。
   发现于: feat/phase-2-measurement, adversarial review (2026-06-11)
 
-- **BatchItem id 无批次作用域 (non-blocking)** | **Priority:** P3
-  条目 id 当前为 `topic` 或简单序号，跨批次运行可能碰撞，导致 published_posts 注册表出现
-  主键冲突或轨迹记录混淆。建议改为 `${batchId}:${index}` 或 nanoid。
-  发现于: feat/phase-2-measurement (2026-06-11)
-
 ## Completed
+
+- **slotDiff semantic issue** | **Priority:** P2 | **Fixed:** 2026-06-12
+  在 `batch-orchestrator.ts` 中集成 `computeSlotDiff`，比较 AI 原稿(publishedDraft)与最终发布草稿(draft)。
+
+- **BatchItem id 无批次作用域** | **Priority:** P3 | **Fixed:** 2026-06-12
+  BatchItem id 改为 `${batchId}:${index}` 格式，防止跨批次碰撞。
 
 - **appendTrajectory read-modify-write 无锁** | **Priority:** P2 | **Fixed:** 2026-06-12
   引入 Promise 队列 `trajectoryQueue` 串行化所有轨迹写操作，防止并发丢记录。

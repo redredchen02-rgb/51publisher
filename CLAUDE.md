@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `packages/backend/` — Fastify 5 + TypeScript,端口 3001(JWT 鉴权、批次同步、抓取/选题管线)
 - `packages/shared/` — 跨端共享类型与纯逻辑(field-mapping、post-assembler、vocab、facts)
 
-仓库 remote 是 **GitLab**(gitlab.com/redredchen01/51publisher);`.github/workflows/` 是休眠的存档,活跃 CI 是根目录 `.gitlab-ci.yml`。
+仓库 remote 是 **GitHub**(github.com/redredchen02-rgb/51publisher);活跃 CI 是 `.github/workflows/`(`ci.yml` push/PR 真闸、`release.yml` `v*` tag)。根目录无 `.gitlab-ci.yml`。`scripts/check-all.sh` 存在(lint:ci + 测试 + 双端 build + 产物校验)。
 
 会话开始时读 `.ai-memory/*.md` 获取前序会话的项目状态与经验(见 AGENTS.md)。
 
