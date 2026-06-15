@@ -7,6 +7,7 @@ import { PUBLIC_ROUTES, requireAuth } from "./middleware/auth-middleware.js";
 import { registerAuthRoutes } from "./routes/auth-routes.js";
 import { registerBatchRoutes } from "./routes/batch-routes.js";
 import { registerConfigRoutes } from "./routes/config-routes.js";
+import { registerPreflightRoutes } from "./routes/preflight-routes.js";
 import { registerPublishedPostsRoutes } from "./routes/published-posts-routes.js";
 import { acgs51Adapter } from "./scraper/adapters/acgs51-adapter.js";
 import { demoAdapter } from "./scraper/adapters/demo-adapter.js";
@@ -143,6 +144,7 @@ export function buildApp(): FastifyInstance {
 		return requireAuth(request, reply);
 	});
 	registerConfigRoutes(server);
+	registerPreflightRoutes(server);
 	registerBatchRoutes(server);
 	registerScraperRoutes(server);
 	registerGossipRoutes(server);

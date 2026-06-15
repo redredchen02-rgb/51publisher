@@ -11,6 +11,8 @@
 		"test": "pnpm -r test",
 		"coverage": "pnpm -r --parallel coverage",
 		"compile": "pnpm -r compile",
+		"preflight": "tsx --import ./scripts/preflight/wxt-imports-register.mjs scripts/preflight/runner.ts",
+		"test:preflight": "vitest run --config vitest.preflight.config.ts",
 		"lint": "biome check --write",
 		"lint:ci": "biome ci --diagnostic-level=error .",
 		"format": "biome format --write",
@@ -19,7 +21,10 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.16",
-		"@vitest/coverage-v8": "^4.1.8"
+		"@vitest/coverage-v8": "^4.1.8",
+		"jsdom": "^25.0.1",
+		"tsx": "^4.19.2",
+		"vitest": "^4.1.8"
 	},
 	"pnpm": {
 		"onlyBuiltDependencies": [
