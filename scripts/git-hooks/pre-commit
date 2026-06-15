@@ -16,7 +16,9 @@ fi
 # fixture 变更 → 脱敏闸门
 if git diff --cached --name-only | grep -qiE '(^|/)(fixtures?)/.*\.html$'; then
   echo "[pre-commit] fixture 有变更,运行脱敏闸门…"
-  bash scripts/check-fixture-secrets.sh || {
+  # 经 pnpm 脚本调用,确保 CWD=packages/extension 使 FIXTURE_DIR 解析到真实 fixtures
+  # (直接从仓库根 bash scripts/... 会让 tests/e2e/fixtures 解析为空目录,闸门空转)
+  pnpm --filter publisher-fill-assistant check:fixtures || {
     echo "[pre-commit] ✗ 脱敏闸门未通过,已阻止提交。修掉机密后重试。" >&2
     exit 1
   }

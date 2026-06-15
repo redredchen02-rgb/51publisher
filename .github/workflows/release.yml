@@ -37,7 +37,6 @@ jobs:
 
       - name: Test
         run: pnpm -r test
-        continue-on-error: true
 
       - name: Build extension zip
         run: pnpm --filter publisher-fill-assistant zip
@@ -47,6 +46,7 @@ jobs:
 
       - name: Build Docker image
         run: docker build -f packages/backend/Dockerfile -t 51publisher-backend .
+        # 次要产物:扩展 zip 才是主发布物,Docker 失败不应阻断 release(后续 export/upload 均 if:success)。
         continue-on-error: true
 
       - name: Export Docker image

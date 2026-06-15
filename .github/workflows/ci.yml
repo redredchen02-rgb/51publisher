@@ -37,3 +37,23 @@ jobs:
 
       - name: Test
         run: pnpm -r test
+
+      - name: E2E (jsdom + real Quill)
+        run: pnpm --filter publisher-fill-assistant test:e2e
+
+      - name: Fixture desensitization gate
+        run: pnpm --filter publisher-fill-assistant check:fixtures
+
+  secret-scan:
+    # 无条件强制密钥闸:本地 git-hook 仅作快速反馈,真正拦截不依赖任何 clone 端配置。
+    # fetch-depth:0 拉全史,使 gitleaks 既扫本次变更也能覆盖历史(清史后一次性确认旧 key 已除)。
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
