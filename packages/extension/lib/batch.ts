@@ -188,6 +188,60 @@ export function retryFromGateFailed(batch: Batch, itemId: string): Batch {
 	});
 }
 
+/** 接地闸门裁决函数签名 —— 与 authorized 发布闸门(batch-orchestrator.ts:399-402)同形。 */
+export type GroundingFn = (
+	draft: ContentDraft,
+	facts?: FactsBlock,
+	qualityScore?: number,
+) => { ok: boolean; reasons: string[] };
+
+/**
+ * 补全缺失事实后的再组装提升:gate-failed → awaiting-approval(U4)。
+ *
+ * 原子性:闸门在本函数内同一次提交里重跑 —— 调用 evaluateGroundingFn(snapshot, facts,
+ * qualityScore),参数形与 authorized 发布闸门(batch-orchestrator.ts:399-402,传 item.facts;
+ * 无来源链接检查依赖 facts)完全一致,故提升裁决与发布裁决不可能背离。一次裁决一次写入,
+ * 消除「gateFailReason 已清而状态仍 gate-failed」的 SW 回收窗口。
+ *
+ *  - PASS → 写 draft/snapshot/facts,清 gateFailReason,状态转 awaiting-approval。
+ *  - FAIL → 写 draft/snapshot/facts,但保留 gateFailReason(更新为残留原因),状态仍 gate-failed。
+ *    非提升写入绝不清除 gateFailReason(不变式④:gate-failed 不得在闸门未过时丢失失败原因)。
+ *
+ * 闸门函数由调用方(Unit 5 background handler)注入,batch.ts 保持纯/不依赖 grounding-gate。
+ */
+export function refillGateFailed(
+	batch: Batch,
+	itemId: string,
+	reassembled: {
+		draft: ContentDraft;
+		snapshot: ContentDraft;
+		facts: FactsBlock;
+	},
+	evaluateGroundingFn: GroundingFn,
+	qualityScore?: number,
+): Batch {
+	const item = batch.items.find((it) => it.id === itemId);
+	// 守卫:仅 gate-failed 可经此路径;其余状态 no-op 原样返回(防越级提升)。
+	if (!item || item.status !== "gate-failed") return batch;
+
+	const { draft, snapshot, facts } = reassembled;
+	const verdict = evaluateGroundingFn(snapshot, facts, qualityScore);
+
+	// 两路均刷新 draft/snapshot/facts;fillResults 引用的是刷新前的旧草稿,故清除
+	// (镜像 retryFromGateFailed 的清除语义,避免审批 UI 据陈旧结果误判)。
+	return transition(batch, itemId, "gate-failed", {
+		draft,
+		assembledDraftSnapshot: { ...snapshot },
+		facts,
+		fillResults: undefined,
+		...(verdict.ok
+			? // PASS:提升并清除失败原因。
+				{ status: "awaiting-approval" as const, gateFailReason: undefined }
+			: // FAIL:保持 gate-failed,更新残留原因(绝不清除)。
+				{ gateFailReason: verdict.reasons.join(" ") }),
+	});
+}
+
 /** 全部 filled 项 → awaiting-approval(批量呈现给人审)。 */
 export function presentForApproval(batch: Batch): Batch {
 	return {

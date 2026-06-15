@@ -1,4 +1,8 @@
-import type { ContentDraft, FieldFillResult } from "@51publisher/shared";
+import type {
+	ContentDraft,
+	FactsBlock,
+	FieldFillResult,
+} from "@51publisher/shared";
 import { describe, expect, it } from "vitest";
 import {
 	abortBatch,
@@ -17,6 +21,7 @@ import {
 	presentForApproval,
 	quarantinedTopics,
 	recoverBatch,
+	refillGateFailed,
 	releaseAllQuarantine,
 	releaseQuarantine,
 	retryBatchItem,
@@ -606,5 +611,112 @@ describe("gate-failed 状态机", () => {
 		b = markGateFailed(b, "item_0", "no-source-link");
 		expect(b.items[0]?.status).toBe("gate-failed");
 		expect(b.items[0]?.pendingTopicId).toBe("topic-uuid-123"); // 字段保留
+	});
+});
+
+// ================================================================
+// Unit 4 — refillGateFailed: gate-failed → awaiting-approval 原子提升
+// ================================================================
+
+describe("refillGateFailed", () => {
+	const facts: FactsBlock = { 作品名: "某作", 集数: "第3集" };
+
+	/** 推一条 item 到 gate-failed 态。 */
+	function toGateFailed(reason = "残留【待补】"): Batch {
+		let b = newBatch(["x"]);
+		b = markGenerating(b, "item_0");
+		b = markFilled(b, "item_0", draftFor("item_0"));
+		b = markGateFailed(b, "item_0", reason);
+		return b;
+	}
+
+	it("happy:闸门通过 → awaiting-approval,gateFailReason 清除", () => {
+		const b = toGateFailed();
+		const snapshot = draftFor("item_0");
+		const okGate = () => ({ ok: true, reasons: [] });
+		const after = refillGateFailed(
+			b,
+			"item_0",
+			{ draft: snapshot, snapshot, facts },
+			okGate,
+		);
+		expect(after.items[0]?.status).toBe("awaiting-approval");
+		expect(after.items[0]?.gateFailReason).toBeUndefined();
+		expect(after.items[0]?.draft).toEqual(snapshot);
+		expect(after.items[0]?.assembledDraftSnapshot).toEqual(snapshot);
+		expect(after.items[0]?.facts).toEqual(facts);
+	});
+
+	it("edge:闸门失败 → 仍 gate-failed,draft/snapshot/facts 已写,残留原因被设置(非清除)", () => {
+		const b = toGateFailed("旧原因");
+		const snapshot = draftFor("item_0");
+		const failGate = () => ({ ok: false, reasons: ["标题仍含【待补】"] });
+		const after = refillGateFailed(
+			b,
+			"item_0",
+			{ draft: snapshot, snapshot, facts },
+			failGate,
+		);
+		expect(after.items[0]?.status).toBe("gate-failed");
+		expect(after.items[0]?.gateFailReason).toBe("标题仍含【待补】");
+		// draft/snapshot/facts 仍被刷新写入
+		expect(after.items[0]?.draft).toEqual(snapshot);
+		expect(after.items[0]?.assembledDraftSnapshot).toEqual(snapshot);
+		expect(after.items[0]?.facts).toEqual(facts);
+	});
+
+	it("atomicity:返回项 (status, gateFailReason) 一致 —— 无「已清原因+仍 gate-failed」中间态", () => {
+		const b = toGateFailed();
+		const snapshot = draftFor("item_0");
+		const failGate = () => ({ ok: false, reasons: ["残留"] });
+		const after = refillGateFailed(
+			b,
+			"item_0",
+			{ draft: snapshot, snapshot, facts },
+			failGate,
+		);
+		const it0 = after.items[0];
+		// 不变式:gate-failed 必有失败原因;awaiting-approval 必无。
+		if (it0?.status === "gate-failed") {
+			expect(it0.gateFailReason).toBeTruthy();
+		} else {
+			expect(it0?.status).toBe("awaiting-approval");
+			expect(it0?.gateFailReason).toBeUndefined();
+		}
+	});
+
+	it("verdict-shape:闸门以 (snapshot, facts, qualityScore) 调用 —— 与发布闸门同形", () => {
+		const b = toGateFailed();
+		const snapshot = draftFor("item_0");
+		const calls: unknown[][] = [];
+		const spyGate = (...args: unknown[]) => {
+			calls.push(args);
+			return { ok: true, reasons: [] };
+		};
+		refillGateFailed(
+			b,
+			"item_0",
+			{ draft: snapshot, snapshot, facts },
+			spyGate as never,
+			0.9,
+		);
+		expect(calls).toHaveLength(1);
+		expect(calls[0]).toEqual([snapshot, facts, 0.9]);
+	});
+
+	it("error:非 gate-failed 状态调用 → batch 原样返回(no-op)", () => {
+		let b = newBatch(["x"]);
+		b = markGenerating(b, "item_0");
+		b = markFilled(b, "item_0", draftFor("item_0"));
+		b = presentForApproval(b); // awaiting-approval
+		const snapshot = draftFor("item_0");
+		const okGate = () => ({ ok: true, reasons: [] });
+		const after = refillGateFailed(
+			b,
+			"item_0",
+			{ draft: snapshot, snapshot, facts },
+			okGate,
+		);
+		expect(after).toBe(b); // 引用相等 —— 完全未改
 	});
 });
