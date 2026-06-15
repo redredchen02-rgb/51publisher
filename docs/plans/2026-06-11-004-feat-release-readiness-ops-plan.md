@@ -70,7 +70,7 @@ origin: docs/brainstorms/2026-06-11-release-readiness-requirements.md
 
 ## Implementation Units
 
-- [ ] **Unit 0: LLM_API_KEY 立即轮换(操作者协同,不依赖其他单元)**
+- [~] **Unit 0: LLM_API_KEY 立即轮换(操作者协同,不依赖其他单元)**
 
 **Goal:** 关闭持续暴露的泄漏风险。
 
@@ -141,7 +141,7 @@ origin: docs/brainstorms/2026-06-11-release-readiness-requirements.md
 
 **Verification:** 新鲜 shared dist 下 `pnpm compile` 全绿;`pnpm test` 全绿。
 
-- [ ] **Unit 3: JWT 凭证轮换与验证(操作者协同)**
+- [~] **Unit 3: JWT 凭证轮换与验证(操作者协同)**
 
 **Goal:** 完成 U8/U14 遗留的 JWT 类轮换。
 
