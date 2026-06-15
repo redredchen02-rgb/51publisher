@@ -29,9 +29,9 @@ describe("prompt-client (characterization)", () => {
 		const r = await fetchPrompts();
 		expect(r.ok).toBe(true);
 		expect(r.prompts).toHaveLength(1);
-		expect(
-			(calls[0]?.headers as Record<string, string>).Authorization,
-		).toBe("Bearer tok");
+		expect((calls[0]?.headers as Record<string, string>).Authorization).toBe(
+			"Bearer tok",
+		);
 	});
 
 	it("fetchPrompts: 401 → {ok:false} 且清 token", async () => {

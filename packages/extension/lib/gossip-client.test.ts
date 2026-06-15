@@ -34,9 +34,9 @@ describe("gossip-client (characterization)", () => {
 		const { calls } = stubFetch({ ok: true, sites: [{ id: "s1" }] });
 		const sites = await fetchGossipSites();
 		expect(sites).toHaveLength(1);
-		expect(
-			(calls[0]?.headers as Record<string, string>).Authorization,
-		).toBe("Bearer tok");
+		expect((calls[0]?.headers as Record<string, string>).Authorization).toBe(
+			"Bearer tok",
+		);
 	});
 
 	it("fetchGossipSites: 401 → 抛 Unauthorized 且清 token", async () => {
@@ -71,8 +71,8 @@ describe("gossip-client (characterization)", () => {
 
 	it("fetchGossipTopicFromUrl: 409 → 抛 DUPLICATE_URL", async () => {
 		stubFetch({}, 409);
-		await expect(
-			fetchGossipTopicFromUrl("https://x/", "site"),
-		).rejects.toThrow("DUPLICATE_URL");
+		await expect(fetchGossipTopicFromUrl("https://x/", "site")).rejects.toThrow(
+			"DUPLICATE_URL",
+		);
 	});
 });
