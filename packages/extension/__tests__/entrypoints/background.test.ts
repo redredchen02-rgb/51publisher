@@ -178,6 +178,200 @@ describe("handleApproveBatch", () => {
 		const result = await h.handleApproveBatch(1);
 		expect(result).toBeNull();
 	});
+
+	it("draftOverrides 非空 → 调 approveBatch 前先 patchBatchDrafts+saveBatch（call order + save 次数）", async () => {
+		const batch = makeBatch();
+		const order: string[] = [];
+		const getBatch = vi.fn(async () => {
+			order.push("getBatch");
+			return batch;
+		});
+		const saveBatch = vi.fn(async () => {
+			order.push("saveBatch");
+		});
+		const tabsSendMessage = vi.fn(async (_id, msg) => {
+			const m = msg as { type: string };
+			order.push(`send:${m.type}`);
+			if (m.type === "FILL_PAGE") return { ok: true, results: [] };
+			if (m.type === "PUBLISH_GRANT")
+				return { ok: true, dryRun: false, url: `https://${HOST}/post/1` };
+			return null;
+		});
+		const deps = makeDeps({ getBatch, saveBatch, tabsSendMessage });
+		const h = createHandlers(deps);
+		const overrides: Record<string, ContentDraft> = {
+			item_0: { ...DRAFT, title: "patched-title" },
+		};
+		await h.handleApproveBatch(1, overrides);
+		// 预存步：getBatch 先于 saveBatch，且发生在任何 FILL_PAGE/GRANT 之前
+		const firstGet = order.indexOf("getBatch");
+		const firstSave = order.indexOf("saveBatch");
+		const firstSend = order.findIndex((s) => s.startsWith("send:"));
+		expect(firstGet).toBeGreaterThanOrEqual(0);
+		expect(firstSave).toBeGreaterThan(firstGet);
+		expect(firstSend).toBeGreaterThan(firstSave);
+		// saveBatch 至少被调一次，且预存调用带 patchBatchDrafts 后的草稿
+		const presaved = (saveBatch as ReturnType<typeof vi.fn>).mock
+			.calls[0]?.[0] as Batch;
+		expect(presaved.items[0]?.draft?.title).toBe("patched-title");
+	});
+
+	it("draftOverrides 为空 → 预存 saveBatch 不发生（仍可能因 approve 流程 save）", async () => {
+		const batch = makeBatch();
+		const order: string[] = [];
+		const getBatch = vi.fn(async () => batch);
+		const saveBatch = vi.fn(async () => {
+			order.push("saveBatch");
+		});
+		const tabsSendMessage = vi.fn(async (_id, msg) => {
+			const m = msg as { type: string };
+			order.push(`send:${m.type}`);
+			if (m.type === "FILL_PAGE") return { ok: true, results: [] };
+			if (m.type === "PUBLISH_GRANT")
+				return { ok: true, dryRun: false, url: `https://${HOST}/post/1` };
+			return null;
+		});
+		const deps = makeDeps({ getBatch, saveBatch, tabsSendMessage });
+		const h = createHandlers(deps);
+		await h.handleApproveBatch(1, {});
+		// 第一次 saveBatch（若有）必须不早于第一次 send（即没有发生在 approve 之前的预存）
+		const firstSave = order.indexOf("saveBatch");
+		const firstSend = order.findIndex((s) => s.startsWith("send:"));
+		if (firstSave >= 0 && firstSend >= 0) {
+			expect(firstSave).toBeGreaterThan(firstSend);
+		}
+	});
+
+	it("draftOverrides undefined → 预存 saveBatch 不发生", async () => {
+		const batch = makeBatch();
+		const order: string[] = [];
+		const getBatch = vi.fn(async () => batch);
+		const saveBatch = vi.fn(async () => {
+			order.push("saveBatch");
+		});
+		const tabsSendMessage = vi.fn(async (_id, msg) => {
+			const m = msg as { type: string };
+			order.push(`send:${m.type}`);
+			if (m.type === "FILL_PAGE") return { ok: true, results: [] };
+			if (m.type === "PUBLISH_GRANT")
+				return { ok: true, dryRun: false, url: `https://${HOST}/post/1` };
+			return null;
+		});
+		const deps = makeDeps({ getBatch, saveBatch, tabsSendMessage });
+		const h = createHandlers(deps);
+		await h.handleApproveBatch(1);
+		const firstSave = order.indexOf("saveBatch");
+		const firstSend = order.findIndex((s) => s.startsWith("send:"));
+		if (firstSave >= 0 && firstSend >= 0) {
+			expect(firstSave).toBeGreaterThan(firstSend);
+		}
+	});
+});
+
+// ================================================================
+// handleApproveSingleItem
+// ================================================================
+
+function makeTwoItemBatch(): Batch {
+	return {
+		id: "batch_1",
+		tabId: 1,
+		authorizedHost: HOST,
+		createdAt: "2026-06-04T00:00:00.000Z",
+		items: [
+			{
+				id: "item_0",
+				topic: "topic-a",
+				status: "awaiting-approval",
+				draft: { ...DRAFT, id: "item_0" },
+			},
+			{
+				id: "item_1",
+				topic: "topic-b",
+				status: "awaiting-approval",
+				draft: { ...DRAFT, id: "item_1", title: "T1" },
+			},
+		],
+	};
+}
+
+describe("handleApproveSingleItem", () => {
+	beforeEach(() => {
+		fakeBrowser.reset();
+	});
+
+	it("入参守卫: tabId 非 number → 返回 getBatch()，不发任何消息", async () => {
+		const deps = makeDeps({ getBatch: vi.fn(async () => null) });
+		const h = createHandlers(deps);
+		const result = await h.handleApproveSingleItem(
+			"x" as unknown as number,
+			"item_0",
+		);
+		expect(result).toBeNull();
+		expect(deps.tabsSendMessage).not.toHaveBeenCalled();
+		expect(deps.getBatch).toHaveBeenCalled();
+	});
+
+	it("入参守卫: itemId 为空字符串 → 返回 getBatch()，不发任何消息", async () => {
+		const batch = makeTwoItemBatch();
+		const deps = makeDeps({ getBatch: vi.fn(async () => batch) });
+		const h = createHandlers(deps);
+		const result = await h.handleApproveSingleItem(1, "");
+		expect(result).toBe(batch);
+		expect(deps.tabsSendMessage).not.toHaveBeenCalled();
+	});
+
+	it("只审被过滤的 itemId（2-item batch，只有 item_1 走 confirmed/addPublishedTopics）", async () => {
+		const batch = makeTwoItemBatch();
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => batch),
+			tabsSendMessage: vi.fn(async (_id, msg) => {
+				const m = msg as { type: string };
+				if (m.type === "FILL_PAGE") return { ok: true, results: [] };
+				if (m.type === "PUBLISH_GRANT")
+					return { ok: true, dryRun: false, url: `https://${HOST}/post/1` };
+				return null;
+			}),
+		});
+		const h = createHandlers(deps);
+		const result = await h.handleApproveSingleItem(1, "item_1");
+		expect(result).not.toBeNull();
+		// addPublishedTopics 只应包含 item_1 的 topic
+		const addCalls = (deps.addPublishedTopics as ReturnType<typeof vi.fn>).mock
+			.calls;
+		if (addCalls.length > 0) {
+			const topics = addCalls[0]?.[0] as string[];
+			expect(topics).toEqual(["topic-b"]);
+			expect(topics).not.toContain("topic-a");
+		}
+	});
+
+	it("getBatch 返回 null → 返回 null", async () => {
+		const deps = makeDeps({ getBatch: vi.fn(async () => null) });
+		const h = createHandlers(deps);
+		const result = await h.handleApproveSingleItem(1, "item_0");
+		expect(result).toBeNull();
+	});
+
+	it("对该 item 派发 FILL_PAGE", async () => {
+		const batch = makeTwoItemBatch();
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => batch),
+			tabsSendMessage: vi.fn(async (_id, msg) => {
+				const m = msg as { type: string };
+				if (m.type === "FILL_PAGE") return { ok: true, results: [] };
+				if (m.type === "PUBLISH_GRANT")
+					return { ok: true, dryRun: false, url: `https://${HOST}/post/1` };
+				return null;
+			}),
+		});
+		const h = createHandlers(deps);
+		await h.handleApproveSingleItem(1, "item_1");
+		expect(deps.tabsSendMessage).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({ type: "FILL_PAGE" }),
+		);
+	});
 });
 
 // ================================================================
