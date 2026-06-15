@@ -1,3 +1,5 @@
+import type { LookupAddress } from "node:dns";
+import { lookup } from "node:dns/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	assertUrlSafe,
@@ -5,6 +7,14 @@ import {
 	SsrfError,
 	safeFetch,
 } from "./ssrf-guard.js";
+
+// Wrap node:dns lookup so individual tests can override one resolution via
+// mockResolvedValueOnce; all other calls delegate to the real resolver, so the
+// localhost / real-host tests below keep their genuine behavior.
+vi.mock("node:dns/promises", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("node:dns/promises")>();
+	return { ...actual, lookup: vi.fn(actual.lookup) };
+});
 
 describe("isPublicUnicastIp", () => {
 	it("allows public unicast addresses", () => {
@@ -102,6 +112,31 @@ describe("assertUrlSafe", () => {
 		await expect(assertUrlSafe("https://1.1.1.1/")).resolves.toBeInstanceOf(
 			URL,
 		);
+	});
+
+	// Multi-record DNS: a public hostname that resolves to several addresses,
+	// one of which is private (DNS-poisoning / split-horizon). assertUrlSafe
+	// checks EVERY resolved address, so any private record must reject.
+	// (True DNS-rebind across the assertUrlSafe→fetch boundary is an accepted
+	// residual — see ssrf-guard.ts header; bounded by the upstream allowlist.)
+	it("rejects a host whose multi-record DNS includes a private address", async () => {
+		vi.mocked(lookup).mockResolvedValueOnce([
+			{ address: "93.184.216.34", family: 4 },
+			{ address: "10.0.0.5", family: 4 },
+		] as unknown as LookupAddress);
+		await expect(
+			assertUrlSafe("https://multi.example.com/x"),
+		).rejects.toBeInstanceOf(SsrfError);
+	});
+
+	it("accepts a host whose multi-record DNS is all public", async () => {
+		vi.mocked(lookup).mockResolvedValueOnce([
+			{ address: "93.184.216.34", family: 4 },
+			{ address: "1.1.1.1", family: 4 },
+		] as unknown as LookupAddress);
+		await expect(
+			assertUrlSafe("https://allpublic.example.com/x"),
+		).resolves.toBeInstanceOf(URL);
 	});
 });
 
