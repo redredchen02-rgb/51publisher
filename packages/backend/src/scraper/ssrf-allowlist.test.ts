@@ -78,8 +78,9 @@ describe("loadSSRFAllowlist + isHostAllowed (fail-closed 契约)", () => {
 	it("尾点 host example.com. 的实际行为", () => {
 		const cfg = load("example.com");
 		const url = new URL("https://example.com./x");
-		// [BUG] fail-closed 契约下尾点应被规范化或拒绝;当前实现按字面 ===
-		// 比较,"example.com." !== "example.com" → 拒绝(恰好安全方向)。
+		// fail-closed 契约:allowlist 只放行精确匹配的 host;尾点变体
+		// "example.com." !== "example.com" → 拒绝。对 allowlist 而言「非精确即拒」
+		// 正是应然方向(宁可拒一个变体,不可误放),非 bug、非锁死错误行为。
 		expect(url.hostname).toBe("example.com.");
 		expect(isHostAllowed(url, cfg)).toBe(false);
 

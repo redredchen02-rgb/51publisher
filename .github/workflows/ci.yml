@@ -59,6 +59,9 @@ jobs:
         run: |
           pnpm --filter publisher-backend build
           pnpm --filter publisher-fill-assistant build
-          test -d packages/extension/.output || { echo "✗ 扩展产物 .output 缺失"; exit 1; }
-          test -d packages/backend/dist || { echo "✗ 后端产物 dist 缺失"; exit 1; }
-          echo "✓ 双端产物存在"
+          # 断言关键产物文件存在(非仅目录),避免空/坏 build 通过 test -d。
+          test -f packages/extension/.output/chrome-mv3/manifest.json \
+            || { echo "✗ 扩展产物缺 chrome-mv3/manifest.json(build 可能空/坏)"; exit 1; }
+          ls packages/backend/dist/*.js >/dev/null 2>&1 \
+            || { echo "✗ 后端产物 dist 无 .js(build 可能空/坏)"; exit 1; }
+          echo "✓ 双端产物存在且含关键文件"
