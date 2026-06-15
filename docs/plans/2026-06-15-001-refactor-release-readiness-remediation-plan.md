@@ -199,7 +199,7 @@ graph TB
 
 **Verification:** CI 一次运行即跑 compile + test + e2e + check:fixtures + gitleaks；故意注入的机密/漂移/回归会让对应 job 失败；release.yml 在测试红时阻断发布。
 
-- [ ] **Unit B1: 首飞 runbook + 冒烟验证基线**
+- [x] **Unit B1: 首飞 runbook（文档已产出；真发冒烟为运营者动作）**
 
 **Goal:** 把散落的首飞待办固化成可勾选 runbook，并由运营者跑一次真实发布冒烟，确立「填充基线真实有效」——D 组重构的前提。
 

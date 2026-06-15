@@ -23,7 +23,7 @@ platform: universal
 
 **测试基线（2026-06-10）**：后端 109 通过、扩展 315 通过、workspace `pnpm -r compile` 全绿。
 
-**待运营者动作（未做）：**
+**待运营者动作（未做）：** 完整有序清单见 `docs/runbooks/first-flight-runbook.md`（2026-06-15 固化，严格有序：先 revoke 密钥→CORS→dry-run→真发→push）。
 - **推送**：先确认 GitHub `redredchen02-rgb/51publisher` 私有 → `git push` feat 分支与 rescue 分支
 - **U8/U14 首飞前轮换**：用 `hash-password.mjs` 生成 `JWT_ADMIN_PASSWORD_HASH`、换强 `JWT_SECRET`、轮换 LLM_API_KEY（probe-grounding.mjs 已从工作区消失，疑曾含 key，无条件轮换）；改 `.env` 后启动会 fail-closed 拒绝弱值
 - **U9 首飞**：两条路径（手动+待审池）各 ≥1 篇真实发布，前台核验，首飞后再备份 data/
