@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeBrowser } from "wxt/testing";
+import { authHeader, mockFetch } from "./__test-utils__/mock-fetch";
 import { getToken, setToken } from "./auth-client";
 import {
 	createGossipSite,
@@ -9,27 +10,19 @@ import {
 	fetchGossipTopicFromUrl,
 } from "./gossip-client";
 
-interface MockResult {
-	capturedUrls: string[];
-	capturedInits: (RequestInit | undefined)[];
-	fn: typeof fetch;
-}
-
-function mockFetch(body: unknown, status = 200): MockResult {
-	const capturedUrls: string[] = [];
-	const capturedInits: (RequestInit | undefined)[] = [];
-	const fn = async (url: string | URL | Request, init?: RequestInit) => {
-		capturedUrls.push(String(url));
-		capturedInits.push(init);
-		return new Response(JSON.stringify(body), { status });
+// 生产默认路径:不注入 fetchFn 时,客户端应回落到 shared 的 fetchWithTimeout。
+// vi.mock 提升到模块顶部,仅影响本文件全部导入。
+vi.mock("@51publisher/shared", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@51publisher/shared")>();
+	return {
+		...actual,
+		fetchWithTimeout: vi.fn(
+			async () => new Response(JSON.stringify({ ok: true, sites: [] })),
+		),
 	};
-	return { capturedUrls, capturedInits, fn: fn as unknown as typeof fetch };
-}
+});
 
-function authHeader(init: RequestInit | undefined): string | undefined {
-	const h = init?.headers as Record<string, string> | undefined;
-	return h?.Authorization;
-}
+import { fetchWithTimeout } from "@51publisher/shared";
 
 const SITE = {
 	id: "s1",
@@ -201,5 +194,61 @@ describe("gossip-client — fetchGossipTopicFromUrl", () => {
 		await expect(
 			fetchGossipTopicFromUrl("https://x.test/1", "site", fn),
 		).rejects.toThrow("Empty response");
+	});
+});
+
+describe("gossip-client — 生产默认路径 (省略 fetchFn → fetchWithTimeout)", () => {
+	const mocked = vi.mocked(fetchWithTimeout);
+
+	beforeEach(async () => {
+		fakeBrowser.reset();
+		await setToken("tok-g");
+		mocked.mockClear();
+	});
+
+	function jsonResponse(body: unknown): Response {
+		return new Response(JSON.stringify(body));
+	}
+
+	function lastCall(): [string | URL | Request, { timeoutMs?: number }?] {
+		const call = mocked.mock.calls[0];
+		if (!call) throw new Error("fetchWithTimeout 未被调用");
+		return call as [string | URL | Request, { timeoutMs?: number }?];
+	}
+
+	it("省略 fetchFn → 各函数命中 fetchWithTimeout,timeoutMs 分档正确 (10s/30s/60s)", async () => {
+		// 默认 10_000 档:fetchGossipSites
+		mocked.mockResolvedValueOnce(jsonResponse({ ok: true, sites: [] }));
+		await fetchGossipSites();
+		expect(mocked).toHaveBeenCalledOnce();
+		{
+			const [url, opts] = lastCall();
+			expect(String(url)).toContain("/api/v1/gossip/sites");
+			expect(opts?.timeoutMs).toBe(10_000);
+		}
+
+		// discoverGossipSite → 30_000
+		mocked.mockClear();
+		mocked.mockResolvedValueOnce(jsonResponse({ ok: true, discovered: [] }));
+		await discoverGossipSite("s1");
+		expect(mocked).toHaveBeenCalledOnce();
+		{
+			const [url, opts] = lastCall();
+			expect(String(url)).toContain("/api/v1/gossip/sites/s1/discover");
+			expect(opts?.timeoutMs).toBe(30_000);
+		}
+
+		// fetchGossipTopicFromUrl → 60_000
+		mocked.mockClear();
+		mocked.mockResolvedValueOnce(
+			jsonResponse({ ok: true, topic: { id: "t1", title: "T" } }),
+		);
+		await fetchGossipTopicFromUrl("https://x.test/1", "site");
+		expect(mocked).toHaveBeenCalledOnce();
+		{
+			const [url, opts] = lastCall();
+			expect(String(url)).toContain("/api/v1/gossip/topics/from-url");
+			expect(opts?.timeoutMs).toBe(60_000);
+		}
 	});
 });

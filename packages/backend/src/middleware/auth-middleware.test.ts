@@ -191,17 +191,27 @@ describe("auth-middleware requireAuth", () => {
 			expect(res.statusCode).toBe(200);
 		});
 
-		it("does not treat a dot-segment variant as public", async () => {
-			// "/api/v1/auth/login/../login" is not the literal public string, so
-			// it must not bypass auth via the Set check.
+		it("normalizes a dot-segment path before the public-route check", async () => {
+			// Fastify/light-my-request normalizes `..` segments, so the handler
+			// sees request.url already collapsed: "/api/v1/foo/../auth/login"
+			// becomes "/api/v1/auth/login" (a genuine public route) => 200.
+			// (Verified empirically: req.url == "/api/v1/auth/login".)
 			const res = await app.inject({
 				method: "GET",
 				url: "/api/v1/foo/../auth/login",
 			});
-			// Either the raw path misses the Set (=> 401) or Fastify normalizes
-			// and routes to the real public login. Both are safe; assert it does
-			// NOT return the protected payload. We accept 401 or the public body.
-			expect([200, 401]).toContain(res.statusCode);
+			expect(res.statusCode).toBe(200);
+		});
+
+		it("does not let a dot-segment reach a protected route unauthenticated", async () => {
+			// Security invariant: a `..` that normalizes onto a PROTECTED route
+			// must still require auth. "/api/v1/auth/login/../protected" collapses
+			// to "/api/v1/protected" (not public) => 401, no traversal bypass.
+			const res = await app.inject({
+				method: "GET",
+				url: "/api/v1/auth/login/../protected",
+			});
+			expect(res.statusCode).toBe(401);
 		});
 	});
 
