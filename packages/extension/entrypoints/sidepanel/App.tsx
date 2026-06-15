@@ -15,6 +15,7 @@ import { ProgressBar } from "./components/ProgressBar";
 import { Toast } from "./components/Toast";
 import { DraftPreview } from "./DraftPreview";
 import { FillResultPanel } from "./FillResultPanel";
+import { GossipView } from "./GossipView";
 import { useAutoSave } from "./hooks/useAutoSave";
 import { useErrorHandler } from "./hooks/useErrorHandler";
 import { useErrorLogger } from "./hooks/useErrorLogger";
@@ -22,7 +23,6 @@ import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useLoadingState } from "./hooks/useLoadingState";
 import { useOperationHistory } from "./hooks/useOperationHistory";
 import { Loading } from "./Loading";
-import { GossipView } from "./GossipView";
 import { PendingTopicsView } from "./PendingTopicsView";
 import { Settings } from "./Settings";
 import { TodayBatchView } from "./TodayBatchView";
@@ -225,7 +225,10 @@ export function App() {
 	if (view === "gossip")
 		return (
 			<Wrap>
-				<GossipView onBack={() => setView("main")} onTopicAdded={() => setView("pending")} />
+				<GossipView
+					onBack={() => setView("main")}
+					onTopicAdded={() => setView("pending")}
+				/>
 			</Wrap>
 		);
 

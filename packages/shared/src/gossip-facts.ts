@@ -27,13 +27,19 @@ export const GOSSIP_FACT_KEYS: GossipFactKey[] = [
 export const GOSSIP_FACTS_SCHEMA = {
 	type: "object",
 	properties: {
-		當事人: { type: ["string", "null"], description: "涉及的人名或組合，逗號分隔" },
+		當事人: {
+			type: ["string", "null"],
+			description: "涉及的人名或組合，逗號分隔",
+		},
 		事件摘要: { type: ["string", "null"], description: "一兩句概括事件核心" },
 		起因: { type: ["string", "null"], description: "事件起因" },
 		經過: { type: ["string", "null"], description: "事件經過" },
 		結果: { type: ["string", "null"], description: "事件結果或當前狀態" },
 		來源連結: { type: ["string", "null"], description: "原文 URL，verbatim" },
-		發生時間: { type: ["string", "null"], description: "事件發生時間，如 2024-05" },
+		發生時間: {
+			type: ["string", "null"],
+			description: "事件發生時間，如 2024-05",
+		},
 		熱度標籤: {
 			type: ["string", "null"],
 			description: "如「出軌」「解約」「撕逼」「公開戀情」，逗號分隔",

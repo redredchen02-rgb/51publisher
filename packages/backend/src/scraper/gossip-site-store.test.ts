@@ -1,3 +1,5 @@
+import { existsSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { GossipSiteConfig } from "./gossip-site-store.js";
 import {
@@ -6,8 +8,6 @@ import {
 	listGossipSites,
 	saveGossipSite,
 } from "./gossip-site-store.js";
-import { existsSync, rmSync } from "node:fs";
-import { join } from "node:path";
 
 // Test-setup.ts has already set PUBLISHER_DATA_DIR to an isolated temp dir.
 // We clear the gossip-sites subdirectory between tests.
@@ -15,7 +15,8 @@ const DATA_DIR = process.env.PUBLISHER_DATA_DIR!;
 const SITES_DIR = join(DATA_DIR, "gossip-sites");
 
 function cleanSites() {
-	if (existsSync(SITES_DIR)) rmSync(SITES_DIR, { recursive: true, force: true });
+	if (existsSync(SITES_DIR))
+		rmSync(SITES_DIR, { recursive: true, force: true });
 }
 
 function makeSite(overrides: Partial<GossipSiteConfig> = {}): GossipSiteConfig {

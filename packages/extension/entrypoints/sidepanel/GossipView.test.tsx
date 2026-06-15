@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+	cleanup,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GossipView } from "./GossipView";
 
@@ -81,7 +87,10 @@ describe("GossipView", () => {
 		fireEvent.click(screen.getByText("新增"));
 
 		await waitFor(() => {
-			expect(mockCreateSite).toHaveBeenCalledWith("新站點", "https://new-gossip.com/latest");
+			expect(mockCreateSite).toHaveBeenCalledWith(
+				"新站點",
+				"https://new-gossip.com/latest",
+			);
 		});
 	});
 
@@ -125,12 +134,16 @@ describe("GossipView", () => {
 
 	it("POST /gossip/sites 返回錯誤 → 顯示錯誤訊息不 crash", async () => {
 		mockFetchSites.mockResolvedValueOnce([]);
-		mockCreateSite.mockRejectedValueOnce(new Error("Invalid listUrl: IP literal URLs are not allowed"));
+		mockCreateSite.mockRejectedValueOnce(
+			new Error("Invalid listUrl: IP literal URLs are not allowed"),
+		);
 
 		render(<GossipView onBack={onBack} onTopicAdded={onTopicAdded} />);
 		await waitFor(() => screen.getByPlaceholderText("站點名稱"));
 
-		fireEvent.change(screen.getByPlaceholderText("站點名稱"), { target: { value: "壞站點" } });
+		fireEvent.change(screen.getByPlaceholderText("站點名稱"), {
+			target: { value: "壞站點" },
+		});
 		fireEvent.change(screen.getByPlaceholderText(/清單頁 URL/), {
 			target: { value: "http://192.168.1.1/list" },
 		});
@@ -144,7 +157,9 @@ describe("GossipView", () => {
 	it("discover API 返回錯誤 → 顯示錯誤橫幅，清單保留上次結果", async () => {
 		mockFetchSites.mockResolvedValueOnce([makeSite("site-a", "站點A")]);
 		mockDiscover
-			.mockResolvedValueOnce([{ url: "https://site-a.com/article/1", title: "舊文章" }])
+			.mockResolvedValueOnce([
+				{ url: "https://site-a.com/article/1", title: "舊文章" },
+			])
 			.mockRejectedValueOnce(new Error("網路錯誤"));
 
 		render(<GossipView onBack={onBack} onTopicAdded={onTopicAdded} />);
