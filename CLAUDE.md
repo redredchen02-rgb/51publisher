@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `packages/backend/` — Fastify 5 + TypeScript,端口 3001(JWT 鉴权、批次同步、抓取/选题管线)
 - `packages/shared/` — 跨端共享类型与纯逻辑(field-mapping、post-assembler、vocab、facts)
 
-仓库 remote 是 **GitLab**(gitlab.com/redredchen01/51publisher);`.github/workflows/` 是休眠的存档,活跃 CI 是根目录 `.gitlab-ci.yml`。
+仓库 remote 是 **GitHub**(github.com/redredchen02-rgb/51publisher);活跃 CI 是 `.github/workflows/ci.yml`(+ `release.yml`)。仓库内**无** `.gitlab-ci.yml`。
 
 会话开始时读 `.ai-memory/*.md` 获取前序会话的项目状态与经验(见 AGENTS.md)。
 
@@ -66,7 +66,7 @@ npx vitest run -t "测试名"                     # 按名称过滤
 
 ### 后端
 
-- 路由按模块分文件 `src/*-routes.ts`,在 `index.ts` 统一 `register*Routes(server)`;JWT 鉴权 preHandler,`PUBLIC_ROUTES` 白名单放行
+- 路由按模块分文件 `src/*-routes.ts`,`register*Routes(app)` 集中在 `app.ts` 的 `buildApp`(约 85–97 行);`index.ts` 仅在启动路径单独调 `registerDraftRoutes(app)`;JWT 鉴权 preHandler,`PUBLIC_ROUTES` 白名单放行
 - 存储双轨:batch/prompt 用 JSON 文件存储,pending/config 用 SQLite(better-sqlite3)。均读 `PUBLISHER_DATA_DIR`;vitest 经 `src/test-setup.ts` 指向临时目录,测试不碰真实 `data/`
 - `src/scraper/` — 选题抓取管线:站点 adapter(`adapters/`)、SSRF 守卫(`ssrf-guard.ts`,allowlist fail-closed)、cron 调度器(需 `ACGS51_ENABLED=true` + LLM 配置齐全才启动)
 - 扩展对后端的调用统一走 `authHeaders()` + 401 时 `clearToken()` 模式;批次双写用 `withBackendSync(localSave)` 包装
