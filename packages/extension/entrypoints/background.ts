@@ -14,6 +14,7 @@ import {
 	releaseQuarantine,
 } from "../lib/batch";
 import {
+	type ApproveBatchDeps,
 	approveBatch,
 	discardBatchItem,
 	retryItem,
@@ -275,10 +276,87 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 		}
 	}
 
+	// 构造两条 approve 路径共享的 ApproveBatchDeps;itemIdFilter 仅在传入时设置。
+	function buildApproveDeps(
+		tabId: number,
+		itemIdFilter?: string,
+	): ApproveBatchDeps {
+		return {
+			getBatch: deps.getBatch,
+			save: deps.saveBatch,
+			pinnedHostOk,
+			sendFill: async (draft: ContentDraft) => {
+				try {
+					return (await deps.tabsSendMessage(tabId, {
+						type: "FILL_PAGE",
+						draft,
+					})) as FillPageResponse;
+				} catch {
+					return { ok: false, error: "fill-unreachable" };
+				}
+			},
+			evaluateGate: () => evaluateGate(tabId),
+			sendGrant: async () => {
+				try {
+					return asPublishResult(
+						await deps.tabsSendMessage(tabId, { type: "PUBLISH_GRANT" }),
+					);
+				} catch {
+					return { ok: false, dryRun: false, error: "content-unreachable" };
+				}
+			},
+			appendTrajectory: deps.appendTrajectory,
+			onSnapshotDropped: (itemId) =>
+				console.warn(
+					`[bg] 轨迹快照含机密被丢弃(record 已落,无快照) itemId=${itemId}`,
+				),
+			saveDryRunReportFn: deps.saveDryRunReportFn,
+			writeTombstone: deps.writeTombstone,
+			clearTombstone: deps.clearTombstone,
+			checkGrounding: evaluateGrounding,
+			recordPost: deps.recordPost ?? recordPublishedPost,
+			...(itemIdFilter ? { itemIdFilter } : {}),
+		};
+	}
+
+	// 单一 approve 核心;两条消息入口共用。itemIdFilter 同时控制 approveBatch
+	// 的过滤与 confirmedTopics 的过滤,保留两条路径合并前的全部差异分支。
+	async function runApprove(
+		tabId: number,
+		itemIdFilter?: string,
+	): Promise<Batch | null> {
+		try {
+			const result = await approveBatch(buildApproveDeps(tabId, itemIdFilter));
+			if (result) {
+				const confirmedTopics = result.items
+					.filter(
+						(it) =>
+							it.status === "publish-confirmed" &&
+							(!itemIdFilter || it.id === itemIdFilter),
+					)
+					.map((it) => it.topic);
+				if (confirmedTopics.length > 0) {
+					deps
+						.addPublishedTopics(confirmedTopics)
+						.catch((e) =>
+							console.warn("[bg] addPublishedTopics 写入失败(best-effort)", e),
+						);
+				}
+			}
+			return result;
+		} catch (err) {
+			console.error("[bg] 发布失败", err);
+			return deps.getBatch();
+		}
+	}
+
 	async function handleApproveBatch(
 		tabId: number,
 		draftOverrides?: Record<string, ContentDraft>,
 	): Promise<Batch | null> {
+		// batch 入口独有:draftOverrides → patchBatchDrafts → saveBatch 预存步,
+		// 必须在 approveBatch 之前发生。注意 try/catch 包住预存步以保持原行为
+		// (预存失败也走 getBatch() 回退)。
 		try {
 			if (draftOverrides && Object.keys(draftOverrides).length > 0) {
 				const current = await deps.getBatch();
@@ -286,120 +364,21 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 					await deps.saveBatch(patchBatchDrafts(current, draftOverrides));
 				}
 			}
-			const result = await approveBatch({
-				getBatch: deps.getBatch,
-				save: deps.saveBatch,
-				pinnedHostOk,
-				sendFill: async (draft: ContentDraft) => {
-					try {
-						return (await deps.tabsSendMessage(tabId, {
-							type: "FILL_PAGE",
-							draft,
-						})) as FillPageResponse;
-					} catch {
-						return { ok: false, error: "fill-unreachable" };
-					}
-				},
-				evaluateGate: () => evaluateGate(tabId),
-				sendGrant: async () => {
-					try {
-						return asPublishResult(
-							await deps.tabsSendMessage(tabId, { type: "PUBLISH_GRANT" }),
-						);
-					} catch {
-						return { ok: false, dryRun: false, error: "content-unreachable" };
-					}
-				},
-				appendTrajectory: deps.appendTrajectory,
-				onSnapshotDropped: (itemId) =>
-					console.warn(
-						`[bg] 轨迹快照含机密被丢弃(record 已落,无快照) itemId=${itemId}`,
-					),
-				saveDryRunReportFn: deps.saveDryRunReportFn,
-				writeTombstone: deps.writeTombstone,
-				clearTombstone: deps.clearTombstone,
-				checkGrounding: evaluateGrounding,
-				recordPost: deps.recordPost ?? recordPublishedPost,
-			});
-			if (result) {
-				const confirmedTopics = result.items
-					.filter((it) => it.status === "publish-confirmed")
-					.map((it) => it.topic);
-				if (confirmedTopics.length > 0) {
-					deps
-						.addPublishedTopics(confirmedTopics)
-						.catch((e) =>
-							console.warn("[bg] addPublishedTopics 写入失败(best-effort)", e),
-						);
-				}
-			}
-			return result;
 		} catch (err) {
-			console.error("[bg] 批量发布失败", err);
+			console.error("[bg] 发布失败", err);
 			return deps.getBatch();
 		}
+		return runApprove(tabId);
 	}
 
 	async function handleApproveSingleItem(
 		tabId: number,
 		itemId: string,
 	): Promise<Batch | null> {
+		// single 入口独有:入参守卫。
 		if (typeof tabId !== "number" || typeof itemId !== "string" || !itemId)
 			return deps.getBatch();
-		try {
-			const result = await approveBatch({
-				getBatch: deps.getBatch,
-				save: deps.saveBatch,
-				pinnedHostOk,
-				sendFill: async (draft: ContentDraft) => {
-					try {
-						return (await deps.tabsSendMessage(tabId, {
-							type: "FILL_PAGE",
-							draft,
-						})) as FillPageResponse;
-					} catch {
-						return { ok: false, error: "fill-unreachable" };
-					}
-				},
-				evaluateGate: () => evaluateGate(tabId),
-				sendGrant: async () => {
-					try {
-						return asPublishResult(
-							await deps.tabsSendMessage(tabId, { type: "PUBLISH_GRANT" }),
-						);
-					} catch {
-						return { ok: false, dryRun: false, error: "content-unreachable" };
-					}
-				},
-				appendTrajectory: deps.appendTrajectory,
-				onSnapshotDropped: (id) =>
-					console.warn(
-						`[bg] 轨迹快照含机密被丢弃(record 已落,无快照) itemId=${id}`,
-					),
-				saveDryRunReportFn: deps.saveDryRunReportFn,
-				writeTombstone: deps.writeTombstone,
-				clearTombstone: deps.clearTombstone,
-				checkGrounding: evaluateGrounding,
-				recordPost: deps.recordPost ?? recordPublishedPost,
-				itemIdFilter: itemId,
-			});
-			if (result) {
-				const confirmedTopics = result.items
-					.filter((it) => it.id === itemId && it.status === "publish-confirmed")
-					.map((it) => it.topic);
-				if (confirmedTopics.length > 0) {
-					deps
-						.addPublishedTopics(confirmedTopics)
-						.catch((e) =>
-							console.warn("[bg] addPublishedTopics 写入失败(best-effort)", e),
-						);
-				}
-			}
-			return result;
-		} catch (err) {
-			console.error("[bg] 单条发布失败", err);
-			return deps.getBatch();
-		}
+		return runApprove(tabId, itemId);
 	}
 
 	async function handleKillBatch(): Promise<Batch | null> {
