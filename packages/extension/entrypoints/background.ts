@@ -177,6 +177,9 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 		}
 	}
 
+	// ⚠️ 单条手动发布路径:内容在目标页表单里,background 侧无 item.draft/assembledDraftSnapshot/facts,
+	// 因此当前不经 grounding 双求值闸(批量审批路径已覆盖,见 buildApproveDeps 的 checkGrounding)。
+	// 统一覆盖单条路径需架构设计(从页面回读 draft + 快照来源),属 Phase 2(plan R9)。
 	async function handlePublish(tabId: number): Promise<PublishResult> {
 		try {
 			return await orchestratePublish({

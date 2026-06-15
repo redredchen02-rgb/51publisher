@@ -73,4 +73,37 @@ describe("evaluateGrounding", () => {
 		expect(v.ok).toBe(false);
 		expect(v.reasons.join()).toContain("标题");
 	});
+
+	it("副标题被手编留下【待补】→ 拦", () => {
+		const clean = draftFrom(FULL);
+		const tampered: ContentDraft = {
+			...clean,
+			subtitle: `${clean.subtitle}【待补】`,
+		};
+		const v = evaluateGrounding(tampered, FULL);
+		expect(v.ok).toBe(false);
+		expect(v.reasons.join()).toContain("副标题");
+	});
+
+	it("描述被手编留下【待补】→ 拦", () => {
+		const clean = draftFrom(FULL);
+		const tampered: ContentDraft = {
+			...clean,
+			description: `${clean.description}【待补】`,
+		};
+		const v = evaluateGrounding(tampered, FULL);
+		expect(v.ok).toBe(false);
+		expect(v.reasons.join()).toContain("描述");
+	});
+
+	it("干净副标题/描述 → 放行(不误拦)", () => {
+		const clean = draftFrom(FULL);
+		const edited: ContentDraft = {
+			...clean,
+			subtitle: "操作者润色后的副标题",
+			description: "操作者润色后的描述。",
+		};
+		const v = evaluateGrounding(edited, FULL);
+		expect(v.ok).toBe(true);
+	});
 });

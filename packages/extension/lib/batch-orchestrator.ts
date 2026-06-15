@@ -325,20 +325,32 @@ export async function approveBatch(
 		if (item?.status !== "awaiting-approval" || !item.draft) continue;
 		if (!(await pinnedHostOk(batch))) break;
 
-		// 发布前 grounding 硬闸:仅 authorized 档拦截(残留【待补】/无来源连结 → 该条转 error,不 dispatch)。
+		// 发布前 grounding 硬闸:仅 authorized 档拦截。
+		// 闸必须覆盖「实际将发布的 artifact」—— sendFill 填的是 item.draft(含手编)。
+		// 故对 snapshot(防 AI 重写洗【待补】,见 2026-06-11 修复)与最终 draft(防手编注入)
+		// 各求值一次,任一不过即拦;snapshot 缺失 fail-closed 直接拦,不回退可编辑 draft。
 		if (checkGrounding) {
 			const gate = await evaluateGate();
 			if (gate.mode === "authorized") {
-				const verdict = checkGrounding(
-					item.assembledDraftSnapshot ?? item.draft,
-					item.facts,
-				);
-				if (!verdict.ok) {
-					batch = markGenerateFailed(
+				if (!item.assembledDraftSnapshot) {
+					batch = markGateFailed(
 						batch,
 						item.id,
-						`grounding-blocked: ${verdict.reasons.join(" ")}`,
+						"缺发布快照(assembledDraftSnapshot),请重新生成后再发。",
 					);
+					await save(batch);
+					continue;
+				}
+				const vSnapshot = checkGrounding(
+					item.assembledDraftSnapshot,
+					item.facts,
+				);
+				const vFinal = checkGrounding(item.draft, item.facts);
+				if (!vSnapshot.ok || !vFinal.ok) {
+					const reasons = [
+						...new Set([...vSnapshot.reasons, ...vFinal.reasons]),
+					];
+					batch = markGateFailed(batch, item.id, reasons.join(" "));
 					await save(batch);
 					continue;
 				}

@@ -44,7 +44,16 @@ function makeBatch(
 		tabId: 1,
 		authorizedHost: HOST,
 		createdAt: "2026-06-04T00:00:00.000Z",
-		items: [{ id: "item_0", topic: "topic-a", status, draft: DRAFT }],
+		// assembledDraftSnapshot 反映真实生成项:markFilled 落盘快照,供发布期 grounding 双求值闸。
+		items: [
+			{
+				id: "item_0",
+				topic: "topic-a",
+				status,
+				draft: DRAFT,
+				assembledDraftSnapshot: DRAFT,
+			},
+		],
 	};
 }
 
@@ -284,12 +293,14 @@ function makeTwoItemBatch(): Batch {
 				topic: "topic-a",
 				status: "awaiting-approval",
 				draft: { ...DRAFT, id: "item_0" },
+				assembledDraftSnapshot: { ...DRAFT, id: "item_0" },
 			},
 			{
 				id: "item_1",
 				topic: "topic-b",
 				status: "awaiting-approval",
 				draft: { ...DRAFT, id: "item_1", title: "T1" },
+				assembledDraftSnapshot: { ...DRAFT, id: "item_1", title: "T1" },
 			},
 		],
 	};
