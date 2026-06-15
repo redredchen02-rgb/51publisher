@@ -2,6 +2,10 @@ import type { FewShotPair, FieldMapping } from "@51publisher/shared";
 import { isValidFieldMapping, VALID_FIELD_TYPES } from "@51publisher/shared";
 import { useCallback, useEffect, useState } from "react";
 import {
+	type ConnectionTestResult,
+	testConnection,
+} from "../../lib/connection-test";
+import {
 	createPrompt,
 	fetchPrompts,
 	type PromptTemplate,
@@ -68,6 +72,10 @@ export function Settings({ onClose }: { onClose: () => void }) {
 	const [fallbackOpen, setFallbackOpen] = useState(false);
 	const [backendUrl, setBackendUrl] = useState("");
 	const [backendToken, setBackendToken] = useState("");
+	const [testing, setTesting] = useState(false);
+	const [testResult, setTestResult] = useState<ConnectionTestResult | null>(
+		null,
+	);
 	const [fewShotPairs, setFewShotPairs] = useState<FewShotPair[]>([]);
 	const [reviewCriteriaPrompt, setReviewCriteriaPrompt] = useState("");
 	const [dailyBatchSize, setDailyBatchSize] = useState("5");
@@ -170,6 +178,16 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			setPromptStatus(`保存失败: ${result.error ?? "后端不可达"}`);
 		}
 	}, [promptTemplate, fewShotExamples, handleLoadPrompts]);
+
+	const handleTestConnection = useCallback(async () => {
+		setTesting(true);
+		setTestResult(null);
+		try {
+			setTestResult(await testConnection());
+		} finally {
+			setTesting(false);
+		}
+	}, []);
 
 	async function handleSave() {
 		setSaved(false);
@@ -352,6 +370,25 @@ export function Settings({ onClose }: { onClose: () => void }) {
 						value={backendToken}
 						onChange={(e) => setBackendToken(e.target.value)}
 					/>
+				</div>
+				<div className="field-group">
+					<button
+						type="button"
+						className="btn btn-plain btn-sm"
+						onClick={handleTestConnection}
+						disabled={testing}
+					>
+						{testing ? "测试中…" : "测试连接"}
+					</button>
+					{testResult && (
+						<p
+							role="status"
+							className={`field-hint ${testResult.status === "ok" ? "text-success" : "text-warning"}`}
+						>
+							{testResult.status === "ok" ? "✓ " : "✗ "}
+							{testResult.message}
+						</p>
+					)}
 				</div>
 				<div className="field-group">
 					<label htmlFor="daily-batch-size" className="field-label">
