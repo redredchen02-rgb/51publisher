@@ -447,15 +447,16 @@ describe("gate-failed 状态机", () => {
 		expect(b.items[0]?.gateFailReason).toBeUndefined();
 	});
 
-	it("awaiting-approval → gate-failed 越级转移被拒（无此路径）", () => {
+	it("awaiting-approval → gate-failed(approveBatch 发布期硬闸的合法转移)", () => {
 		let b = newBatch(["x"]);
 		b = markGenerating(b, "item_0");
 		b = markFilled(b, "item_0", draftFor("item_0"));
 		b = presentForApproval(b);
 		expect(b.items[0]?.status).toBe("awaiting-approval");
-		// awaiting-approval 不在 markGateFailed 的 from=['filled']，无效
-		const after = markGateFailed(b, "item_0", "should-not-happen");
-		expect(after.items[0]?.status).toBe("awaiting-approval");
+		// 发布期闸:awaiting-approval 手编后复核失败 → gate-failed(操作者可见可 retry)。
+		const after = markGateFailed(b, "item_0", "缺发布快照");
+		expect(after.items[0]?.status).toBe("gate-failed");
+		expect(after.items[0]?.gateFailReason).toBe("缺发布快照");
 	});
 
 	it("abortBatch 对 gate-failed 项生效 → aborted", () => {
