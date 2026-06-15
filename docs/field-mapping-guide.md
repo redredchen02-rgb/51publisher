@@ -9,7 +9,9 @@
   - ⚠️ 子域含 `dx-999` 模式,疑似可能轮换;`host_permissions` 可能需要 `*://*.ympxbys.xyz/*` 而非写死单一子域(实现时确认)。
 - 内容类型:**文章 webarticle**。列表页 `/admin/webarticle/index`。
 - 发帖表单**不是独立页面**:`/admin/webarticle/add` 直接 GET 返回 JSON 错误(`{"status":0,"msg":"系统错误","crypt":true}`)。表单是点列表页工具栏「添加」按钮(`[lay-event="add"]`)由 JS 打开的 **layui 弹层(`.layui-layer-content` 内联,非 iframe)**。
-  - 含义:content script 注入后,表单 DOM 在主文档内(同一 document),**无需跨 iframe**;但表单是动态插入的,填充前需等弹层出现(或由操作员先点开「添加」,插件再填)。
+  - 含义:**勘查当下**表单 DOM 在主文档顶层(同一 document);但表单是动态插入的,填充前需等弹层出现(或由操作员先点开「添加」,插件再填)。
+  - ⚠️ **2026-06-10 再勘查已推翻上述「顶层」结论**(见 `docs/plans/2026-06-10-002`):发帖表单实际落在 layuiAdmin **同源子 iframe** 内,顶层 `document.querySelector` **必然落空**。这正是 `lib/frame-resolve.ts` 被引入的原因。
+  - 现状(**frame-agnostic,勿再假设「一定在顶层」**):`content.ts` 与 `lib/body-responder.ts` 经 `lib/frame-resolve.ts` 解析表单所在 frame——**顶层优先,找不到则下钻同源 iframe**(跨源 iframe 无法访问,跳过)。字段「未找到」时,先确认弹层已打开,再看是否落在未被解析到的 frame。
 
 ## 正文编辑器(关键)
 

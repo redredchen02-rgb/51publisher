@@ -73,7 +73,7 @@ npx vitest run -t "测试名"                     # 按名称过滤
 
 ### 字段映射与后台漂移
 
-字段选择器集中在 `shared/src/field-mapping.ts`,现场勘查记录在 `docs/field-mapping-guide.md`(含 Tier 分级:A 只改 config / B 改 fillers / C 改架构)。后台是 layui 弹层表单(非 iframe、动态插入)+ vanilla Quill 2.0.2。
+字段选择器集中在 `shared/src/field-mapping.ts`,现场勘查记录在 `docs/field-mapping-guide.md`(含 Tier 分级:A 只改 config / B 改 fillers / C 改架构)。后台是 layui 弹层表单(动态插入)+ vanilla Quill 2.0.2。**填充是 frame-agnostic**:经 `lib/frame-resolve.ts` 顶层优先、找不到则下钻同源 iframe(2026-06-10 勘查:发帖表单实际在 layuiAdmin 同源子 iframe 内,顶层查询必然落空,详见 `docs/field-mapping-guide.md`);勿再假设「一定在顶层」。
 
 ## e2e 与 fixture(改动 fixture 前必读)
 

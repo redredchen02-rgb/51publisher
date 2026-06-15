@@ -65,3 +65,18 @@ jobs:
           ls packages/backend/dist/*.js >/dev/null 2>&1 \
             || { echo "✗ 后端产物 dist 无 .js(build 可能空/坏)"; exit 1; }
           echo "✓ 双端产物存在且含关键文件"
+
+  # 无条件强制密钥扫描:不依赖任何 clone 端 hook 配置(postinstall 设的 core.hooksPath
+  # 只在 pnpm install 后生效,bare clone/CI 不覆盖)。fetch-depth:0 拉全史,使 gitleaks
+  # 既扫本次变更也覆盖历史(清史后一次性确认旧 key 已除)。失败即 fail pipeline。
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
