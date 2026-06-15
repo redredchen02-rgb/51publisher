@@ -1,5 +1,6 @@
 import type {
 	ContentDraft,
+	FactsBlock,
 	RejectionReason,
 	SafetyMode,
 } from "@51publisher/shared";
@@ -38,6 +39,8 @@ interface Props {
 	draftOverrides?: Map<string, ContentDraft>;
 	/** 用户编辑某条草稿时回调(item id + 完整新草稿)。 */
 	onDraftChange?: (itemId: string, draft: ContentDraft) => void;
+	/** U6:gate-failed 条目补全缺失事实后提交(itemId + 补的事实)。 */
+	onRefillFacts?: (itemId: string, facts: Partial<FactsBlock>) => void;
 	/** 运营商显式重试单条 error/aborted 条目。 */
 	onRetryItem?: (itemId: string) => void;
 	/** 发布档位切换(操作者主动变更)。 */
@@ -68,6 +71,7 @@ export function BatchReviewPanel(props: Props) {
 		trajectoryContext,
 		draftOverrides,
 		onDraftChange,
+		onRefillFacts,
 		onRetryItem,
 		readItems,
 		onItemRead,
@@ -121,21 +125,6 @@ export function BatchReviewPanel(props: Props) {
 			}
 			return next;
 		});
-	}
-
-	function handleFixPlaceholder(itemId: string, currentDraft: ContentDraft) {
-		const newVal = prompt(
-			"请输入缺失的内容(将自动替换标题与正文中的【待补】):",
-		);
-		if (!newVal?.trim()) return;
-		const val = newVal.trim();
-		if (onDraftChange) {
-			onDraftChange(itemId, {
-				...currentDraft,
-				title: currentDraft.title.replace(/【待补】/g, val),
-				body: currentDraft.body.replace(/【待补】/g, val),
-			});
-		}
 	}
 
 	function confirmApprove() {
@@ -400,11 +389,11 @@ export function BatchReviewPanel(props: Props) {
 						readItems={readItems}
 						draftOverrides={draftOverrides}
 						onDraftChange={onDraftChange}
+						onRefillFacts={onRefillFacts}
 						onRetryItem={onRetryItem}
 						onItemEdited={props.onItemEdited}
 						onSaveAsFewShot={props.onSaveAsFewShot}
 						onDiscardItem={onDiscardItem}
-						onFixPlaceholder={handleFixPlaceholder}
 						discardPickerId={discardPickerId}
 						setDiscardPickerId={setDiscardPickerId}
 						discardReason={discardReason}

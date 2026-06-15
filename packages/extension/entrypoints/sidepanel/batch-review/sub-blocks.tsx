@@ -14,11 +14,9 @@ import type { TrajectoryRecord } from "../../../lib/trajectory";
 export function GroundingStrip({
 	draft,
 	facts,
-	onFixPlaceholder,
 }: {
 	draft: ContentDraft;
 	facts?: FactsBlock;
-	onFixPlaceholder?: () => void;
 }) {
 	const f = facts ?? {};
 	let links: { url: string; sourced: boolean }[] = [];
@@ -99,26 +97,6 @@ export function GroundingStrip({
 				{verdict.ok
 					? "✓ grounding 通过(authorized 可发)"
 					: "⛔ authorized 会被拦:"}
-				{!verdict.ok &&
-					(draft.title.includes("【待补】") ||
-						draft.body.includes("【待补】")) &&
-					onFixPlaceholder && (
-						<button
-							type="button"
-							onClick={onFixPlaceholder}
-							style={{
-								background: "var(--color-warning)",
-								color: "#fff",
-								border: "none",
-								borderRadius: 3,
-								padding: "2px 6px",
-								fontSize: 11,
-								cursor: "pointer",
-							}}
-						>
-							✏️ 一键填入【待补】
-						</button>
-					)}
 			</div>
 			{!verdict.ok && (
 				<ul
