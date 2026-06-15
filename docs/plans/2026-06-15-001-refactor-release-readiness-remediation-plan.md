@@ -230,7 +230,7 @@ graph TB
 
 **Verification:** runbook 可勾选、严格有序、两类动作分明；运营者走完后旧密钥已 revoke 并验证失效、CORS 负向测试通过、≥1 篇真发成功，确认填充基线有效。
 
-- [ ] **Unit D1: 抽取 apiFetch 统一 client 样板**
+- [x] **Unit D1: 抽取 apiFetch 统一 client 样板**
 
 **Goal:** 把 6 client 重复 20+ 次的 `getBackendUrl`+`getAuthHeaders`+`fetchWithTimeout`+`401→clearToken` 收成单点 helper。
 
