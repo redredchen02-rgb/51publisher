@@ -11,6 +11,7 @@ import {
 	abortBatch,
 	type Batch,
 	patchBatchDrafts,
+	refillGateFailed,
 	releaseAllQuarantine,
 	releaseQuarantine,
 } from "../lib/batch";
@@ -32,6 +33,7 @@ import {
 	recordPublishedPost,
 } from "../lib/published-posts-client";
 import { clearReadItems } from "../lib/read-tracker";
+import { reassembleWithFacts } from "../lib/refill";
 import { canSubmit } from "../lib/safety-gate";
 import {
 	addPublishedTopics,
@@ -444,6 +446,63 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 		}
 	}
 
+	/**
+	 * 操作者补齐缺失事实 → 重组装 + 重跑闸门(gate-failed → awaiting-approval)。
+	 *
+	 * 访问控制:这是特权通道(改 facts/draft/snapshot 并驱动提升)。它本身**绝不**授权发布——
+	 * 提升仅由 refillGateFailed 内的闸门重跑决定(唯一提升者),且即便提升也只到 awaiting-approval,
+	 * 真发仍须经 approve 路径的 host 授权 + 闸门。消息只应来自 side panel(扩展 UI 同源);
+	 * content/page 世界绝不发此消息(三世界模型:content「绝不自我授权」)。
+	 * WXT/chrome runtime.onMessage 不向 SW 暴露可信的 sender 来源(externally_connectable 未开),
+	 * 故此处以「信任契约 + 闸门为唯一提升者」兜底,而非校验 sender;真正的安全边界是闸门重跑。
+	 *
+	 * 守卫:① 无 batch / 找不到 item → no-op;② 缺 slots(旧条目)或非 gate-failed →
+	 * 返回原 batch(不 mutate),由 UI 据状态路由到「重新生成」;③ 操作者 URL 不合法 →
+	 * 把拒因写入 item.gateFailReason(仍 gate-failed),不 mutate draft/snapshot。
+	 * 仅在重组装成功后才经 refillGateFailed 提交(本地为主,后端经 withBackendSync best-effort)。
+	 */
+	async function handleRefillItemFacts(
+		itemId: string,
+		facts: FactsBlock,
+	): Promise<Batch | null> {
+		const batch = await deps.getBatch();
+		if (!batch) return null;
+		const item = batch.items.find((it) => it.id === itemId);
+		if (!item) return batch;
+		// 仅 gate-failed 可补全;缺 slots 的旧条目无法重组装。两者均 no-op(不 mutate)。
+		if (item.status !== "gate-failed" || !item.slots) return batch;
+
+		const reassembled = reassembleWithFacts(item, facts, deps.now());
+		if (!reassembled.ok) {
+			// 重组装拒绝(目前仅 invalid-url;no-slots 已被上面拦下)。把拒因写入失败原因,
+			// 仍保持 gate-failed,不改 draft/snapshot。
+			const next: Batch = {
+				...batch,
+				items: batch.items.map((it) =>
+					it.id === itemId
+						? { ...it, gateFailReason: reassembled.message }
+						: it,
+				),
+			};
+			await deps.saveBatch(next);
+			return next;
+		}
+
+		// 重组装成功 → 经 refillGateFailed 原子地重跑闸门并决定终态。
+		const next = refillGateFailed(
+			batch,
+			itemId,
+			{
+				draft: reassembled.draft,
+				snapshot: reassembled.snapshot,
+				facts: reassembled.facts,
+			},
+			evaluateGrounding,
+		);
+		await deps.saveBatch(next);
+		return next;
+	}
+
 	return {
 		handleGenerate,
 		handleRunBatch,
@@ -454,6 +513,7 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 		handleReleaseQuarantineBatch,
 		handleMarkItemEdited,
 		handleRetryBatchItem,
+		handleRefillItemFacts,
 		handleDiscardBatchItem,
 		evaluateGate,
 	};
@@ -609,6 +669,8 @@ export default defineBackground(() => {
 			return handlers.handleMarkItemEdited(message.itemId);
 		if (message?.type === "RETRY_BATCH_ITEM")
 			return handlers.handleRetryBatchItem(message.itemId);
+		if (message?.type === "REFILL_ITEM_FACTS")
+			return handlers.handleRefillItemFacts(message.itemId, message.facts);
 		if (message?.type === "DISCARD_BATCH_ITEM")
 			return handlers.handleDiscardBatchItem(
 				message.itemId,

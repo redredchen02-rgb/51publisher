@@ -43,8 +43,19 @@ export const GenerateDraftBody = Type.Object({
 	enrichment: Type.Optional(Type.String()),
 });
 
+// 模型叙事槽位(供扩展端重新组装;字段须与 shared/post-assembler.ts 的 DraftSlots 一致)。
+export const DraftSlotsSchema = Type.Object({
+	titleSuffix: Type.Optional(Type.String()),
+	subtitle: Type.Optional(Type.String()),
+	intro: Type.String(),
+	highlights: Type.String(),
+	outro: Type.Optional(Type.String()),
+});
+
 export const GenerateDraftResponse = Type.Object({
 	ok: OkStatus,
+	// 可选:Fastify+TypeBox 会剥除 schema 之外的响应字段,故必须在此声明,否则 slots 被静默丢弃。
+	slots: Type.Optional(DraftSlotsSchema),
 	draft: Type.Object({
 		id: Type.String(),
 		title: Type.String(),

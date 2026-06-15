@@ -2,6 +2,7 @@
 // 纯函数、无副作用，可在 shared 包中复用。
 
 import type { FactsBlock } from "./facts.js";
+import { containsPlaceholder } from "./post-assembler.js";
 import type { ContentDraft } from "./types.js";
 
 export interface QualityCheck {
@@ -70,7 +71,7 @@ function checkFactsCompleteness(facts: FactsBlock): QualityCheck {
 
 /** 检查标题质量。 */
 function checkTitleQuality(title: string): QualityCheck {
-	const hasPlaceholder = title.includes("【待补】");
+	const hasPlaceholder = containsPlaceholder(title);
 	const len = title.length;
 	const pass = !hasPlaceholder && len >= 5 && len <= 100;
 	const score = hasPlaceholder ? 0 : len >= 5 && len <= 100 ? 1 : 0.5;

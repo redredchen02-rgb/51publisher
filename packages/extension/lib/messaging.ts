@@ -22,6 +22,7 @@ const SW_TIMEOUT: Partial<Record<RuntimeMessage["type"], number>> = {
 	RELEASE_QUARANTINE: 10_000,
 	RELEASE_QUARANTINE_BATCH: 10_000,
 	RETRY_BATCH_ITEM: 10_000,
+	REFILL_ITEM_FACTS: 10_000, // 纯重组装 + 重跑闸门,无 LLM
 	DISCARD_BATCH_ITEM: 10_000,
 };
 
@@ -172,6 +173,18 @@ export async function retryBatchItemMsg(
 	itemId: string,
 ): Promise<BatchResponse> {
 	return sendMsg<BatchResponse>({ type: "RETRY_BATCH_ITEM", itemId });
+}
+
+/**
+ * 操作者补齐缺失事实(作品名/集数/…)后提交:background 合并事实 → 重组装 → 重跑闸门。
+ * 仅 gate-failed 且含 slots 的条目可用;通过则提升到 awaiting-approval,否则仍 gate-failed。
+ * 这是特权通道(改 facts/draft/snapshot 并驱动提升),只应从 side panel 发起。
+ */
+export async function refillItemFacts(
+	itemId: string,
+	facts: Partial<FactsBlock>,
+): Promise<BatchResponse> {
+	return sendMsg<BatchResponse>({ type: "REFILL_ITEM_FACTS", itemId, facts });
 }
 
 /** 操作者否决/丢弃单条 awaiting-approval 条目(→ aborted);rejectionReason 供后端统计用。 */

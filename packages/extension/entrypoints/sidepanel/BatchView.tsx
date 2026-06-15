@@ -11,6 +11,7 @@ import {
 	getBatchState,
 	killBatch,
 	markItemEdited,
+	refillItemFacts,
 	releaseQuarantine,
 	releaseQuarantineBatch,
 	resolveAdminTabId,
@@ -380,6 +381,20 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 						}
 						onDraftChange={(itemId, draft) =>
 							setDraftOverrides((prev) => new Map(prev).set(itemId, draft))
+						}
+						onRefillFacts={(itemId, facts) =>
+							void withBusy(async () => {
+								// U6:补全缺失事实 → 后台合并/重组装/重跑闸门;通过则提升到 awaiting-approval。
+								// facts-refill 整稿重生 draft,故同时清掉该条的内联编辑覆盖(R11:refill 优先)。
+								await refillItemFacts(itemId, facts);
+								setDraftOverrides((prev) => {
+									if (!prev.has(itemId)) return prev;
+									const next = new Map(prev);
+									next.delete(itemId);
+									return next;
+								});
+								await refresh();
+							})
 						}
 						onKill={() =>
 							void withBusy(async () => {
