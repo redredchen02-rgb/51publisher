@@ -64,3 +64,4 @@ export async function fetchX(
 ## 关联
 - 落地见 `docs/plans/2026-06-15-001-feat-harden-safety-net-plan.md` Unit 7。
 - 同源:[[fixture-secret-gate-false-green-relative-path-2026-06-15]]、[[vitest-excludes-dist-phantom-backend-p0-2026-06-15]]。
+- 延伸:[[incremental-pr-adversarial-verification-2026-06-15]] 把本注入缝模式扩展到 `connection-test.ts` 与后端 `fetchWithBackoff`,并归纳 Theme E 的整套交付实践。
