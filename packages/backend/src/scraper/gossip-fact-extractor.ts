@@ -1,4 +1,8 @@
-import { GOSSIP_FACT_KEYS, GOSSIP_FACTS_SCHEMA, type GossipFactsBlock } from "@51publisher/shared";
+import {
+	GOSSIP_FACT_KEYS,
+	GOSSIP_FACTS_SCHEMA,
+	type GossipFactsBlock,
+} from "@51publisher/shared";
 import { chatCompletionsUrl } from "../services/llm.js";
 import type { RawContent } from "./site-adapter.js";
 
@@ -94,68 +98,73 @@ export async function gossipExtractFacts(
 	const timer = setTimeout(() => controller.abort(), timeoutMs);
 
 	try {
-	for (const useSchema of [true, false] as const) {
-		const responseFormat = useSchema
-			? { type: "json_schema" as const, json_schema: GOSSIP_SCHEMA }
-			: { type: "json_object" as const };
+		for (const useSchema of [true, false] as const) {
+			const responseFormat = useSchema
+				? { type: "json_schema" as const, json_schema: GOSSIP_SCHEMA }
+				: { type: "json_object" as const };
 
-		const requestBody = {
-			model,
-			messages: [{ role: "user" as const, content: userPrompt }],
-			response_format: responseFormat,
-		};
+			const requestBody = {
+				model,
+				messages: [{ role: "user" as const, content: userPrompt }],
+				response_format: responseFormat,
+			};
 
-		let res: Response | null = null;
-		let fetchErr: unknown = null;
-		try {
-			res = await fetchFn(chatCompletionsUrl(endpoint), {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${apiKey}`,
-				},
-				body: JSON.stringify(requestBody),
-				signal: controller.signal,
-			});
-		} catch (err) {
-			fetchErr = err;
-		}
-
-		if (fetchErr) {
-			if (fetchErr instanceof Error && fetchErr.name === "AbortError") {
-				throw new Error("Gossip fact extraction timed out");
+			let res: Response | null = null;
+			let fetchErr: unknown = null;
+			try {
+				res = await fetchFn(chatCompletionsUrl(endpoint), {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${apiKey}`,
+					},
+					body: JSON.stringify(requestBody),
+					signal: controller.signal,
+				});
+			} catch (err) {
+				fetchErr = err;
 			}
-			throw fetchErr;
+
+			if (fetchErr) {
+				if (fetchErr instanceof Error && fetchErr.name === "AbortError") {
+					throw new Error("Gossip fact extraction timed out");
+				}
+				throw fetchErr;
+			}
+
+			if (!res) throw new Error("No response received from LLM");
+			if (useSchema && (res.status === 400 || res.status === 422)) continue;
+			if (!res.ok) throw new Error(`LLM request failed: HTTP ${res.status}`);
+
+			let raw: unknown;
+			try {
+				raw = await res.json();
+			} catch {
+				throw new Error("LLM response is not valid JSON");
+			}
+			const content = isLlmResponse(raw)
+				? (raw.choices?.[0]?.message?.content ?? "")
+				: "";
+
+			const facts = parseGossipFacts(content);
+			const filled = GOSSIP_FACT_KEYS.filter(
+				(k) => facts[k] !== null && str(facts[k]),
+			).length;
+			const rawConfidence =
+				GOSSIP_FACT_KEYS.length > 0 ? filled / GOSSIP_FACT_KEYS.length : 0;
+			const extractionMode = useSchema ? "strict" : "fallback";
+			const confidence =
+				extractionMode === "fallback"
+					? Math.min(rawConfidence, FALLBACK_CONFIDENCE_CAP)
+					: rawConfidence;
+
+			return {
+				facts,
+				confidence,
+				coverImageUrl: rawContent.coverImageUrl,
+				extractionMode,
+			};
 		}
-
-		if (!res) throw new Error("No response received from LLM");
-		if (useSchema && (res.status === 400 || res.status === 422)) continue;
-		if (!res.ok) throw new Error(`LLM request failed: HTTP ${res.status}`);
-
-		let raw: unknown;
-		try {
-			raw = await res.json();
-		} catch {
-			throw new Error("LLM response is not valid JSON");
-		}
-		const content = isLlmResponse(raw) ? (raw.choices?.[0]?.message?.content ?? "") : "";
-
-		const facts = parseGossipFacts(content);
-		const filled = GOSSIP_FACT_KEYS.filter((k) => facts[k] !== null && str(facts[k])).length;
-		const rawConfidence = GOSSIP_FACT_KEYS.length > 0 ? filled / GOSSIP_FACT_KEYS.length : 0;
-		const extractionMode = useSchema ? "strict" : "fallback";
-		const confidence =
-			extractionMode === "fallback"
-				? Math.min(rawConfidence, FALLBACK_CONFIDENCE_CAP)
-				: rawConfidence;
-
-		return {
-			facts,
-			confidence,
-			coverImageUrl: rawContent.coverImageUrl,
-			extractionMode,
-		};
-	}
 	} finally {
 		clearTimeout(timer);
 	}

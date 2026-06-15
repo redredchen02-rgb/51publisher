@@ -13,18 +13,18 @@
  */
 
 import { execSync, spawn } from "node:child_process";
-import { createInterface } from "node:readline";
+import { randomBytes, scryptSync } from "node:crypto";
 import {
 	existsSync,
-	readFileSync,
-	writeFileSync,
-	statSync,
 	readdirSync,
+	readFileSync,
+	statSync,
+	writeFileSync,
 } from "node:fs";
-import { join, dirname } from "node:path";
+import { platform } from "node:os";
+import { dirname, join } from "node:path";
+import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
-import { randomBytes, scryptSync } from "node:crypto";
-import { homedir, platform } from "node:os";
 
 const IS_WIN = platform() === "win32";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -212,7 +212,10 @@ if (!existsSync(ENV_FILE)) {
 	const salt = randomBytes(16);
 	const dk = scryptSync(adminPw, salt, 64);
 	const hash = `${salt.toString("hex")}:${dk.toString("hex")}`;
-	env = env.replace(/JWT_ADMIN_PASSWORD_HASH=.*/, `JWT_ADMIN_PASSWORD_HASH=${hash}`);
+	env = env.replace(
+		/JWT_ADMIN_PASSWORD_HASH=.*/,
+		`JWT_ADMIN_PASSWORD_HASH=${hash}`,
+	);
 	ok("JWT_ADMIN_PASSWORD_HASH 已写入 ✓");
 
 	writeFileSync(ENV_FILE, env, "utf8");

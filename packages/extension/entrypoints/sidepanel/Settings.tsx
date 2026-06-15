@@ -191,7 +191,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			);
 			return;
 		}
-		if (backendUrl && backendUrl.startsWith("http://")) {
+		if (backendUrl?.startsWith("http://")) {
 			console.warn(
 				"[Settings] 后端 URL 使用 HTTP，JWT 以明文传输。建议仅在本地开发时使用。",
 			);
@@ -250,8 +250,11 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			<div className="card">
 				<div className="section-header">LLM 配置</div>
 				<div className="field-group">
-					<label className="field-label">LLM Endpoint (https://)</label>
+					<label htmlFor="endpoint" className="field-label">
+						LLM Endpoint (https://)
+					</label>
 					<input
+						id="endpoint"
 						className="field-input"
 						value={endpoint}
 						placeholder="https://api.openai.com/v1/chat/completions"
@@ -259,16 +262,22 @@ export function Settings({ onClose }: { onClose: () => void }) {
 					/>
 				</div>
 				<div className="field-group">
-					<label className="field-label">模型名</label>
+					<label htmlFor="model" className="field-label">
+						模型名
+					</label>
 					<input
+						id="model"
 						className="field-input"
 						value={model}
 						onChange={(e) => setModel(e.target.value)}
 					/>
 				</div>
 				<div className="field-group">
-					<label className="field-label">API Key</label>
+					<label htmlFor="api-key" className="field-label">
+						API Key
+					</label>
 					<input
+						id="api-key"
 						className="field-input"
 						type="password"
 						value={apiKey}
@@ -302,8 +311,11 @@ export function Settings({ onClose }: { onClose: () => void }) {
 						<div style={{ marginTop: "var(--space-lg)" }}>
 							<p className="field-hint">主模型失败时自动回退。留空即不启用。</p>
 							<div className="field-group">
-								<label className="field-label">备用模型名(可选)</label>
+								<label htmlFor="fallback-model" className="field-label">
+									备用模型名(可选)
+								</label>
 								<input
+									id="fallback-model"
 									className="field-input"
 									value={fallbackModel}
 									onChange={(e) => setFallbackModel(e.target.value)}
@@ -318,10 +330,11 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			<div className="card">
 				<div className="section-header">后端连接（可选）</div>
 				<div className="field-group">
-					<label className="field-label">
+					<label htmlFor="backend-url" className="field-label">
 						后端 URL（http://localhost:3001）
 					</label>
 					<input
+						id="backend-url"
 						className="field-input"
 						value={backendUrl}
 						placeholder="http://localhost:3001"
@@ -329,8 +342,11 @@ export function Settings({ onClose }: { onClose: () => void }) {
 					/>
 				</div>
 				<div className="field-group">
-					<label className="field-label">后端 JWT Token（可选）</label>
+					<label htmlFor="backend-token" className="field-label">
+						后端 JWT Token（可选）
+					</label>
 					<input
+						id="backend-token"
 						className="field-input"
 						type="password"
 						value={backendToken}
@@ -338,8 +354,11 @@ export function Settings({ onClose }: { onClose: () => void }) {
 					/>
 				</div>
 				<div className="field-group">
-					<label className="field-label">每日批量上限（1-20，默认 5）</label>
+					<label htmlFor="daily-batch-size" className="field-label">
+						每日批量上限（1-20，默认 5）
+					</label>
 					<input
+						id="daily-batch-size"
 						className="field-input"
 						type="number"
 						min={1}
@@ -431,10 +450,11 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			{/* 标签 & 评审标准 */}
 			<div className="card">
 				<div className="field-group">
-					<label className="field-label">
+					<label htmlFor="tags" className="field-label">
 						推荐标签清单 (每行一个或逗号分隔)
 					</label>
 					<textarea
+						id="tags"
 						className="field-input"
 						style={{ minHeight: 80 }}
 						placeholder={"漢化\n無修正\n校園日常\n…（约 20–50 条为宜）"}
@@ -447,10 +467,11 @@ export function Settings({ onClose }: { onClose: () => void }) {
 				</p>
 
 				<div className="field-group">
-					<label className="field-label">
+					<label htmlFor="review-criteria" className="field-label">
 						AI 评审标准（Phase 3，留空使用内置四维标准）
 					</label>
 					<textarea
+						id="review-criteria"
 						className="field-input"
 						style={{ minHeight: 80 }}
 						placeholder={

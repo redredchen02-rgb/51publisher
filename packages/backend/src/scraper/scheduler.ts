@@ -11,7 +11,6 @@ import {
 } from "./pending-store.js";
 import { scraperConfig } from "./scraper-config.js";
 import type { ScraperSiteConfig, SiteAdapter } from "./site-adapter.js";
-import type { EnrichedContext } from "./web-enricher.js";
 
 interface SchedulerDeps {
 	logger?: FastifyBaseLogger;

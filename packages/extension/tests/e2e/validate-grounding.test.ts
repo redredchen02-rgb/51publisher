@@ -99,6 +99,7 @@ async function generate(topic: string, f: Record<string, string>) {
 	if (!res.ok) return { err: `HTTP ${res.status} ${res.statusText}` };
 	const raw: any = await res.json();
 	const content: string = raw?.choices?.[0]?.message?.content ?? "";
+	// biome-ignore lint/suspicious/noImplicitAnyLet: JSON.parse returns any
 	let parsed;
 	try {
 		parsed = JSON.parse(

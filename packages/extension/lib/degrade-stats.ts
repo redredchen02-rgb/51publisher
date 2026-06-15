@@ -15,13 +15,13 @@ export function aggregateDegradeStats(items: BatchItem[]): DegradeStats {
 		(it) => it.fillResults && it.fillResults.length > 0,
 	);
 	const itemsWithAnyDegrade = withResults.filter((it) =>
-		it.fillResults!.some((r) => r.status === "degraded"),
+		it.fillResults?.some((r) => r.status === "degraded"),
 	).length;
 
 	// 按 field 名聚合降级次数(不解析 note 文本)。
 	const fieldCounts = new Map<string, number>();
 	for (const item of withResults) {
-		for (const r of item.fillResults!) {
+		for (const r of item.fillResults ?? []) {
 			if (r.status === "degraded") {
 				fieldCounts.set(r.field, (fieldCounts.get(r.field) ?? 0) + 1);
 			}

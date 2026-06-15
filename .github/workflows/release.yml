@@ -37,7 +37,6 @@ jobs:
 
       - name: Test
         run: pnpm -r test
-        continue-on-error: true
 
       - name: Build extension zip
         run: pnpm --filter publisher-fill-assistant zip
@@ -47,7 +46,6 @@ jobs:
 
       - name: Build Docker image
         run: docker build -f packages/backend/Dockerfile -t 51publisher-backend .
-        continue-on-error: true
 
       - name: Export Docker image
         if: success()

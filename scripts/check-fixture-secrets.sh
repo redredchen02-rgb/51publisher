@@ -13,7 +13,11 @@
 #   人工脱敏 + 人工复核」之上的一道自动兜底,不是唯一防线。详见 docs/e2e-and-iteration-guide.md。
 set -uo pipefail
 
-FIXTURE_DIR="tests/e2e/fixtures"
+# FIXTURE_DIR 锚定到脚本位置(绝对路径),与调用方 cwd 无关。
+# 旧版用相对路径 "tests/e2e/fixtures",从 repo 根调用(pre-commit hook / CI)时解析到
+# 不存在的 <root>/tests/e2e/fixtures → nullglob 扫 0 文件 → 自检通过 → 假绿(闸门 no-op)。
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FIXTURE_DIR="$SCRIPT_DIR/../packages/extension/tests/e2e/fixtures"
 
 # denylist:常见机密形态。命中即视为含机密。JWT 阈值放宽到 8(短 JWT 也拦)。
 DENYLIST='Bearer [A-Za-z0-9._-]+|Set-Cookie|JSESSIONID|PHPSESSID|csrf[_-]?token|_token|sessionid|session=|eyJ[A-Za-z0-9_-]{8,}|[A-Fa-f0-9]{32,}'
@@ -65,9 +69,19 @@ if ! detect_secrets "$POISON" >/dev/null; then
 fi
 
 # --- 2. 实扫:所有非点前缀 *.html 必须干净 ---
+# 防空扫:目录不存在或无 html 多半是路径/cwd 错(闸门会假绿),大声失败而非放行。
+if [ ! -d "$FIXTURE_DIR" ]; then
+  echo "✗ fixture 目录不存在:$FIXTURE_DIR —— 闸门无法扫描,拒绝放行。" >&2
+  exit 2
+fi
 shopt -s nullglob
+fixture_files=("$FIXTURE_DIR"/*.html)
+if [ ${#fixture_files[@]} -eq 0 ]; then
+  echo "✗ $FIXTURE_DIR 下无 *.html fixture —— 闸门扫不到任何文件(疑似路径错),拒绝放行。" >&2
+  exit 2
+fi
 status=0
-for f in "$FIXTURE_DIR"/*.html; do
+for f in "${fixture_files[@]}"; do
   out=$(detect_secrets "$f")
   rc=$?
   if [ $rc -eq 2 ]; then

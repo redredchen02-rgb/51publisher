@@ -144,7 +144,9 @@ function getPublishedTitles(db: BetterSqlite3DB): Set<string> {
 		const rows = db
 			.prepare("SELECT DISTINCT source_title FROM published_posts")
 			.all() as { source_title: string }[];
-		_publishedTitlesCache = new Set(rows.map((r) => r.source_title).filter(Boolean));
+		_publishedTitlesCache = new Set(
+			rows.map((r) => r.source_title).filter(Boolean),
+		);
 	} catch {
 		// published_posts 表可能不存在
 		_publishedTitlesCache = new Set();
@@ -193,8 +195,9 @@ export async function savePendingTopic(
 
 		const score = computeScore(topic, db);
 
-		try { db.prepare(
-			`
+		try {
+			db.prepare(
+				`
       INSERT INTO pending_topics
         (id, source_url, site_name, title, raw_content, facts, confidence, status,
          rejected_reason, cover_image_url, score, enrichment, domain, created_at, updated_at)
@@ -216,24 +219,23 @@ export async function savePendingTopic(
         domain     = excluded.domain,
         updated_at = excluded.updated_at
     `,
-		).run({
-			id: topic.id,
-			sourceUrl: topic.sourceUrl,
-			siteName: topic.siteName,
-			title: topic.title,
-			rawContent: topic.rawContent ? JSON.stringify(topic.rawContent) : "{}",
-			facts: JSON.stringify(topic.facts),
-			confidence: topic.confidence,
-			status: topic.status,
-			rejectedReason: topic.rejectedReason ?? null,
-			coverImageUrl: topic.coverImageUrl ?? null,
-			score,
-			enrichment: topic.enrichment ? JSON.stringify(topic.enrichment) : null,
-			domain: topic.domain ?? "acg",
-			createdAt: topic.createdAt,
-			updatedAt: topic.updatedAt,
-		});
-
+			).run({
+				id: topic.id,
+				sourceUrl: topic.sourceUrl,
+				siteName: topic.siteName,
+				title: topic.title,
+				rawContent: topic.rawContent ? JSON.stringify(topic.rawContent) : "{}",
+				facts: JSON.stringify(topic.facts),
+				confidence: topic.confidence,
+				status: topic.status,
+				rejectedReason: topic.rejectedReason ?? null,
+				coverImageUrl: topic.coverImageUrl ?? null,
+				score,
+				enrichment: topic.enrichment ? JSON.stringify(topic.enrichment) : null,
+				domain: topic.domain ?? "acg",
+				createdAt: topic.createdAt,
+				updatedAt: topic.updatedAt,
+			});
 		} catch (e: unknown) {
 			// UNIQUE constraint on source_url — treat as duplicate
 			if (
@@ -274,11 +276,14 @@ export async function listPendingTopics(
 		conditions.push("domain = ?");
 		params.push(domain);
 	}
-	const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+	const where =
+		conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 	params.push(cap);
 
 	const rows = db
-		.prepare(`SELECT * FROM pending_topics ${where} ORDER BY ${orderCol} LIMIT ?`)
+		.prepare(
+			`SELECT * FROM pending_topics ${where} ORDER BY ${orderCol} LIMIT ?`,
+		)
 		.all(...params) as PendingRow[];
 	return rows.map(rowToTopic);
 }

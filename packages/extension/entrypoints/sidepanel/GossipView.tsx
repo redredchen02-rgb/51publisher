@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import {
 	createGossipSite,
+	type DiscoveredItem,
 	deleteGossipSite,
 	discoverGossipSite,
 	fetchGossipSites,
 	fetchGossipTopicFromUrl,
-	type DiscoveredItem,
 	type GossipSite,
 } from "../../lib/gossip-client";
 
@@ -30,9 +30,13 @@ export function GossipView({ onBack, onTopicAdded }: Props) {
 	const [addBusy, setAddBusy] = useState(false);
 
 	// per-site 的 discover 結果和狀態
-	const [discovered, setDiscovered] = useState<Record<string, DiscoveredItem[]>>({});
+	const [discovered, setDiscovered] = useState<
+		Record<string, DiscoveredItem[]>
+	>({});
 	const [discoverBusy, setDiscoverBusy] = useState<Record<string, boolean>>({});
-	const [discoverError, setDiscoverError] = useState<Record<string, string>>({});
+	const [discoverError, setDiscoverError] = useState<Record<string, string>>(
+		{},
+	);
 
 	// per-article 的生成狀態
 	const [genBusy, setGenBusy] = useState<Record<string, boolean>>({});
@@ -70,7 +74,11 @@ export function GossipView({ onBack, onTopicAdded }: Props) {
 		try {
 			await deleteGossipSite(id);
 			setSites((prev) => prev.filter((s) => s.id !== id));
-			setDiscovered((prev) => { const n = { ...prev }; delete n[id]; return n; });
+			setDiscovered((prev) => {
+				const n = { ...prev };
+				delete n[id];
+				return n;
+			});
 		} catch (e) {
 			setAddError(e instanceof Error ? e.message : "刪除失敗");
 		}
@@ -78,7 +86,11 @@ export function GossipView({ onBack, onTopicAdded }: Props) {
 
 	async function handleDiscover(site: GossipSite) {
 		setDiscoverBusy((p) => ({ ...p, [site.id]: true }));
-		setDiscoverError((p) => { const n = { ...p }; delete n[site.id]; return n; });
+		setDiscoverError((p) => {
+			const n = { ...p };
+			delete n[site.id];
+			return n;
+		});
 		try {
 			const items = await discoverGossipSite(site.id);
 			setDiscovered((p) => ({ ...p, [site.id]: items }));
@@ -92,18 +104,32 @@ export function GossipView({ onBack, onTopicAdded }: Props) {
 		}
 	}
 
-	async function handleGenerate(item: DiscoveredItem, siteId: string, siteName: string) {
+	async function handleGenerate(
+		item: DiscoveredItem,
+		siteId: string,
+		siteName: string,
+	) {
 		const key = item.url;
 		setGenBusy((p) => ({ ...p, [key]: true }));
-		setGenError((p) => { const n = { ...p }; delete n[key]; return n; });
+		setGenError((p) => {
+			const n = { ...p };
+			delete n[key];
+			return n;
+		});
 		try {
 			await fetchGossipTopicFromUrl(item.url, siteName);
-			setDiscovered((p) => ({ ...p, [siteId]: (p[siteId] ?? []).filter(i => i.url !== item.url) }));
+			setDiscovered((p) => ({
+				...p,
+				[siteId]: (p[siteId] ?? []).filter((i) => i.url !== item.url),
+			}));
 			onTopicAdded();
 		} catch (e) {
 			const msg = e instanceof Error ? e.message : String(e);
 			if (msg === "DUPLICATE_URL") {
-				setDiscovered((p) => ({ ...p, [siteId]: (p[siteId] ?? []).filter(i => i.url !== item.url) }));
+				setDiscovered((p) => ({
+					...p,
+					[siteId]: (p[siteId] ?? []).filter((i) => i.url !== item.url),
+				}));
 				onTopicAdded();
 			} else {
 				setGenError((p) => ({ ...p, [key]: msg }));
@@ -125,7 +151,14 @@ export function GossipView({ onBack, onTopicAdded }: Props) {
 
 	return (
 		<div>
-			<div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+			<div
+				style={{
+					display: "flex",
+					alignItems: "center",
+					gap: 8,
+					marginBottom: 12,
+				}}
+			>
 				<button type="button" onClick={onBack} style={btn}>
 					← 返回
 				</button>
@@ -141,21 +174,35 @@ export function GossipView({ onBack, onTopicAdded }: Props) {
 					marginBottom: 12,
 				}}
 			>
-				<div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>新增站點</div>
+				<div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+					新增站點
+				</div>
 				<div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
 					<input
 						type="text"
 						placeholder="站點名稱"
 						value={newName}
 						onChange={(e) => setNewName(e.target.value)}
-						style={{ flex: 1, padding: "4px 6px", fontSize: 12, border: "1px solid #d9d9d9", borderRadius: 4 }}
+						style={{
+							flex: 1,
+							padding: "4px 6px",
+							fontSize: 12,
+							border: "1px solid #d9d9d9",
+							borderRadius: 4,
+						}}
 					/>
 					<input
 						type="url"
 						placeholder="清單頁 URL (https://...)"
 						value={newUrl}
 						onChange={(e) => setNewUrl(e.target.value)}
-						style={{ flex: 2, padding: "4px 6px", fontSize: 12, border: "1px solid #d9d9d9", borderRadius: 4 }}
+						style={{
+							flex: 2,
+							padding: "4px 6px",
+							fontSize: 12,
+							border: "1px solid #d9d9d9",
+							borderRadius: 4,
+						}}
 					/>
 					<button
 						type="button"
@@ -166,12 +213,21 @@ export function GossipView({ onBack, onTopicAdded }: Props) {
 						{addBusy ? "新增中…" : "新增"}
 					</button>
 				</div>
-				{addError && <div style={{ fontSize: 12, color: "#cf1322" }}>{addError}</div>}
+				{addError && (
+					<div style={{ fontSize: 12, color: "#cf1322" }}>{addError}</div>
+				)}
 			</div>
 
 			{/* 站點清單 */}
 			{sites.length === 0 ? (
-				<div style={{ color: "#8c8c8c", fontSize: 13, textAlign: "center", padding: 20 }}>
+				<div
+					style={{
+						color: "#8c8c8c",
+						fontSize: 13,
+						textAlign: "center",
+						padding: 20,
+					}}
+				>
 					尚未新增站點，請在上方填寫後點「新增」
 				</div>
 			) : (
@@ -185,9 +241,25 @@ export function GossipView({ onBack, onTopicAdded }: Props) {
 							marginBottom: 10,
 						}}
 					>
-						<div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+						<div
+							style={{
+								display: "flex",
+								alignItems: "center",
+								gap: 6,
+								marginBottom: 8,
+							}}
+						>
 							<span style={{ fontWeight: 600, fontSize: 13 }}>{site.name}</span>
-							<span style={{ fontSize: 11, color: "#8c8c8c", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+							<span
+								style={{
+									fontSize: 11,
+									color: "#8c8c8c",
+									flex: 1,
+									overflow: "hidden",
+									textOverflow: "ellipsis",
+									whiteSpace: "nowrap",
+								}}
+							>
 								{site.listUrl}
 							</span>
 							<button
@@ -214,11 +286,15 @@ export function GossipView({ onBack, onTopicAdded }: Props) {
 						)}
 
 						{discovered[site.id] === undefined && !discoverBusy[site.id] && (
-							<div style={{ fontSize: 12, color: "#8c8c8c" }}>點「刷新」發現最新素材</div>
+							<div style={{ fontSize: 12, color: "#8c8c8c" }}>
+								點「刷新」發現最新素材
+							</div>
 						)}
 
 						{discovered[site.id]?.length === 0 && (
-							<div style={{ fontSize: 12, color: "#8c8c8c" }}>未發現新素材（可能已全部加入待審）</div>
+							<div style={{ fontSize: 12, color: "#8c8c8c" }}>
+								未發現新素材（可能已全部加入待審）
+							</div>
 						)}
 
 						{(discovered[site.id] ?? []).map((item) => (
@@ -233,20 +309,43 @@ export function GossipView({ onBack, onTopicAdded }: Props) {
 									fontSize: 12,
 								}}
 							>
-								<span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+								<span
+									style={{
+										flex: 1,
+										overflow: "hidden",
+										textOverflow: "ellipsis",
+										whiteSpace: "nowrap",
+									}}
+								>
 									{item.title ?? urlLabel(item.url)}
 								</span>
-								<div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+								<div
+									style={{
+										display: "flex",
+										flexDirection: "column",
+										alignItems: "flex-end",
+										gap: 2,
+									}}
+								>
 									<button
 										type="button"
-										onClick={() => void handleGenerate(item, site.id, site.name)}
+										onClick={() =>
+											void handleGenerate(item, site.id, site.name)
+										}
 										disabled={genBusy[item.url]}
-										style={{ ...btn, background: "#1677ff", color: "white", whiteSpace: "nowrap" }}
+										style={{
+											...btn,
+											background: "#1677ff",
+											color: "white",
+											whiteSpace: "nowrap",
+										}}
 									>
 										{genBusy[item.url] ? "生成中…" : "生成文章"}
 									</button>
 									{genError[item.url] && (
-										<span style={{ fontSize: 10, color: "#cf1322" }}>⚠ {genError[item.url]}</span>
+										<span style={{ fontSize: 10, color: "#cf1322" }}>
+											⚠ {genError[item.url]}
+										</span>
 									)}
 								</div>
 							</div>
