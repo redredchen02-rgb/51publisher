@@ -62,8 +62,10 @@ export function FactsOverlay({ item, busy, onRefillFacts }: Props) {
 		return out;
 	}, [values, slots]);
 
+	// 提交只需「至少填一个」:缺失常常只有作品名,其余空槽位多为不适用字段
+	// (assembleDraft 仅对缺作品名产出【待补】,其他缺失只是省略整行)。真正的裁决者是
+	// 后端的 gate 重跑——部分填写若未清干净仍会保持 gate-failed(R6)。
 	const anyTyped = slots.some((s) => (values[s.key]?.trim() ?? "") !== "");
-	const allFilled = slots.every((s) => (values[s.key]?.trim() ?? "") !== "");
 
 	// 本地预览:用 reassembleWithFacts 复用同一纯函数,正文经 sanitizeBody 消毒。
 	const preview = useMemo(() => {
@@ -87,7 +89,7 @@ export function FactsOverlay({ item, busy, onRefillFacts }: Props) {
 	}
 
 	function handleCommit() {
-		if (!allFilled) return;
+		if (!anyTyped) return;
 		onRefillFacts(item.id, trimmed);
 		reset();
 	}
@@ -133,14 +135,14 @@ export function FactsOverlay({ item, busy, onRefillFacts }: Props) {
 				</label>
 			))}
 
-			{/* 空/空白槽位阻断提交的内联提示 */}
-			{!allFilled && (
+			{/* 未填任何字段时阻断提交的内联提示 */}
+			{!anyTyped && (
 				<div
 					role="status"
 					className="text-warning"
 					style={{ fontSize: 11, marginTop: 2 }}
 				>
-					请填写全部 {slots.length} 个字段后再提交(空白不算)。
+					请至少填写一个字段后再提交(空白不算)。
 				</div>
 			)}
 
@@ -193,22 +195,22 @@ export function FactsOverlay({ item, busy, onRefillFacts }: Props) {
 				<button
 					type="button"
 					onClick={handleCommit}
-					disabled={busy || !allFilled || "error" in preview}
+					disabled={busy || !anyTyped || "error" in preview}
 					style={{
 						padding: "3px 10px",
 						fontSize: 11,
 						border: "none",
 						borderRadius: 3,
 						background:
-							!busy && allFilled && !("error" in preview)
+							!busy && anyTyped && !("error" in preview)
 								? "var(--color-success)"
 								: "var(--color-bg-muted)",
 						color:
-							!busy && allFilled && !("error" in preview)
+							!busy && anyTyped && !("error" in preview)
 								? "#fff"
 								: "var(--color-text-disabled)",
 						cursor:
-							!busy && allFilled && !("error" in preview)
+							!busy && anyTyped && !("error" in preview)
 								? "pointer"
 								: "not-allowed",
 					}}

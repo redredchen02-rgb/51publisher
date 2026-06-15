@@ -106,6 +106,22 @@ describe("ItemCard 缺失事实补全编辑器(U6)", () => {
 		});
 	});
 
+	it("Happy:只缺作品名时,仅填一个字段即可提交(不强制填满所有空槽)", () => {
+		const onRefillFacts = vi.fn();
+		// 仅 作品名 缺失(常见情形);集数/漢化/無修/简介 不适用而留空。
+		const item = gateFailedItem({ 制作: "studio X" });
+		render(
+			<ItemCard {...baseProps()} item={item} onRefillFacts={onRefillFacts} />,
+		);
+		fireEvent.change(screen.getByLabelText("补全 作品名"), {
+			target: { value: "某神作" },
+		});
+		const commit = screen.getByText("提交补全") as HTMLButtonElement;
+		expect(commit.disabled).toBe(false);
+		fireEvent.click(commit);
+		expect(onRefillFacts).toHaveBeenCalledWith("item_0", { 作品名: "某神作" });
+	});
+
 	it("Edge:空白输入阻断提交 + 内联错误;输入后取消触发丢弃确认", () => {
 		const onRefillFacts = vi.fn();
 		const item = gateFailedItem({
@@ -122,7 +138,7 @@ describe("ItemCard 缺失事实补全编辑器(U6)", () => {
 		fireEvent.change(screen.getByLabelText("补全 作品名"), {
 			target: { value: "   " },
 		});
-		expect(screen.getByText(/请填写全部/)).toBeTruthy();
+		expect(screen.getByText(/请至少填写一个/)).toBeTruthy();
 		const commit = screen.getByText("提交补全") as HTMLButtonElement;
 		expect(commit.disabled).toBe(true);
 		fireEvent.click(commit);
