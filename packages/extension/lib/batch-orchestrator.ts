@@ -24,6 +24,7 @@ import {
 	retryBatchItem,
 	transition,
 } from "./batch";
+import { computeSlotDiff } from "./draft-diff";
 import type { GroundingVerdict } from "./grounding-gate";
 import { evaluateGrounding as defaultEvaluateGrounding } from "./grounding-gate";
 import type { ReviewDraftResponse, RewriteDraftResponse } from "./llm";
@@ -61,7 +62,6 @@ export interface RunBatchDeps {
 	) => Promise<GenerateDraftResponse>;
 	save: (batch: Batch) => Promise<void>;
 	genBatchId: () => string;
-	genItemId: (index: number) => string;
 	now: () => string;
 	/** 持久化已发布选题(跨 session 去重);与 in-memory quarantinedTopics 合并后过滤。 */
 	persistentBlockedTopics?: string[];
@@ -100,7 +100,6 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
 		generateDraft,
 		save,
 		genBatchId,
-		genItemId,
 		now,
 	} = deps;
 	// (persistentBlockedTopics 在重入守卫段从 deps 直接读取,不在此解构)
@@ -156,13 +155,14 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
 	const freshCovers = fresh.map((t) => coverUrlsByTopic.get(t));
 	const freshTopicIds = fresh.map((t) => topicIdsByTopic.get(t));
 	const freshEnrichments = fresh.map((t) => enrichmentByTopic.get(t));
+	const batchId = genBatchId();
 	let batch = createBatch(
-		genBatchId(),
+		batchId,
 		tabId,
 		host,
 		fresh,
 		now(),
-		genItemId,
+		(i) => `${batchId}:${i}`,
 		freshFacts,
 		freshCovers,
 		freshTopicIds,
@@ -420,6 +420,11 @@ export async function approveBatch(
 		// 轨迹:authorized 真发(非 dry-run)才落档。
 		if (!result.dryRun) {
 			const cur = batch.items.find((it) => it.id === item.id);
+			// 计算 slotDiff:比较 AI 原稿(publishedDraft)与最终发布草稿(draft)。
+			const slotDiff =
+				cur?.publishedDraft && cur?.draft
+					? computeSlotDiff(cur.publishedDraft, cur.draft)
+					: undefined;
 			const { snapshotDropped } = await appendTrajectory({
 				id: item.id,
 				topic: item.topic,
@@ -428,6 +433,7 @@ export async function approveBatch(
 				status: cur?.status ?? "unknown",
 				ts: new Date().toISOString(),
 				publishedAsDraft: item.draft?.postStatus === "0",
+				...(slotDiff !== undefined ? { slotDiff } : {}),
 				...(cur?.aiReviewTriggered !== undefined
 					? { aiReviewTriggered: cur.aiReviewTriggered }
 					: {}),

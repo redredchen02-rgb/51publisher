@@ -77,7 +77,7 @@ function makeDeps(
 		storageSetItem: vi.fn(async () => {}),
 		generateDraftFn: vi.fn(async () => ({ ok: true as const, draft: DRAFT })),
 		buildBatchId: vi.fn(() => "batch_1"),
-		buildItemId: vi.fn((i: number) => `item_${i}`),
+		buildItemId: vi.fn((_batchId: string, i: number) => `item_${i}`),
 		now: vi.fn(() => "2026-06-04T00:00:00.000Z"),
 		...overrides,
 	};

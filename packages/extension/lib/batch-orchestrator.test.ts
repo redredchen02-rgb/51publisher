@@ -43,7 +43,6 @@ function makeRunDeps(overrides: Partial<RunBatchDeps> = {}): RunBatchDeps {
 		})),
 		save: vi.fn(async () => {}),
 		genBatchId: vi.fn(() => "batch_1"),
-		genItemId: vi.fn((i: number) => `item_${i}`),
 		now: vi.fn(() => "2026-06-04T00:00:00.000Z"),
 		...overrides,
 	};
