@@ -515,6 +515,50 @@ describe("Phase-5 U9 features", () => {
 		expect(screen.getByText("重新生成")).toBeTruthy();
 	});
 
+	// 防幻觉审核入口:gate-failed 展示原稿快照(含【待补】),让操作者知道缺哪些事实。
+	// D3 拆分巨组件时必须保留 —— 这是残留稿被人工审核的唯一入口。
+	it("gate-failed 有 assembledDraftSnapshot → 展示原稿(含缺失事实)标题", () => {
+		const gateFailedBatch: Batch = {
+			id: "b1",
+			tabId: 1,
+			authorizedHost: "dx-999-adm.ympxbys.xyz",
+			createdAt: "",
+			items: [
+				{
+					id: "item_0",
+					topic: "gate-topic",
+					status: "gate-failed" as const,
+					gateFailReason: "标题含【待补】",
+					assembledDraftSnapshot: draft("残留原稿标题"),
+				},
+			],
+		};
+		render(<BatchReviewPanel {...defaultProps(gateFailedBatch)} />);
+		fireEvent.click(screen.getByText("gate-topic"));
+		expect(screen.getByText("原稿(含缺失事实):")).toBeTruthy();
+		expect(screen.getByText("残留原稿标题")).toBeTruthy();
+	});
+
+	it("gate-failed 无 assembledDraftSnapshot → 不渲染原稿块", () => {
+		const gateFailedBatch: Batch = {
+			id: "b1",
+			tabId: 1,
+			authorizedHost: "dx-999-adm.ympxbys.xyz",
+			createdAt: "",
+			items: [
+				{
+					id: "item_0",
+					topic: "gate-topic",
+					status: "gate-failed" as const,
+					gateFailReason: "无来源链接",
+				},
+			],
+		};
+		render(<BatchReviewPanel {...defaultProps(gateFailedBatch)} />);
+		fireEvent.click(screen.getByText("gate-topic"));
+		expect(screen.queryByText("原稿(含缺失事实):")).toBeNull();
+	});
+
 	it("gate-failed 条目 → 不显示批准/审批按钮", () => {
 		const gateFailedBatch: Batch = {
 			id: "b1",
