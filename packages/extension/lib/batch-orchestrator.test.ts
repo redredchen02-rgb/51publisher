@@ -1503,3 +1503,106 @@ describe("approveBatch 填充前 grounding 复检 (Unit 7)", () => {
 		expect(sendFill).toHaveBeenCalledOnce();
 	});
 });
+
+// ================================================================
+// approveBatch first-flight 互锁(Unit 5)
+// ================================================================
+describe("approveBatch first-flight 互锁", () => {
+	it("happy:guard 全允许 → 单条 fill + grant", async () => {
+		const sendFill = vi.fn(async () => ({ ok: true as const, results: [] }));
+		const sendGrant = vi.fn(async () => ({
+			ok: true,
+			dryRun: false,
+			url: "https://dx-999-adm.ympxbys.xyz/post/1",
+		}));
+		const guard = vi.fn(async () => ({ allowed: true }));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => makeAwaitingBatch([TOPIC_A])),
+			sendFill,
+			sendGrant,
+			firstFlightGuard: guard,
+		});
+		await approveBatch(deps);
+		expect(sendFill).toHaveBeenCalledOnce();
+		expect(sendGrant).toHaveBeenCalledOnce();
+		// fill-decision + pre-grant 各一次。
+		expect(guard).toHaveBeenCalledTimes(2);
+	});
+
+	it("P0:整批 approve,非匹配项 guard 拒绝 → 该项零 fill、零 grant", async () => {
+		// guard 只放行 item_0,拦 item_1。
+		const guard = vi.fn(async (ctx: { itemId: string }) => ({
+			allowed: ctx.itemId === "item_0",
+		}));
+		const sendFill = vi.fn(async () => ({ ok: true as const, results: [] }));
+		const sendGrant = vi.fn(async () => ({
+			ok: true,
+			dryRun: false,
+			url: "https://dx-999-adm.ympxbys.xyz/post/1",
+		}));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => makeAwaitingBatch([TOPIC_A, TOPIC_B])),
+			sendFill,
+			sendGrant,
+			firstFlightGuard: guard,
+		});
+		await approveBatch(deps);
+		// 只有 item_0 被 fill;item_1 在 fill 决策点即被拦,无副作用。
+		expect(sendFill).toHaveBeenCalledTimes(1);
+		expect(sendFill).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "item_0" }),
+		);
+		// grant 只对 item_0 发一次。
+		expect(sendGrant).toHaveBeenCalledTimes(1);
+	});
+
+	it("fill 决策点拒绝 → 既不 fill 也不 grant", async () => {
+		const guard = vi.fn(async () => ({ allowed: false }));
+		const sendFill = vi.fn(async () => ({ ok: true as const, results: [] }));
+		const sendGrant = vi.fn(async () => ({ ok: true, dryRun: false }));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => makeAwaitingBatch([TOPIC_A])),
+			sendFill,
+			sendGrant,
+			firstFlightGuard: guard,
+		});
+		await approveBatch(deps);
+		expect(sendFill).not.toHaveBeenCalled();
+		expect(sendGrant).not.toHaveBeenCalled();
+	});
+
+	it("dry-run 档:guard 不参与(fill 决策点跳过,正常 dry-run)", async () => {
+		const guard = vi.fn(async () => ({ allowed: false }));
+		const sendFill = vi.fn(async () => ({ ok: true as const, results: [] }));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => makeAwaitingBatch([TOPIC_A])),
+			sendFill,
+			evaluateGate: vi.fn(async () => ({
+				mode: "dry-run" as const,
+				allowed: false,
+				host: HOST,
+			})),
+			firstFlightGuard: guard,
+		});
+		await approveBatch(deps);
+		// dry-run 模式下 fill 决策点不调 guard;sendFill 正常发(dry-run 预演)。
+		expect(sendFill).toHaveBeenCalledOnce();
+	});
+
+	it("无 guard(省略)→ 零行为变更(基线 fill+grant)", async () => {
+		const sendFill = vi.fn(async () => ({ ok: true as const, results: [] }));
+		const sendGrant = vi.fn(async () => ({
+			ok: true,
+			dryRun: false,
+			url: "https://dx-999-adm.ympxbys.xyz/post/1",
+		}));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => makeAwaitingBatch([TOPIC_A])),
+			sendFill,
+			sendGrant,
+		});
+		await approveBatch(deps);
+		expect(sendFill).toHaveBeenCalledOnce();
+		expect(sendGrant).toHaveBeenCalledOnce();
+	});
+});

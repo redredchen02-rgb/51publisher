@@ -180,8 +180,58 @@ export type RuntimeMessage =
 	// 特权通道:仅 side panel 可发;mutate facts/draft/snapshot 并驱动提升,绝不自我授权发布。
 	// facts 为操作者补的事实覆盖(Partial<FactsBlock>);background 与 item.facts 合并后重跑 assembleDraft。
 	| { type: "REFILL_ITEM_FACTS"; itemId: string; facts: Partial<FactsBlock> }
+	// side panel → background:首飞排演(只读,dry-run + grounding,不武装不派发)。
+	// 在向导②强制排演阶段调用;返回 FirstFlightRehearseResult。绝不翻 authorized。
+	| { type: "FIRST_FLIGHT_REHEARSE"; tabId: number; itemId: string }
+	// side panel → background:首飞执行(排演→武装→最小窗口派发恰好一条→revert)。
+	// 在向导④解锁恰好一条时调用;host 由背景从 chrome.tabs.get 取,绝不接受消息携带的 host。
+	| { type: "FIRST_FLIGHT_RUN"; tabId: number; itemId: string }
+	// side panel → background:读首飞状态(mode/pending 是否在场),供向导订阅强制 reset 再入。
+	| { type: "FIRST_FLIGHT_STATUS" }
 	// side panel → content:轻量选择器漂移自检(R6 轻量)。
 	| { type: "CHECK_SELECTORS" };
+
+// ---- 首飞(first-flight)消息响应形状(side panel ↔ background)----
+// 仅承载布尔 / 状态 / 可读原因 / 可选 URL;绝不带 nonce / token / 登录态。
+
+/** FIRST_FLIGHT_REHEARSE 响应:dry-run 是否绿 + grounding 是否过 + 拦截原因。 */
+export interface FirstFlightRehearseResult {
+	ok: boolean;
+	/** dry-run 跑完且本条进了报告。 */
+	dryRunGreen: boolean;
+	/** grounding 判决是否通过。 */
+	groundingOk: boolean;
+	/** 未过原因(dry-run 不绿 / grounding 拦);通过时为空数组。 */
+	reasons: string[];
+	/** 取不到 host / 找不到条目等前置失败的可读说明。 */
+	error?: string;
+}
+
+/** FIRST_FLIGHT_RUN 响应:走到了哪一步 + 是否已 revert + (派发后)条目终态与待核实 URL。 */
+export interface FirstFlightRunResult {
+	ok: boolean;
+	/** 'rehearse' | 'arm' | 'dispatched'。 */
+	phase: "rehearse" | "arm" | "dispatched";
+	/** 失败原因(rehearse/arm 阶段);dispatched 时为空。 */
+	reason?: string;
+	/** 派发后条目终态(publish-confirmed / publish-failed / …);仅 dispatched 阶段有。 */
+	itemStatus?: string;
+	/** content 回执的真实帖子 URL(仅供操作者核实,不代表系统已证实落地)。 */
+	publishUrl?: string;
+	/** 是否已落定 revert(授权窗口已关闭、标记已清);UI 据此显示「已回落 dry-run」。 */
+	reverted: boolean;
+	/** 取不到 host / 找不到条目等前置失败的可读说明。 */
+	error?: string;
+}
+
+/** FIRST_FLIGHT_STATUS 响应:当前档位 + 是否有 pending 标记在场(向导据此侦测强制 reset 再入)。 */
+export interface FirstFlightStatusResult {
+	mode: SafetyMode;
+	/** 是否有 pending 标记在场(authorized 窗口未关闭 / 残留)。 */
+	armed: boolean;
+	/** 标记是否坏值(fail-closed:坏值视为已强制 reset)。 */
+	bad: boolean;
+}
 
 export interface DryRunItemResult {
 	itemId: string;
