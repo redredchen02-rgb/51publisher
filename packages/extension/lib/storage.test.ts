@@ -14,12 +14,14 @@ import {
 	addFewShotPair,
 	appendTrajectory,
 	clearBatch,
+	clearFirstFlight,
 	clearTrajectory,
 	DEFAULT_SETTINGS,
 	getApiKey,
 	getAuthorizedHosts,
 	getBackendToken,
 	getBatch,
+	getFirstFlight,
 	getSafetyMode,
 	getSettings,
 	getTrajectory,
@@ -30,6 +32,7 @@ import {
 	saveSettings,
 	setAuthorizedHosts,
 	setSafetyMode,
+	writeFirstFlight,
 } from "./storage";
 
 const D: ContentDraft = {
@@ -327,6 +330,69 @@ describe("storage", () => {
 			});
 			const s = await getSettings();
 			expect(s.dailyBatchSize).toBe(5);
+		});
+	});
+
+	describe("first-flight 标记", () => {
+		const PENDING = {
+			itemId: "item_0",
+			tabId: 7,
+			host: "dx-999-adm.ympxbys.xyz",
+			contentHash: "abc",
+			nonce: "n1",
+			ts: "2026-06-15T00:00:00.000Z",
+		};
+
+		it("干净缺失 → state absent", async () => {
+			expect(await getFirstFlight()).toEqual({ state: "absent" });
+		});
+
+		it("durable 写 + 读回 → state ok,字段往返", async () => {
+			const ok = await writeFirstFlight({
+				mode: "dry-run",
+				pending: PENDING,
+			});
+			expect(ok).toBe(true);
+			const read = await getFirstFlight();
+			expect(read.state).toBe("ok");
+			if (read.state === "ok") {
+				expect(read.marker.mode).toBe("dry-run");
+				expect(read.marker.pending).toEqual(PENDING);
+			}
+		});
+
+		it("坏值(非对象)→ state bad(fail-closed)", async () => {
+			await storage.setItem("local:firstFlight", "YOLO");
+			expect((await getFirstFlight()).state).toBe("bad");
+		});
+
+		it("坏值(pending 缺字段)→ state bad", async () => {
+			await storage.setItem("local:firstFlight", {
+				mode: "authorized",
+				pending: { itemId: "x" },
+			});
+			expect((await getFirstFlight()).state).toBe("bad");
+		});
+
+		it("坏值(mode 非法)→ state bad", async () => {
+			await storage.setItem("local:firstFlight", {
+				mode: "YOLO",
+				pending: null,
+			});
+			expect((await getFirstFlight()).state).toBe("bad");
+		});
+
+		it("pending=null 干净 arm 标记 → state ok", async () => {
+			await writeFirstFlight({ mode: "dry-run", pending: null });
+			const read = await getFirstFlight();
+			expect(read.state).toBe("ok");
+			if (read.state === "ok") expect(read.marker.pending).toBeNull();
+		});
+
+		it("clearFirstFlight → 回到 absent", async () => {
+			await writeFirstFlight({ mode: "dry-run", pending: PENDING });
+			await clearFirstFlight();
+			expect((await getFirstFlight()).state).toBe("absent");
 		});
 	});
 });

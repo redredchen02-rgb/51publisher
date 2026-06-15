@@ -194,4 +194,51 @@ describe("orchestratePublish:阻断携带 reason", () => {
 		const res = await orchestratePublish(deps);
 		expect(res).toEqual({ ok: false, dryRun: false, error: "blocked" });
 	});
+
+	describe("preGrantGuard(first-flight 互锁)", () => {
+		it("guard allowed=false → writeDispatched 后绝不 sendGrant,返回 first-flight-locked", async () => {
+			const order: string[] = [];
+			const deps = makeDeps(
+				{ mode: "authorized", allowed: true, host: "dx-999-adm.ympxbys.xyz" },
+				OK,
+				order,
+			);
+			deps.preGrantGuard = vi.fn(async () => ({ allowed: false }));
+			const res = await orchestratePublish(deps);
+			expect(res).toEqual({
+				ok: false,
+				dryRun: false,
+				error: "first-flight-locked",
+			});
+			expect(deps.sendGrant).not.toHaveBeenCalled();
+			// dispatched 已写(再交由 U4 恢复收尾),但 grant 从未发。
+			expect(order).toEqual(["dispatched", "confirmed:false"]);
+		});
+
+		it("guard allowed=true → 正常 grant", async () => {
+			const order: string[] = [];
+			const deps = makeDeps(
+				{ mode: "authorized", allowed: true, host: "dx-999-adm.ympxbys.xyz" },
+				OK,
+				order,
+			);
+			deps.preGrantGuard = vi.fn(async () => ({ allowed: true }));
+			const res = await orchestratePublish(deps);
+			expect(res).toEqual(OK);
+			expect(deps.sendGrant).toHaveBeenCalledOnce();
+			expect(order).toEqual(["dispatched", "grant", "confirmed:true"]);
+		});
+
+		it("无 guard(省略)→ 零行为变更", async () => {
+			const order: string[] = [];
+			const deps = makeDeps(
+				{ mode: "authorized", allowed: true, host: "dx-999-adm.ympxbys.xyz" },
+				OK,
+				order,
+			);
+			const res = await orchestratePublish(deps);
+			expect(res).toEqual(OK);
+			expect(order).toEqual(["dispatched", "grant", "confirmed:true"]);
+		});
+	});
 });

@@ -59,6 +59,12 @@ export interface OrchestratorDeps {
 	sendGrant: () => Promise<PublishResult>;
 	/** 记录 grant 后的最终结果(publish-confirmed / 失败结果)。 */
 	writeConfirmed: (result: PublishResult) => Promise<void>;
+	/**
+	 * 首飞互锁:grant 前最后一道闸(Unit 5)。**在 writeDispatched 之后、sendGrant 之前**求值,
+	 * 重读标记 close 「APPROVE_BATCH 在标记写入前已过 evaluateGate」的 TOCTOU。
+	 * allowed=false → 绝不 sendGrant,返回 first-flight-locked。省略=不启用(无标记零行为变更)。
+	 */
+	preGrantGuard?: () => Promise<{ allowed: boolean }>;
 }
 
 export async function orchestratePublish(
@@ -85,6 +91,20 @@ export async function orchestratePublish(
 
 	// authorized + host 命中:先 await 写盘 dispatched,再发准许(幂等顺序)。
 	await deps.writeDispatched();
+	// 首飞互锁:grant 前最后一道闸,重读标记(close 标记写入前已过 evaluateGate 的 TOCTOU)。
+	// 不通过 → 绝不 sendGrant;dispatched 标记已写,交由 U4 崩溃恢复/看门狗/reset 收尾。
+	if (deps.preGrantGuard) {
+		const verdict = await deps.preGrantGuard();
+		if (!verdict.allowed) {
+			const blocked: PublishResult = {
+				ok: false,
+				dryRun: false,
+				error: "first-flight-locked",
+			};
+			await deps.writeConfirmed(blocked);
+			return blocked;
+		}
+	}
 	const result = await deps.sendGrant();
 	await deps.writeConfirmed(result);
 	return result;

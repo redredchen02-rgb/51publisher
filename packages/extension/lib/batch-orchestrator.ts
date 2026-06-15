@@ -47,7 +47,7 @@ const GENERATION_CONCURRENCY = 3;
  * 串行互斥队列:把并发 worker 的状态变更逐个排队执行,保证对共享 batch 累积态的「读→改→save」原子化,
  * 避免多个 worker 持过期 batch 互相覆盖。返回的函数 await 即等到本次变更落盘。
  */
-function createSerialQueue(): <T>(fn: () => Promise<T>) => Promise<T> {
+export function createSerialQueue(): <T>(fn: () => Promise<T>) => Promise<T> {
 	let tail: Promise<unknown> = Promise.resolve();
 	return <T>(fn: () => Promise<T>): Promise<T> => {
 		const run = tail.then(fn);
@@ -357,6 +357,22 @@ export interface ApproveBatchDeps {
 	now?: () => string;
 	/** 存在时只处理 id 匹配的单条;省略=处理全部 awaiting-approval。 */
 	itemIdFilter?: string;
+	/**
+	 * 首飞互锁守卫(Unit 5):省略=不启用(无标记场景零行为变更)。
+	 * 在 fill 决策点 AND grant 前各求值一次(每次重读标记 close TOCTOU)。
+	 * allowed=false → 跳过本条(既不 fill 也不 grant),无 fill 副作用、无 grant 泄漏。
+	 */
+	firstFlightGuard?: (
+		ctx: FirstFlightDispatch,
+	) => Promise<{ allowed: boolean }>;
+}
+
+/** 传给互锁守卫的一笔意图身份(host 由 evaluateGate 给出)。 */
+export interface FirstFlightDispatch {
+	itemId: string;
+	tabId: number;
+	host: string;
+	draft: ContentDraft;
 }
 
 /** 批量发布循环。返回最终 Batch;无批次 → null。 */
@@ -379,6 +395,7 @@ export async function approveBatch(
 		recordPost,
 		now = () => new Date().toISOString(),
 		itemIdFilter,
+		firstFlightGuard,
 	} = deps;
 
 	const loaded = await getBatch();
@@ -425,6 +442,24 @@ export async function approveBatch(
 			}
 		}
 
+		// 首飞互锁(fill 决策点):标记在场且本条与标记不全等 → 跳过本条(既不 fill 也不 grant)。
+		// host 取自闸门判决(背景从 chrome.tabs.get 取),绝不接受消息携带的 host。
+		// P0:APPROVE_BATCH 无 filter 会遍历整批,每条非匹配项的 fill 与 grant 都在此被拦。
+		if (firstFlightGuard) {
+			const gateForHost = await evaluateGate();
+			const host = gateForHost.host;
+			if (gateForHost.mode === "authorized") {
+				if (host == null) continue; // host 不可达 → 不 fill(fail-closed)
+				const fillVerdict = await firstFlightGuard({
+					itemId: item.id,
+					tabId: batch.tabId,
+					host,
+					draft: item.draft,
+				});
+				if (!fillVerdict.allowed) continue; // 互锁拦截:无 fill 副作用、无 grant 泄漏
+			}
+		}
+
 		// Tombstone 写在 sendFill 之前:若 SW 在 fill 飞行中被回收,重启时扫到 tombstone → 隔离。
 		if (writeTombstone) {
 			await writeTombstone(item.id).catch(() => {
@@ -463,6 +498,25 @@ export async function approveBatch(
 				await save(batch);
 			},
 			sendGrant,
+			...(firstFlightGuard
+				? {
+						preGrantGuard: async () => {
+							// grant 前重读标记 + 重解析 host(close TOCTOU)。
+							const g = await evaluateGate();
+							if (g.mode !== "authorized") return { allowed: false };
+							if (g.host == null) return { allowed: false };
+							const cur = batch.items.find((it) => it.id === item.id);
+							const draft = cur?.draft ?? item.draft;
+							if (!draft) return { allowed: false };
+							return firstFlightGuard({
+								itemId: item.id,
+								tabId: batch.tabId,
+								host: g.host,
+								draft,
+							});
+						},
+					}
+				: {}),
 			writeConfirmed: async (r: PublishResult) => {
 				if (r.dryRun) return; // dry-run 不落状态
 				batch = r.ok
