@@ -22,6 +22,7 @@ const SW_TIMEOUT: Partial<Record<RuntimeMessage["type"], number>> = {
 	GET_BATCH: 10_000,
 	KILL_BATCH: 10_000,
 	RELEASE_QUARANTINE: 10_000,
+	RELEASE_QUARANTINE_BATCH: 10_000,
 	RETRY_BATCH_ITEM: 10_000,
 	DISCARD_BATCH_ITEM: 10_000,
 };
@@ -167,6 +168,11 @@ export async function releaseQuarantine(
 	itemId: string,
 ): Promise<BatchResponse> {
 	return sendMsg<BatchResponse>({ type: "RELEASE_QUARANTINE", itemId });
+}
+
+/** 人工批量退出全部隔离项(原子单次保存;绝不自动重发)。 */
+export async function releaseQuarantineBatch(): Promise<BatchResponse> {
+	return sendMsg<BatchResponse>({ type: "RELEASE_QUARANTINE_BATCH" });
 }
 
 /** 标记该条草稿已被操作者手动修改(直发率度量置位)。 */

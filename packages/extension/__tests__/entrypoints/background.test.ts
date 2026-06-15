@@ -418,6 +418,47 @@ describe("handleReleaseQuarantine", () => {
 	});
 });
 
+describe("handleReleaseQuarantineBatch", () => {
+	it("批量撤出全部隔离项 → 全 aborted,saveBatch 恰一次", async () => {
+		const batch: Batch = {
+			id: "b1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "",
+			items: [
+				{ id: "item_0", topic: "a", status: "needs-human-verification" },
+				{ id: "item_1", topic: "b", status: "needs-human-verification" },
+				{ id: "item_2", topic: "c", status: "awaiting-approval", draft: DRAFT },
+			],
+		};
+		const saveBatch = vi.fn(async () => {});
+		const deps = makeDeps({ getBatch: vi.fn(async () => batch), saveBatch });
+		const h = createHandlers(deps);
+		const result = await h.handleReleaseQuarantineBatch();
+		expect(result?.items[0]?.status).toBe("aborted");
+		expect(result?.items[1]?.status).toBe("aborted");
+		expect(result?.items[2]?.status).toBe("awaiting-approval"); // 非隔离不动
+		expect(saveBatch).toHaveBeenCalledTimes(1); // 单次原子保存
+	});
+
+	it("无隔离项 → no-op,不调 saveBatch", async () => {
+		const batch: Batch = {
+			id: "b1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "",
+			items: [
+				{ id: "item_0", topic: "a", status: "awaiting-approval", draft: DRAFT },
+			],
+		};
+		const saveBatch = vi.fn(async () => {});
+		const deps = makeDeps({ getBatch: vi.fn(async () => batch), saveBatch });
+		const h = createHandlers(deps);
+		await h.handleReleaseQuarantineBatch();
+		expect(saveBatch).not.toHaveBeenCalled();
+	});
+});
+
 // ================================================================
 // handleGenerate
 // ================================================================

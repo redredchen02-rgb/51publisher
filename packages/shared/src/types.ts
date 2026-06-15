@@ -165,6 +165,7 @@ export type RuntimeMessage =
 	  }
 	| { type: "KILL_BATCH" }
 	| { type: "RELEASE_QUARANTINE"; itemId: string }
+	| { type: "RELEASE_QUARANTINE_BATCH" }
 	| { type: "RETRY_BATCH_ITEM"; itemId: string }
 	| {
 			type: "DISCARD_BATCH_ITEM";
