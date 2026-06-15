@@ -235,6 +235,9 @@ describe("R3 — scraper trigger button", () => {
 		);
 		await waitFor(() => expect(fetchAdapters).toHaveBeenCalled());
 		fireEvent.click(screen.getByText("⚡ 立即抓取"));
-		expect(triggerScrape).toHaveBeenCalledWith("test-adapter");
+		// 点击→triggerScrape 为异步:适配器状态落定前同步断言会偶发「0 调用」,故包进 waitFor。
+		await waitFor(() =>
+			expect(triggerScrape).toHaveBeenCalledWith("test-adapter"),
+		);
 	});
 });
