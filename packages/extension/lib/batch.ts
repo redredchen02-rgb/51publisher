@@ -1,5 +1,6 @@
 import type {
 	ContentDraft,
+	DraftSlots,
 	FactsBlock,
 	FieldFillResult,
 } from "@51publisher/shared";
@@ -115,6 +116,7 @@ export function markFilled(
 		reviewCostTokens?: BatchItem["reviewCostTokens"];
 	},
 	assembledDraftSnapshot?: ContentDraft,
+	slots?: DraftSlots,
 ): Batch {
 	return transition(batch, itemId, ["generating", "queued"], {
 		status: "filled",
@@ -123,6 +125,8 @@ export function markFilled(
 		...(assembledDraftSnapshot !== undefined
 			? { assembledDraftSnapshot: { ...assembledDraftSnapshot } }
 			: {}),
+		// slots 为模型不可信文本,仅供后续 assembleDraft 重新组装消费,绝不直接渲染。
+		...(slots !== undefined ? { slots: { ...slots } } : {}),
 		...(llmCostTokens !== undefined ? { llmCostTokens } : {}),
 		...(generationDurationMs !== undefined ? { generationDurationMs } : {}),
 		// reviewMeta 为 undefined 时完全不写入，保持三态语义。

@@ -424,6 +424,84 @@ describe("Phase-3 reviewMeta", () => {
 });
 
 // ================================================================
+// Unit 1b — slots 线程化(markFilled 第八参数 + 持久化往返)
+// ================================================================
+
+describe("Unit 1b slots 线程化", () => {
+	const slotsFixture = {
+		titleSuffix: "成人動畫介紹",
+		subtitle: "一句俏皮吸睛话",
+		intro: "51娘 口吻开场",
+		highlights: "看点散文",
+		outro: "结尾招呼",
+	};
+
+	it("happy:markFilled 把 slots 与 draft/snapshot 一并存入 item", () => {
+		let b = newBatch(["x"]);
+		b = markGenerating(b, "item_0");
+		const d = draftFor("item_0");
+		b = markFilled(
+			b,
+			"item_0",
+			d,
+			undefined,
+			undefined,
+			undefined,
+			d,
+			slotsFixture,
+		);
+		expect(b.items[0]?.draft).toEqual(d);
+		expect(b.items[0]?.assembledDraftSnapshot).toEqual(d);
+		expect(b.items[0]?.slots).toEqual(slotsFixture);
+	});
+
+	it("edge:不传 slots(legacy/undefined)→ 字段不写入,且序列化/反序列化不报错", () => {
+		let b = newBatch(["x"]);
+		b = markGenerating(b, "item_0");
+		b = markFilled(b, "item_0", draftFor("item_0"));
+		expect("slots" in b.items[0]!).toBe(false);
+		// 存储层惰性:JSON 往返无异常,slots 仍缺省。
+		const roundTripped = JSON.parse(JSON.stringify(b)) as Batch;
+		expect(roundTripped.items[0]?.slots).toBeUndefined();
+	});
+
+	it("integration:存储往返反序列化逐字相等(加载时不二次校验)", () => {
+		let b = newBatch(["x"]);
+		b = markGenerating(b, "item_0");
+		const d = draftFor("item_0");
+		b = markFilled(
+			b,
+			"item_0",
+			d,
+			undefined,
+			undefined,
+			undefined,
+			d,
+			slotsFixture,
+		);
+		const roundTripped = JSON.parse(JSON.stringify(b)) as Batch;
+		expect(roundTripped).toEqual(b);
+		expect(roundTripped.items[0]?.slots).toEqual(slotsFixture);
+	});
+
+	it("security:slots.intro 内含 <script>/裸 URL 经存储往返保持原样(仅 assembleDraft 才中和)", () => {
+		// slots 是模型不可信文本:存储层惰性,绝不在此处消毒/渲染;
+		// 真正的转义/消毒发生在后续 assembleDraft(esc + sanitizeToPlainText)。
+		const dirty = {
+			...slotsFixture,
+			intro: "<script>alert(1)</script> 看 https://evil.example 了解",
+		};
+		let b = newBatch(["x"]);
+		b = markGenerating(b, "item_0");
+		const d = draftFor("item_0");
+		b = markFilled(b, "item_0", d, undefined, undefined, undefined, d, dirty);
+		const roundTripped = JSON.parse(JSON.stringify(b)) as Batch;
+		// 往返后 intro 字节级原样保留(惰性、未被中和)。
+		expect(roundTripped.items[0]?.slots?.intro).toBe(dirty.intro);
+	});
+});
+
+// ================================================================
 // gate-failed 状态(U2 — 接地闸门拦截)
 // ================================================================
 

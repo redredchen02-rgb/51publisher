@@ -298,6 +298,7 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
 				undefined,
 				reviewMeta,
 				assembledDraft,
+				gen.slots,
 			),
 		);
 
@@ -609,6 +610,7 @@ export async function retryItem(
 		undefined,
 		undefined,
 		draft,
+		gen.slots,
 	);
 	batch = presentForApproval(batch);
 	await deps.save(batch); // flush approval-ready state
