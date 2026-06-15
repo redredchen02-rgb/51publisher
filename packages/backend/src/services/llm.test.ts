@@ -9,6 +9,7 @@ import {
 	generateDraft,
 	listModels,
 	modelsUrl,
+	reviewDraftLlm,
 	slotsFromParsed,
 } from "../services/llm.js";
 
@@ -473,5 +474,135 @@ describe("toDraft", () => {
 		expect(d.status).toBe("draft");
 		expect(d.id).toBe("id1");
 		expect(d.createdAt).toBe("2026-06-03T00:00:00.000Z");
+	});
+});
+
+// ---- 429/503 退避重试(Theme E PR-E4)----
+function seqFetch(steps: Array<{ status: number; payload?: unknown }>) {
+	let i = 0;
+	return vi.fn(async () => {
+		const step = steps[Math.min(i, steps.length - 1)];
+		i += 1;
+		return {
+			ok: step.status >= 200 && step.status < 300,
+			status: step.status,
+			statusText: String(step.status),
+			headers: { get: () => null },
+			json: async () => step.payload ?? {},
+		} as unknown as Response;
+	});
+}
+
+const noSleep = async () => {};
+
+describe("generateDraft 429/5xx 退避重试", () => {
+	it("Happy:429 一次后 200 → 重试成功,sleep 被调用一次", async () => {
+		const sleep = vi.fn(noSleep);
+		const fetchFn = seqFetch([
+			{ status: 429 },
+			{ status: 200, payload: slotsReply({ intro: "i", highlights: "h" }) },
+		]);
+		const res = await generateDraft("主题", {
+			settings,
+			apiKey: "k",
+			facts: FACTS,
+			fetchFn,
+			sleep,
+			maxRetries: 2,
+			...base,
+		});
+		expect(res.ok).toBe(true);
+		expect(sleep).toHaveBeenCalledTimes(1);
+		expect(fetchFn).toHaveBeenCalledTimes(2);
+	});
+
+	it("Error:持续 429 超过 maxRetries → 退避耗尽,sleep 调用 maxRetries 次,最终 ok:false", async () => {
+		const sleep = vi.fn(noSleep);
+		const fetchFn = seqFetch([{ status: 429 }]);
+		const res = await generateDraft("主题", {
+			settings, // 无 fallbackModel → 单 model;内层 schema 两轮各自重试
+			apiKey: "k",
+			fetchFn,
+			sleep,
+			maxRetries: 2,
+			...base,
+		});
+		expect(res.ok).toBe(false);
+		// 单 model(无 fallback);429 在退避耗尽后 break 出 schema 循环(不试 useSchema=false)。
+		// 故仅 useSchema=true 一轮:1 初次 + maxRetries(2) 重试 = 2 次 sleep。
+		expect(sleep).toHaveBeenCalledTimes(2);
+	});
+
+	it("分桶:400(gemma4 schema 不稳)→ 不重试,走 schema 降级", async () => {
+		const sleep = vi.fn(noSleep);
+		// schema 轮 400 → 降级到非 schema 轮 200。
+		const fetchFn = seqFetch([
+			{ status: 400 },
+			{ status: 200, payload: slotsReply({ intro: "i", highlights: "h" }) },
+		]);
+		const res = await generateDraft("主题", {
+			settings,
+			apiKey: "k",
+			facts: FACTS,
+			fetchFn,
+			sleep,
+			maxRetries: 2,
+			...base,
+		});
+		expect(res.ok).toBe(true);
+		expect(sleep).not.toHaveBeenCalled(); // 400 不进退避桶
+	});
+});
+
+describe("callLlmForJson(review/rewrite)429/5xx 退避 + 不-throw 契约", () => {
+	const MIN_DRAFT = {
+		id: "d1",
+		title: "T",
+		subtitle: "",
+		category: "2",
+		coverImageUrl: "",
+		body: "<p>b</p>",
+		tags: [],
+		description: "",
+		postStatus: "0",
+		publishedAt: "2026-06-04",
+		mediaId: "1",
+		status: "draft",
+		createdAt: "2026-06-04T00:00:00.000Z",
+	} as unknown as Parameters<typeof reviewDraftLlm>[0];
+
+	it("分桶:200 + 非法 JSON(gemma4 格式)→ 立即 ok:false,不重试", async () => {
+		const sleep = vi.fn(noSleep);
+		const fetchFn = seqFetch([{ status: 200, payload: oaiReply("不是JSON") }]);
+		const res = await reviewDraftLlm(MIN_DRAFT, undefined, {
+			settings,
+			apiKey: "k",
+			fetchFn,
+			sleep,
+			maxRetries: 2,
+			...base,
+		});
+		expect(res.ok).toBe(false);
+		expect(sleep).not.toHaveBeenCalled();
+	});
+
+	it("持续 5xx → 重试耗尽返 ok:false、不 throw", async () => {
+		const sleep = vi.fn(noSleep);
+		const fetchFn = seqFetch([{ status: 503 }]);
+		let result: Awaited<ReturnType<typeof reviewDraftLlm>> | undefined;
+		await expect(
+			(async () => {
+				result = await reviewDraftLlm(MIN_DRAFT, undefined, {
+					settings,
+					apiKey: "k",
+					fetchFn,
+					sleep,
+					maxRetries: 2,
+					...base,
+				});
+			})(),
+		).resolves.toBeUndefined();
+		expect(result?.ok).toBe(false);
+		expect(sleep).toHaveBeenCalledTimes(2);
 	});
 });
