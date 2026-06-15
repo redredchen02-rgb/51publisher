@@ -97,6 +97,15 @@ export interface Settings {
 	/**
 	 * 51娘 few-shot 范例原始字符串(后端 prompt 注入用)。
 	 * @deprecated 使用 fewShotPairs 作为编辑源;保存时由 fewShotPairs 派生此字段(向前兼容)。
+	 *
+	 * 移除里程碑(R13,需作为独立迁移,勿当衛生项随手删——会断 few-shot 注入):
+	 *   1. background.ts(:249,:454) 改为注入时 deriveFewShotExamples(settings.fewShotPairs),
+	 *      不再读持久化的 settings.fewShotExamples。
+	 *   2. storage.ts 去掉 deriveFewShotExamples 的 save 端双写与 merge 端 shim。
+	 *   3. 处理历史数据:仅有 fewShotExamples 无 fewShotPairs 的旧 settings 需一次性反解析为 pairs。
+	 *   4. 然后从本 type 删除此字段。
+	 *   注:后端 prompt-store/schemas/prompt-routes 的 Prompt 模板亦有同名 fewShotExamples 字段,
+	 *      那是「Prompt 控制台模板」的独立概念,不随 Settings 的此字段一起删。
 	 */
 	fewShotExamples?: string;
 	/** 结构化 few-shot 范例列表(R11-R13);与 fewShotExamples 并存,fewShotPairs 为编辑源。 */
