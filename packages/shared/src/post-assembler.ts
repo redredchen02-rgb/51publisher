@@ -14,6 +14,16 @@ import type { FactsBlock } from "./facts.js";
 
 export const PLACEHOLDER = "【待补】";
 
+/**
+ * 是否含「待补」占位标记(fail-safe)。
+ * 只认开标记 `【待补`,故标注式 `【待补:作品名】`、裸式 `【待补】`、未闭合/残缺 `【待补`(无 `】`)
+ * 一律命中;空/undefined/null 返回 false 且绝不抛错。
+ */
+export function containsPlaceholder(text: string | undefined | null): boolean {
+	if (!text) return false;
+	return text.includes("【待补");
+}
+
 /** 模型只产出的叙事槽位:纯文本口吻,**不含** body/HTML/URL/具体事实值。 */
 export interface DraftSlots {
 	/** 标题套话后缀,如「成人動畫介紹」;作品名由程式前置。 */

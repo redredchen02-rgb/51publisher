@@ -73,4 +73,34 @@ describe("evaluateGrounding", () => {
 		expect(v.ok).toBe(false);
 		expect(v.reasons.join()).toContain("标题");
 	});
+
+	it("副标题含【待补】→ 拦(此前会漏过)", () => {
+		const clean = draftFrom(FULL);
+		const tampered: ContentDraft = { ...clean, subtitle: "看点【待补】" };
+		const v = evaluateGrounding(tampered, FULL);
+		expect(v.ok).toBe(false);
+		expect(v.reasons.join()).toContain("副标题");
+	});
+
+	it("简介(description)含【待补】→ 拦(此前会漏过)", () => {
+		const clean = draftFrom(FULL);
+		const tampered: ContentDraft = {
+			...clean,
+			description: "简介【待补】",
+		};
+		const v = evaluateGrounding(tampered, FULL);
+		expect(v.ok).toBe(false);
+		expect(v.reasons.join()).toContain("简介");
+	});
+
+	it("未闭合/标注式【待补 变体也拦(前缀匹配)", () => {
+		const clean = draftFrom(FULL);
+		const tampered: ContentDraft = {
+			...clean,
+			body: `${clean.body}<p>漢化:【待补:漢化连结</p>`,
+		};
+		const v = evaluateGrounding(tampered, FULL);
+		expect(v.ok).toBe(false);
+		expect(v.reasons.join()).toContain("正文");
+	});
 });

@@ -4,7 +4,7 @@
 // 纯函数(verifyLinks 那项需 DOMParser;SW 无 DOM 时该项跳过 —— 组装器已保证连结来源,此为 defense-in-depth)。
 
 import type { ContentDraft, FactsBlock } from "@51publisher/shared";
-import { factUrls, PLACEHOLDER } from "@51publisher/shared";
+import { containsPlaceholder, factUrls } from "@51publisher/shared";
 import { hasUnsourcedLink, verifyLinks } from "./link-source";
 
 export interface GroundingVerdict {
@@ -23,11 +23,19 @@ export function evaluateGrounding(
 ): GroundingVerdict {
 	const reasons: string[] = [];
 
-	if (draft.title.includes(PLACEHOLDER)) {
+	// 四个组装字段全部检测 —— subtitle/description 也会经 sanitizeToPlainText 裸 URL 改写携带【待补】,
+	// 旧逻辑只查 title+body 会漏过它们。用前缀 helper(标注/裸/未闭合变体均拦)。
+	if (containsPlaceholder(draft.title)) {
 		reasons.push("标题仍含【待补】(缺作品名),请补全或编辑后再发。");
 	}
-	if (draft.body.includes(PLACEHOLDER)) {
+	if (containsPlaceholder(draft.body)) {
 		reasons.push("正文仍含【待补】(有事实未补),请补全或删去该占位后再发。");
+	}
+	if (containsPlaceholder(draft.subtitle)) {
+		reasons.push("副标题仍含【待补】(有事实未补),请补全或删去该占位后再发。");
+	}
+	if (containsPlaceholder(draft.description)) {
+		reasons.push("简介仍含【待补】(有事实未补),请补全或删去该占位后再发。");
 	}
 
 	// 无来源连结:组装后应恒不触发;此为 defense-in-depth。
