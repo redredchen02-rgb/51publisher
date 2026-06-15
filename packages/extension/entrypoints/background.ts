@@ -30,6 +30,10 @@ import {
 	hashDraft,
 	type InterlockVerdict,
 } from "../lib/first-flight";
+import {
+	type FirstFlightIntent,
+	runFirstFlight,
+} from "../lib/first-flight-orchestrator";
 import { evaluateGrounding } from "../lib/grounding-gate";
 import { generateDraft, reviewDraft, rewriteDraft } from "../lib/llm";
 import { updatePendingStatus } from "../lib/pending-client";
@@ -352,6 +356,24 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 			);
 		}
 		return verdict;
+	}
+
+	/**
+	 * 干净落定 revert(Unit 6 首飞收尾):非对称降级保护(先降档 → 再清标记)。
+	 * 与 forceReset 的区别:这是**预期内**的窗口关闭(派发完/排演未过),不是可疑信号,
+	 * 故不累加 consecutiveResets,反而归零(等同一次干净 settle),避免正常首飞把楔住计数顶满落 off。
+	 */
+	async function settleRevert(
+		cause: string,
+		marker?: FirstFlightMarker | null,
+	): Promise<void> {
+		liveArmNonce = null;
+		clearWatchdog();
+		const target = marker?.mode === "off" ? "off" : "dry-run";
+		await deps.setSafetyMode(target).catch(() => {});
+		await deps.clearFirstFlight().catch(() => {});
+		consecutiveResets = 0; // 干净 settle:楔住计数归零
+		emitAlert("first-flight-settle", { cause });
 	}
 
 	/** 时间看门狗(Unit 4):dispatch 挂起 + SW 仍存活的窄缝。fire → 强制 revert dry-run + 清 pending。 */
@@ -709,6 +731,191 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 		return next;
 	}
 
+	// ================================================================
+	// First-flight 向导编排(Unit 6):rehearse / run / status
+	// ================================================================
+
+	/** 从当前 batch 取一条 awaiting-approval 且有 draft 的 item 身份(含 facts)。 */
+	async function resolveIntent(
+		tabId: number,
+		itemId: string,
+	): Promise<
+		{ ok: true; intent: FirstFlightIntent } | { ok: false; error: string }
+	> {
+		const host = (await evaluateGate(tabId)).host;
+		if (host == null) return { ok: false, error: "host-unreachable" };
+		const batch = await deps.getBatch();
+		const item = batch?.items.find((it) => it.id === itemId);
+		if (!item?.draft) return { ok: false, error: "item-not-found" };
+		return {
+			ok: true,
+			intent: {
+				itemId,
+				tabId,
+				host,
+				draft: item.draft,
+				...(item.facts ? { facts: item.facts } : {}),
+			},
+		};
+	}
+
+	/**
+	 * 排演(只读):对**同一快照**跑 dry-run(approveBatch dry-run 档,itemIdFilter)+ grounding。
+	 * 关键:evaluateGate 在此被强制为 dry-run(绝不读全局档、绝不翻 authorized);grounding 对
+	 * snapshot(防 AI 重写洗【待补】)与最终 draft 各求值一次,任一不过即拦。
+	 */
+	async function rehearseIntent(intent: FirstFlightIntent): Promise<{
+		dryRunGreen: boolean;
+		grounding: ReturnType<typeof evaluateGrounding>;
+	}> {
+		// dry-run 强制闸:无论全局档为何,排演恒在 dry-run 下进行。
+		const dryRunGate = async (): Promise<GateDecision> => ({
+			mode: "dry-run",
+			allowed: false,
+			host: intent.host,
+			reason: "dry-run",
+		});
+		const rehearseDeps = buildApproveDeps(intent.tabId, intent.itemId);
+		let dryRunReached = false;
+		const result = await approveBatch({
+			...rehearseDeps,
+			evaluateGate: dryRunGate,
+			// 排演不写正式 dry-run 报告(避免污染向导外的报告视图);只探测是否走到 dry-run。
+			saveDryRunReportFn: async (report) => {
+				dryRunReached = report.items.some((it) => it.itemId === intent.itemId);
+			},
+			// 排演不启用互锁(无标记;互锁在真正 run 时兜底)。
+			firstFlightGuard: undefined,
+		});
+		// grounding:对快照 + 最终 draft 各求值一次(与 approveBatch authorized 闸同口径)。
+		const cur = result?.items.find((it) => it.id === intent.itemId);
+		const snapshot = cur?.assembledDraftSnapshot;
+		const vSnapshot = snapshot
+			? evaluateGrounding(snapshot, intent.facts)
+			: {
+					ok: false,
+					reasons: ["缺发布快照(assembledDraftSnapshot),请重新生成后再发。"],
+				};
+		const vFinal = evaluateGrounding(intent.draft, intent.facts);
+		const reasons = [...new Set([...vSnapshot.reasons, ...vFinal.reasons])];
+		return {
+			dryRunGreen: dryRunReached,
+			grounding: { ok: vSnapshot.ok && vFinal.ok, reasons },
+		};
+	}
+
+	async function handleFirstFlightRehearse(
+		tabId: number,
+		itemId: string,
+	): Promise<import("@51publisher/shared").FirstFlightRehearseResult> {
+		try {
+			const resolved = await resolveIntent(tabId, itemId);
+			if (!resolved.ok)
+				return {
+					ok: false,
+					dryRunGreen: false,
+					groundingOk: false,
+					reasons: [],
+					error: resolved.error,
+				};
+			const r = await rehearseIntent(resolved.intent);
+			return {
+				ok: r.dryRunGreen && r.grounding.ok,
+				dryRunGreen: r.dryRunGreen,
+				groundingOk: r.grounding.ok,
+				reasons: r.grounding.reasons,
+			};
+		} catch (err) {
+			console.error("[bg] first-flight rehearse 失败", err);
+			return {
+				ok: false,
+				dryRunGreen: false,
+				groundingOk: false,
+				reasons: [],
+				error: "rehearse-internal-error",
+			};
+		}
+	}
+
+	/**
+	 * 执行首飞:排演→武装→最小窗口派发恰好一条→finally revert。
+	 * authorized 翻转只在 arm 内发生;最小窗口 = approveBatch({itemIdFilter}) 这一次派发;
+	 * revert 由 forceReset 在 finally 兜底(先降档 dry-run → 再清标记)。
+	 */
+	async function handleFirstFlightRun(
+		tabId: number,
+		itemId: string,
+	): Promise<import("@51publisher/shared").FirstFlightRunResult> {
+		try {
+			// publish-class:发 grant 前等启动 reset settle(与 runApprove 同前置条件)。
+			await ensureStartupReset();
+			const resolved = await resolveIntent(tabId, itemId);
+			if (!resolved.ok)
+				return {
+					ok: false,
+					phase: "rehearse",
+					reverted: true,
+					error: resolved.error,
+				};
+
+			const outcome = await runFirstFlight({
+				intent: resolved.intent,
+				rehearse: rehearseIntent,
+				arm: (it) =>
+					handleArmFirstFlight({
+						itemId: it.itemId,
+						tabId: it.tabId,
+						host: it.host,
+						draft: it.draft,
+					}),
+				dispatchOne: () => runApprove(tabId, itemId),
+				revert: async (cause) => {
+					const read = await deps.getFirstFlight();
+					await settleRevert(cause, read.state === "ok" ? read.marker : null);
+				},
+			});
+
+			if (outcome.phase === "dispatched")
+				return {
+					ok: true,
+					phase: "dispatched",
+					itemStatus: outcome.itemStatus,
+					...(outcome.publishUrl ? { publishUrl: outcome.publishUrl } : {}),
+					reverted: outcome.reverted,
+				};
+			return {
+				ok: false,
+				phase: outcome.phase,
+				reason: outcome.reason,
+				reverted: outcome.reverted,
+			};
+		} catch (err) {
+			console.error("[bg] first-flight run 失败", err);
+			// 异常路径兜底 revert,绝不留 authorized 窗口悬空。
+			await forceReset("first-flight-run-exception").catch(() => {});
+			return {
+				ok: false,
+				phase: "arm",
+				reverted: true,
+				error: "run-internal-error",
+			};
+		}
+	}
+
+	async function handleFirstFlightStatus(): Promise<
+		import("@51publisher/shared").FirstFlightStatusResult
+	> {
+		const [mode, read] = await Promise.all([
+			deps.getSafetyMode(),
+			deps.getFirstFlight(),
+		]);
+		return {
+			mode,
+			armed: read.state === "ok" && read.marker.pending !== null,
+			bad: read.state === "bad",
+		};
+	}
+
 	return {
 		handleGenerate,
 		handleRunBatch,
@@ -726,6 +933,9 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 		firstFlightGuard,
 		ensureStartupReset,
 		handleWatchdog,
+		handleFirstFlightRehearse,
+		handleFirstFlightRun,
+		handleFirstFlightStatus,
 	};
 }
 
@@ -911,6 +1121,12 @@ export default defineBackground(() => {
 				message.itemId,
 				message.rejectionReason,
 			);
+		if (message?.type === "FIRST_FLIGHT_REHEARSE")
+			return handlers.handleFirstFlightRehearse(message.tabId, message.itemId);
+		if (message?.type === "FIRST_FLIGHT_RUN")
+			return handlers.handleFirstFlightRun(message.tabId, message.itemId);
+		if (message?.type === "FIRST_FLIGHT_STATUS")
+			return handlers.handleFirstFlightStatus();
 		if (message?.type === "GET_BATCH") return getBatch();
 		return undefined;
 	});

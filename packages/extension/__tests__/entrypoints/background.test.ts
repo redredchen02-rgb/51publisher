@@ -1338,3 +1338,183 @@ describe("first-flight guard 集成(interlock)", () => {
 		expect(v.allowed).toBe(true);
 	});
 });
+
+// ================================================================
+// First-flight 向导编排(Unit 6):rehearse / run / status
+// ================================================================
+
+/**
+ * 有状态 mode store:setSafetyMode 写、getSafetyMode 读同一变量。
+ * 配合 makeFFStore 让 arm/revert/互锁在「真实档位翻转」上跑,而非全 mock。
+ */
+function makeModeStore(initial: "off" | "dry-run" | "authorized" = "dry-run") {
+	let mode = initial;
+	return {
+		getSafetyMode: vi.fn(async () => mode),
+		setSafetyMode: vi.fn(async (m: "off" | "dry-run" | "authorized") => {
+			mode = m;
+		}),
+		peek: () => mode,
+	};
+}
+
+describe("first-flight 向导编排(Unit 6)", () => {
+	beforeEach(() => fakeBrowser.reset());
+
+	it("rehearse:只读 dry-run + grounding,绝不翻 authorized、绝不武装", async () => {
+		const ff = makeFFStore();
+		const mode = makeModeStore("dry-run");
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => makeBatch("awaiting-approval")),
+			getSafetyMode: mode.getSafetyMode,
+			setSafetyMode: mode.setSafetyMode,
+			getFirstFlight: ff.getFirstFlight,
+			writeFirstFlight: ff.writeFirstFlight,
+			clearFirstFlight: ff.clearFirstFlight,
+		});
+		const h = createHandlers(deps);
+		const res = await h.handleFirstFlightRehearse(1, "item_0");
+		expect(res.ok).toBe(true);
+		expect(res.dryRunGreen).toBe(true);
+		expect(res.groundingOk).toBe(true);
+		// 排演后档位仍 dry-run、标记仍缺失(未武装)。
+		expect(mode.peek()).toBe("dry-run");
+		expect(ff.peek().state).toBe("absent");
+	});
+
+	it("rehearse:grounding 拦(标题含【待补】)→ ok=false,reasons 透出", async () => {
+		const badDraft = { ...DRAFT, title: "【待补】成人動畫介紹" };
+		const batch = makeBatch("awaiting-approval");
+		const it0 = batch.items[0];
+		if (!it0) throw new Error("fixture missing item");
+		it0.draft = badDraft;
+		it0.assembledDraftSnapshot = badDraft;
+		const deps = makeDeps({ getBatch: vi.fn(async () => batch) });
+		const h = createHandlers(deps);
+		const res = await h.handleFirstFlightRehearse(1, "item_0");
+		expect(res.ok).toBe(false);
+		expect(res.groundingOk).toBe(false);
+		expect(res.reasons.join(" ")).toContain("【待补】");
+	});
+
+	it("rehearse:host 取不到 → error=host-unreachable", async () => {
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => makeBatch("awaiting-approval")),
+			tabsGet: vi.fn(async () => ({}) as { url?: string; id?: number }),
+		});
+		const h = createHandlers(deps);
+		const res = await h.handleFirstFlightRehearse(1, "item_0");
+		expect(res.ok).toBe(false);
+		expect(res.error).toBe("host-unreachable");
+	});
+
+	// ---- 解耦机器验证:HARMLESS authorized host,不依赖占位/不碰真实帖子 ----
+	// 证明:一次 grant 放行(派发恰好一条) + 落定 revert 到 dry-run + 第二次未再排演被互锁挡。
+	it("decoupling 端到端:一次 grant 放行 + revert 到 dry-run + 第二次被挡", async () => {
+		const ff = makeFFStore();
+		const mode = makeModeStore("dry-run");
+		// 有状态 batch:dispatch 推进状态后回读。
+		let batch = makeBatch("awaiting-approval");
+		const grantCalls: unknown[] = [];
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => batch),
+			saveBatch: vi.fn(async (b: Batch) => {
+				batch = b;
+			}),
+			getSafetyMode: mode.getSafetyMode,
+			setSafetyMode: mode.setSafetyMode,
+			getFirstFlight: ff.getFirstFlight,
+			writeFirstFlight: ff.writeFirstFlight,
+			clearFirstFlight: ff.clearFirstFlight,
+			// content fill ACK + grant 回执(harmless host,不真发)。
+			tabsSendMessage: vi.fn(async (_id: number, msg: unknown) => {
+				const m = msg as { type: string };
+				if (m.type === "PUBLISH_GRANT") {
+					grantCalls.push(m);
+					return { ok: true, dryRun: false, url: `https://${HOST}/post/1` };
+				}
+				return { ok: true, results: [] };
+			}),
+			saveDryRunReportFn: vi.fn(async () => {}),
+		});
+		const h = createHandlers(deps);
+
+		const run1 = await h.handleFirstFlightRun(1, "item_0");
+		expect(run1.ok).toBe(true);
+		expect(run1.phase).toBe("dispatched");
+		// 恰好一次 grant。
+		expect(grantCalls).toHaveLength(1);
+		// 落定:档位已 revert 回 dry-run,标记已清。
+		expect(mode.peek()).toBe("dry-run");
+		expect(ff.peek().state).toBe("absent");
+		expect(run1.reverted).toBe(true);
+
+		// 第二次直接 run(未额外人工再排演的状态下,标记已清 + 档位 dry-run):
+		// 该条已是 publish-confirmed,approveBatch 不会再 fill/grant ⇒ 绝无第二次 grant。
+		const run2 = await h.handleFirstFlightRun(1, "item_0");
+		expect(grantCalls).toHaveLength(1); // 仍只有一次 —— 第二次未放行
+		expect(mode.peek()).toBe("dry-run"); // 仍 dry-run
+		expect(ff.peek().state).toBe("absent");
+		expect(run2.reverted).toBe(true);
+	});
+
+	it("R8 host 来自 tab:run 用 chrome.tabs.get 的 host,不接受消息携带 host", async () => {
+		const ff = makeFFStore();
+		const mode = makeModeStore("dry-run");
+		const tabsGet = vi.fn(
+			async () =>
+				({ url: `https://${HOST}/admin`, id: 1 }) as {
+					url?: string;
+					id?: number;
+				},
+		);
+		let batch = makeBatch("awaiting-approval");
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => batch),
+			saveBatch: vi.fn(async (b: Batch) => {
+				batch = b;
+			}),
+			getSafetyMode: mode.getSafetyMode,
+			setSafetyMode: mode.setSafetyMode,
+			getFirstFlight: ff.getFirstFlight,
+			writeFirstFlight: ff.writeFirstFlight,
+			clearFirstFlight: ff.clearFirstFlight,
+			tabsGet,
+			tabsSendMessage: vi.fn(async (_id: number, msg: unknown) => {
+				const m = msg as { type: string };
+				if (m.type === "PUBLISH_GRANT")
+					return { ok: true, dryRun: false, url: `https://${HOST}/post/1` };
+				return { ok: true, results: [] };
+			}),
+			saveDryRunReportFn: vi.fn(async () => {}),
+		});
+		const h = createHandlers(deps);
+		await h.handleFirstFlightRun(1, "item_0");
+		// host 解析必经 tabsGet(写入标记的 host 来自 tab)。
+		expect(tabsGet).toHaveBeenCalled();
+		// 武装时写入的 pending.host 来自 tab。
+		expect(ff.writeFirstFlight).toHaveBeenCalled();
+	});
+
+	it("status:无标记 → armed=false;dry-run 档", async () => {
+		const deps = makeDeps({
+			getSafetyMode: vi.fn(async () => "dry-run" as const),
+			getFirstFlight: vi.fn(async () => ({ state: "absent" as const })),
+		});
+		const h = createHandlers(deps);
+		const s = await h.handleFirstFlightStatus();
+		expect(s.mode).toBe("dry-run");
+		expect(s.armed).toBe(false);
+		expect(s.bad).toBe(false);
+	});
+
+	it("status:坏值标记 → bad=true(fail-closed)", async () => {
+		const deps = makeDeps({
+			getFirstFlight: vi.fn(async () => ({ state: "bad" as const })),
+		});
+		const h = createHandlers(deps);
+		const s = await h.handleFirstFlightStatus();
+		expect(s.bad).toBe(true);
+		expect(s.armed).toBe(false);
+	});
+});
