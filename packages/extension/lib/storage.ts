@@ -59,21 +59,6 @@ export const DEFAULT_SETTINGS: Settings = {
 		"",
 		"{{facts}}",
 	].join("\n"),
-	// 范例只示口吻与槽位结构;绝不含真实连结/事实(脱敏)。
-	fewShotExamples: [
-		"范例(仅示口吻与 JSON 槽位结构;事实一律来自【事实】,不要编造):",
-		"输出 JSON:",
-		"{",
-		'  "intro": "嗨嗨~大家好我是51娘ヾ(≧▽≦*)o 今天為各位紳士帶來一部讓人血脈賁張的作品!",',
-		'  "highlights": "畫面精緻、福利滿滿,劇情雖不複雜卻很對味,喜歡這類題材的紳士絕不能錯過~",',
-		'  "titleSuffix": "成人動畫介紹",',
-		'  "subtitle": "紳士們準備好衛生紙了嗎?",',
-		'  "outro": "那麼今天就介紹到這裡,各位紳士我們下次見啦(*/ω＼*)",',
-		'  "category": "",',
-		'  "tags": []',
-		"}",
-		"",
-	].join("\n"),
 	fewShotPairs: [] as FewShotPair[],
 	recommendedTags: [] as string[],
 	fieldMapping: DEFAULT_FIELD_MAPPING,
@@ -103,6 +88,8 @@ export async function getSettings(): Promise<Settings> {
 	// to the DEFAULT_SETTINGS example string.
 	if (stored.fewShotPairs !== undefined && stored.fewShotPairs.length === 0) {
 		merged.fewShotExamples = undefined;
+	} else if (merged.fewShotPairs && merged.fewShotPairs.length > 0) {
+		merged.fewShotExamples = deriveFewShotExamples(merged.fewShotPairs);
 	}
 	// 读取时确保 dailyBatchSize 始终在合法范围内
 	merged.dailyBatchSize = clampDailyBatchSize(merged.dailyBatchSize);
@@ -185,6 +172,103 @@ export async function setAuthorizedHosts(hosts: string[]): Promise<void> {
 	await storage.setItem(AUTHORIZED_HOSTS_KEY, hosts);
 }
 
+// ---- First-flight 安全标记(自家授权站「首飞」互锁)----
+// 单一持久化键 local:firstFlight,承载 {mode, pending}:
+//   - mode:首飞期间被「降级保护」的工作档位(arm 前的档位,通常 dry-run);revert 时回落到它。
+//   - pending:一次性发布意图的指纹(itemId/tabId/host/contentHash/nonce/ts)。
+// 写入是 durable(await + 读回确认),绝不 fire-and-forget。
+// fail-closed 读取:present-but-unparseable → { bad:true }(调用方据此 block + 强制 reset);
+// cleanly-absent → { absent:true }(忽略,无标记走正常 canSubmit 路径)。
+
+const FIRST_FLIGHT_KEY = "local:firstFlight";
+
+export interface FirstFlightPending {
+	itemId: string;
+	tabId: number;
+	host: string;
+	contentHash: string;
+	nonce: string;
+	ts: string;
+}
+
+export interface FirstFlightMarker {
+	/** arm 前被保护的工作档位(revert 目标);取值同 SafetyMode。 */
+	mode: SafetyMode;
+	pending: FirstFlightPending | null;
+}
+
+/** getFirstFlight 的判别式结果:干净缺失 / 坏值 / 正常解析。 */
+export type FirstFlightRead =
+	| { state: "absent" }
+	| { state: "bad" }
+	| { state: "ok"; marker: FirstFlightMarker };
+
+function isValidPending(v: unknown): v is FirstFlightPending {
+	if (!v || typeof v !== "object") return false;
+	const o = v as Record<string, unknown>;
+	return (
+		typeof o.itemId === "string" &&
+		typeof o.tabId === "number" &&
+		typeof o.host === "string" &&
+		typeof o.contentHash === "string" &&
+		typeof o.nonce === "string" &&
+		typeof o.ts === "string"
+	);
+}
+
+function parseFirstFlight(v: unknown): FirstFlightRead {
+	if (v === undefined || v === null) return { state: "absent" };
+	if (typeof v !== "object") return { state: "bad" };
+	const o = v as Record<string, unknown>;
+	const mode = o.mode;
+	if (mode !== "off" && mode !== "dry-run" && mode !== "authorized")
+		return { state: "bad" };
+	const pending = o.pending;
+	if (pending === null || pending === undefined)
+		return { state: "ok", marker: { mode, pending: null } };
+	if (!isValidPending(pending)) return { state: "bad" };
+	return { state: "ok", marker: { mode, pending } };
+}
+
+/** 读首飞标记;干净缺失 / 坏值 / 正常解析三态判别。 */
+export async function getFirstFlight(): Promise<FirstFlightRead> {
+	const v = await storage.getItem<unknown>(FIRST_FLIGHT_KEY);
+	return parseFirstFlight(v);
+}
+
+/**
+ * durable 写首飞标记:写入 → 读回确认。
+ * 读回与期望不一致(写失败 / 并发覆盖)→ 返回 false,调用方据此 REJECT arm,
+ * 绝不进入「authorized 已置但标记缺失」的危险态。
+ */
+export async function writeFirstFlight(
+	marker: FirstFlightMarker,
+): Promise<boolean> {
+	await storage.setItem(FIRST_FLIGHT_KEY, marker);
+	const readBack = await storage.getItem<unknown>(FIRST_FLIGHT_KEY);
+	const parsed = parseFirstFlight(readBack);
+	if (parsed.state !== "ok") return false;
+	const m = parsed.marker;
+	if (m.mode !== marker.mode) return false;
+	if ((m.pending === null) !== (marker.pending === null)) return false;
+	if (m.pending && marker.pending) {
+		if (
+			m.pending.itemId !== marker.pending.itemId ||
+			m.pending.tabId !== marker.pending.tabId ||
+			m.pending.host !== marker.pending.host ||
+			m.pending.contentHash !== marker.pending.contentHash ||
+			m.pending.nonce !== marker.pending.nonce
+		)
+			return false;
+	}
+	return true;
+}
+
+/** 清整个首飞标记(连 mode 字段一起)。 */
+export async function clearFirstFlight(): Promise<void> {
+	await storage.removeItem(FIRST_FLIGHT_KEY);
+}
+
 // ---- 批量队列持久化 + 崩溃恢复 ----
 // MV3 SW 随时被回收;每次状态推进都写盘。加载时跑 recoverBatch:
 // 任何 publish-dispatched(无回执)→ needs-human-verification 隔离,**绝不自动重发**。
@@ -238,7 +322,7 @@ export function deriveFewShotExamples(pairs: FewShotPair[]): string {
 const MAX_FEW_SHOT = 8;
 
 /**
- * 追加一条 few-shot 范例到末尾（双写 fewShotPairs + fewShotExamples）。
+ * 追加一条 few-shot 范例到末尾（只写 fewShotPairs；fewShotExamples 由 getSettings() 读时派生）。
  * 返回 { ok: false, reason: 'full' } 当已达上限，不写入。
  */
 export async function addFewShotPair(
@@ -251,7 +335,6 @@ export async function addFewShotPair(
 	await saveSettings({
 		...settings,
 		fewShotPairs: next,
-		fewShotExamples: deriveFewShotExamples(next),
 	});
 	return { ok: true };
 }
@@ -268,7 +351,6 @@ export async function removeLastFewShotPair(): Promise<void> {
 	await saveSettings({
 		...settings,
 		fewShotPairs: next,
-		fewShotExamples: next.length > 0 ? deriveFewShotExamples(next) : undefined,
 	});
 }
 

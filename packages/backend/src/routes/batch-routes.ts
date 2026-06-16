@@ -7,6 +7,7 @@ import {
 	recoverBatch,
 	saveBatch,
 } from "../services/batch-store.js";
+import { recordPublishAttempt } from "../services/metrics.js";
 import { err } from "../utils/error-response.js";
 import { CreateBatchBody as CreateBatchBodySchema } from "../utils/schemas.js";
 
@@ -171,6 +172,13 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
 					);
 				}
 				item.status = body.status;
+				// Record metrics for terminal publish states
+				if (item.status === "publish-confirmed") {
+					recordPublishAttempt(true);
+				}
+				if (item.status === "error" && body.error === "publish-failed") {
+					recordPublishAttempt(false);
+				}
 			}
 
 			// 合并可选字段

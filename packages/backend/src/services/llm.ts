@@ -385,7 +385,9 @@ export async function generateDraft(
 		};
 	}
 
-	const assembled = assembleDraft(slotsFromParsed(parsed), facts);
+	// 提升为具名常量,以便随响应返回 —— 扩展端据此重新组装(re-assemble)。
+	const slots = slotsFromParsed(parsed);
+	const assembled = assembleDraft(slots, facts);
 	const tags = Array.isArray(parsed.tags)
 		? parsed.tags.map(str).filter(Boolean)
 		: [];
@@ -402,6 +404,7 @@ export async function generateDraft(
 	return {
 		ok: true,
 		draft,
+		slots,
 		...(qualityWarnings.length > 0 ? { qualityWarnings } : {}),
 	};
 }

@@ -11,23 +11,29 @@ import {
 	abortBatch,
 	type Batch,
 	patchBatchDrafts,
+	refillGateFailed,
 	releaseAllQuarantine,
 	releaseQuarantine,
 } from "../lib/batch";
 import {
 	type ApproveBatchDeps,
 	approveBatch,
+	createSerialQueue,
 	discardBatchItem,
 	retryItem,
 	runBatch,
 } from "../lib/batch-orchestrator";
 import { withBackendSync } from "../lib/batch-sync";
 import {
-	type FirstFlightDeps,
+	type DispatchCtx,
+	evaluateInterlock,
 	hashDraft,
-	revertFirstFlight,
-	runStartupFirstFlightReset,
+	type InterlockVerdict,
 } from "../lib/first-flight";
+import {
+	type FirstFlightIntent,
+	runFirstFlight,
+} from "../lib/first-flight-orchestrator";
 import { evaluateGrounding } from "../lib/grounding-gate";
 import { generateDraft, reviewDraft, rewriteDraft } from "../lib/llm";
 import { updatePendingStatus } from "../lib/pending-client";
@@ -38,31 +44,32 @@ import {
 	recordPublishedPost,
 } from "../lib/published-posts-client";
 import { clearReadItems } from "../lib/read-tracker";
+import { reassembleWithFacts } from "../lib/refill";
 import { canSubmit } from "../lib/safety-gate";
 import {
 	addPublishedTopics,
 	appendTrajectory,
 	clearAllFillTombstones,
 	clearFillTombstone,
-	clearFirstFlightPending,
+	clearFirstFlight,
+	type FirstFlightMarker,
+	type FirstFlightRead,
 	getApiKey,
 	getAuthorizedHosts,
 	getBatch,
 	getBatch as getBatchRaw,
 	getFillTombstones,
-	getFirstFlightPending,
-	getFirstFlightResetCount,
+	getFirstFlight,
 	getPublishedTopics,
 	getSafetyMode,
 	getSettings,
 	refreshRemoteMappings,
 	saveBatch,
 	saveDryRunReport,
-	setFirstFlightPending,
-	setFirstFlightResetCount,
 	setPendingQuarantineAlert,
 	setSafetyMode,
 	writeFillTombstone,
+	writeFirstFlight,
 } from "../lib/storage";
 
 // Background service worker:调度中心 + 发布闸门。
@@ -80,7 +87,20 @@ export interface BackgroundHandlerDeps {
 	addPublishedTopics: (topics: string[]) => Promise<void>;
 	appendTrajectory: typeof appendTrajectory;
 	getSafetyMode: () => Promise<import("@51publisher/shared").SafetyMode>;
+	setSafetyMode: (
+		mode: import("@51publisher/shared").SafetyMode,
+	) => Promise<void>;
 	getAuthorizedHosts: () => Promise<string[]>;
+	// ---- First-flight 互锁(Unit 4/5)----
+	getFirstFlight: () => Promise<FirstFlightRead>;
+	writeFirstFlight: (marker: FirstFlightMarker) => Promise<boolean>;
+	clearFirstFlight: () => Promise<void>;
+	/** 一次性告警下沉(默认 console);测试可断言安全事件已发。 */
+	emitSecurityAlert?: (event: string, detail?: unknown) => void;
+	/** 武装时启动 one-shot 看门狗 alarm(可注入;默认 browser.alarms)。 */
+	armWatchdog?: () => void;
+	/** 干净 settle / reset 后清看门狗 alarm。 */
+	clearWatchdog?: () => void;
 	tabsGet: (tabId: number) => Promise<{ url?: string; id?: number }>;
 	tabsSendMessage: (tabId: number, msg: unknown) => Promise<unknown>;
 	storageGetItem: <T>(key: `local:${string}`) => Promise<T | null>;
@@ -104,25 +124,11 @@ export interface BackgroundHandlerDeps {
 	clearTombstone?: (itemId: string) => Promise<void>;
 	/** published_posts 回写(best-effort);可注入 mock 供测试。默认用 recordPublishedPost。 */
 	recordPost?: (record: PublishedPostRecord) => Promise<void>;
-	/**
-	 * 首飞启动复位完成的 promise。publish 路径(runApprove)在发 grant 前必须 await 它,
-	 * 绝不在「残留授权窗口尚未复位」时发布(R7 fail-safe:复位先于 grant)。
-	 * 省略 = 不门控(测试 / 无首飞场景)。
-	 */
-	firstFlightReady?: Promise<unknown>;
-	/**
-	 * SW 内存活动 nonce 读取(首飞联锁 U5)。
-	 * 省略 = 不验 nonce(无首飞场景 / 测试)。
-	 */
-	getActiveArmNonce?: () => string | null;
 }
 
 // buildConstraintSuffix / assemblePrompt 已抽到 lib/prompt-assembly.ts。
 // re-export 保留既有导出面(background.test.ts 仍从 background 导入 buildConstraintSuffix)。
 export { buildConstraintSuffix };
-
-// 首飞看门狗 alarm 名(arm 时创建一次性闹钟,见 U6;此处仅注册到时处理器)。
-const FIRST_FLIGHT_WATCHDOG_ALARM = "first-flight-watchdog";
 
 /** 从 chrome.tabs.get(tabId).url 取 host;tab 关/无 url → null。 */
 function makeResolveTabHost(deps: Pick<BackgroundHandlerDeps, "tabsGet">) {
@@ -135,6 +141,11 @@ function makeResolveTabHost(deps: Pick<BackgroundHandlerDeps, "tabsGet">) {
 			return null;
 		}
 	};
+}
+
+/** 默认安全事件下沉(可被 deps.emitSecurityAlert 覆盖供测试断言)。 */
+function defaultSecurityAlert(event: string, detail?: unknown): void {
+	console.warn(`[bg][SECURITY] ${event}`, detail ?? "");
 }
 
 /** content 经消息边界回来的值是 unknown → 校验形状。 */
@@ -188,6 +199,196 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 		return resolveTabHost(batch.tabId).then(
 			(h) => h !== null && h === batch.authorizedHost,
 		);
+	}
+
+	// ================================================================
+	// First-flight 互锁(Unit 4/5)
+	// ================================================================
+	//
+	// 状态都活在本 createHandlers 闭包里——liveDeps 那次 createHandlers 在每次 SW 启动时
+	// 跑一遍,故这些变量天然随 SW 生命周期重置(SW 重启 → liveArmNonce 丢失,残留 pending
+	// 的 nonce 必不匹配 → 互锁 block + 触发 reset)。
+	const emitAlert = deps.emitSecurityAlert ?? defaultSecurityAlert;
+	const armWatchdog = deps.armWatchdog ?? (() => {});
+	const clearWatchdog = deps.clearWatchdog ?? (() => {});
+
+	// in-memory arm-nonce:arm 时生成,只存内存(绝不落盘)。互锁额外要求它 === 标记里的 nonce。
+	let liveArmNonce: string | null = null;
+	// arm 串行临界区:check 标记 → 写 → 读回确认 → 翻 authorized 全程串行。
+	const armQueue = createSerialQueue();
+	// 连续强制 reset 计数(无干净 settle);达 N 回落 off,要求显式重新启用。
+	const MAX_CONSECUTIVE_RESETS = 2;
+	let consecutiveResets = 0;
+
+	/**
+	 * 本 SW 生命周期的「启动 reset 闸」:任何 publish-class handler 发 grant 前必须等它 settle。
+	 * 默认未跑(undefined)→ 阻断;runStartupReset 完成后置为 resolved。
+	 */
+	let startupResetDone: Promise<void> | null = null;
+
+	/**
+	 * 强制 reset:降级保护(lower mode first → then clear marker)。
+	 * 不可逆 grant 路径在此之前一律阻断。reset 目标 = dry-run(保留工作能力,非 off)。
+	 * 连续 N 次未干净 settle → 回落 off + 要求显式重新启用。
+	 */
+	async function forceReset(cause: string, marker?: FirstFlightMarker | null) {
+		consecutiveResets += 1;
+		emitAlert("first-flight-forced-reset", { cause, consecutiveResets });
+		liveArmNonce = null;
+		clearWatchdog();
+		if (consecutiveResets >= MAX_CONSECUTIVE_RESETS) {
+			// 持续楔住:不当噪声处理,落 off 强制人工重新启用。
+			emitAlert("first-flight-wedge-fallback-off", { consecutiveResets });
+			await deps.setSafetyMode("off").catch(() => {});
+			await deps.clearFirstFlight().catch(() => {});
+			return;
+		}
+		// 非对称 revert:先降级档位,再清标记。
+		const target = marker?.mode === "off" ? "off" : "dry-run";
+		await deps.setSafetyMode(target).catch(() => {});
+		await deps.clearFirstFlight().catch(() => {});
+	}
+
+	/**
+	 * SW 启动 reset(Unit 4):标记在场即无条件 reset(独立于是否有 batch),并发安全事件。
+	 * - 坏值标记 → 强制 reset。
+	 * - 有 pending 残留 → SW 重启已丢 liveArmNonce,该 pending 必不可信 → 强制 reset。
+	 * - 仅有 mode 无 pending(干净 arm 标记残留)→ 也 reset(无在场内存 nonce 撑不起 authorized)。
+	 * - 干净缺失 → 不动 mode(happy path)。
+	 */
+	async function runStartupReset(): Promise<void> {
+		try {
+			const read = await deps.getFirstFlight();
+			if (read.state === "absent") {
+				consecutiveResets = 0; // 干净 settle
+				return;
+			}
+			if (read.state === "bad") {
+				await forceReset("startup-bad-marker", null);
+				return;
+			}
+			// state==='ok':标记在场(无论有无 pending)→ 无条件 reset。
+			await forceReset("startup-residual-marker", read.marker);
+		} catch (e) {
+			console.warn("[bg] first-flight startup reset 失败", e);
+		}
+	}
+
+	/** 触发并记忆本 SW 生命周期的启动 reset(幂等,只跑一次)。 */
+	function ensureStartupReset(): Promise<void> {
+		if (!startupResetDone) startupResetDone = runStartupReset();
+		return startupResetDone;
+	}
+
+	/**
+	 * Arm(首飞武装):串行临界区。
+	 * write {mode:被保护档位 kept, marker(pending)} → 读回确认 → 只有确认通过才翻 authorized。
+	 * 写失败 / 读回不符 → REJECT(绝不进入 authorized 已置但标记缺失)。
+	 * 返回 { ok, nonce? }。
+	 */
+	async function handleArmFirstFlight(args: {
+		itemId: string;
+		tabId: number;
+		host: string;
+		draft: ContentDraft;
+	}): Promise<{ ok: boolean; reason?: string }> {
+		return armQueue(async () => {
+			// 临界区起点:若已有标记(并发二次 arm / 残留)→ 拒绝。
+			const existing = await deps.getFirstFlight();
+			if (existing.state !== "absent") {
+				return { ok: false, reason: "first-flight-already-armed" };
+			}
+			const protectedMode = await deps.getSafetyMode();
+			const nonce = crypto.randomUUID();
+			const contentHash = await hashDraft(args.draft);
+			const marker: FirstFlightMarker = {
+				mode: protectedMode,
+				pending: {
+					itemId: args.itemId,
+					tabId: args.tabId,
+					host: args.host,
+					contentHash,
+					nonce,
+					ts: deps.now(),
+				},
+			};
+			const written = await deps.writeFirstFlight(marker);
+			if (!written) {
+				// 写失败 / 读回不符:清掉任何半写状态,绝不翻 authorized。
+				await deps.clearFirstFlight().catch(() => {});
+				return { ok: false, reason: "first-flight-write-failed" };
+			}
+			// 读回确认通过 → 只有此刻才置内存 nonce 并翻 authorized。
+			liveArmNonce = nonce;
+			await deps.setSafetyMode("authorized");
+			armWatchdog();
+			return { ok: true };
+		});
+	}
+
+	/**
+	 * 互锁守卫(Unit 5):在 fill 决策点 AND sendGrant 闭包各求值一次。
+	 * **每次都重读标记**(close TOCTOU:APPROVE_BATCH 可能在标记写入前已过 evaluateGate)。
+	 * - 标记坏值 → block + 强制 reset。
+	 * - 无 pending → 放行(走正常 canSubmit 路径)。
+	 * - 有 pending → evaluateInterlock 全等校验 + liveArmNonce 校验;不符 block,可疑信号触发 reset。
+	 */
+	async function firstFlightGuard(
+		dispatch: DispatchCtx,
+	): Promise<InterlockVerdict> {
+		const read = await deps.getFirstFlight();
+		if (read.state === "bad") {
+			await forceReset("guard-bad-marker", null);
+			return { allowed: false, reason: "first-flight-locked", needReset: true };
+		}
+		const pending = read.state === "ok" ? read.marker.pending : null;
+		const dispatchHash = await hashDraft(dispatch.draft);
+		const verdict = evaluateInterlock({
+			pending,
+			liveNonce: liveArmNonce,
+			dispatch,
+			dispatchHash,
+		});
+		if (verdict.needReset) {
+			await forceReset(
+				verdict.reason ?? "guard-mismatch",
+				read.state === "ok" ? read.marker : null,
+			);
+		}
+		return verdict;
+	}
+
+	/**
+	 * 干净落定 revert(Unit 6 首飞收尾):非对称降级保护(先降档 → 再清标记)。
+	 * 与 forceReset 的区别:这是**预期内**的窗口关闭(派发完/排演未过),不是可疑信号,
+	 * 故不累加 consecutiveResets,反而归零(等同一次干净 settle),避免正常首飞把楔住计数顶满落 off。
+	 */
+	async function settleRevert(
+		cause: string,
+		marker?: FirstFlightMarker | null,
+	): Promise<void> {
+		liveArmNonce = null;
+		clearWatchdog();
+		const target = marker?.mode === "off" ? "off" : "dry-run";
+		await deps.setSafetyMode(target).catch(() => {});
+		await deps.clearFirstFlight().catch(() => {});
+		consecutiveResets = 0; // 干净 settle:楔住计数归零
+		emitAlert("first-flight-settle", { cause });
+	}
+
+	/** 时间看门狗(Unit 4):dispatch 挂起 + SW 仍存活的窄缝。fire → 强制 revert dry-run + 清 pending。 */
+	async function handleWatchdog(): Promise<void> {
+		try {
+			const read = await deps.getFirstFlight();
+			if (read.state === "absent") return;
+			emitAlert("first-flight-watchdog-fired", {});
+			await forceReset(
+				"watchdog-timeout",
+				read.state === "ok" ? read.marker : null,
+			);
+		} catch (e) {
+			console.warn("[bg] first-flight watchdog 失败", e);
+		}
 	}
 
 	async function handleGenerate(
@@ -311,24 +512,7 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 			clearTombstone: deps.clearTombstone,
 			checkGrounding: evaluateGrounding,
 			recordPost: deps.recordPost ?? recordPublishedPost,
-			// 首飞联锁守卫(U5):pending 在场时验证 item+tab+host+draft+nonce 五项全等。
-			firstFlightGuard: async (
-				itemId: string,
-				draft: ContentDraft,
-			): Promise<boolean> => {
-				const { pending, corrupt } = await getFirstFlightPending();
-				if (!pending) return true; // 无首飞窗口:放行
-				if (corrupt) return false; // 坏标记:阻断
-				if (pending.itemId !== itemId) return false;
-				if (pending.tabId !== tabId) return false;
-				const host = await resolveTabHost(tabId);
-				if (!host || pending.host !== host) return false;
-				const hash = await hashDraft(draft);
-				if (pending.contentHash !== hash) return false;
-				const activeNonce = deps.getActiveArmNonce?.() ?? null;
-				if (pending.nonce !== activeNonce) return false;
-				return true;
-			},
+			firstFlightGuard,
 			...(itemIdFilter ? { itemIdFilter } : {}),
 		};
 	}
@@ -340,14 +524,8 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 		itemIdFilter?: string,
 	): Promise<Batch | null> {
 		try {
-			// 首飞门控:启动复位必须先于任何 grant 完成(残留授权窗口绝不延续过 SW 回收)。
-			if (deps.firstFlightReady) {
-				try {
-					await deps.firstFlightReady;
-				} catch {
-					/* 复位失败已在别处 warn;不阻断常态发布 */
-				}
-			}
+			// publish-class handler 默认阻断,直到本 SW 生命周期的启动 reset 跑完(grant 前置条件)。
+			await ensureStartupReset();
 			const result = await approveBatch(buildApproveDeps(tabId, itemIdFilter));
 			if (result) {
 				const confirmedTopics = result.items
@@ -496,6 +674,248 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 		}
 	}
 
+	/**
+	 * 操作者补齐缺失事实 → 重组装 + 重跑闸门(gate-failed → awaiting-approval)。
+	 *
+	 * 访问控制:这是特权通道(改 facts/draft/snapshot 并驱动提升)。它本身**绝不**授权发布——
+	 * 提升仅由 refillGateFailed 内的闸门重跑决定(唯一提升者),且即便提升也只到 awaiting-approval,
+	 * 真发仍须经 approve 路径的 host 授权 + 闸门。消息只应来自 side panel(扩展 UI 同源);
+	 * content/page 世界绝不发此消息(三世界模型:content「绝不自我授权」)。
+	 * WXT/chrome runtime.onMessage 不向 SW 暴露可信的 sender 来源(externally_connectable 未开),
+	 * 故此处以「信任契约 + 闸门为唯一提升者」兜底,而非校验 sender;真正的安全边界是闸门重跑。
+	 *
+	 * 守卫:① 无 batch / 找不到 item → no-op;② 缺 slots(旧条目)或非 gate-failed →
+	 * 返回原 batch(不 mutate),由 UI 据状态路由到「重新生成」;③ 操作者 URL 不合法 →
+	 * 把拒因写入 item.gateFailReason(仍 gate-failed),不 mutate draft/snapshot。
+	 * 仅在重组装成功后才经 refillGateFailed 提交(本地为主,后端经 withBackendSync best-effort)。
+	 */
+	async function handleRefillItemFacts(
+		itemId: string,
+		facts: FactsBlock,
+	): Promise<Batch | null> {
+		const batch = await deps.getBatch();
+		if (!batch) return null;
+		const item = batch.items.find((it) => it.id === itemId);
+		if (!item) return batch;
+		// 仅 gate-failed 可补全;缺 slots 的旧条目无法重组装。两者均 no-op(不 mutate)。
+		if (item.status !== "gate-failed" || !item.slots) return batch;
+
+		const reassembled = reassembleWithFacts(item, facts, deps.now());
+		if (!reassembled.ok) {
+			// 重组装拒绝(目前仅 invalid-url;no-slots 已被上面拦下)。把拒因写入失败原因,
+			// 仍保持 gate-failed,不改 draft/snapshot。
+			const next: Batch = {
+				...batch,
+				items: batch.items.map((it) =>
+					it.id === itemId
+						? { ...it, gateFailReason: reassembled.message }
+						: it,
+				),
+			};
+			await deps.saveBatch(next);
+			return next;
+		}
+
+		// 重组装成功 → 经 refillGateFailed 原子地重跑闸门并决定终态。
+		const next = refillGateFailed(
+			batch,
+			itemId,
+			{
+				draft: reassembled.draft,
+				snapshot: reassembled.snapshot,
+				facts: reassembled.facts,
+			},
+			evaluateGrounding,
+		);
+		await deps.saveBatch(next);
+		return next;
+	}
+
+	// ================================================================
+	// First-flight 向导编排(Unit 6):rehearse / run / status
+	// ================================================================
+
+	/** 从当前 batch 取一条 awaiting-approval 且有 draft 的 item 身份(含 facts)。 */
+	async function resolveIntent(
+		tabId: number,
+		itemId: string,
+	): Promise<
+		{ ok: true; intent: FirstFlightIntent } | { ok: false; error: string }
+	> {
+		const host = (await evaluateGate(tabId)).host;
+		if (host == null) return { ok: false, error: "host-unreachable" };
+		const batch = await deps.getBatch();
+		const item = batch?.items.find((it) => it.id === itemId);
+		if (!item?.draft) return { ok: false, error: "item-not-found" };
+		return {
+			ok: true,
+			intent: {
+				itemId,
+				tabId,
+				host,
+				draft: item.draft,
+				...(item.facts ? { facts: item.facts } : {}),
+			},
+		};
+	}
+
+	/**
+	 * 排演(只读):对**同一快照**跑 dry-run(approveBatch dry-run 档,itemIdFilter)+ grounding。
+	 * 关键:evaluateGate 在此被强制为 dry-run(绝不读全局档、绝不翻 authorized);grounding 对
+	 * snapshot(防 AI 重写洗【待补】)与最终 draft 各求值一次,任一不过即拦。
+	 */
+	async function rehearseIntent(intent: FirstFlightIntent): Promise<{
+		dryRunGreen: boolean;
+		grounding: ReturnType<typeof evaluateGrounding>;
+	}> {
+		// dry-run 强制闸:无论全局档为何,排演恒在 dry-run 下进行。
+		const dryRunGate = async (): Promise<GateDecision> => ({
+			mode: "dry-run",
+			allowed: false,
+			host: intent.host,
+			reason: "dry-run",
+		});
+		const rehearseDeps = buildApproveDeps(intent.tabId, intent.itemId);
+		let dryRunReached = false;
+		const result = await approveBatch({
+			...rehearseDeps,
+			evaluateGate: dryRunGate,
+			// 排演不写正式 dry-run 报告(避免污染向导外的报告视图);只探测是否走到 dry-run。
+			saveDryRunReportFn: async (report) => {
+				dryRunReached = report.items.some((it) => it.itemId === intent.itemId);
+			},
+			// 排演不启用互锁(无标记;互锁在真正 run 时兜底)。
+			firstFlightGuard: undefined,
+		});
+		// grounding:对快照 + 最终 draft 各求值一次(与 approveBatch authorized 闸同口径)。
+		const cur = result?.items.find((it) => it.id === intent.itemId);
+		const snapshot = cur?.assembledDraftSnapshot;
+		const vSnapshot = snapshot
+			? evaluateGrounding(snapshot, intent.facts)
+			: {
+					ok: false,
+					reasons: ["缺发布快照(assembledDraftSnapshot),请重新生成后再发。"],
+				};
+		const vFinal = evaluateGrounding(intent.draft, intent.facts);
+		const reasons = [...new Set([...vSnapshot.reasons, ...vFinal.reasons])];
+		return {
+			dryRunGreen: dryRunReached,
+			grounding: { ok: vSnapshot.ok && vFinal.ok, reasons },
+		};
+	}
+
+	async function handleFirstFlightRehearse(
+		tabId: number,
+		itemId: string,
+	): Promise<import("@51publisher/shared").FirstFlightRehearseResult> {
+		try {
+			const resolved = await resolveIntent(tabId, itemId);
+			if (!resolved.ok)
+				return {
+					ok: false,
+					dryRunGreen: false,
+					groundingOk: false,
+					reasons: [],
+					error: resolved.error,
+				};
+			const r = await rehearseIntent(resolved.intent);
+			return {
+				ok: r.dryRunGreen && r.grounding.ok,
+				dryRunGreen: r.dryRunGreen,
+				groundingOk: r.grounding.ok,
+				reasons: r.grounding.reasons,
+			};
+		} catch (err) {
+			console.error("[bg] first-flight rehearse 失败", err);
+			return {
+				ok: false,
+				dryRunGreen: false,
+				groundingOk: false,
+				reasons: [],
+				error: "rehearse-internal-error",
+			};
+		}
+	}
+
+	/**
+	 * 执行首飞:排演→武装→最小窗口派发恰好一条→finally revert。
+	 * authorized 翻转只在 arm 内发生;最小窗口 = approveBatch({itemIdFilter}) 这一次派发;
+	 * revert 由 forceReset 在 finally 兜底(先降档 dry-run → 再清标记)。
+	 */
+	async function handleFirstFlightRun(
+		tabId: number,
+		itemId: string,
+	): Promise<import("@51publisher/shared").FirstFlightRunResult> {
+		try {
+			// publish-class:发 grant 前等启动 reset settle(与 runApprove 同前置条件)。
+			await ensureStartupReset();
+			const resolved = await resolveIntent(tabId, itemId);
+			if (!resolved.ok)
+				return {
+					ok: false,
+					phase: "rehearse",
+					reverted: true,
+					error: resolved.error,
+				};
+
+			const outcome = await runFirstFlight({
+				intent: resolved.intent,
+				rehearse: rehearseIntent,
+				arm: (it) =>
+					handleArmFirstFlight({
+						itemId: it.itemId,
+						tabId: it.tabId,
+						host: it.host,
+						draft: it.draft,
+					}),
+				dispatchOne: () => runApprove(tabId, itemId),
+				revert: async (cause) => {
+					const read = await deps.getFirstFlight();
+					await settleRevert(cause, read.state === "ok" ? read.marker : null);
+				},
+			});
+
+			if (outcome.phase === "dispatched")
+				return {
+					ok: true,
+					phase: "dispatched",
+					itemStatus: outcome.itemStatus,
+					...(outcome.publishUrl ? { publishUrl: outcome.publishUrl } : {}),
+					reverted: outcome.reverted,
+				};
+			return {
+				ok: false,
+				phase: outcome.phase,
+				reason: outcome.reason,
+				reverted: outcome.reverted,
+			};
+		} catch (err) {
+			console.error("[bg] first-flight run 失败", err);
+			// 异常路径兜底 revert,绝不留 authorized 窗口悬空。
+			await forceReset("first-flight-run-exception").catch(() => {});
+			return {
+				ok: false,
+				phase: "arm",
+				reverted: true,
+				error: "run-internal-error",
+			};
+		}
+	}
+
+	async function handleFirstFlightStatus(): Promise<
+		import("@51publisher/shared").FirstFlightStatusResult
+	> {
+		const [mode, read] = await Promise.all([
+			deps.getSafetyMode(),
+			deps.getFirstFlight(),
+		]);
+		return {
+			mode,
+			armed: read.state === "ok" && read.marker.pending !== null,
+			bad: read.state === "bad",
+		};
+	}
+
 	return {
 		handleGenerate,
 		handleRunBatch,
@@ -506,8 +926,16 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 		handleReleaseQuarantineBatch,
 		handleMarkItemEdited,
 		handleRetryBatchItem,
+		handleRefillItemFacts,
 		handleDiscardBatchItem,
 		evaluateGate,
+		handleArmFirstFlight,
+		firstFlightGuard,
+		ensureStartupReset,
+		handleWatchdog,
+		handleFirstFlightRehearse,
+		handleFirstFlightRun,
+		handleFirstFlightStatus,
 	};
 }
 
@@ -582,31 +1010,6 @@ export default defineBackground(() => {
 	// SW 启动恢复:将上次 SW 被杀时卡在 generating 状态的条目标记为 error,让操作者可以重试。
 	void runStartupGeneratingRecovery();
 
-	// 首飞授权状态机依赖。activeArmNonce 是 SW 内存值,随回收消失 → 残留 pending 必不匹配。
-	let activeArmNonce: string | null = null;
-	const ffDeps: FirstFlightDeps = {
-		getSafetyMode,
-		setSafetyMode,
-		getPending: getFirstFlightPending,
-		setPending: setFirstFlightPending,
-		clearPending: clearFirstFlightPending,
-		getResetCount: getFirstFlightResetCount,
-		setResetCount: setFirstFlightResetCount,
-		getActiveNonce: () => activeArmNonce,
-		setActiveNonce: (n) => {
-			activeArmNonce = n;
-		},
-		now: () => new Date().toISOString(),
-		newNonce: () => crypto.randomUUID(),
-		onAlert: (m) => console.warn(`[bg][first-flight] ${m}`),
-	};
-	// 启动复位:残留授权窗口绝不延续过 SW 回收。publish 路径(runApprove)await 此 promise 再发 grant。
-	const firstFlightReady = runStartupFirstFlightReset(ffDeps).catch(
-		(e: unknown) => {
-			console.warn("[bg] 首飞启动复位失败", e);
-		},
-	);
-
 	// 启动时拉取后端最新字段映射(选择器配置热更新)。
 	// 后端不可达时 fail-closed,不覆盖本地已有映射。
 	refreshRemoteMappings()
@@ -623,17 +1026,6 @@ export default defineBackground(() => {
 		browser.alarms.onAlarm.addListener((alarm: { name: string }) => {
 			if (alarm.name === "keep-alive") {
 				console.debug("[bg] keep-alive ping");
-			} else if (alarm.name === FIRST_FLIGHT_WATCHDOG_ALARM) {
-				// 看门狗:兜「派发卡死且 SW 仍存活」窄缝 —— 若仍有 pending,强制退档。
-				// (SW 被回收的情形由启动复位兜;此处只处理 SW 未死但派发未 settle。)
-				void getFirstFlightPending().then(({ pending }) => {
-					if (pending) {
-						console.warn(
-							"[bg][first-flight] 看门狗超时:强制退档(派发未 settle)",
-						);
-						void revertFirstFlight(ffDeps);
-					}
-				});
 			}
 		});
 	} else {
@@ -651,7 +1043,18 @@ export default defineBackground(() => {
 		addPublishedTopics,
 		appendTrajectory,
 		getSafetyMode,
+		setSafetyMode,
 		getAuthorizedHosts,
+		getFirstFlight,
+		writeFirstFlight,
+		clearFirstFlight,
+		armWatchdog: () => {
+			// one-shot,>=1.5min(~90s,避开 ~60s clamp)。
+			browser.alarms?.create("first-flight-watchdog", { delayInMinutes: 1.5 });
+		},
+		clearWatchdog: () => {
+			browser.alarms?.clear("first-flight-watchdog").catch(() => {});
+		},
 		tabsGet: (id) => browser.tabs.get(id),
 		tabsSendMessage: (id, msg) => browser.tabs.sendMessage(id, msg),
 		storageGetItem: (key) => storage.getItem(key),
@@ -667,13 +1070,23 @@ export default defineBackground(() => {
 		writeTombstone: (itemId) =>
 			writeFillTombstone(itemId, { tabId: 0, ts: new Date().toISOString() }),
 		clearTombstone: clearFillTombstone,
-		// 首飞门控:runApprove 在发 grant 前 await 启动复位完成。
-		firstFlightReady,
-		// 首飞联锁 nonce 读取:interlock guard 在 approveBatch 内校验内存 nonce(U5)。
-		getActiveArmNonce: () => activeArmNonce,
 	};
 
 	const handlers = createHandlers(liveDeps);
+
+	// SW 启动 reset:标记在场即无条件 reset(独立于 batch),发安全事件。
+	// publish-class handler(runApprove)发 grant 前会 await 同一个 ensureStartupReset,默认阻断直到它 settle。
+	void handlers.ensureStartupReset();
+
+	// First-flight 时间看门狗:one-shot,delayInMinutes >= 1.5(~90s,避开 ~60s clamp)。
+	// 仅覆盖「dispatch 挂起 + SW 仍存活」窄缝;ack 晚 ~1 周期,故互锁须在此延迟内仍权威。
+	if (browser.alarms) {
+		browser.alarms.onAlarm.addListener((alarm: { name: string }) => {
+			if (alarm.name === "first-flight-watchdog") {
+				void handlers.handleWatchdog();
+			}
+		});
+	}
 
 	browser.runtime.onMessage.addListener((message: RuntimeMessage) => {
 		if (message?.type === "GENERATE_DRAFT")
@@ -701,11 +1114,19 @@ export default defineBackground(() => {
 			return handlers.handleMarkItemEdited(message.itemId);
 		if (message?.type === "RETRY_BATCH_ITEM")
 			return handlers.handleRetryBatchItem(message.itemId);
+		if (message?.type === "REFILL_ITEM_FACTS")
+			return handlers.handleRefillItemFacts(message.itemId, message.facts);
 		if (message?.type === "DISCARD_BATCH_ITEM")
 			return handlers.handleDiscardBatchItem(
 				message.itemId,
 				message.rejectionReason,
 			);
+		if (message?.type === "FIRST_FLIGHT_REHEARSE")
+			return handlers.handleFirstFlightRehearse(message.tabId, message.itemId);
+		if (message?.type === "FIRST_FLIGHT_RUN")
+			return handlers.handleFirstFlightRun(message.tabId, message.itemId);
+		if (message?.type === "FIRST_FLIGHT_STATUS")
+			return handlers.handleFirstFlightStatus();
 		if (message?.type === "GET_BATCH") return getBatch();
 		return undefined;
 	});

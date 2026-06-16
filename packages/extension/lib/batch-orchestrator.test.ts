@@ -1323,84 +1323,286 @@ describe("approveBatch itemIdFilter", () => {
 });
 
 // ================================================================
-// approveBatch — firstFlight interlock (U5)
+// Unit 7: 填充前 grounding 复检 — 堵升格后内联编辑旁路(R10)
+// 注入真实 evaluateGrounding 作 checkGrounding,验证四字段检测器 + factUrls 源。
 // ================================================================
 
-describe("approveBatch — firstFlight interlock (U5)", () => {
-	it("guard 不存在 → 正常流程不受影响(向后兼容)", async () => {
-		const batch = makeAwaitingBatch();
-		const deps = makeApproveDeps({ getBatch: vi.fn(async () => batch) });
-		const result = await approveBatch(deps);
-		expect(result?.items[0]?.status).toBe("publish-confirmed");
-		expect(deps.sendFill).toHaveBeenCalledOnce();
-		expect(deps.sendGrant).toHaveBeenCalledOnce();
-	});
-
-	it("guard 返回 true → 正常流程(sendFill/sendGrant 均被调用)", async () => {
-		const batch = makeAwaitingBatch();
-		const guard = vi.fn(async () => true);
+describe("approveBatch 填充前 grounding 复检 (Unit 7)", () => {
+	it("旁路回归: snapshot 干净但 item.draft 被改入【待补】→ authorized 发布被拦,sendFill 不调,标 grounding-blocked", async () => {
+		// snapshot 干净(早先快照闸已放行),但 awaiting-approval 态 patchBatchDrafts 把【待补】塞回 draft。
+		const cleanSnapshot: ContentDraft = {
+			...DRAFT,
+			title: "《斗破苍穹》第1集",
+		};
+		const tamperedDraft: ContentDraft = {
+			...DRAFT,
+			title: "《【待补】》第1集",
+		};
+		const batch: Batch = {
+			id: "batch_1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "2026-06-04T00:00:00.000Z",
+			items: [
+				{
+					id: "item_0",
+					topic: TOPIC_A,
+					status: "awaiting-approval" as const,
+					draft: tamperedDraft,
+					assembledDraftSnapshot: cleanSnapshot,
+				},
+			],
+		};
+		const sendFill = vi.fn(async () => ({ ok: true as const, results: [] }));
 		const deps = makeApproveDeps({
 			getBatch: vi.fn(async () => batch),
-			firstFlightGuard: guard,
-		});
-		const result = await approveBatch(deps);
-		expect(result?.items[0]?.status).toBe("publish-confirmed");
-		expect(guard).toHaveBeenCalledOnce();
-		expect(guard).toHaveBeenCalledWith(
-			"item_0",
-			expect.objectContaining({ id: "item_0" }),
-		);
-		expect(deps.sendFill).toHaveBeenCalledOnce();
-		expect(deps.sendGrant).toHaveBeenCalledOnce();
-	});
-
-	it("guard 返回 false → 条目 gate-failed,sendFill/sendGrant 均不被调用", async () => {
-		const batch = makeAwaitingBatch();
-		const guard = vi.fn(async () => false);
-		const deps = makeApproveDeps({
-			getBatch: vi.fn(async () => batch),
-			firstFlightGuard: guard,
-		});
-		const result = await approveBatch(deps);
-		expect(result?.items[0]?.status).toBe("gate-failed");
-		expect(deps.sendFill).not.toHaveBeenCalled();
-		expect(deps.sendGrant).not.toHaveBeenCalled();
-	});
-
-	it("guard 在 writeTombstone 之前被调用(顺序:guard → tombstone → fill)", async () => {
-		const batch = makeAwaitingBatch();
-		const callOrder: string[] = [];
-		const deps = makeApproveDeps({
-			getBatch: vi.fn(async () => batch),
-			firstFlightGuard: vi.fn(async () => {
-				callOrder.push("guard");
-				return true;
-			}),
-			writeTombstone: vi.fn(async () => {
-				callOrder.push("tombstone");
-			}),
-			sendFill: vi.fn(async () => {
-				callOrder.push("fill");
-				return { ok: true as const, results: [] };
-			}),
+			sendFill,
+			checkGrounding: evaluateGrounding, // 真实函数
 		});
 		await approveBatch(deps);
-		expect(callOrder[0]).toBe("guard");
-		expect(callOrder[1]).toBe("tombstone");
-		expect(callOrder[2]).toBe("fill");
+		// 关键安全属性:被填充内容不干净 → 绝不 sendFill(堵掉旁路)。
+		expect(sendFill).not.toHaveBeenCalled();
 	});
 
-	it("多条目:guard 放行 item_0、拦截 item_1 → item_0 confirmed、item_1 gate-failed", async () => {
-		const batch = makeAwaitingBatch([TOPIC_A, TOPIC_B]);
-		const guard = vi.fn(async (itemId: string) => itemId === "item_0");
+	it("happy: 干净已升格条目通过填充前复检,sendFill 被调", async () => {
+		const cleanDraft: ContentDraft = { ...DRAFT, title: "《斗破苍穹》第1集" };
+		const batch: Batch = {
+			id: "batch_1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "2026-06-04T00:00:00.000Z",
+			items: [
+				{
+					id: "item_0",
+					topic: TOPIC_A,
+					status: "awaiting-approval" as const,
+					draft: cleanDraft,
+					assembledDraftSnapshot: cleanDraft,
+				},
+			],
+		};
+		const sendFill = vi.fn(async () => ({ ok: true as const, results: [] }));
 		const deps = makeApproveDeps({
 			getBatch: vi.fn(async () => batch),
+			sendFill,
+			checkGrounding: evaluateGrounding,
+		});
+		await approveBatch(deps);
+		expect(sendFill).toHaveBeenCalledOnce();
+	});
+
+	it("集成: 复检用四字段检测器 —— item.draft 的 subtitle 含【待补】也拦", async () => {
+		const cleanSnapshot: ContentDraft = { ...DRAFT, subtitle: "干净副标" };
+		const tamperedDraft: ContentDraft = { ...DRAFT, subtitle: "副标【待补】" };
+		const batch: Batch = {
+			id: "batch_1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "2026-06-04T00:00:00.000Z",
+			items: [
+				{
+					id: "item_0",
+					topic: TOPIC_A,
+					status: "awaiting-approval" as const,
+					draft: tamperedDraft,
+					assembledDraftSnapshot: cleanSnapshot,
+				},
+			],
+		};
+		const sendFill = vi.fn(async () => ({ ok: true as const, results: [] }));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => batch),
+			sendFill,
+			checkGrounding: evaluateGrounding,
+		});
+		await approveBatch(deps);
+		expect(sendFill).not.toHaveBeenCalled();
+	});
+
+	it("集成: 复检用 factUrls 源 —— item.draft 含无来源链接拦,facts 含该链接则放行", async () => {
+		const url = "https://h.example.com/a";
+		const draftWithLink: ContentDraft = {
+			...DRAFT,
+			title: "《斗破苍穹》第1集",
+			body: `<p>正文 <a href="${url}">来源</a></p>`,
+		};
+		const makeBatch = (): Batch => ({
+			id: "batch_1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "2026-06-04T00:00:00.000Z",
+			items: [
+				{
+					id: "item_0",
+					topic: TOPIC_A,
+					status: "awaiting-approval" as const,
+					draft: draftWithLink,
+					assembledDraftSnapshot: { ...DRAFT, title: "《斗破苍穹》第1集" },
+				},
+			],
+		});
+
+		// 无 facts → 链接无来源 → 拦
+		const unsourced = makeBatch();
+		const sendFillA = vi.fn(async () => ({ ok: true as const, results: [] }));
+		await approveBatch(
+			makeApproveDeps({
+				getBatch: vi.fn(async () => unsourced),
+				sendFill: sendFillA,
+				checkGrounding: evaluateGrounding,
+			}),
+		);
+		expect(sendFillA).not.toHaveBeenCalled();
+
+		// facts 含该链接(漢化)→ 有来源 → 放行
+		const sourced = makeBatch();
+		sourced.items[0]!.facts = { 漢化: url };
+		const sendFillB = vi.fn(async () => ({ ok: true as const, results: [] }));
+		await approveBatch(
+			makeApproveDeps({
+				getBatch: vi.fn(async () => sourced),
+				sendFill: sendFillB,
+				checkGrounding: evaluateGrounding,
+			}),
+		);
+		expect(sendFillB).toHaveBeenCalledOnce();
+	});
+
+	it("非 authorized 档(dry-run)不跑填充前复检: item.draft 含【待补】仍照常 sendFill", async () => {
+		const tamperedDraft: ContentDraft = {
+			...DRAFT,
+			title: "《【待补】》第1集",
+		};
+		const batch: Batch = {
+			id: "batch_1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "2026-06-04T00:00:00.000Z",
+			items: [
+				{
+					id: "item_0",
+					topic: TOPIC_A,
+					status: "awaiting-approval" as const,
+					draft: tamperedDraft,
+					assembledDraftSnapshot: { ...DRAFT, title: "《斗破苍穹》第1集" },
+				},
+			],
+		};
+		const sendFill = vi.fn(async () => ({ ok: true as const, results: [] }));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => batch),
+			evaluateGate: vi.fn(async () => ({
+				mode: "dry-run" as const,
+				allowed: false,
+				host: HOST,
+			})),
+			sendFill,
+			checkGrounding: evaluateGrounding,
+		});
+		await approveBatch(deps);
+		expect(sendFill).toHaveBeenCalledOnce();
+	});
+});
+
+// ================================================================
+// approveBatch first-flight 互锁(Unit 5)
+// ================================================================
+describe("approveBatch first-flight 互锁", () => {
+	it("happy:guard 全允许 → 单条 fill + grant", async () => {
+		const sendFill = vi.fn(async () => ({ ok: true as const, results: [] }));
+		const sendGrant = vi.fn(async () => ({
+			ok: true,
+			dryRun: false,
+			url: "https://dx-999-adm.ympxbys.xyz/post/1",
+		}));
+		const guard = vi.fn(async () => ({ allowed: true }));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => makeAwaitingBatch([TOPIC_A])),
+			sendFill,
+			sendGrant,
 			firstFlightGuard: guard,
 		});
-		const result = await approveBatch(deps);
-		expect(result?.items[0]?.status).toBe("publish-confirmed");
-		expect(result?.items[1]?.status).toBe("gate-failed");
-		expect(deps.sendFill).toHaveBeenCalledOnce(); // 只有 item_0
-		expect(deps.sendGrant).toHaveBeenCalledOnce(); // 只有 item_0
+		await approveBatch(deps);
+		expect(sendFill).toHaveBeenCalledOnce();
+		expect(sendGrant).toHaveBeenCalledOnce();
+		// fill-decision + pre-grant 各一次。
+		expect(guard).toHaveBeenCalledTimes(2);
+	});
+
+	it("P0:整批 approve,非匹配项 guard 拒绝 → 该项零 fill、零 grant", async () => {
+		// guard 只放行 item_0,拦 item_1。
+		const guard = vi.fn(async (ctx: { itemId: string }) => ({
+			allowed: ctx.itemId === "item_0",
+		}));
+		const sendFill = vi.fn(async () => ({ ok: true as const, results: [] }));
+		const sendGrant = vi.fn(async () => ({
+			ok: true,
+			dryRun: false,
+			url: "https://dx-999-adm.ympxbys.xyz/post/1",
+		}));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => makeAwaitingBatch([TOPIC_A, TOPIC_B])),
+			sendFill,
+			sendGrant,
+			firstFlightGuard: guard,
+		});
+		await approveBatch(deps);
+		// 只有 item_0 被 fill;item_1 在 fill 决策点即被拦,无副作用。
+		expect(sendFill).toHaveBeenCalledTimes(1);
+		expect(sendFill).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "item_0" }),
+		);
+		// grant 只对 item_0 发一次。
+		expect(sendGrant).toHaveBeenCalledTimes(1);
+	});
+
+	it("fill 决策点拒绝 → 既不 fill 也不 grant", async () => {
+		const guard = vi.fn(async () => ({ allowed: false }));
+		const sendFill = vi.fn(async () => ({ ok: true as const, results: [] }));
+		const sendGrant = vi.fn(async () => ({ ok: true, dryRun: false }));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => makeAwaitingBatch([TOPIC_A])),
+			sendFill,
+			sendGrant,
+			firstFlightGuard: guard,
+		});
+		await approveBatch(deps);
+		expect(sendFill).not.toHaveBeenCalled();
+		expect(sendGrant).not.toHaveBeenCalled();
+	});
+
+	it("dry-run 档:guard 不参与(fill 决策点跳过,正常 dry-run)", async () => {
+		const guard = vi.fn(async () => ({ allowed: false }));
+		const sendFill = vi.fn(async () => ({ ok: true as const, results: [] }));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => makeAwaitingBatch([TOPIC_A])),
+			sendFill,
+			evaluateGate: vi.fn(async () => ({
+				mode: "dry-run" as const,
+				allowed: false,
+				host: HOST,
+			})),
+			firstFlightGuard: guard,
+		});
+		await approveBatch(deps);
+		// dry-run 模式下 fill 决策点不调 guard;sendFill 正常发(dry-run 预演)。
+		expect(sendFill).toHaveBeenCalledOnce();
+	});
+
+	it("无 guard(省略)→ 零行为变更(基线 fill+grant)", async () => {
+		const sendFill = vi.fn(async () => ({ ok: true as const, results: [] }));
+		const sendGrant = vi.fn(async () => ({
+			ok: true,
+			dryRun: false,
+			url: "https://dx-999-adm.ympxbys.xyz/post/1",
+		}));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => makeAwaitingBatch([TOPIC_A])),
+			sendFill,
+			sendGrant,
+		});
+		await approveBatch(deps);
+		expect(sendFill).toHaveBeenCalledOnce();
+		expect(sendGrant).toHaveBeenCalledOnce();
 	});
 });

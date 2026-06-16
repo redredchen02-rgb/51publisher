@@ -1,3 +1,4 @@
+import type { LookupAddress } from "node:dns";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
@@ -142,7 +143,16 @@ export async function assertUrlSafe(rawUrl: string): Promise<URL> {
 	if (u.username || u.password) {
 		throw new SsrfError("URL credentials not allowed");
 	}
-	const addrs = await lookup(u.hostname, { all: true, verbatim: true });
+	// DNS 解析失败归一为 SsrfError(deny):与 deny-unless-public 的 fail-closed 姿态一致,
+	// 让调用方一律以 SsrfError 区分「为安全而拒」,而非外泄裸 DNS 错误。
+	let addrs: LookupAddress[];
+	try {
+		addrs = await lookup(u.hostname, { all: true, verbatim: true });
+	} catch (err) {
+		throw new SsrfError(
+			`DNS resolution failed for ${u.hostname}: ${err instanceof Error ? err.message : String(err)}`,
+		);
+	}
 	if (addrs.length === 0) {
 		throw new SsrfError(`No DNS records for ${u.hostname}`);
 	}

@@ -1,5 +1,6 @@
 import type { FastifyBaseLogger } from "fastify";
 import cron from "node-cron";
+import { recordScraperRun } from "../services/metrics.js";
 import { sendAlert } from "../services/telegram.js";
 import { generateId } from "../utils/generate-id.js";
 import { tryEnrich } from "./enrichment-utils.js";
@@ -81,6 +82,7 @@ async function runSingleUrl(
 			failed: 1,
 			durationMs: Date.now() - runStart,
 		});
+		recordScraperRun(false);
 		return;
 	}
 
@@ -126,6 +128,7 @@ async function runSingleUrl(
 			extractionMode,
 			enriched: !!enrichment,
 		});
+		recordScraperRun(true);
 		deps.logger?.info(
 			`[scheduler] Saved pending topic from ${site.siteName}: ${rawContent.title}`,
 		);
@@ -141,6 +144,7 @@ async function runSingleUrl(
 			failed: 1,
 			durationMs: Date.now() - runStart,
 		});
+		recordScraperRun(false);
 	}
 }
 
@@ -243,6 +247,7 @@ async function runListDiscovery(
 		discovered: candidateUrls.length,
 		inserted: insertCount,
 	});
+	recordScraperRun(true);
 
 	if (insertCount > 0) {
 		await sendAlert(

@@ -43,8 +43,19 @@ export const GenerateDraftBody = Type.Object({
 	enrichment: Type.Optional(Type.String()),
 });
 
+// 模型叙事槽位(供扩展端重新组装;字段须与 shared/post-assembler.ts 的 DraftSlots 一致)。
+export const DraftSlotsSchema = Type.Object({
+	titleSuffix: Type.Optional(Type.String()),
+	subtitle: Type.Optional(Type.String()),
+	intro: Type.String(),
+	highlights: Type.String(),
+	outro: Type.Optional(Type.String()),
+});
+
 export const GenerateDraftResponse = Type.Object({
 	ok: OkStatus,
+	// 可选:Fastify+TypeBox 会剥除 schema 之外的响应字段,故必须在此声明,否则 slots 被静默丢弃。
+	slots: Type.Optional(DraftSlotsSchema),
 	draft: Type.Object({
 		id: Type.String(),
 		title: Type.String(),
@@ -136,6 +147,87 @@ export const CreateBatchBody = Type.Object({
 	facts: Type.Optional(
 		Type.Array(Type.Optional(Type.Record(Type.String(), Type.Unknown()))),
 	),
+});
+
+// ── Pending ──────────────────────────────────────────
+export const PendingIdParams = Type.Object({
+	id: Type.String({ minLength: 1 }),
+});
+
+export const CreatePendingBody = Type.Object({
+	sourceUrl: Type.String({ minLength: 1 }),
+	siteName: Type.String({ minLength: 1 }),
+	title: Type.String({ minLength: 1 }),
+	facts: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+	confidence: Type.Optional(Type.Number({ minimum: 0, maximum: 1 })),
+});
+
+export const UpdatePendingBody = Type.Object({
+	status: Type.Optional(
+		Type.Union([
+			Type.Literal("pending"),
+			Type.Literal("approved"),
+			Type.Literal("rejected"),
+		]),
+	),
+	rejectedReason: Type.Optional(Type.String()),
+	facts: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+	confidence: Type.Optional(Type.Number({ minimum: 0, maximum: 1 })),
+});
+
+// ── Gossip ──────────────────────────────────────────
+export const GossipSiteParams = Type.Object({
+	id: Type.String({ minLength: 1 }),
+});
+
+export const GossipFromUrlBody = Type.Object({
+	url: Type.String({ minLength: 1 }),
+	siteName: Type.String({ minLength: 1, maxLength: 200 }),
+});
+
+// ── Published Posts ──────────────────────────────────
+export const PublishedPostBody = Type.Object({
+	id: Type.Optional(Type.String()),
+	batch_item_id: Type.Optional(Type.String()),
+	source_title: Type.Optional(Type.String()),
+	publish_url: Type.Optional(Type.String()),
+	publish_url_source: Type.Optional(Type.String()),
+	published_at: Type.Optional(Type.String()),
+	outcome: Type.Optional(Type.String()),
+});
+
+export const PublishedPostQuery = Type.Object({
+	sourceTitle: Type.Optional(Type.String()),
+	limit: Type.Optional(Type.String()),
+	offset: Type.Optional(Type.String()),
+});
+
+// ── Health & Metrics ───────────────────────────────
+export const HealthzResponse = Type.Object({
+	ok: Type.Literal(true),
+	uptime: Type.Number(),
+	scheduler: Type.Object({
+		running: Type.Boolean(),
+		jobCount: Type.Number(),
+	}),
+	database: Type.Object({
+		healthy: Type.Boolean(),
+	}),
+	memory: Type.Object({
+		heapUsed: Type.Number(),
+	}),
+	quality: Type.Object({
+		avgScore: Type.Number(),
+		passRate: Type.Number(),
+		totalGenerations: Type.Number(),
+	}),
+});
+
+// ── Scraper Auto-Generate ────────────────────────────
+export const AutoGenerateBody = Type.Object({
+	minConfidence: Type.Optional(Type.Number({ minimum: 0, maximum: 1 })),
+	maxItems: Type.Optional(Type.Number({ minimum: 1, maximum: 50 })),
+	enableEnrichment: Type.Optional(Type.Boolean()),
 });
 
 // ── Scraper ──────────────────────────────────────────

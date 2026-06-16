@@ -1,165 +1,101 @@
-// 首飞授权状态机(PR-B Unit 4 核心,纯逻辑 + 依赖注入,可单测)。
-//
-// 安全模型:
-// - 持久 pending 标记(`local:firstFlightPending`)+ 持久 mode(`local:safetyMode`)是**分离键**,
-//   超集不变量「mode=authorized ⟹ pending 在场」由本模块的**严格排序**维持:
-//     arm:    写 pending → 读回确认 → 翻 authorized(authorized 时标记必已在场)
-//     revert: 降 dry-run → 清 pending(降档在先,绝不留 authorized+无标记)
-//   故持久态只可能是 {dry-run,无}/{dry-run,有}/{authorized,有},永不 {authorized,无}。
-// - **内存活动 nonce** 不持久,随 SW 回收消失。interlock(U5)额外要求 pending.nonce == 活动 nonce:
-//   SW 回收后活动 nonce=null → 任何残留 pending 必不匹配 → block + 启动复位(顺带封纯 storage 层伪造)。
-// - **启动复位必须先于任何 publish handler 发 grant**(由 background 门控);残留授权窗口绝不延续过 SW 回收。
-// - 连续 N 次强制复位无干净 settle → 回落 off + 需显式重启用。
-//
-// 并发:arm 全流程由调用方(background)包进 `createSerialQueue` 临界区;本模块的读回确认是
-// chrome.storage.local 无 CAS 下的额外防线(并发第二写覆盖即读回不符 → 拒绝 arm)。
-import type { ContentDraft, SafetyMode } from "@51publisher/shared";
+import type { ContentDraft } from "@51publisher/shared";
 import type { FirstFlightPending } from "./storage";
 
-export const MAX_CONSECUTIVE_RESETS = 2;
-
-export interface FirstFlightDeps {
-	getSafetyMode: () => Promise<SafetyMode>;
-	setSafetyMode: (mode: SafetyMode) => Promise<void>;
-	getPending: () => Promise<{
-		pending: FirstFlightPending | null;
-		corrupt: boolean;
-	}>;
-	setPending: (pending: FirstFlightPending) => Promise<void>;
-	clearPending: () => Promise<void>;
-	getResetCount: () => Promise<number>;
-	setResetCount: (n: number) => Promise<void>;
-	/** SW 内存活动 nonce 读写(不持久)。 */
-	getActiveNonce: () => string | null;
-	setActiveNonce: (nonce: string | null) => void;
-	/** 当前时间戳。 */
-	now: () => string;
-	/** 新 nonce(每次 arm 唯一)。 */
-	newNonce: () => string;
-	/** 安全事件告警(强制复位等)。 */
-	onAlert: (message: string) => void;
-}
-
-export type ArmResult =
-	| { ok: true; nonce: string }
-	| { ok: false; reason: string };
+// 首飞互锁的纯逻辑(无 chrome/#imports/副作用,便于单测)。
+// 安全脊柱:首飞期间(pending 标记在场)只允许「与标记完全同一笔意图」的 fill + grant 通过;
+// 任何字段不符或 in-memory nonce 不符即 BLOCK。背景接线(读标记、调用 hash、比对)在 background.ts。
 
 /**
- * arm:写 pending → 读回确认 → 设内存 nonce → 翻 authorized。
- * 任一步失败/读回不符 → 拒绝 arm(清理已写 pending,绝不在「authorized 已置、标记缺/不符」下继续)。
- * 已有 pending(或坏标记)→ 拒绝二次 arm(不 stack)。
- * 调用方须在 `createSerialQueue` 临界区内调用本函数。
+ * ContentDraft 的确定性规范序列化(稳定字段序 + tags 原序),供 SHA-256 复算。
+ * 只纳入「实际派发到 content 的 draft 字节」语义相关字段;无视对象键的运行时插入顺序。
  */
-export async function armFirstFlight(
-	deps: FirstFlightDeps,
-	params: {
-		itemId: string;
-		tabId: number;
-		host: string;
-		contentHash: string;
-	},
-): Promise<ArmResult> {
-	const cur = await deps.getPending();
-	if (cur.corrupt || cur.pending) {
-		return {
-			ok: false,
-			reason: "已有进行中的首飞窗口或坏标记,拒绝二次 arm",
-		};
-	}
-
-	const nonce = deps.newNonce();
-	const pending: FirstFlightPending = {
-		itemId: params.itemId,
-		tabId: params.tabId,
-		host: params.host,
-		contentHash: params.contentHash,
-		nonce,
-		ts: deps.now(),
-	};
-	await deps.setPending(pending);
-
-	// 读回确认(无 CAS:防并发第二写覆盖)。不符即拒绝 + 清理,绝不翻 authorized。
-	const back = await deps.getPending();
-	if (!back.pending || back.corrupt || back.pending.nonce !== nonce) {
-		await deps.clearPending();
-		return { ok: false, reason: "pending 写回确认失败,拒绝 arm" };
-	}
-
-	deps.setActiveNonce(nonce);
-	// 顺序铁律:authorized 必在 pending 落定之后。
-	await deps.setSafetyMode("authorized");
-	return { ok: true, nonce };
+export function canonicalizeDraft(draft: ContentDraft): string {
+	return JSON.stringify([
+		draft.id,
+		draft.title,
+		draft.subtitle,
+		draft.category,
+		draft.coverImageUrl,
+		draft.body,
+		draft.tags,
+		draft.description,
+		draft.postStatus,
+		draft.publishedAt,
+		draft.mediaId,
+	]);
 }
 
-/**
- * revert(非对称,干净 settle):降 dry-run → 清 pending → 清内存 nonce → 复位计数归 0。
- * 降档在先保证任一步崩溃都不留 authorized+无标记。
- */
-export async function revertFirstFlight(deps: FirstFlightDeps): Promise<void> {
-	await deps.setSafetyMode("dry-run");
-	await deps.clearPending();
-	deps.setActiveNonce(null);
-	await deps.setResetCount(0);
-}
-
-export interface StartupResetOutcome {
-	reset: boolean;
-	fellBackToOff: boolean;
-}
-
-/**
- * 启动复位:**必须在任何 publish handler 发 grant 之前跑完**(background 门控)。
- * SW 刚重启 → 内存活动 nonce 必为 null。若 pending 在场/corrupt 或 mode=authorized →
- * 强制复位(残留授权窗口绝不延续过 SW 回收)。无残留 → 不动。
- * 连续 N 次强制复位无干净 settle → 回落 off(真 fail-closed)+ 需显式重启用。
- */
-// ---- draft hashing utilities (U5 首飞联锁) ----
-
-function stableJsonStringify(value: unknown): string {
-	if (value === null || typeof value !== "object") return JSON.stringify(value);
-	if (Array.isArray(value))
-		return `[${value.map(stableJsonStringify).join(",")}]`;
-	const keys = Object.keys(value as object).sort();
-	return `{${keys
-		.map(
-			(k) =>
-				`${JSON.stringify(k)}:${stableJsonStringify((value as Record<string, unknown>)[k])}`,
-		)
-		.join(",")}}`;
-}
-
-/**
- * SHA-256 of a stable (sorted-key) JSON serialization of the draft.
- * Used by armFirstFlight caller (to store contentHash) and by the interlock guard (to verify).
- */
-export async function hashDraft(draft: ContentDraft): Promise<string> {
-	const bytes = new TextEncoder().encode(stableJsonStringify(draft));
-	const buf = await crypto.subtle.digest("SHA-256", bytes);
-	return Array.from(new Uint8Array(buf))
+/** SHA-256 十六进制摘要(crypto.subtle;SW/测试环境均可用)。 */
+export async function sha256Hex(input: string): Promise<string> {
+	const bytes = new TextEncoder().encode(input);
+	const digest = await crypto.subtle.digest("SHA-256", bytes);
+	return Array.from(new Uint8Array(digest))
 		.map((b) => b.toString(16).padStart(2, "0"))
 		.join("");
 }
 
-export async function runStartupFirstFlightReset(
-	deps: FirstFlightDeps,
-): Promise<StartupResetOutcome> {
-	const { pending, corrupt } = await deps.getPending();
-	const mode = await deps.getSafetyMode();
-	const needsReset = corrupt || pending !== null || mode === "authorized";
-	if (!needsReset) return { reset: false, fellBackToOff: false };
+/** draft 的内容哈希(canonicalize → SHA-256)。 */
+export function hashDraft(draft: ContentDraft): Promise<string> {
+	return sha256Hex(canonicalizeDraft(draft));
+}
 
-	const count = (await deps.getResetCount()) + 1;
-	await deps.setResetCount(count);
-	const fellBackToOff = count >= MAX_CONSECUTIVE_RESETS;
+/** 一笔发布意图的身份(由批量循环 / 单发路径在派发点提供)。 */
+export interface DispatchCtx {
+	itemId: string;
+	tabId: number;
+	host: string;
+	/** 实际派发到 content 的 draft(sendFill 发的同一份)。 */
+	draft: ContentDraft;
+}
 
-	// 降档在先(off 或 dry-run),再清标记 + 内存 nonce。
-	await deps.setSafetyMode(fellBackToOff ? "off" : "dry-run");
-	await deps.clearPending();
-	deps.setActiveNonce(null);
-	deps.onAlert(
-		fellBackToOff
-			? `首飞授权连续 ${count} 次强制复位无干净 settle → 回落 off,需显式重启用(安全事件)`
-			: "首飞授权被强制复位(SW 回收 / 坏标记 / 残留 authorized):已降 dry-run + 清标记(安全事件)",
-	);
-	return { reset: true, fellBackToOff };
+/** 互锁判决。allowed=false 时 reason 可读;needReset 表示该路径应触发强制 reset。 */
+export interface InterlockVerdict {
+	allowed: boolean;
+	reason?: string;
+	/** true → 调用方应强制 revert(坏标记 / 内容不符 / nonce 不符等可疑信号)。 */
+	needReset?: boolean;
+}
+
+/**
+ * 首飞互锁核心判定(纯函数;hash 已由调用方算好传入)。
+ *
+ * - 无 pending 标记(null)→ allowed=true(走正常 canSubmit 路径,不归本互锁管)。
+ * - 有 pending → 仅当 itemId/tabId/host/contentHash 全等且 liveNonce===pending.nonce 才放行。
+ *   任一不符 → BLOCK;其中 host/contentHash/nonce 不符视为可疑信号 needReset=true。
+ *
+ * host 必须等于「标记 host」(R6 同站约束),不是「任一授权 host」。
+ */
+export function evaluateInterlock(args: {
+	pending: FirstFlightPending | null;
+	liveNonce: string | null;
+	dispatch: DispatchCtx;
+	dispatchHash: string;
+}): InterlockVerdict {
+	const { pending, liveNonce, dispatch, dispatchHash } = args;
+	if (pending === null) return { allowed: true };
+
+	if (dispatch.itemId !== pending.itemId)
+		return { allowed: false, reason: "first-flight-itemid-mismatch" };
+	if (dispatch.tabId !== pending.tabId)
+		return { allowed: false, reason: "first-flight-tabid-mismatch" };
+	if (dispatch.host !== pending.host)
+		return {
+			allowed: false,
+			reason: "first-flight-host-mismatch",
+			needReset: true,
+		};
+	if (dispatchHash !== pending.contentHash)
+		return {
+			allowed: false,
+			reason: "first-flight-content-mismatch",
+			needReset: true,
+		};
+	if (liveNonce === null || liveNonce !== pending.nonce)
+		return {
+			allowed: false,
+			reason: "first-flight-nonce-mismatch",
+			needReset: true,
+		};
+
+	return { allowed: true };
 }

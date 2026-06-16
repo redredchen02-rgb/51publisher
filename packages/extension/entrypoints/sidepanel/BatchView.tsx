@@ -11,6 +11,7 @@ import {
 	getBatchState,
 	killBatch,
 	markItemEdited,
+	refillItemFacts,
 	releaseQuarantine,
 	releaseQuarantineBatch,
 	resolveAdminTabId,
@@ -27,12 +28,13 @@ import {
 	removeLastFewShotPair,
 } from "../../lib/storage";
 import { BatchReviewPanel } from "./BatchReviewPanel";
-import { BatchResultSummary } from "./components/BatchResultSummary";
 import { DryRunReport } from "./DryRunReport";
 import { HistoryPanel } from "./HistoryPanel";
+import { Loading } from "./Loading";
 
 export function BatchView({ onBack }: { onBack: () => void }) {
 	const [batch, setBatch] = useState<Batch | null>(null);
+	const [loading, setLoading] = useState(true);
 	const [safetyMode, setSafetyMode] = useState<SafetyMode>("off");
 	const [tabHealthy, setTabHealthy] = useState(true);
 	const [topics, setTopics] = useState("");
@@ -51,11 +53,9 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 	const [readItems, setReadItems] = useState<Set<string>>(new Set());
 	const savingItems = useRef(new Set<string>());
 	const toastTimer = useRef<number | null>(null);
-	const [operationResults, _setOperationResults] = useState<
-		Array<{ id: string; success: boolean; error?: string }>
-	>([]);
 
 	const refresh = useCallback(async () => {
+		setLoading(true);
 		const [b, mode, alertCount] = await Promise.all([
 			getBatchState(),
 			getSafetyMode(),
@@ -64,6 +64,7 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 		setSafetyMode(mode);
 		setBatch(b);
 		setQuarantineAlert(alertCount);
+		setLoading(false);
 		if (b) {
 			try {
 				const tab = await browser.tabs.get(b.tabId);
@@ -79,7 +80,6 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 
 	useEffect(() => {
 		void refresh();
-
 		const unwatch = storage.watch<import("../../lib/batch").Batch | null>(
 			"local:batch",
 			(newBatch) => {
@@ -89,7 +89,6 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 				}, 100);
 			},
 		);
-
 		return () => {
 			unwatch();
 			if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -116,10 +115,8 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 	}
 
 	async function handleSaveAsFewShot(itemId: string) {
-		if (savingItems.current.has(itemId)) return;
-		const b = batch;
-		if (!b) return;
-		const item = b.items.find((it) => it.id === itemId);
+		if (savingItems.current.has(itemId) || !batch) return;
+		const item = batch.items.find((it) => it.id === itemId);
 		if (!item?.draft) return;
 		savingItems.current.add(itemId);
 		try {
@@ -127,21 +124,15 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 				input: item.topic,
 				output: item.draft.body,
 			});
-			if (!result.ok) {
-				showToast("范例已满（8/8），请先在设置中删除旧条目", false);
-				return;
-			}
-			showToast("已保存为范例", true);
+			showToast(
+				result.ok ? "已保存为范例" : "范例已满（8/8），请先在设置中删除旧条目",
+				result.ok,
+			);
 		} catch (e) {
 			showToast(e instanceof Error ? e.message : "保存范例失败", false);
 		} finally {
 			savingItems.current.delete(itemId);
 		}
-	}
-
-	async function handleUndoFewShot() {
-		await removeLastFewShotPair();
-		setToast(null);
 	}
 
 	const onItemRead = useCallback((id: string) => {
@@ -191,12 +182,48 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 		});
 	}
 
+	async function handleApprove() {
+		if (!batch) return;
+		await withBusy(async () => {
+			const report = await checkSelectors(batch.tabId);
+			setDrift(report);
+			if (!report.ok) {
+				setError(
+					`选择器自检失败,缺失:${report.missing.join("、")}。请点"漂移自检"了解详情,或在目标页修复后重试。`,
+				);
+				return;
+			}
+			const overrides =
+				draftOverrides.size > 0
+					? Object.fromEntries(draftOverrides)
+					: undefined;
+			await approveBatch(batch.tabId, overrides);
+			setDraftOverrides(new Map());
+			await refresh();
+		});
+	}
+
+	async function handleApproveBypass() {
+		if (!batch) return;
+		const overrides =
+			draftOverrides.size > 0 ? Object.fromEntries(draftOverrides) : undefined;
+		await withBusy(async () => {
+			await approveBatch(batch.tabId, overrides);
+			setDraftOverrides(new Map());
+			await refresh();
+		});
+	}
+
 	async function handleIterate() {
 		if (!batch) return;
 		await withBusy(async () => {
-			const list = batch.items.map((it) => it.topic);
-			const factsList = batch.items.map((it) => it.facts ?? {});
-			await runBatch(list, batch.tabId, factsList, undefined, true);
+			await runBatch(
+				batch.items.map((it) => it.topic),
+				batch.tabId,
+				batch.items.map((it) => it.facts ?? {}),
+				undefined,
+				true,
+			);
 			await refresh();
 		});
 	}
@@ -206,7 +233,6 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 		(!batch || batchPhase(batch) === "done" || batchPhase(batch) === "empty");
 	const batchActive =
 		batch && batchPhase(batch) !== "done" && batchPhase(batch) !== "empty";
-
 	const awaitingApprovalItems = batch
 		? batch.items.filter((it) => it.status === "awaiting-approval")
 		: [];
@@ -254,6 +280,7 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 					{error}
 				</p>
 			)}
+			{loading && !batch && <Loading />}
 
 			{toast && (
 				<div
@@ -270,7 +297,10 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 					{toast.undoable && (
 						<button
 							type="button"
-							onClick={() => void handleUndoFewShot()}
+							onClick={() => {
+								void removeLastFewShotPair();
+								setToast(null);
+							}}
 							className="btn-icon text-info"
 							style={{
 								fontSize: "var(--font-sm)",
@@ -330,9 +360,6 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 									: `已读 ${readCount}/${awaitingApprovalItems.length} 篇(请展开每条审阅后再发布)`}
 							</div>
 						)}
-					{operationResults.length > 0 && (
-						<BatchResultSummary results={operationResults} />
-					)}
 					<BatchReviewPanel
 						batch={batch}
 						draftOverrides={draftOverrides}
@@ -345,41 +372,25 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 						onItemRead={onItemRead}
 						onDiscardItem={onDiscardItem}
 						allRead={allRead}
-						onModeChange={(mode) => {
-							void persistSafetyMode(mode).then(() => refresh());
-						}}
-						onApprove={() =>
-							void withBusy(async () => {
-								const report = await checkSelectors(batch.tabId);
-								setDrift(report);
-								if (!report.ok) {
-									setError(
-										`选择器自检失败,缺失:${report.missing.join("、")}。请点"漂移自检"了解详情,或在目标页修复后重试。`,
-									);
-									return;
-								}
-								const overrides =
-									draftOverrides.size > 0
-										? Object.fromEntries(draftOverrides)
-										: undefined;
-								await approveBatch(batch.tabId, overrides);
-								setDraftOverrides(new Map());
-								await refresh();
-							})
+						onModeChange={(mode) =>
+							void persistSafetyMode(mode).then(() => refresh())
 						}
-						onApproveBypass={() =>
-							void withBusy(async () => {
-								const overrides =
-									draftOverrides.size > 0
-										? Object.fromEntries(draftOverrides)
-										: undefined;
-								await approveBatch(batch.tabId, overrides);
-								setDraftOverrides(new Map());
-								await refresh();
-							})
-						}
+						onApprove={() => void handleApprove()}
+						onApproveBypass={() => void handleApproveBypass()}
 						onDraftChange={(itemId, draft) =>
 							setDraftOverrides((prev) => new Map(prev).set(itemId, draft))
+						}
+						onRefillFacts={(itemId, facts) =>
+							void withBusy(async () => {
+								await refillItemFacts(itemId, facts);
+								setDraftOverrides((prev) => {
+									if (!prev.has(itemId)) return prev;
+									const next = new Map(prev);
+									next.delete(itemId);
+									return next;
+								});
+								await refresh();
+							})
 						}
 						onKill={() =>
 							void withBusy(async () => {
@@ -412,15 +423,13 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 							})
 						}
 						onResume={() => void refresh()}
-						onItemEdited={(itemId) => {
+						onItemEdited={(itemId) =>
 							void (async () => {
 								await markItemEdited(itemId);
 								await refresh();
-							})();
-						}}
-						onSaveAsFewShot={(itemId) => {
-							void handleSaveAsFewShot(itemId);
-						}}
+							})()
+						}
+						onSaveAsFewShot={(itemId) => void handleSaveAsFewShot(itemId)}
 					/>
 				</>
 			)}

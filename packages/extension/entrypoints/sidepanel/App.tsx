@@ -1,7 +1,14 @@
 import type { ContentDraft, FieldFillResult } from "@51publisher/shared";
 import { useEffect, useRef, useState } from "react";
 import { isAuthenticated } from "../../lib/auth-client";
-import { buildPrompt, requestFill, requestGenerate } from "../../lib/messaging";
+import {
+	buildPrompt,
+	getBatchState,
+	requestFill,
+	requestGenerate,
+	resolveAdminTabId,
+} from "../../lib/messaging";
+import { DEFAULT_RECIPE } from "../../lib/recipe";
 import {
 	clearCurrentDraft,
 	getCurrentDraft,
@@ -15,6 +22,7 @@ import { ProgressBar } from "./components/ProgressBar";
 import { Toast } from "./components/Toast";
 import { DraftPreview } from "./DraftPreview";
 import { FillResultPanel } from "./FillResultPanel";
+import { FirstFlightWizard } from "./FirstFlightWizard";
 import { GossipView } from "./GossipView";
 import { useAutoSave } from "./hooks/useAutoSave";
 import { useErrorHandler } from "./hooks/useErrorHandler";
@@ -31,8 +39,20 @@ type Mode = "empty" | "generating" | "draft" | "filling" | "filled" | "partial";
 
 export function App() {
 	const [view, setView] = useState<
-		"main" | "settings" | "batch" | "pending" | "today" | "auth" | "gossip"
+		| "main"
+		| "settings"
+		| "batch"
+		| "pending"
+		| "today"
+		| "auth"
+		| "gossip"
+		| "firstflight"
 	>("main");
+	const [ffEntry, setFfEntry] = useState<{
+		tabId: number;
+		host: string;
+		itemId: string;
+	} | null>(null);
 	const [mode, setMode] = useState<Mode>("empty");
 	const [topic, setTopic] = useState("");
 	const [draft, setDraft] = useState<ContentDraft | null>(null);
@@ -173,6 +193,25 @@ export function App() {
 		if (draft) void navigator.clipboard?.writeText(draft.body);
 	}
 
+	// 首飞向导入口:解析后台 tab + 取当前批次首条 awaiting-approval 条目。
+	// host 仅用于展示/防误点;真实授权 host 仍由背景从 chrome.tabs.get 取。
+	async function launchFirstFlight() {
+		clearError();
+		const tabId = await resolveAdminTabId();
+		if (tabId == null) {
+			handleError("未找到后台发帖页标签——请先在浏览器打开后台发帖页。");
+			return;
+		}
+		const batch = await getBatchState();
+		const item = batch?.items.find((it) => it.status === "awaiting-approval");
+		if (!item) {
+			handleError("当前批次没有待审条目可供首飞,请先生成并审核一条。");
+			return;
+		}
+		setFfEntry({ tabId, host: DEFAULT_RECIPE.host, itemId: item.id });
+		setView("firstflight");
+	}
+
 	useKeyboardShortcuts({
 		onGenerate: handleGenerate,
 		onFill: handleFill,
@@ -226,6 +265,16 @@ export function App() {
 					onTopicAdded={() => setView("pending")}
 				/>
 			</Wrap>
+		);
+
+	if (view === "firstflight" && ffEntry)
+		return (
+			<FirstFlightWizard
+				tabId={ffEntry.tabId}
+				host={ffEntry.host}
+				itemId={ffEntry.itemId}
+				onBack={() => setView("main")}
+			/>
 		);
 
 	const busy = mode === "generating" || mode === "filling";
@@ -316,6 +365,16 @@ export function App() {
 						<span className="workflow-card-title">批量审核</span>
 						<span className="workflow-card-desc">
 							查看当前批次、处理异常、重跑或人工放行
+						</span>
+					</button>
+					<button
+						type="button"
+						onClick={() => void launchFirstFlight()}
+						className="workflow-card"
+					>
+						<span className="workflow-card-title">首飞向导</span>
+						<span className="workflow-card-desc">
+							最小授权窗口发布恰好一条,验证闸门时序
 						</span>
 					</button>
 				</nav>

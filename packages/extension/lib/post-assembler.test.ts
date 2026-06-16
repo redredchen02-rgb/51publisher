@@ -2,6 +2,7 @@
 
 import {
 	assembleDraft,
+	containsPlaceholder,
 	type DraftSlots,
 	type FactsBlock,
 	factUrls,
@@ -10,6 +11,26 @@ import {
 } from "@51publisher/shared";
 import { describe, expect, it } from "vitest";
 import { hasUnsourcedLink, verifyLinks } from "./link-source";
+
+describe("containsPlaceholder", () => {
+	it("裸式【待补】命中", () => {
+		expect(containsPlaceholder("作品名【待补】")).toBe(true);
+	});
+	it("标注式【待补:作品名】命中", () => {
+		expect(containsPlaceholder("【待补:作品名】")).toBe(true);
+	});
+	it("未闭合/残缺【待补(无 】)命中", () => {
+		expect(containsPlaceholder("漢化:【待补")).toBe(true);
+	});
+	it("干净文本返回 false", () => {
+		expect(containsPlaceholder("正常标题")).toBe(false);
+	});
+	it("空串/undefined/null 返回 false 且不抛错", () => {
+		expect(containsPlaceholder("")).toBe(false);
+		expect(containsPlaceholder(undefined)).toBe(false);
+		expect(containsPlaceholder(null)).toBe(false);
+	});
+});
 
 const slots = (over: Partial<DraftSlots> = {}): DraftSlots => ({
 	intro: "嗨嗨~大家好我是51娘",

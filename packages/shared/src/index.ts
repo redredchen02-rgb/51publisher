@@ -32,6 +32,7 @@ export { GOSSIP_FACT_KEYS, GOSSIP_FACTS_SCHEMA } from "./gossip-facts.js";
 export type { AssembledDraft, DraftSlots } from "./post-assembler.js";
 export {
 	assembleDraft,
+	containsPlaceholder,
 	esc,
 	PLACEHOLDER,
 	sanitizeToPlainText,
@@ -49,6 +50,9 @@ export type {
 	FieldMapping,
 	FieldType,
 	FillPageResponse,
+	FirstFlightRehearseResult,
+	FirstFlightRunResult,
+	FirstFlightStatusResult,
 	GenerateDraftResponse,
 	PublishResult,
 	RejectionReason,

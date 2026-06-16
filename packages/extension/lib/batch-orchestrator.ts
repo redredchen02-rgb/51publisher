@@ -29,6 +29,7 @@ import type { GroundingVerdict } from "./grounding-gate";
 import { evaluateGrounding as defaultEvaluateGrounding } from "./grounding-gate";
 import type { ReviewDraftResponse, RewriteDraftResponse } from "./llm";
 import { mergeRewriteResult } from "./llm";
+import { logger } from "./logger";
 import type { GateDecision } from "./publish-orchestrator";
 import { isGateBlocked, orchestratePublish } from "./publish-orchestrator";
 import type { PublishedPostRecord } from "./published-posts-client";
@@ -40,15 +41,14 @@ import type { TrajectoryInput } from "./trajectory";
 /**
  * 生成阶段并发度:每条 item 的 LLM 工作(generate + review + rewrite)彼此独立,
  * 并发跑可把大批量(100 条 ~1h)压到 ~15min。配合 LLM 层既有 429/5xx 退避,3 路并发对供应商 rate-limit 友好。
- * 导出自定义值可从外部覆盖(如测试注入 1 做串行校验)。
  */
-export const DEFAULT_GENERATION_CONCURRENCY = 3;
+const GENERATION_CONCURRENCY = 3;
 
 /**
  * 串行互斥队列:把并发 worker 的状态变更逐个排队执行,保证对共享 batch 累积态的「读→改→save」原子化,
  * 避免多个 worker 持过期 batch 互相覆盖。返回的函数 await 即等到本次变更落盘。
  */
-function createSerialQueue(): <T>(fn: () => Promise<T>) => Promise<T> {
+export function createSerialQueue(): <T>(fn: () => Promise<T>) => Promise<T> {
 	let tail: Promise<unknown> = Promise.resolve();
 	return <T>(fn: () => Promise<T>): Promise<T> => {
 		const run = tail.then(fn);
@@ -131,8 +131,6 @@ export interface RunBatchDeps {
 		draft: ContentDraft,
 		facts?: FactsBlock,
 	) => GroundingVerdict;
-	/** 生成階段併發度;省略時用 DEFAULT_GENERATION_CONCURRENCY(3)。 */
-	generationConcurrency?: number;
 }
 
 /** 批量生成循环。返回最终 Batch 状态;host 解析失败或所有 topic 均被重入过滤 → null。 */
@@ -236,9 +234,7 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
 	let paused = false;
 	const workItems = batch.items; // 快照初始 items;mark* 按 id 在当前 batch 内查找,引用稳定。
 
-	const concurrency =
-		deps.generationConcurrency ?? DEFAULT_GENERATION_CONCURRENCY;
-	await mapWithConcurrency(workItems, concurrency, async (item) => {
+	await mapWithConcurrency(workItems, GENERATION_CONCURRENCY, async (item) => {
 		if (paused) return;
 		if (!(await pinnedHostOk(batch))) {
 			paused = true;
@@ -303,6 +299,7 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
 				undefined,
 				reviewMeta,
 				assembledDraft,
+				gen.slots,
 			),
 		);
 
@@ -362,11 +359,21 @@ export interface ApproveBatchDeps {
 	/** 存在时只处理 id 匹配的单条;省略=处理全部 awaiting-approval。 */
 	itemIdFilter?: string;
 	/**
-	 * 首飞联锁守卫(U5):pending 在场时仅当 item+tab+host+draft+nonce 五项全等才放行。
-	 * 返回 false → 当前条目 gate-failed,sendFill/sendGrant 均不被调用。
-	 * 省略 = 不门控(无首飞场景 / 测试)。
+	 * 首飞互锁守卫(Unit 5):省略=不启用(无标记场景零行为变更)。
+	 * 在 fill 决策点 AND grant 前各求值一次(每次重读标记 close TOCTOU)。
+	 * allowed=false → 跳过本条(既不 fill 也不 grant),无 fill 副作用、无 grant 泄漏。
 	 */
-	firstFlightGuard?: (itemId: string, draft: ContentDraft) => Promise<boolean>;
+	firstFlightGuard?: (
+		ctx: FirstFlightDispatch,
+	) => Promise<{ allowed: boolean }>;
+}
+
+/** 传给互锁守卫的一笔意图身份(host 由 evaluateGate 给出)。 */
+export interface FirstFlightDispatch {
+	itemId: string;
+	tabId: number;
+	host: string;
+	draft: ContentDraft;
 }
 
 /** 批量发布循环。返回最终 Batch;无批次 → null。 */
@@ -436,16 +443,22 @@ export async function approveBatch(
 			}
 		}
 
-		// 首飞联锁(U5):pending 在场时验证 item+tab+host+draft+nonce 五项全等。
-		// 任一不符 → gate-failed,sendFill/sendGrant 均不调用。
-		if (firstFlightGuard && !(await firstFlightGuard(item.id, item.draft))) {
-			batch = markGateFailed(
-				batch,
-				item.id,
-				"首飞联锁拦截:item/tab/host/draft/nonce 不匹配",
-			);
-			await save(batch);
-			continue;
+		// 首飞互锁(fill 决策点):标记在场且本条与标记不全等 → 跳过本条(既不 fill 也不 grant)。
+		// host 取自闸门判决(背景从 chrome.tabs.get 取),绝不接受消息携带的 host。
+		// P0:APPROVE_BATCH 无 filter 会遍历整批,每条非匹配项的 fill 与 grant 都在此被拦。
+		if (firstFlightGuard) {
+			const gateForHost = await evaluateGate();
+			const host = gateForHost.host;
+			if (gateForHost.mode === "authorized") {
+				if (host == null) continue; // host 不可达 → 不 fill(fail-closed)
+				const fillVerdict = await firstFlightGuard({
+					itemId: item.id,
+					tabId: batch.tabId,
+					host,
+					draft: item.draft,
+				});
+				if (!fillVerdict.allowed) continue; // 互锁拦截:无 fill 副作用、无 grant 泄漏
+			}
 		}
 
 		// Tombstone 写在 sendFill 之前:若 SW 在 fill 飞行中被回收,重启时扫到 tombstone → 隔离。
@@ -486,6 +499,25 @@ export async function approveBatch(
 				await save(batch);
 			},
 			sendGrant,
+			...(firstFlightGuard
+				? {
+						preGrantGuard: async () => {
+							// grant 前重读标记 + 重解析 host(close TOCTOU)。
+							const g = await evaluateGate();
+							if (g.mode !== "authorized") return { allowed: false };
+							if (g.host == null) return { allowed: false };
+							const cur = batch.items.find((it) => it.id === item.id);
+							const draft = cur?.draft ?? item.draft;
+							if (!draft) return { allowed: false };
+							return firstFlightGuard({
+								itemId: item.id,
+								tabId: batch.tabId,
+								host: g.host,
+								draft,
+							});
+						},
+					}
+				: {}),
 			writeConfirmed: async (r: PublishResult) => {
 				if (r.dryRun) return; // dry-run 不落状态
 				batch = r.ok
@@ -499,11 +531,8 @@ export async function approveBatch(
 						sourceTitle: item.topic,
 						publishUrl: r.url ?? "",
 						publishedAt: now(),
-					}).catch((err) =>
-						console.warn(
-							"[batch-orchestrator] recordPost 失败(best-effort)",
-							err,
-						),
+					}).catch(() =>
+						logger.warn("batch-orchestrator", "recordPost 失败(best-effort)"),
 					);
 				}
 			},
@@ -560,11 +589,8 @@ export async function approveBatch(
 			ts: new Date().toISOString(),
 			items: dryRunItems,
 		};
-		saveDryRunReportFn(report).catch((e) =>
-			console.warn(
-				"[batch-orchestrator] saveDryRunReport 失败(best-effort)",
-				e,
-			),
+		saveDryRunReportFn(report).catch(() =>
+			logger.warn("batch-orchestrator", "saveDryRunReport 失败(best-effort)"),
 		);
 	}
 
@@ -572,9 +598,7 @@ export async function approveBatch(
 }
 
 function defaultSnapshotDropped(itemId: string): void {
-	console.warn(
-		`[batch-orchestrator] 轨迹快照含机密被丢弃(record 已落,无快照) itemId=${itemId}`,
-	);
+	logger.warn("batch-orchestrator", "轨迹快照含机密被丢弃", { itemId });
 }
 
 // ---- DISCARD ITEM ----
@@ -645,6 +669,7 @@ export async function retryItem(
 		undefined,
 		undefined,
 		draft,
+		gen.slots,
 	);
 	batch = presentForApproval(batch);
 	await deps.save(batch); // flush approval-ready state

@@ -189,7 +189,7 @@ TG_CHAT_ID=<你的 chat id>
 │   │   └── lib/                        # 核心逻辑（fillers、assembler、gate…）
 │   ├── backend/            # Fastify 5 + TypeScript，端口 3001
 │   │   └── src/
-│   │       ├── *-routes.ts             # 按模块分文件的路由
+│   │       ├── routes/                 # 按模块分文件的路由（gossip/pending/scraper/prompt）
 │   │       └── scraper/                # 选题抓取管线
 │   └── shared/             # 跨端共享类型与纯逻辑
 └── docs/                   # 详细文档

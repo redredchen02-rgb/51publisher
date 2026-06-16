@@ -14,15 +14,14 @@ import {
 	addFewShotPair,
 	appendTrajectory,
 	clearBatch,
-	clearFirstFlightPending,
+	clearFirstFlight,
 	clearTrajectory,
 	DEFAULT_SETTINGS,
 	getApiKey,
 	getAuthorizedHosts,
 	getBackendToken,
 	getBatch,
-	getFirstFlightPending,
-	getFirstFlightResetCount,
+	getFirstFlight,
 	getSafetyMode,
 	getSettings,
 	getTrajectory,
@@ -32,9 +31,8 @@ import {
 	saveBatch,
 	saveSettings,
 	setAuthorizedHosts,
-	setFirstFlightPending,
-	setFirstFlightResetCount,
 	setSafetyMode,
+	writeFirstFlight,
 } from "./storage";
 
 const D: ContentDraft = {
@@ -124,71 +122,6 @@ describe("storage", () => {
 		it("坏档位值回落 off", async () => {
 			await storage.setItem("local:safetyMode", "YOLO");
 			expect(await getSafetyMode()).toBe("off");
-		});
-
-		describe("首飞授权标记(firstFlightPending)", () => {
-			const P = {
-				itemId: "i1",
-				tabId: 7,
-				host: "dx-999-adm.ympxbys.xyz",
-				contentHash: "abc123",
-				nonce: "n-1",
-				ts: "2026-06-15T00:00:00.000Z",
-			};
-
-			it("缺失 → {null, 非 corrupt}(常态无窗口)", async () => {
-				expect(await getFirstFlightPending()).toEqual({
-					pending: null,
-					corrupt: false,
-				});
-			});
-
-			it("set/get 往返", async () => {
-				await setFirstFlightPending(P);
-				expect(await getFirstFlightPending()).toEqual({
-					pending: P,
-					corrupt: false,
-				});
-			});
-
-			it("clear 后回到 null(幂等)", async () => {
-				await setFirstFlightPending(P);
-				await clearFirstFlightPending();
-				expect(await getFirstFlightPending()).toEqual({
-					pending: null,
-					corrupt: false,
-				});
-				await clearFirstFlightPending(); // 再清不报错
-			});
-
-			it("坏值:存在但缺字段 → corrupt:true(启动复位据此强制降档)", async () => {
-				await storage.setItem("local:firstFlightPending", { itemId: "i1" });
-				expect(await getFirstFlightPending()).toEqual({
-					pending: null,
-					corrupt: true,
-				});
-			});
-
-			it("坏值:非对象 → corrupt:true", async () => {
-				await storage.setItem("local:firstFlightPending", "garbage");
-				expect(await getFirstFlightPending()).toEqual({
-					pending: null,
-					corrupt: true,
-				});
-			});
-
-			it("坏值:nonce 缺失 → corrupt:true", async () => {
-				await storage.setItem("local:firstFlightPending", { ...P, nonce: "" });
-				expect((await getFirstFlightPending()).corrupt).toBe(true);
-			});
-
-			it("复位计数:缺省 0、往返、坏值回落 0(fail-closed)", async () => {
-				expect(await getFirstFlightResetCount()).toBe(0);
-				await setFirstFlightResetCount(2);
-				expect(await getFirstFlightResetCount()).toBe(2);
-				await storage.setItem("local:firstFlightResetCount", "NaN");
-				expect(await getFirstFlightResetCount()).toBe(0);
-			});
 		});
 
 		it("名单从未设置 → 种子(含 admin 站)", async () => {
@@ -397,6 +330,69 @@ describe("storage", () => {
 			});
 			const s = await getSettings();
 			expect(s.dailyBatchSize).toBe(5);
+		});
+	});
+
+	describe("first-flight 标记", () => {
+		const PENDING = {
+			itemId: "item_0",
+			tabId: 7,
+			host: "dx-999-adm.ympxbys.xyz",
+			contentHash: "abc",
+			nonce: "n1",
+			ts: "2026-06-15T00:00:00.000Z",
+		};
+
+		it("干净缺失 → state absent", async () => {
+			expect(await getFirstFlight()).toEqual({ state: "absent" });
+		});
+
+		it("durable 写 + 读回 → state ok,字段往返", async () => {
+			const ok = await writeFirstFlight({
+				mode: "dry-run",
+				pending: PENDING,
+			});
+			expect(ok).toBe(true);
+			const read = await getFirstFlight();
+			expect(read.state).toBe("ok");
+			if (read.state === "ok") {
+				expect(read.marker.mode).toBe("dry-run");
+				expect(read.marker.pending).toEqual(PENDING);
+			}
+		});
+
+		it("坏值(非对象)→ state bad(fail-closed)", async () => {
+			await storage.setItem("local:firstFlight", "YOLO");
+			expect((await getFirstFlight()).state).toBe("bad");
+		});
+
+		it("坏值(pending 缺字段)→ state bad", async () => {
+			await storage.setItem("local:firstFlight", {
+				mode: "authorized",
+				pending: { itemId: "x" },
+			});
+			expect((await getFirstFlight()).state).toBe("bad");
+		});
+
+		it("坏值(mode 非法)→ state bad", async () => {
+			await storage.setItem("local:firstFlight", {
+				mode: "YOLO",
+				pending: null,
+			});
+			expect((await getFirstFlight()).state).toBe("bad");
+		});
+
+		it("pending=null 干净 arm 标记 → state ok", async () => {
+			await writeFirstFlight({ mode: "dry-run", pending: null });
+			const read = await getFirstFlight();
+			expect(read.state).toBe("ok");
+			if (read.state === "ok") expect(read.marker.pending).toBeNull();
+		});
+
+		it("clearFirstFlight → 回到 absent", async () => {
+			await writeFirstFlight({ mode: "dry-run", pending: PENDING });
+			await clearFirstFlight();
+			expect((await getFirstFlight()).state).toBe("absent");
 		});
 	});
 });

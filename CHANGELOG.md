@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1.0] - 2026-06-16
+
+### Changed
+
+- **大型组件拆分（Unit 6-8）**：`BatchReviewPanel.tsx`（588L→177L）、`TodayBatchView.tsx`（785L→218L）、`Settings.tsx`（590L→146L）各拆分为独立子组件，每个文件降至单一职责；相关逻辑移入 `useTodayBatchDomain` hook
+- **fewShotExamples 单一真相源**：`getSettings()` 读取时派生，消除旧有双写路径；兼容旧格式用户，不覆盖已有数据
+- **scraper/gossip/pending routes 归位**：三组路由文件从根目录移至 `src/routes/`，与其他路由文件统一存放位置
+
+### Fixed
+
+- **批量轮询无限重启**：`useTodayBatchDomain` 中 `items` 误入 polling `useEffect` 依赖数组，导致每次 `setItems()` 都销毁并重建 1500ms 轮询间隔；移除后只在 `stage` 变化时重建
+- **发布/重试静默吞错**：`handlePublish` / `handleRetry` 现在在 `approveSingleItem` / `retryBatchItemMsg` 抛出时向用户展示错误提示
+- **设置页数据丢失**：`fewShotExamplesResolved` 回退值从旧状态 `fewShotExamples`（可能为空字符串）改为 `undefined`，防止覆盖迁移用户的遗留数据
+- **ApprovalBar 死字段**：移除从未实际使用的 `tabHealthy` 和 `onApproveBypass` props
+- **测试加固(落地前评审)**：`app.test.ts` 断言改为带 token 校验；`config-store`/`app` 测试新增 teardown 关闭 WAL 句柄；移除空断言与名不副实的测试标题
+
+### Added (Tests)
+
+- **124 个单元/组件测试**：后端覆盖 config-store、metrics、scraper adapters、enrichment-utils、prompt store/routes、llm-config、app 路由；扩展覆盖 AuthView、DraftPreview、DryRunReport、ErrorBoundary、Settings、pending-client actions
+- **useTodayBatchDomain 单元测试**：6 个用例覆盖初始状态、加载设置、Tab 错误处理、handleDailyBatch 早退路径、handleToggleRead、状态 setter
+- **JWT 401 防护测试**：补全 gossip-routes / pending-routes / scraper-routes 缺失的 JWT 鉴权测试，确保无 token 请求返回 401
+
+
+
 ## [0.2.0.0] - 2026-06-11
 
 ### Added
