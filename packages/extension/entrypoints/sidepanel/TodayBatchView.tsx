@@ -213,7 +213,6 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 		if (adminTabId == null) return;
 		setPublishingItems((prev) => new Set([...prev, item.id]));
 		try {
-			void postStatus;
 			const batch = await approveSingleItem(adminTabId, item.id);
 			if (batch) setItems(batch.items);
 		} finally {
