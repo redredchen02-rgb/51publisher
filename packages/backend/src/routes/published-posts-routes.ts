@@ -2,6 +2,10 @@ import type { FastifyInstance } from "fastify";
 import { getDb, pendingWriteQueue } from "../scraper/pending-db.js";
 import { err } from "../utils/error-response.js";
 import { generateId } from "../utils/generate-id.js";
+import {
+	PublishedPostBody as PublishedPostBodySchema,
+	PublishedPostQuery as PublishedPostQuerySchema,
+} from "../utils/schemas.js";
 
 // Body shape matches extension's published-posts-client.ts recordPublishedPost().
 interface PublishedPostBody {
@@ -12,6 +16,12 @@ interface PublishedPostBody {
 	publish_url_source?: string;
 	published_at?: string;
 	outcome?: string;
+}
+
+interface PublishedPostQuerystring {
+	sourceTitle?: string;
+	limit?: string;
+	offset?: string;
 }
 
 export interface PublishedPost {
@@ -57,6 +67,7 @@ export async function registerPublishedPostsRoutes(
 ): Promise<void> {
 	app.post<{ Body: PublishedPostBody }>(
 		"/api/v1/published-posts",
+		{ schema: { body: PublishedPostBodySchema } },
 		async (request, reply) => {
 			const {
 				id: bodyId,
@@ -150,10 +161,11 @@ export async function registerPublishedPostsRoutes(
 		},
 	);
 
-	app.get<{
-		Querystring: { sourceTitle?: string; limit?: string; offset?: string };
-	}>("/api/v1/published-posts", async (request) => {
-		const db = getDb();
+	app.get<{ Querystring: PublishedPostQuerystring }>(
+		"/api/v1/published-posts",
+		{ schema: { querystring: PublishedPostQuerySchema } },
+		async (request) => {
+			const db = getDb();
 		const { sourceTitle, limit: limitStr, offset: offsetStr } = request.query;
 		const limit = Math.min(Math.max(Number(limitStr) || 50, 1), 500);
 		const offset = Math.max(Number(offsetStr) || 0, 0);
