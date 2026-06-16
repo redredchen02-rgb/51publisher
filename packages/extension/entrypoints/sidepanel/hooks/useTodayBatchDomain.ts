@@ -40,6 +40,7 @@ export interface TodayBatchDomain {
 	setError: (e: string) => void;
 	handleDailyBatch: () => Promise<void>;
 	handlePublish: (item: BatchItem) => Promise<void>;
+	handleApproveAll: (items: BatchItem[]) => Promise<void>;
 	handleRetry: (itemId: string) => Promise<void>;
 	handleToggleRead: (itemId: string) => void;
 }
@@ -226,6 +227,26 @@ export function useTodayBatchDomain(): TodayBatchDomain {
 		}
 	}
 
+	async function handleApproveAll(items: BatchItem[]) {
+		if (adminTabId == null) return;
+		const targets = items.filter((it) => it.status === "awaiting-approval");
+		for (const item of targets) {
+			setPublishingItems((prev) => new Set([...prev, item.id]));
+			try {
+				const batch = await approveSingleItem(adminTabId, item.id);
+				if (batch && isMounted.current) setItems(batch.items);
+			} catch {
+				if (isMounted.current) setError(`「${item.topic}」发布失败，已跳过。`);
+			} finally {
+				setPublishingItems((prev) => {
+					const next = new Set(prev);
+					next.delete(item.id);
+					return next;
+				});
+			}
+		}
+	}
+
 	async function handleRetry(itemId: string) {
 		try {
 			const batch = await retryBatchItemMsg(itemId);
@@ -256,6 +277,7 @@ export function useTodayBatchDomain(): TodayBatchDomain {
 		setError,
 		handleDailyBatch,
 		handlePublish,
+		handleApproveAll,
 		handleRetry,
 		handleToggleRead,
 	};

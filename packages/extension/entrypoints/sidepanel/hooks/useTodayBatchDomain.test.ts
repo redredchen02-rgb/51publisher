@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../../lib/messaging", () => ({
@@ -88,6 +88,68 @@ describe("useTodayBatchDomain", () => {
 
 		expect(markItemRead).toHaveBeenCalledWith("item-1");
 		expect(result.current.readItems.has("item-1")).toBe(true);
+	});
+
+	it("handleApproveAll 逐條呼叫 approveSingleItem", async () => {
+		const { approveSingleItem, resolveAdminTabId } = await import(
+			"../../../lib/messaging"
+		);
+		vi.mocked(resolveAdminTabId).mockResolvedValue(1);
+		const mockApprove = vi.mocked(approveSingleItem).mockResolvedValue(null);
+
+		const { result } = renderHook(() => useTodayBatchDomain());
+		await waitFor(() => expect(result.current.adminTabId).toBe(1));
+
+		const targets = [
+			{
+				id: "a1",
+				topic: "t1",
+				facts: {},
+				status: "awaiting-approval" as const,
+			},
+			{
+				id: "a2",
+				topic: "t2",
+				facts: {},
+				status: "awaiting-approval" as const,
+			},
+		];
+
+		await act(async () => {
+			await result.current.handleApproveAll(targets);
+		});
+
+		expect(mockApprove).toHaveBeenCalledTimes(2);
+		expect(mockApprove).toHaveBeenCalledWith(1, "a1");
+		expect(mockApprove).toHaveBeenCalledWith(1, "a2");
+	});
+
+	it("handleApproveAll 跳過非 awaiting-approval 條目", async () => {
+		const { approveSingleItem, resolveAdminTabId } = await import(
+			"../../../lib/messaging"
+		);
+		vi.mocked(resolveAdminTabId).mockResolvedValue(1);
+		const mockApprove = vi.mocked(approveSingleItem).mockResolvedValue(null);
+
+		const { result } = renderHook(() => useTodayBatchDomain());
+		await waitFor(() => expect(result.current.adminTabId).toBe(1));
+
+		const mixed = [
+			{
+				id: "b1",
+				topic: "t1",
+				facts: {},
+				status: "awaiting-approval" as const,
+			},
+			{ id: "b2", topic: "t2", facts: {}, status: "filled" as const },
+		];
+
+		await act(async () => {
+			await result.current.handleApproveAll(mixed);
+		});
+
+		expect(mockApprove).toHaveBeenCalledTimes(1);
+		expect(mockApprove).toHaveBeenCalledWith(1, "b1");
 	});
 
 	it("setStage / setItems / setError 正确更新状态", async () => {

@@ -34,6 +34,7 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 		setError,
 		handleDailyBatch,
 		handlePublish,
+		handleApproveAll,
 		handleRetry,
 		handleToggleRead,
 	} = useTodayBatchDomain();
@@ -274,6 +275,7 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 							publishingItems={publishingItems}
 							onToggleRead={handleToggleRead}
 							onPublish={(item) => void handlePublish(item)}
+							onApproveAll={() => void handleApproveAll(reviewableItems)}
 						/>
 					)}
 
