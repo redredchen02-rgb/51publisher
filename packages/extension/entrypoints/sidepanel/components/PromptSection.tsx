@@ -7,17 +7,12 @@ const MAX_PAIRS = 8;
 
 interface PromptSectionProps {
 	promptTemplate: string;
-	fewShotExamples: string;
 	fewShotPairs: FewShotPair[];
-	importBanner: string;
-	importTruncated: string;
 	prompts: PromptTemplate[];
 	selectedPromptId: string;
 	promptStatus: string;
 	setPromptTemplate: (v: string) => void;
-	setFewShotExamples: (v: string) => void;
 	setFewShotPairs: (pairs: FewShotPair[]) => void;
-	onImportFewShot: () => void;
 	onLoadPrompts: () => void;
 	onSelectPrompt: (id: string) => void;
 	onSavePromptToBackend: (name: string) => Promise<void>;
@@ -25,17 +20,12 @@ interface PromptSectionProps {
 
 export function PromptSection({
 	promptTemplate,
-	fewShotExamples,
 	fewShotPairs,
-	importBanner,
-	importTruncated,
 	prompts,
 	selectedPromptId,
 	promptStatus,
 	setPromptTemplate,
-	setFewShotExamples,
 	setFewShotPairs,
-	onImportFewShot,
 	onLoadPrompts,
 	onSelectPrompt,
 	onSavePromptToBackend,
@@ -60,16 +50,9 @@ export function PromptSection({
 							({fewShotPairs.length}/{MAX_PAIRS})
 						</span>
 					</div>
-					{importTruncated && (
-						<p role="alert" className="field-hint text-warning">
-							{importTruncated}
-						</p>
-					)}
 					<FewShotPairEditor
 						pairs={fewShotPairs}
 						onChange={setFewShotPairs}
-						importBanner={importBanner || undefined}
-						onImport={onImportFewShot}
 					/>
 				</div>
 			</div>
@@ -98,28 +81,6 @@ export function PromptSection({
 				<p className="field-hint">
 					源接地:AI 只用 {"{{facts}}"}{" "}
 					里给的事实润色,缺的标【待补】,连结只用给定 URL——防止编造作品事实/连结。
-				</p>
-
-				<div className="field-group">
-					<label className="field-label">
-						Few-shot 原始文本(旧格式兼容,优先使用上方结构化编辑器)
-						<button
-							type="button"
-							className="btn btn-plain btn-sm ml-sm"
-							onClick={() => setFewShotExamples(DEFAULT_SETTINGS.fewShotExamples ?? "")}
-						>
-							恢复默认
-						</button>
-					</label>
-					<textarea
-						className="field-input"
-						style={{ minHeight: 100 }}
-						value={fewShotExamples}
-						onChange={(e) => setFewShotExamples(e.target.value)}
-					/>
-				</div>
-				<p className="field-hint">
-					⚠️ 范例里别写真实連結(会随每次请求发往后端);用占位即可。
 				</p>
 			</div>
 

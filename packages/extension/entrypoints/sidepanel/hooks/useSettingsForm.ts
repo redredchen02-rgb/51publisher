@@ -9,22 +9,17 @@ import {
 	getApiKey as storageGetApiKey,
 	getBackendToken as storageGetBackendToken,
 	getSettings,
+	parseFewShotExamples,
 	saveApiKey,
 	saveBackendToken,
 	saveSettings,
 } from "../../../lib/storage";
 import { parseTagsText, validateSettingsForm } from "../Settings";
 
-const MAX_PAIRS = 8;
-
-const IMPORT_BANNER_TEXT =
-	"偵測到舊格式 few-shot 範例，點擊「匯入」可轉換為新格式";
-
 export interface SettingsFormValues {
 	endpoint: string;
 	model: string;
 	promptTemplate: string;
-	fewShotExamples: string;
 	fewShotPairs: FewShotPair[];
 	tagsText: string;
 	mappingText: string;
@@ -32,8 +27,6 @@ export interface SettingsFormValues {
 	backendUrl: string;
 	reviewCriteriaPrompt: string;
 	dailyBatchSize: string;
-	importBanner: string;
-	importTruncated: string;
 }
 
 export interface UseSettingsFormReturn {
@@ -48,7 +41,6 @@ export interface UseSettingsFormReturn {
 	promptStatus: string;
 	load: () => Promise<void>;
 	save: () => Promise<string | null>;
-	importFewShot: () => void;
 	loadPrompts: () => Promise<void>;
 	selectPrompt: (id: string) => void;
 	savePromptToBackend: (name: string) => Promise<void>;
@@ -65,7 +57,6 @@ export function useSettingsForm(): UseSettingsFormReturn {
 		endpoint: "",
 		model: "",
 		promptTemplate: "",
-		fewShotExamples: "",
 		fewShotPairs: [],
 		tagsText: "",
 		mappingText: "",
@@ -73,8 +64,6 @@ export function useSettingsForm(): UseSettingsFormReturn {
 		backendUrl: "",
 		reviewCriteriaPrompt: "",
 		dailyBatchSize: "5",
-		importBanner: "",
-		importTruncated: "",
 	});
 
 	const [prompts, setPrompts] = useState<PromptTemplate[]>([]);
@@ -103,32 +92,21 @@ export function useSettingsForm(): UseSettingsFormReturn {
 		apiKeyRef.current = key;
 		backendTokenRef.current = bToken;
 
-		const pairs = s.fewShotPairs ?? [];
-		const rawExamples = s.fewShotExamples ?? "";
-		const importBanner =
-			rawExamples && pairs.length === 0 ? IMPORT_BANNER_TEXT : "";
-
 		setFormValues({
 			endpoint: s.endpoint,
 			model: s.model,
 			promptTemplate: s.promptTemplate,
-			fewShotExamples: rawExamples,
-			fewShotPairs: pairs,
+			fewShotPairs: s.fewShotPairs ?? [],
 			tagsText: (s.recommendedTags ?? []).join("\n"),
 			mappingText: JSON.stringify(s.fieldMapping, null, 2),
 			fallbackModel: s.fallbackModel ?? "",
 			backendUrl: s.backendUrl ?? "",
 			reviewCriteriaPrompt: s.reviewCriteriaPrompt ?? "",
 			dailyBatchSize: String(s.dailyBatchSize ?? 5),
-			importBanner,
-			importTruncated: "",
 		});
 	}, []);
 
-	const derivedFewShotExamples =
-		formValues.fewShotPairs.length > 0
-			? deriveFewShotExamples(formValues.fewShotPairs)
-			: formValues.fewShotExamples;
+	const derivedFewShotExamples = deriveFewShotExamples(formValues.fewShotPairs);
 
 	const save = useCallback(async (): Promise<string | null> => {
 		const validationErr = validateSettingsForm({
@@ -146,17 +124,11 @@ export function useSettingsForm(): UseSettingsFormReturn {
 			return "字段映射 JSON 解析失败。";
 		}
 
-		const resolvedFewShotExamples =
-			formValues.fewShotPairs.length > 0
-				? deriveFewShotExamples(formValues.fewShotPairs)
-				: formValues.fewShotExamples;
-
 		await saveSettings({
 			...existing,
 			endpoint: formValues.endpoint,
 			model: formValues.model,
 			promptTemplate: formValues.promptTemplate,
-			fewShotExamples: resolvedFewShotExamples,
 			fewShotPairs: formValues.fewShotPairs,
 			recommendedTags: parseTagsText(formValues.tagsText),
 			fieldMapping: fieldMappingParsed,
@@ -170,29 +142,6 @@ export function useSettingsForm(): UseSettingsFormReturn {
 		await saveBackendToken(backendTokenRef.current);
 		return null;
 	}, [formValues]);
-
-	const importFewShot = useCallback(() => {
-		const raw = formValues.fewShotExamples;
-		if (!raw) return;
-
-		const blocks = raw.split(/\n\n+/).filter(Boolean);
-		const truncated = blocks.length > MAX_PAIRS;
-		const taken = blocks.slice(0, MAX_PAIRS).map((b) => {
-			const sep = b.indexOf("\n---\n");
-			return sep !== -1
-				? { input: b.slice(0, sep), output: b.slice(sep + 5) }
-				: { input: "", output: b };
-		});
-
-		setFormValues((prev) => ({
-			...prev,
-			fewShotPairs: taken,
-			importBanner: "",
-			importTruncated: truncated
-				? `检测到 ${blocks.length} 块，已截取前 ${MAX_PAIRS} 条，请检查并补全 input 字段`
-				: "",
-		}));
-	}, [formValues.fewShotExamples]);
 
 	const loadPrompts = useCallback(async () => {
 		const result = await fetchPrompts();
@@ -212,7 +161,7 @@ export function useSettingsForm(): UseSettingsFormReturn {
 			setFormValues((prev) => ({
 				...prev,
 				promptTemplate: tpl.template,
-				fewShotExamples: tpl.fewShotExamples,
+				fewShotPairs: tpl.fewShotPairs ?? [],
 			}));
 		},
 		[prompts],
@@ -220,14 +169,10 @@ export function useSettingsForm(): UseSettingsFormReturn {
 
 	const savePromptToBackend = useCallback(
 		async (name: string) => {
-			const resolved =
-				formValues.fewShotPairs.length > 0
-					? deriveFewShotExamples(formValues.fewShotPairs)
-					: formValues.fewShotExamples;
 			const result = await createPrompt({
 				name,
 				template: formValues.promptTemplate,
-				fewShotExamples: resolved,
+				fewShotPairs: formValues.fewShotPairs,
 				model: formValues.model || undefined,
 			});
 			if (result.ok) {
@@ -270,7 +215,6 @@ export function useSettingsForm(): UseSettingsFormReturn {
 		promptStatus,
 		load,
 		save,
-		importFewShot,
 		loadPrompts,
 		selectPrompt,
 		savePromptToBackend,

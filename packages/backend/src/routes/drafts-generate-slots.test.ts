@@ -38,7 +38,7 @@ async function buildApp(fetchFn: typeof fetch): Promise<FastifyInstance> {
 					model: "gpt-4o-mini",
 					fallbackModel: "",
 					promptTemplate: "t",
-					fewShotExamples: "f",
+					fewShotPairs: [],
 					fieldMapping: {},
 				},
 				apiKey: "k",
