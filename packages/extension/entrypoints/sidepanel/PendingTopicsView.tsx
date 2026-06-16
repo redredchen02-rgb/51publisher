@@ -41,13 +41,14 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 	const [scrapeStatus, setScrapeStatus] = useState("");
 	const [busy, setBusy] = useState(false);
 	const [loading, setLoading] = useState(true);
+	const [hideLowScore, setHideLowScore] = useState(false);
 	const [quickDraftConfirm, setQuickDraftConfirm] =
 		useState<QuickDraftConfirm | null>(null);
 	const [quickDraftStatus, setQuickDraftStatus] = useState("");
 
 	const refresh = useCallback(async () => {
 		setLoading(true);
-		const list = await fetchPendingTopics({ status: "pending", domain: "acg" });
+		const list = await fetchPendingTopics({ status: "pending", sort_by: "score", domain: "acg" });
 		setTopics(list);
 		setLoading(false);
 	}, []);
@@ -377,20 +378,37 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 			{topics.length > 0 && (
 				<>
 					<div
-						className="text-sm text-muted"
-						style={{ marginBottom: "var(--space-md)" }}
+						className="flex-between"
+						style={{ marginBottom: "var(--space-md)", alignItems: "center" }}
 					>
-						{topics.length} 条待审核 · 已选 {selected.size} 条
+						<span className="text-sm text-muted">
+							{topics.length} 条待审核 · 已选 {selected.size} 条
+						</span>
+						{topics.some((t) => (t.qualityScore ?? t.confidence) < 0.3) && (
+							<button
+								type="button"
+								className="btn btn-plain btn-sm"
+								onClick={() => setHideLowScore((v) => !v)}
+								style={{ fontSize: "var(--font-xs)" }}
+							>
+								{hideLowScore ? "显示全部" : "折叠低分（< 0.3）"}
+							</button>
+						)}
 					</div>
 
 					<ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-						{topics.map((t) => (
+						{topics.filter((t) => !hideLowScore || (t.qualityScore ?? t.confidence) >= 0.3).map((t) => {
+							const score = t.qualityScore ?? t.confidence;
+							const isHigh = score >= 0.7;
+							const isMed = score >= 0.4 && score < 0.7;
+							return (
 							<li
 								key={t.id}
 								style={{
-									border: "1px solid var(--color-border-lighter)",
+									border: `1px solid ${isHigh ? "var(--color-success)" : "var(--color-border-lighter)"}`,
 									borderRadius: "var(--radius-md)",
 									marginBottom: "var(--space-sm)",
+									opacity: score < 0.3 ? 0.6 : 1,
 								}}
 							>
 								<div
@@ -415,16 +433,29 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 												overflow: "hidden",
 												textOverflow: "ellipsis",
 												whiteSpace: "nowrap",
+												display: "flex",
+												alignItems: "center",
+												gap: 6,
 											}}
 										>
-											{t.title || t.sourceUrl}
+											{isHigh && (
+												<span style={{ fontSize: "var(--font-xs)", background: "var(--color-success)", color: "#fff", padding: "1px 5px", borderRadius: 4, flexShrink: 0 }}>
+													高潜力
+												</span>
+											)}
+											<span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+												{t.title || t.sourceUrl}
+											</span>
 										</div>
 										<div
 											className="text-xs text-muted"
 											style={{ marginTop: "var(--space-xs)" }}
 										>
-											{t.siteName} · 置信度:{Math.round(t.confidence * 100)}% ·{" "}
-											{t.sourceUrl.slice(0, 60)}
+											{t.siteName} ·{" "}
+											<span style={{ color: isHigh ? "var(--color-success)" : isMed ? "var(--color-warning)" : "var(--color-text-disabled)" }}>
+												評分 {Math.round(score * 100)}
+											</span>
+											{" · "}{t.sourceUrl.slice(0, 50)}
 										</div>
 									</div>
 									<button
@@ -513,7 +544,7 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 									</div>
 								)}
 							</li>
-						))}
+						); })}
 					</ul>
 
 					<div

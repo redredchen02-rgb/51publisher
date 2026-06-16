@@ -30,6 +30,7 @@ interface ReviewableItemsListProps {
 	publishingItems: Set<string>;
 	onToggleRead: (id: string) => void;
 	onPublish: (item: BatchItem) => void;
+	onApproveAll?: () => void;
 }
 
 export function ReviewableItemsList({
@@ -38,6 +39,7 @@ export function ReviewableItemsList({
 	publishingItems,
 	onToggleRead,
 	onPublish,
+	onApproveAll,
 }: ReviewableItemsListProps) {
 	const [expandedBodies, setExpandedBodies] = useState<Set<string>>(new Set());
 
@@ -50,11 +52,25 @@ export function ReviewableItemsList({
 		});
 	}
 
+	const allRead = items.length > 1 && items.every((it) => readItems.has(it.id));
+
 	return (
 		<section style={{ marginBottom: "var(--space-xl)" }}>
-			<p className="text-muted" style={{ margin: "0 0 var(--space-lg)" }}>
-				待发布
-			</p>
+			<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-lg)" }}>
+				<p className="text-muted" style={{ margin: 0 }}>
+					待发布（{items.length} 条）
+				</p>
+				{onApproveAll && allRead && (
+					<button
+						type="button"
+						className="btn btn-sm"
+						onClick={onApproveAll}
+						style={{ background: "var(--color-success)", color: "#fff" }}
+					>
+						全部发布
+					</button>
+				)}
+			</div>
 			{items.map((item) => {
 				const isRead = readItems.has(item.id);
 				const isPublishing =
@@ -216,49 +232,70 @@ export function BatchResultSections({
 					<p className="text-muted" style={{ margin: "0 0 var(--space-lg)" }}>
 						内容问题
 					</p>
-					{gateFailedItems.map((item) => (
-						<div
-							key={item.id}
-							className="banner-error"
-							style={{ marginBottom: "var(--space-lg)" }}
-						>
+					{gateFailedItems.map((item) => {
+						const reason = item.gateFailReason ?? "";
+						const hint = reason.includes("待補") || reason.includes("placeholder")
+							? "提示：草稿含【待補】佔位符，請補充事實後重試"
+							: reason.includes("link") || reason.includes("連結") || reason.includes("来源")
+							? "提示：缺少來源鏈接，請在選題事實中補充後重試"
+							: reason.includes("重複") || reason.includes("duplicate")
+							? "提示：內容與已發布帖子高度相似，建議換題"
+							: null;
+						return (
 							<div
-								style={{
-									display: "flex",
-									justifyContent: "space-between",
-									alignItems: "flex-start",
-								}}
+								key={item.id}
+								className="banner-error"
+								style={{ marginBottom: "var(--space-lg)" }}
 							>
-								<div style={{ flex: 1 }}>
-									<p className="font-medium" style={{ margin: 0 }}>
-										{item.topic}
-									</p>
-									{item.gateFailReason && (
-										<p
-											className="text-error"
-											style={{
-												margin: "var(--space-sm) 0 0",
-												fontSize: "var(--font-xs)",
-											}}
-										>
-											{item.gateFailReason}
-										</p>
-									)}
-								</div>
-								<button
-									type="button"
-									onClick={() => onRetry(item.id)}
-									className="btn btn-plain btn-sm text-error"
+								<div
 									style={{
-										flexShrink: 0,
-										borderColor: "var(--color-error-border)",
+										display: "flex",
+										justifyContent: "space-between",
+										alignItems: "flex-start",
 									}}
 								>
-									重新生成
-								</button>
+									<div style={{ flex: 1 }}>
+										<p className="font-medium" style={{ margin: 0 }}>
+											{item.topic}
+										</p>
+										{reason && (
+											<p
+												className="text-error"
+												style={{
+													margin: "var(--space-sm) 0 0",
+													fontSize: "var(--font-xs)",
+												}}
+											>
+												{reason}
+											</p>
+										)}
+										{hint && (
+											<p
+												style={{
+													margin: "var(--space-xs) 0 0",
+													fontSize: "var(--font-xs)",
+													color: "var(--color-warning)",
+												}}
+											>
+												{hint}
+											</p>
+										)}
+									</div>
+									<button
+										type="button"
+										onClick={() => onRetry(item.id)}
+										className="btn btn-plain btn-sm text-error"
+										style={{
+											flexShrink: 0,
+											borderColor: "var(--color-error-border)",
+										}}
+									>
+										重新生成
+									</button>
+								</div>
 							</div>
-						</div>
-					))}
+						);
+					})}
 				</section>
 			)}
 
