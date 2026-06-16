@@ -99,7 +99,7 @@ describe("Settings 组件渲染", () => {
 		fireEvent.click(screen.getByRole("button", { name: "测试连接" }));
 		await waitFor(() => expect(mockTestConn).toHaveBeenCalledOnce());
 		const status = await screen.findByRole("status");
-		expect(status.textContent).toContain("连接正常");
+		expect(status.textContent).toContain("連線成功");
 	});
 
 	it("展开「备用 LLM 模型」→ 出现备用模型输入框", async () => {

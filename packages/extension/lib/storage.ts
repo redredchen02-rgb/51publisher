@@ -415,6 +415,86 @@ export async function clearPendingQuarantineAlert(): Promise<void> {
 	await storage.removeItem(QUARANTINE_ALERT_KEY);
 }
 
+// ---- 首飞授权标记(R7 fail-safe,PR-B Unit 4)----
+// 与 `local:safetyMode` **分离**的 pending 键(纯加性,不动核心档位存储)。
+// 不变量「mode=authorized ⟹ pending 在场」由 background 的 arm/revert **严格排序**维持:
+//   arm:  写 pending → 再 setSafetyMode('authorized')(authorized 时标记必已在场)
+//   revert: setSafetyMode('dry-run') → 再 clear pending(降档在先,绝不留 authorized+无标记)
+// 故崩溃时持久态只可能是 {dry-run,无} / {dry-run,有} / {authorized,有},永不 {authorized,无}。
+// pending.nonce 持久化,与 SW 内存活动 nonce 比对:内存 nonce 随 SW 回收消失 → 残留 pending
+// 必不匹配 → interlock block + 启动复位(顺带封纯 storage 层伪造)。
+const FIRST_FLIGHT_PENDING_KEY = "local:firstFlightPending";
+
+export interface FirstFlightPending {
+	itemId: string;
+	tabId: number;
+	host: string;
+	/** 彩排时对 item.draft 算的 SHA-256;派发时重算比对(防「彩排 A 发 B」)。 */
+	contentHash: string;
+	/** arm 时在 SW 内存生成并持久化;interlock 额外要求活动内存 nonce 相等。 */
+	nonce: string;
+	ts: string;
+}
+
+function isFirstFlightPending(v: unknown): v is FirstFlightPending {
+	if (!v || typeof v !== "object") return false;
+	const p = v as Record<string, unknown>;
+	return (
+		typeof p.itemId === "string" &&
+		p.itemId.length > 0 &&
+		typeof p.tabId === "number" &&
+		typeof p.host === "string" &&
+		p.host.length > 0 &&
+		typeof p.contentHash === "string" &&
+		p.contentHash.length > 0 &&
+		typeof p.nonce === "string" &&
+		p.nonce.length > 0 &&
+		typeof p.ts === "string"
+	);
+}
+
+/**
+ * 读首飞标记。
+ * - 缺失 → `{pending:null, corrupt:false}`(常态,无授权窗口)。
+ * - 存在且形态合法 → `{pending, corrupt:false}`。
+ * - 存在但形态非法 → `{pending:null, corrupt:true}`(启动复位据此**强制降档**,绝不当无窗口忽略)。
+ */
+export async function getFirstFlightPending(): Promise<{
+	pending: FirstFlightPending | null;
+	corrupt: boolean;
+}> {
+	const v = await storage.getItem<unknown>(FIRST_FLIGHT_PENDING_KEY);
+	if (v === undefined || v === null) return { pending: null, corrupt: false };
+	if (!isFirstFlightPending(v)) return { pending: null, corrupt: true };
+	return { pending: v, corrupt: false };
+}
+
+/** 写首飞标记(arm:**必须在** `setSafetyMode('authorized')` 之前调用)。 */
+export async function setFirstFlightPending(
+	pending: FirstFlightPending,
+): Promise<void> {
+	await storage.setItem(FIRST_FLIGHT_PENDING_KEY, pending);
+}
+
+/** 清首飞标记(revert:**必须在** `setSafetyMode('dry-run')` 之后调用)。幂等。 */
+export async function clearFirstFlightPending(): Promise<void> {
+	await storage.removeItem(FIRST_FLIGHT_PENDING_KEY);
+}
+
+// 连续强制复位计数(持久,跨 SW 重启)。每次启动复位 +1;干净 settle(成功退档)归 0。
+// 达阈值 → 回落 off + 需显式重启用(防持续 wedge 被当噪音)。
+const FIRST_FLIGHT_RESET_COUNT_KEY = "local:firstFlightResetCount";
+
+/** 读连续复位计数;非法/缺失 → 0。 */
+export async function getFirstFlightResetCount(): Promise<number> {
+	const v = await storage.getItem<unknown>(FIRST_FLIGHT_RESET_COUNT_KEY);
+	return typeof v === "number" && v > 0 ? v : 0;
+}
+
+export async function setFirstFlightResetCount(n: number): Promise<void> {
+	await storage.setItem(FIRST_FLIGHT_RESET_COUNT_KEY, n);
+}
+
 // ---- Dry-run 填充报告 ----
 // 每次 dry-run 批准后写入;下次覆盖;side panel 读出展示。fail-closed:非法值 → null。
 
