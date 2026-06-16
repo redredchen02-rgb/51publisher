@@ -1,24 +1,13 @@
-import type { FewShotPair, FieldMapping } from "@51publisher/shared";
+import type { FieldMapping } from "@51publisher/shared";
 import { isValidFieldMapping, VALID_FIELD_TYPES } from "@51publisher/shared";
 import { useEffect, useState } from "react";
-import {
-	DEFAULT_SETTINGS,
-	deriveFewShotExamples,
-	getApiKey,
-	getBackendToken,
-	getSettings,
-	saveApiKey,
-	saveBackendToken,
-	saveSettings,
-} from "../../lib/storage";
-import styles from "./Settings.module.css";
-import { BackendSettingsCard } from "./settings/BackendSettingsCard";
-import { LLMSettingsCard } from "./settings/LLMSettingsCard";
-import { PromptCard } from "./settings/PromptCard";
-import { PromptManagementCard } from "./settings/PromptManagementCard";
-import { TagsAndReviewCard } from "./settings/TagsAndReviewCard";
-
-const MAX_PAIRS = 8;
+import { DEFAULT_SETTINGS } from "../../lib/storage";
+import { BackendSection } from "./components/BackendSection";
+import { FieldMappingSection } from "./components/FieldMappingSection";
+import { LLMSection } from "./components/LLMSection";
+import { PromptSection } from "./components/PromptSection";
+import { TagsSection } from "./components/TagsSection";
+import { useSettingsForm } from "./hooks/useSettingsForm";
 
 export function parseTagsText(text: string): string[] {
 	return text
@@ -47,135 +36,65 @@ export function validateMapping(text: string): string | null {
 			if (
 				typeof d.fieldType !== "string" ||
 				!(VALID_FIELD_TYPES as readonly string[]).includes(d.fieldType)
-			)
+			) {
 				return `字段 ${key} 的 fieldType 非法(应为:${VALID_FIELD_TYPES.join(" / ")})。`;
+			}
 		}
 		return "字段映射校验失败。";
 	}
 	return null;
 }
 
+export interface SettingsValidationValues {
+	endpoint: string;
+	mappingText: string;
+	backendUrl: string;
+}
+
+export function validateSettingsForm(
+	values: SettingsValidationValues,
+): string | null {
+	const { endpoint, mappingText, backendUrl } = values;
+	if (endpoint && !/^https:\/\//i.test(endpoint)) {
+		return "endpoint 必须是 https:// 地址(API key 会发往此处)。";
+	}
+	if (mappingText) {
+		const mapErr = validateMapping(mappingText);
+		if (mapErr) return mapErr;
+	}
+	if (
+		backendUrl &&
+		!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(backendUrl)
+	) {
+		return "后端 URL 必须是 localhost 或 127.0.0.1 地址（例：http://localhost:3001）。";
+	}
+	return null;
+}
+
 export function Settings({ onClose }: { onClose: () => void }) {
-	const [endpoint, setEndpoint] = useState("");
-	const [model, setModel] = useState("");
-	const [apiKey, setApiKey] = useState("");
-	const [promptTemplate, setPromptTemplate] = useState("");
-	const [fewShotExamples, setFewShotExamples] = useState("");
-	const [tagsText, setTagsText] = useState("");
-	const [mappingText, setMappingText] = useState("");
-	const [fallbackModel, setFallbackModel] = useState("");
-	const [fallbackOpen, setFallbackOpen] = useState(false);
-	const [backendUrl, setBackendUrl] = useState("");
-	const [backendToken, setBackendToken] = useState("");
-	const [fewShotPairs, setFewShotPairs] = useState<FewShotPair[]>([]);
-	const [reviewCriteriaPrompt, setReviewCriteriaPrompt] = useState("");
-	const [dailyBatchSize, setDailyBatchSize] = useState("5");
-	const [importBanner, setImportBanner] = useState("");
-	const [importTruncated, setImportTruncated] = useState("");
+	const hook = useSettingsForm();
+	const { formValues, setFormValue, getApiKey, getBackendToken, setApiKey, setBackendToken } = hook;
 	const [error, setError] = useState("");
 	const [saved, setSaved] = useState(false);
 
 	useEffect(() => {
-		void (async () => {
-			const [s, key, bToken] = await Promise.all([
-				getSettings(),
-				getApiKey(),
-				getBackendToken(),
-			]);
-			setEndpoint(s.endpoint);
-			setModel(s.model);
-			setPromptTemplate(s.promptTemplate);
-			setFewShotExamples(s.fewShotExamples ?? "");
-			setTagsText((s.recommendedTags ?? []).join("\n"));
-			setMappingText(JSON.stringify(s.fieldMapping, null, 2));
-			setApiKey(key);
-			setBackendUrl(s.backendUrl ?? "");
-			setBackendToken(bToken);
-			setReviewCriteriaPrompt(s.reviewCriteriaPrompt ?? "");
-			setDailyBatchSize(String(s.dailyBatchSize ?? 5));
-			if (s.fallbackModel) {
-				setFallbackModel(s.fallbackModel);
-				setFallbackOpen(true);
-			}
-			const pairs = s.fewShotPairs ?? [];
-			setFewShotPairs(pairs);
-			if (s.fewShotExamples && pairs.length === 0)
-				setImportBanner("检测到旧格式范例，点击导入→结构化编辑器");
-		})();
-	}, []);
-
-	async function handleImport() {
-		const s = await getSettings();
-		const raw = s.fewShotExamples ?? "";
-		const blocks = raw.split(/\n\n+/).filter(Boolean);
-		const truncated = blocks.length > MAX_PAIRS;
-		const taken = blocks.slice(0, MAX_PAIRS).map((b) => {
-			const sep = b.indexOf("\n---\n");
-			return sep !== -1
-				? { input: b.slice(0, sep), output: b.slice(sep + 5) }
-				: { input: "", output: b };
-		});
-		setFewShotPairs(taken);
-		setImportBanner("");
-		setImportTruncated(
-			truncated
-				? `检测到 ${blocks.length} 块，已截取前 ${MAX_PAIRS} 条，请检查并补全 input 字段`
-				: "",
-		);
-	}
+		void hook.load();
+	}, []); // eslint-disable-line react-hooks/exhaustive-deps
 
 	async function handleSave() {
 		setSaved(false);
-		if (endpoint && !/^https:\/\//i.test(endpoint)) {
-			setError("endpoint 必须是 https:// 地址(API key 会发往此处)。");
-			return;
+		const err = await hook.save();
+		if (err) {
+			setError(err);
+		} else {
+			setError("");
+			if (formValues.backendUrl?.startsWith("http://")) {
+				console.warn(
+					"[Settings] 后端 URL 使用 HTTP，JWT 以明文传输。建议仅在本地开发时使用。",
+				);
+			}
+			setSaved(true);
 		}
-		const mapErr = validateMapping(mappingText);
-		if (mapErr) {
-			setError(mapErr);
-			return;
-		}
-		if (
-			backendUrl &&
-			!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(backendUrl)
-		) {
-			setError(
-				"后端 URL 必须是 localhost 或 127.0.0.1 地址（例：http://localhost:3001）。",
-			);
-			return;
-		}
-		if (backendUrl?.startsWith("http://"))
-			console.warn(
-				"[Settings] 后端 URL 使用 HTTP，JWT 以明文传输。建议仅在本地开发时使用。",
-			);
-		setError("");
-		const existing = await getSettings();
-		const fewShotExamplesResolved =
-			fewShotPairs.length > 0 ? deriveFewShotExamples(fewShotPairs) : undefined;
-		let fieldMappingParsed: FieldMapping;
-		try {
-			fieldMappingParsed = JSON.parse(mappingText) as FieldMapping;
-		} catch {
-			setError("字段映射 JSON 解析失败。");
-			return;
-		}
-		await saveSettings({
-			...existing,
-			endpoint,
-			model,
-			promptTemplate,
-			fewShotExamples: fewShotExamplesResolved,
-			fewShotPairs,
-			recommendedTags: parseTagsText(tagsText),
-			fieldMapping: fieldMappingParsed,
-			fallbackModel: fallbackModel || undefined,
-			backendUrl: backendUrl || undefined,
-			reviewCriteriaPrompt: reviewCriteriaPrompt || undefined,
-			dailyBatchSize: Number.parseInt(dailyBatchSize, 10) || undefined,
-		});
-		await saveApiKey(apiKey);
-		await saveBackendToken(backendToken);
-		setSaved(true);
 	}
 
 	return (
@@ -183,63 +102,74 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			<button
 				type="button"
 				onClick={onClose}
-				className={`btn btn-plain ${styles.backBtn}`}
+				className="btn btn-plain"
+				style={{ marginBottom: "var(--space-md)" }}
 			>
 				← 返回
 			</button>
-			<h2 className={styles.heading}>设置</h2>
-			<p className={`field-hint ${styles.intro}`}>
+			<h2 style={{ fontSize: "var(--font-lg)", margin: "0 0 var(--space-sm)" }}>
+				设置
+			</h2>
+
+			<p className="field-hint" style={{ marginBottom: "var(--space-md)" }}>
 				⚙️ 大模型 endpoint 与 API Key 已在后端服务 .env 中配置，扩展不直接管理。
 			</p>
 
-			<LLMSettingsCard
-				endpoint={endpoint}
-				model={model}
-				apiKey={apiKey}
-				fallbackModel={fallbackModel}
-				fallbackOpen={fallbackOpen}
-				setEndpoint={setEndpoint}
-				setModel={setModel}
+			<LLMSection
+				endpoint={formValues.endpoint}
+				model={formValues.model}
+				fallbackModel={formValues.fallbackModel}
+				getApiKey={getApiKey}
+				setEndpoint={(v) => setFormValue("endpoint", v)}
+				setModel={(v) => setFormValue("model", v)}
+				setFallbackModel={(v) => setFormValue("fallbackModel", v)}
 				setApiKey={setApiKey}
-				setFallbackModel={setFallbackModel}
-				setFallbackOpen={setFallbackOpen}
 			/>
-			<BackendSettingsCard
-				backendUrl={backendUrl}
-				backendToken={backendToken}
-				dailyBatchSize={dailyBatchSize}
-				setBackendUrl={setBackendUrl}
+
+			<BackendSection
+				backendUrl={formValues.backendUrl}
+				dailyBatchSize={formValues.dailyBatchSize}
+				getBackendToken={getBackendToken}
+				setBackendUrl={(v) => setFormValue("backendUrl", v)}
+				setDailyBatchSize={(v) => setFormValue("dailyBatchSize", v)}
 				setBackendToken={setBackendToken}
-				setDailyBatchSize={setDailyBatchSize}
+				onTestConnection={hook.testConnectionFn}
 			/>
-			<PromptCard
-				promptTemplate={promptTemplate}
-				fewShotExamples={fewShotExamples}
-				fewShotPairs={fewShotPairs}
-				importBanner={importBanner}
-				importTruncated={importTruncated}
-				setPromptTemplate={setPromptTemplate}
-				setFewShotExamples={setFewShotExamples}
-				setFewShotPairs={setFewShotPairs}
-				onImport={() => void handleImport()}
+
+			<PromptSection
+				promptTemplate={formValues.promptTemplate}
+				fewShotExamples={formValues.fewShotExamples}
+				fewShotPairs={formValues.fewShotPairs}
+				importBanner={formValues.importBanner}
+				importTruncated={formValues.importTruncated}
+				prompts={hook.prompts}
+				selectedPromptId={hook.selectedPromptId}
+				promptStatus={hook.promptStatus}
+				setPromptTemplate={(v) => setFormValue("promptTemplate", v)}
+				setFewShotExamples={(v) => setFormValue("fewShotExamples", v)}
+				setFewShotPairs={hook.setFewShotPairs}
+				onImportFewShot={hook.importFewShot}
+				onLoadPrompts={() => void hook.loadPrompts()}
+				onSelectPrompt={hook.selectPrompt}
+				onSavePromptToBackend={hook.savePromptToBackend}
 			/>
-			<TagsAndReviewCard
-				tagsText={tagsText}
-				reviewCriteriaPrompt={reviewCriteriaPrompt}
-				setTagsText={setTagsText}
-				setReviewCriteriaPrompt={setReviewCriteriaPrompt}
+
+			<TagsSection
+				tagsText={formValues.tagsText}
+				reviewCriteriaPrompt={formValues.reviewCriteriaPrompt}
+				setTagsText={(v) => setFormValue("tagsText", v)}
+				setReviewCriteriaPrompt={(v) => setFormValue("reviewCriteriaPrompt", v)}
 			/>
-			<hr className="divider" />
-			<PromptManagementCard
-				promptTemplate={promptTemplate}
-				fewShotPairs={fewShotPairs}
-				fewShotExamples={fewShotExamples}
-				mappingText={mappingText}
-				setMappingText={setMappingText}
-				onSelectPrompt={(t, ex) => {
-					setPromptTemplate(t);
-					setFewShotExamples(ex);
-				}}
+
+			<FieldMappingSection
+				mappingText={formValues.mappingText}
+				setMappingText={(v) => setFormValue("mappingText", v)}
+				onResetMapping={() =>
+					setFormValue(
+						"mappingText",
+						JSON.stringify(DEFAULT_SETTINGS.fieldMapping, null, 2),
+					)
+				}
 			/>
 
 			{error && (
@@ -248,10 +178,12 @@ export function Settings({ onClose }: { onClose: () => void }) {
 				</p>
 			)}
 			{saved && <p className="text-success text-sm">已保存。</p>}
+
 			<button
 				type="button"
 				onClick={() => void handleSave()}
-				className={`btn btn-primary ${styles.saveBtn}`}
+				className="btn btn-primary"
+				style={{ marginTop: "var(--space-lg)" }}
 			>
 				保存
 			</button>
