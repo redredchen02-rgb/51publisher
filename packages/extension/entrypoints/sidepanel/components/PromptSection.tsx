@@ -50,10 +50,7 @@ export function PromptSection({
 							({fewShotPairs.length}/{MAX_PAIRS})
 						</span>
 					</div>
-					<FewShotPairEditor
-						pairs={fewShotPairs}
-						onChange={setFewShotPairs}
-					/>
+					<FewShotPairEditor pairs={fewShotPairs} onChange={setFewShotPairs} />
 				</div>
 			</div>
 
@@ -83,8 +80,6 @@ export function PromptSection({
 					里给的事实润色,缺的标【待补】,连结只用给定
 					URL——防止编造作品事实/连结。
 				</p>
-
-
 			</div>
 
 			<hr className="divider" />

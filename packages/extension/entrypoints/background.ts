@@ -36,6 +36,7 @@ import {
 } from "../lib/first-flight-orchestrator";
 import { evaluateGrounding } from "../lib/grounding-gate";
 import { generateDraft, reviewDraft, rewriteDraft } from "../lib/llm";
+import { logger } from "../lib/logger";
 import { updatePendingStatus } from "../lib/pending-client";
 import { assemblePrompt, buildConstraintSuffix } from "../lib/prompt-assembly";
 import { type GateDecision, gateReason } from "../lib/publish-orchestrator";
@@ -43,7 +44,6 @@ import {
 	type PublishedPostRecord,
 	recordPublishedPost,
 } from "../lib/published-posts-client";
-import { logger } from "../lib/logger";
 import { clearReadItems } from "../lib/read-tracker";
 import { reassembleWithFacts } from "../lib/refill";
 import { canSubmit } from "../lib/safety-gate";
@@ -146,7 +146,11 @@ function makeResolveTabHost(deps: Pick<BackgroundHandlerDeps, "tabsGet">) {
 
 /** 默认安全事件下沉(可被 deps.emitSecurityAlert 覆盖供测试断言)。 */
 function defaultSecurityAlert(event: string, detail?: unknown): void {
-	logger.warn("bg", `[SECURITY] ${event}`, detail != null ? { detail } : undefined);
+	logger.warn(
+		"bg",
+		`[SECURITY] ${event}`,
+		detail != null ? { detail } : undefined,
+	);
 }
 
 /** content 经消息边界回来的值是 unknown → 校验形状。 */
@@ -271,7 +275,9 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 			// state==='ok':标记在场(无论有无 pending)→ 无条件 reset。
 			await forceReset("startup-residual-marker", read.marker);
 		} catch (e) {
-			logger.warn("bg", "first-flight startup reset 失败", { err: e instanceof Error ? e.message : String(e) });
+			logger.warn("bg", "first-flight startup reset 失败", {
+				err: e instanceof Error ? e.message : String(e),
+			});
 		}
 	}
 
@@ -388,7 +394,9 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 				read.state === "ok" ? read.marker : null,
 			);
 		} catch (e) {
-			logger.warn("bg", "first-flight watchdog 失败", { err: e instanceof Error ? e.message : String(e) });
+			logger.warn("bg", "first-flight watchdog 失败", {
+				err: e instanceof Error ? e.message : String(e),
+			});
 		}
 	}
 
@@ -407,7 +415,9 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 				apiKey,
 			});
 		} catch (err) {
-			logger.error("bg", "生成草稿失败", { err: err instanceof Error ? err.message : String(err) });
+			logger.error("bg", "生成草稿失败", {
+				err: err instanceof Error ? err.message : String(err),
+			});
 			return {
 				ok: false,
 				kind: "network",
@@ -469,7 +479,9 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 				reviewCriteriaPrompt: settings.reviewCriteriaPrompt,
 			});
 		} catch (err) {
-			logger.error("bg", "批量生成失败", { err: err instanceof Error ? err.message : String(err) });
+			logger.error("bg", "批量生成失败", {
+				err: err instanceof Error ? err.message : String(err),
+			});
 			return deps.getBatch();
 		}
 	}
@@ -505,7 +517,9 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 			},
 			appendTrajectory: deps.appendTrajectory,
 			onSnapshotDropped: (itemId) =>
-				logger.warn("bg", "轨迹快照含机密被丢弃(record 已落,无快照)", { itemId }),
+				logger.warn("bg", "轨迹快照含机密被丢弃(record 已落,无快照)", {
+					itemId,
+				}),
 			saveDryRunReportFn: deps.saveDryRunReportFn,
 			writeTombstone: deps.writeTombstone,
 			clearTombstone: deps.clearTombstone,
@@ -535,16 +549,18 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 					)
 					.map((it) => it.topic);
 				if (confirmedTopics.length > 0) {
-					deps
-						.addPublishedTopics(confirmedTopics)
-						.catch((e) =>
-							logger.warn("bg", "addPublishedTopics 写入失败(best-effort)", { err: e instanceof Error ? e.message : String(e) }),
-						);
+					deps.addPublishedTopics(confirmedTopics).catch((e) =>
+						logger.warn("bg", "addPublishedTopics 写入失败(best-effort)", {
+							err: e instanceof Error ? e.message : String(e),
+						}),
+					);
 				}
 			}
 			return result;
 		} catch (err) {
-			logger.error("bg", "发布失败", { err: err instanceof Error ? err.message : String(err) });
+			logger.error("bg", "发布失败", {
+				err: err instanceof Error ? err.message : String(err),
+			});
 			return deps.getBatch();
 		}
 	}
@@ -564,7 +580,9 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 				}
 			}
 		} catch (err) {
-			logger.error("bg", "发布失败", { err: err instanceof Error ? err.message : String(err) });
+			logger.error("bg", "发布失败", {
+				err: err instanceof Error ? err.message : String(err),
+			});
 			return deps.getBatch();
 		}
 		return runApprove(tabId);
@@ -643,7 +661,9 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 				itemId,
 			);
 		} catch (err) {
-			logger.error("bg", "重试条目失败", { err: err instanceof Error ? err.message : String(err) });
+			logger.error("bg", "重试条目失败", {
+				err: err instanceof Error ? err.message : String(err),
+			});
 			return deps.getBatch();
 		}
 	}
@@ -664,7 +684,11 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 					item.pendingTopicId,
 					"rejected",
 					rejectionReason,
-				).catch((err) => logger.warn("bg", "updatePendingStatus failed", { err: err instanceof Error ? err.message : String(err) }));
+				).catch((err) =>
+					logger.warn("bg", "updatePendingStatus failed", {
+						err: err instanceof Error ? err.message : String(err),
+					}),
+				);
 			}
 			return next;
 		} catch {
@@ -825,7 +849,9 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 				reasons: r.grounding.reasons,
 			};
 		} catch (err) {
-			logger.error("bg", "first-flight rehearse 失败", { err: err instanceof Error ? err.message : String(err) });
+			logger.error("bg", "first-flight rehearse 失败", {
+				err: err instanceof Error ? err.message : String(err),
+			});
 			return {
 				ok: false,
 				dryRunGreen: false,
@@ -889,7 +915,9 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 				reverted: outcome.reverted,
 			};
 		} catch (err) {
-			logger.error("bg", "first-flight run 失败", { err: err instanceof Error ? err.message : String(err) });
+			logger.error("bg", "first-flight run 失败", {
+				err: err instanceof Error ? err.message : String(err),
+			});
 			// 异常路径兜底 revert,绝不留 authorized 窗口悬空。
 			await forceReset("first-flight-run-exception").catch(() => {});
 			return {
@@ -962,7 +990,9 @@ export async function runStartupGeneratingRecovery(
 		}
 		if (changed) await deps.saveBatch(batch);
 	} catch (e) {
-		logger.warn("bg", "generating recovery scan 失败", { err: e instanceof Error ? e.message : String(e) });
+		logger.warn("bg", "generating recovery scan 失败", {
+			err: e instanceof Error ? e.message : String(e),
+		});
 	}
 }
 
@@ -995,14 +1025,20 @@ async function runStartupTombstoneScan(): Promise<void> {
 			await setPendingQuarantineAlert(nhvCount);
 		}
 	} catch (e) {
-		logger.warn("bg", "tombstone startup scan 失败", { err: e instanceof Error ? e.message : String(e) });
+		logger.warn("bg", "tombstone startup scan 失败", {
+			err: e instanceof Error ? e.message : String(e),
+		});
 	}
 }
 
 export default defineBackground(() => {
 	browser.sidePanel
 		?.setPanelBehavior({ openPanelOnActionClick: true })
-		.catch((err: unknown) => logger.error("bg", "setPanelBehavior 失败", { err: err instanceof Error ? err.message : String(err) }));
+		.catch((err: unknown) =>
+			logger.error("bg", "setPanelBehavior 失败", {
+				err: err instanceof Error ? err.message : String(err),
+			}),
+		);
 
 	// SW 启动扫描:检测上次 fill 飞行中 SW 被回收的残留 tombstone → 设隔离通知。
 	void runStartupTombstoneScan();
@@ -1016,7 +1052,11 @@ export default defineBackground(() => {
 			if (remote) logger.debug("bg", "远程映射配置已刷新");
 			else logger.debug("bg", "使用本地默认映射(后端不可达)");
 		})
-		.catch((e) => logger.warn("bg", "刷新远程映射失败", { err: e instanceof Error ? e.message : String(e) }));
+		.catch((e) =>
+			logger.warn("bg", "刷新远程映射失败", {
+				err: e instanceof Error ? e.message : String(e),
+			}),
+		);
 
 	// SW Keep-Alive 机制: 定时唤醒，防止超大批次时背景因闲置被杀。
 	// 防御:alarms 权限缺失时 browser.alarms 为 undefined,绝不让它拖垮整个 SW 启动。

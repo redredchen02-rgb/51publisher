@@ -99,7 +99,9 @@ export async function registerPromptRoutes(
 				...existing,
 				...(body.name !== undefined ? { name: body.name } : {}),
 				...(body.template !== undefined ? { template: body.template } : {}),
-				...(body.fewShotPairs !== undefined ? { fewShotPairs: body.fewShotPairs } : {}),
+				...(body.fewShotPairs !== undefined
+					? { fewShotPairs: body.fewShotPairs }
+					: {}),
 				...(body.model !== undefined ? { model: body.model } : {}),
 				updatedAt: new Date().toISOString(),
 			};
