@@ -56,7 +56,14 @@ export function ReviewableItemsList({
 
 	return (
 		<section style={{ marginBottom: "var(--space-xl)" }}>
-			<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-lg)" }}>
+			<div
+				style={{
+					display: "flex",
+					justifyContent: "space-between",
+					alignItems: "center",
+					marginBottom: "var(--space-lg)",
+				}}
+			>
 				<p className="text-muted" style={{ margin: 0 }}>
 					待发布（{items.length} 条）
 				</p>
@@ -234,13 +241,16 @@ export function BatchResultSections({
 					</p>
 					{gateFailedItems.map((item) => {
 						const reason = item.gateFailReason ?? "";
-						const hint = reason.includes("待補") || reason.includes("placeholder")
-							? "提示：草稿含【待補】佔位符，請補充事實後重試"
-							: reason.includes("link") || reason.includes("連結") || reason.includes("来源")
-							? "提示：缺少來源鏈接，請在選題事實中補充後重試"
-							: reason.includes("重複") || reason.includes("duplicate")
-							? "提示：內容與已發布帖子高度相似，建議換題"
-							: null;
+						const hint =
+							reason.includes("待補") || reason.includes("placeholder")
+								? "提示：草稿含【待補】佔位符，請補充事實後重試"
+								: reason.includes("link") ||
+										reason.includes("連結") ||
+										reason.includes("来源")
+									? "提示：缺少來源鏈接，請在選題事實中補充後重試"
+									: reason.includes("重複") || reason.includes("duplicate")
+										? "提示：內容與已發布帖子高度相似，建議換題"
+										: null;
 						return (
 							<div
 								key={item.id}

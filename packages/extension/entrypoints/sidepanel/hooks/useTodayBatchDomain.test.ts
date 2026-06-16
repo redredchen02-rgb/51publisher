@@ -91,7 +91,9 @@ describe("useTodayBatchDomain", () => {
 	});
 
 	it("handleApproveAll 逐條呼叫 approveSingleItem", async () => {
-		const { approveSingleItem, resolveAdminTabId } = await import("../../../lib/messaging");
+		const { approveSingleItem, resolveAdminTabId } = await import(
+			"../../../lib/messaging"
+		);
 		vi.mocked(resolveAdminTabId).mockResolvedValue(1);
 		const mockApprove = vi.mocked(approveSingleItem).mockResolvedValue(null);
 
@@ -99,8 +101,18 @@ describe("useTodayBatchDomain", () => {
 		await waitFor(() => expect(result.current.adminTabId).toBe(1));
 
 		const targets = [
-			{ id: "a1", topic: "t1", facts: {}, status: "awaiting-approval" as const },
-			{ id: "a2", topic: "t2", facts: {}, status: "awaiting-approval" as const },
+			{
+				id: "a1",
+				topic: "t1",
+				facts: {},
+				status: "awaiting-approval" as const,
+			},
+			{
+				id: "a2",
+				topic: "t2",
+				facts: {},
+				status: "awaiting-approval" as const,
+			},
 		];
 
 		await act(async () => {
@@ -113,7 +125,9 @@ describe("useTodayBatchDomain", () => {
 	});
 
 	it("handleApproveAll 跳過非 awaiting-approval 條目", async () => {
-		const { approveSingleItem, resolveAdminTabId } = await import("../../../lib/messaging");
+		const { approveSingleItem, resolveAdminTabId } = await import(
+			"../../../lib/messaging"
+		);
 		vi.mocked(resolveAdminTabId).mockResolvedValue(1);
 		const mockApprove = vi.mocked(approveSingleItem).mockResolvedValue(null);
 
@@ -121,7 +135,12 @@ describe("useTodayBatchDomain", () => {
 		await waitFor(() => expect(result.current.adminTabId).toBe(1));
 
 		const mixed = [
-			{ id: "b1", topic: "t1", facts: {}, status: "awaiting-approval" as const },
+			{
+				id: "b1",
+				topic: "t1",
+				facts: {},
+				status: "awaiting-approval" as const,
+			},
 			{ id: "b2", topic: "t2", facts: {}, status: "filled" as const },
 		];
 
