@@ -9,6 +9,9 @@ const mocks = vi.hoisted(() => ({
 	saveSettings: vi.fn(),
 	saveApiKey: vi.fn(),
 	saveBackendToken: vi.fn(),
+	fetchPrompts: vi.fn(),
+	createPrompt: vi.fn(),
+	testConnection: vi.fn(),
 }));
 
 vi.mock("../../../lib/storage", async (importOriginal) => {
@@ -23,6 +26,15 @@ vi.mock("../../../lib/storage", async (importOriginal) => {
 		saveBackendToken: mocks.saveBackendToken,
 	};
 });
+
+vi.mock("../../../lib/prompt-client", () => ({
+	fetchPrompts: mocks.fetchPrompts,
+	createPrompt: mocks.createPrompt,
+}));
+
+vi.mock("../../../lib/connection-test", () => ({
+	testConnection: mocks.testConnection,
+}));
 
 import { deriveFewShotExamples } from "../../../lib/storage";
 import { useSettingsForm } from "./useSettingsForm";
@@ -239,5 +251,105 @@ describe("useSettingsForm — Unit 2: load / save / importFewShot", () => {
 			await result.current.load();
 		});
 		expect(result.current.derivedFewShotExamples).toBe("raw-text");
+	});
+});
+
+const PROMPT_LIST_MOCK = [
+	{
+		id: "p1",
+		name: "模板A",
+		template: "寫一篇關於{topic}的文章",
+		fewShotExamples: "Q\n---\nA",
+		createdAt: "2026-01-01",
+		updatedAt: "2026-01-01",
+	},
+];
+
+describe("useSettingsForm — Unit 3: loadPrompts / selectPrompt / savePromptToBackend / testConnection", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mocks.getSettings.mockResolvedValue({ ...DEFAULT_SETTINGS_MOCK });
+		mocks.getApiKey.mockResolvedValue("test-api-key");
+		mocks.getBackendToken.mockResolvedValue("test-backend-token");
+		mocks.saveSettings.mockResolvedValue(undefined);
+		mocks.saveApiKey.mockResolvedValue(undefined);
+		mocks.saveBackendToken.mockResolvedValue(undefined);
+		mocks.fetchPrompts.mockResolvedValue({ ok: true, prompts: PROMPT_LIST_MOCK });
+		mocks.createPrompt.mockResolvedValue({ ok: true });
+		mocks.testConnection.mockResolvedValue({ status: "ok", message: "連線正常", modelCount: 3 });
+	});
+
+	it("loadPrompts() 成功 → prompts 有值，promptStatus 含「已加載」", async () => {
+		const { result } = renderHook(() => useSettingsForm());
+		await act(async () => {
+			await result.current.loadPrompts();
+		});
+		expect(result.current.prompts).toHaveLength(1);
+		expect(result.current.promptStatus).toContain("已加載");
+	});
+
+	it("loadPrompts() 失敗 → prompts 不更新，promptStatus 含「失敗」", async () => {
+		mocks.fetchPrompts.mockResolvedValue({ ok: false, error: "網路錯誤" });
+		const { result } = renderHook(() => useSettingsForm());
+		await act(async () => {
+			await result.current.loadPrompts();
+		});
+		expect(result.current.prompts).toHaveLength(0);
+		expect(result.current.promptStatus).toContain("失敗");
+	});
+
+	it("selectPrompt(id) id 存在 → promptTemplate 和 fewShotExamples 更新", async () => {
+		const { result } = renderHook(() => useSettingsForm());
+		await act(async () => {
+			await result.current.loadPrompts();
+		});
+		act(() => {
+			result.current.selectPrompt("p1");
+		});
+		expect(result.current.formValues.promptTemplate).toBe("寫一篇關於{topic}的文章");
+		expect(result.current.formValues.fewShotExamples).toBe("Q\n---\nA");
+	});
+
+	it("selectPrompt(id) id 不存在 → promptTemplate 不改變（no-op）", async () => {
+		const { result } = renderHook(() => useSettingsForm());
+		await act(async () => {
+			await result.current.load();
+			await result.current.loadPrompts();
+		});
+		const before = result.current.formValues.promptTemplate;
+		act(() => {
+			result.current.selectPrompt("non-existent-id");
+		});
+		expect(result.current.formValues.promptTemplate).toBe(before);
+	});
+
+	it("savePromptToBackend() → createPrompt 收到 derivedFewShotExamples；且觸發 loadPrompts", async () => {
+		const pairs = [{ input: "Q1", output: "A1" }];
+		mocks.getSettings.mockResolvedValue({
+			...DEFAULT_SETTINGS_MOCK,
+			fewShotPairs: pairs,
+			fewShotExamples: "stale-raw",
+		});
+		const { result } = renderHook(() => useSettingsForm());
+		await act(async () => {
+			await result.current.load();
+		});
+		await act(async () => {
+			await result.current.savePromptToBackend("我的模板");
+		});
+		const callArg = vi.mocked(mocks.createPrompt).mock.calls[0]?.[0];
+		expect(callArg?.fewShotExamples).not.toBe("stale-raw");
+		// loadPrompts() 在 savePromptToBackend 後自動觸發
+		expect(mocks.fetchPrompts).toHaveBeenCalledTimes(1);
+	});
+
+	it("testConnectionFn() 成功 → 回傳 status ok；testConnection 被呼叫", async () => {
+		const { result } = renderHook(() => useSettingsForm());
+		let connResult: { status: string } | undefined;
+		await act(async () => {
+			connResult = await result.current.testConnectionFn();
+		});
+		expect(connResult?.status).toBe("ok");
+		expect(mocks.testConnection).toHaveBeenCalledTimes(1);
 	});
 });
