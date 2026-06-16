@@ -556,10 +556,10 @@ export async function approveBatch(
 		// 轨迹:authorized 真发(非 dry-run)才落档。
 		if (!result.dryRun) {
 			const cur = batch.items.find((it) => it.id === item.id);
-			// 计算 slotDiff:比较 AI 原稿(publishedDraft)与最终发布草稿(draft)。
+			// 计算 slotDiff:比较 AI 原稿快照(assembledDraftSnapshot)与最终发布草稿(draft)。
 			const slotDiff =
-				cur?.publishedDraft && cur?.draft
-					? computeSlotDiff(cur.publishedDraft, cur.draft)
+				cur?.assembledDraftSnapshot && cur?.draft
+					? computeSlotDiff(cur.assembledDraftSnapshot, cur.draft)
 					: undefined;
 			const { snapshotDropped } = await appendTrajectory({
 				id: item.id,

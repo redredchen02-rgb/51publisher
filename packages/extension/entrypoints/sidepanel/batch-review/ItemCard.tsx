@@ -3,8 +3,9 @@ import type {
 	FactsBlock,
 	RejectionReason,
 } from "@51publisher/shared";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { BatchItem } from "../../../lib/batch";
+import { computeSlotDiff } from "../../../lib/draft-diff";
 import { DraftPreview } from "../DraftPreview";
 import { btn, REJECTION_REASON_LABELS, STATUS_LABEL } from "./constants";
 import { FactsEdit } from "./FactsEdit";
@@ -57,7 +58,13 @@ export function ItemCard({
 	setDiscardReason,
 }: ItemCardProps) {
 	const [factsEditOpen, setFactsEditOpen] = useState(false);
-
+	const slotDiff = useMemo(
+		() =>
+			it.draft
+				? computeSlotDiff(it.assembledDraftSnapshot, it.draft)
+				: undefined,
+		[it.assembledDraftSnapshot, it.draft],
+	);
 	return (
 		<li
 			style={{
@@ -150,6 +157,21 @@ export function ItemCard({
 					>
 						[{STATUS_LABEL[it.status]}]
 					</span>
+					{slotDiff !== undefined && !slotDiff.unknown && (
+						<span
+							className={
+								slotDiff.changedSlots.length > 0
+									? "text-warning"
+									: "text-muted"
+							}
+							style={{ marginLeft: 4, fontSize: 10, flexShrink: 0 }}
+							title="含 AI 自動重寫"
+						>
+							{slotDiff.changedSlots.length > 0
+								? `已修改 ${slotDiff.changedSlots.length} 個欄位`
+								: "未修改"}
+						</span>
+					)}
 				</button>
 				{/* U9:否决按钮 + 拒绝原因选择器(仅 awaiting-approval 显示) */}
 				{it.status === "awaiting-approval" &&
