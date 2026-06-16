@@ -66,7 +66,7 @@ npx vitest run -t "测试名"                     # 按名称过滤
 
 ### 后端
 
-- 路由按模块分文件 `src/*-routes.ts`,在 `index.ts` 统一 `register*Routes(server)`;JWT 鉴权 preHandler,`PUBLIC_ROUTES` 白名单放行
+- 路由按模块分文件 `src/routes/*-routes.ts`,在 `index.ts` 统一 `register*Routes(server)`;JWT 鉴权 preHandler,`PUBLIC_ROUTES` 白名单放行
 - 存储双轨:batch/prompt 用 JSON 文件存储,pending/config 用 SQLite(better-sqlite3)。均读 `PUBLISHER_DATA_DIR`;vitest 经 `src/test-setup.ts` 指向临时目录,测试不碰真实 `data/`
 - `src/scraper/` — 选题抓取管线:站点 adapter(`adapters/`)、SSRF 守卫(`ssrf-guard.ts`,allowlist fail-closed)、cron 调度器(需 `ACGS51_ENABLED=true` + LLM 配置齐全才启动)
 - 扩展对后端的调用统一走 `authHeaders()` + 401 时 `clearToken()` 模式;批次双写用 `withBackendSync(localSave)` 包装

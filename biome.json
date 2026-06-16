@@ -7,14 +7,14 @@
 	},
 	"files": {
 		"ignoreUnknown": false,
-		"includes": ["**"],
-		"experimentalScannerIgnores": [
-			".pnpm-store",
-			".mimocode",
-			".context",
-			".omo",
-			".kilo",
-			".wxt"
+		"includes": [
+			"**",
+			"!!**/.pnpm-store",
+			"!!**/.mimocode",
+			"!!**/.context",
+			"!!**/.omo",
+			"!!**/.kilo",
+			"!!**/.wxt"
 		]
 	},
 	"formatter": {

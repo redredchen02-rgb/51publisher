@@ -1,23 +1,30 @@
 import type { FastifyInstance } from "fastify";
-import { err } from "../utils/error-response.js";
-import { generateId } from "../utils/generate-id.js";
-import { fetchContent, fetchList } from "./adapters/generic-adapter.js";
+import {
+	fetchContent,
+	fetchList,
+} from "../scraper/adapters/generic-adapter.js";
 import {
 	type ExtractedGossipFacts,
 	gossipExtractFacts,
-} from "./gossip-fact-extractor.js";
+} from "../scraper/gossip-fact-extractor.js";
 import {
 	deleteGossipSite,
 	type GossipSiteCreate,
 	getGossipSite,
 	listGossipSites,
 	saveGossipSite,
-} from "./gossip-site-store.js";
-import type { PendingTopic } from "./pending-store.js";
+} from "../scraper/gossip-site-store.js";
+import type { PendingTopic } from "../scraper/pending-store.js";
 import {
 	pendingTopicExistsBySourceUrl,
 	savePendingTopic,
-} from "./pending-store.js";
+} from "../scraper/pending-store.js";
+import { err } from "../utils/error-response.js";
+import { generateId } from "../utils/generate-id.js";
+import {
+	GossipSiteParams as GossipSiteParamsSchema,
+	GossipFromUrlBody as GossipFromUrlBodySchema,
+} from "../utils/schemas.js";
 
 /** 返回 400 如果 hostname 是 IP literal（IPv4、decimal-encoded IPv4 或 IPv6）。 */
 function isIpLiteral(hostname: string): boolean {
@@ -100,6 +107,11 @@ export async function registerGossipRoutes(
 	// DELETE /api/v1/gossip/sites/:id — 刪除站點
 	app.delete<{ Params: SiteParams }>(
 		"/api/v1/gossip/sites/:id",
+		{
+			schema: {
+				params: GossipSiteParamsSchema,
+			},
+		},
 		async (request, reply) => {
 			const site = await getGossipSite(request.params.id);
 			if (!site) return err(reply, 404, "Site not found");
@@ -145,6 +157,11 @@ export async function registerGossipRoutes(
 	// POST /api/v1/gossip/topics/from-url — 單條 URL 事實提取 → pending
 	app.post<{ Body: FromUrlBody }>(
 		"/api/v1/gossip/topics/from-url",
+		{
+			schema: {
+				body: GossipFromUrlBodySchema,
+			},
+		},
 		async (request, reply) => {
 			const { url, siteName } = request.body ?? {};
 			if (!url || !siteName) {
