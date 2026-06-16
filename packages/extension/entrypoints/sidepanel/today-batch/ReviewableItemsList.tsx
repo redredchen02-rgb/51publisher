@@ -1,5 +1,147 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { BatchItem } from "../../../lib/batch";
+import {
+	type FeedbackRating,
+	getFeedbackForItem,
+	type PublishFeedback,
+	saveFeedback,
+} from "../../../lib/publish-feedback";
+
+const RATING_EMOJI: Record<FeedbackRating, string> = {
+	good: "👍",
+	ok: "🤔",
+	bad: "👎",
+};
+const RATING_LABEL: Record<FeedbackRating, string> = {
+	good: "不错",
+	ok: "一般",
+	bad: "需改进",
+};
+
+function FeedbackWidget({ itemId, topic }: { itemId: string; topic: string }) {
+	const [feedback, setFeedback] = useState<PublishFeedback | null>(null);
+	const [editing, setEditing] = useState(false);
+	const [note, setNote] = useState("");
+	const [pending, setPending] = useState<FeedbackRating | null>(null);
+
+	useEffect(() => {
+		void getFeedbackForItem(itemId).then((f) => {
+			if (f) setFeedback(f);
+		});
+	}, [itemId]);
+
+	async function submit(rating: FeedbackRating) {
+		const entry: PublishFeedback = {
+			itemId,
+			topic,
+			rating,
+			note: note.trim() || undefined,
+			ts: new Date().toISOString(),
+		};
+		await saveFeedback(entry);
+		setFeedback(entry);
+		setEditing(false);
+		setPending(null);
+		setNote("");
+	}
+
+	if (feedback && !editing) {
+		return (
+			<div
+				style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}
+			>
+				<span style={{ fontSize: 14 }}>{RATING_EMOJI[feedback.rating]}</span>
+				<span
+					style={{
+						fontSize: "var(--font-xs)",
+						color: "var(--color-text-secondary)",
+					}}
+				>
+					{RATING_LABEL[feedback.rating]}
+					{feedback.note ? `：${feedback.note}` : ""}
+				</span>
+				<button
+					type="button"
+					className="btn-icon"
+					style={{
+						fontSize: "var(--font-xs)",
+						color: "var(--color-text-disabled)",
+					}}
+					onClick={() => {
+						setEditing(true);
+						setNote(feedback.note ?? "");
+						setPending(feedback.rating);
+					}}
+				>
+					改
+				</button>
+			</div>
+		);
+	}
+
+	return (
+		<div style={{ marginTop: 6 }}>
+			<div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+				<span
+					style={{
+						fontSize: "var(--font-xs)",
+						color: "var(--color-text-secondary)",
+					}}
+				>
+					质量反馈：
+				</span>
+				{(["good", "ok", "bad"] as FeedbackRating[]).map((r) => (
+					<button
+						key={r}
+						type="button"
+						onClick={() => setPending(r)}
+						style={{
+							fontSize: 16,
+							padding: "2px 4px",
+							background:
+								pending === r ? "var(--color-surface-elevated)" : "transparent",
+							border:
+								pending === r
+									? "1px solid var(--color-border)"
+									: "1px solid transparent",
+							borderRadius: 4,
+							cursor: "pointer",
+						}}
+						title={RATING_LABEL[r]}
+					>
+						{RATING_EMOJI[r]}
+					</button>
+				))}
+			</div>
+			{pending && (
+				<div style={{ marginTop: 4, display: "flex", gap: 4 }}>
+					<input
+						type="text"
+						className="field-input"
+						placeholder="备注（可选）"
+						value={note}
+						onChange={(e) => setNote(e.target.value)}
+						style={{
+							flex: 1,
+							fontSize: "var(--font-xs)",
+							padding: "2px 6px",
+							height: 24,
+						}}
+						maxLength={200}
+					/>
+					<button
+						type="button"
+						className="btn btn-primary btn-sm"
+						style={{ fontSize: "var(--font-xs)", padding: "2px 8px" }}
+						onClick={() => void submit(pending)}
+					>
+						提交
+					</button>
+				</div>
+			)}
+		</div>
+	);
+}
 
 const STATUS_COLOR: Record<string, string> = {
 	"gate-failed": "var(--color-error)",
@@ -345,26 +487,27 @@ export function BatchResultSections({
 							style={{
 								padding: "var(--space-lg) var(--space-xl)",
 								borderBottom: "1px solid var(--color-border-lighter)",
-								display: "flex",
-								justifyContent: "space-between",
 							}}
 						>
-							<span
-								style={{
-									overflow: "hidden",
-									textOverflow: "ellipsis",
-									whiteSpace: "nowrap",
-									flex: 1,
-								}}
-							>
-								{item.draft?.title ?? item.topic}
-							</span>
-							<span
-								className="text-success"
-								style={{ marginLeft: "var(--space-md)", flexShrink: 0 }}
-							>
-								✓ 已发布
-							</span>
+							<div style={{ display: "flex", justifyContent: "space-between" }}>
+								<span
+									style={{
+										overflow: "hidden",
+										textOverflow: "ellipsis",
+										whiteSpace: "nowrap",
+										flex: 1,
+									}}
+								>
+									{item.draft?.title ?? item.topic}
+								</span>
+								<span
+									className="text-success"
+									style={{ marginLeft: "var(--space-md)", flexShrink: 0 }}
+								>
+									✓ 已发布
+								</span>
+							</div>
+							<FeedbackWidget itemId={item.id} topic={item.topic} />
 						</div>
 					))}
 				</section>
