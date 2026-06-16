@@ -1,4 +1,3 @@
-import type { FieldMapping } from "@51publisher/shared";
 import { isValidFieldMapping, VALID_FIELD_TYPES } from "@51publisher/shared";
 import { useEffect, useState } from "react";
 import { DEFAULT_SETTINGS } from "../../lib/storage";
@@ -73,13 +72,21 @@ export function validateSettingsForm(
 
 export function Settings({ onClose }: { onClose: () => void }) {
 	const hook = useSettingsForm();
-	const { formValues, setFormValue, getApiKey, getBackendToken, setApiKey, setBackendToken } = hook;
+	const {
+		formValues,
+		setFormValue,
+		getApiKey,
+		getBackendToken,
+		setApiKey,
+		setBackendToken,
+	} = hook;
 	const [error, setError] = useState("");
 	const [saved, setSaved] = useState(false);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: hook.load is stable across renders
 	useEffect(() => {
 		void hook.load();
-	}, []); // eslint-disable-line react-hooks/exhaustive-deps
+	}, []);
 
 	async function handleSave() {
 		setSaved(false);
