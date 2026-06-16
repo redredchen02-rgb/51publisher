@@ -19,7 +19,12 @@ export function useAutoSave(delay = 1000): UseAutoSaveReturn {
 			const doSave = () => {
 				const result = saveCurrentDraft(draft);
 				if (result && typeof result.catch === "function") {
-					result.catch((e: unknown) => logger.error("useAutoSave", e instanceof Error ? e.message : String(e)));
+					result.catch((e: unknown) =>
+						logger.error(
+							"useAutoSave",
+							e instanceof Error ? e.message : String(e),
+						),
+					);
 				}
 			};
 

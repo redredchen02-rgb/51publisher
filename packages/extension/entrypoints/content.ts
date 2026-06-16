@@ -7,10 +7,10 @@ import type {
 import { bodyResultFromOutcome, requestBodyFill } from "../lib/body-bridge";
 import { fillDraft } from "../lib/fillers";
 import { resolveFormFrame } from "../lib/frame-resolve";
+import { logger } from "../lib/logger";
 import { executePublish } from "../lib/publish";
 import { sanitizeBody } from "../lib/sanitize";
 import { checkSelectorDrift, type DriftReport } from "../lib/selectors";
-import { logger } from "../lib/logger";
 import { getSettings } from "../lib/storage";
 
 // 隔离世界 content script:接收 side panel 的 FILL_PAGE 填充;接收 background 的
@@ -42,7 +42,9 @@ async function handlePublishGrant(): Promise<PublishResult> {
 		const { doc: formDoc } = resolveFormFrame(document, fieldMapping, window);
 		return await executePublish({ doc: formDoc });
 	} catch (err) {
-		logger.error("content", "发布触发失败", { err: err instanceof Error ? err.message : String(err) });
+		logger.error("content", "发布触发失败", {
+			err: err instanceof Error ? err.message : String(err),
+		});
 		return { ok: false, dryRun: false, error: "internal" };
 	}
 }
@@ -74,7 +76,9 @@ async function handleFill(draft: ContentDraft): Promise<FillPageResponse> {
 
 		return { ok: true, results };
 	} catch (err) {
-		logger.error("content", "填充失败", { err: err instanceof Error ? err.message : String(err) });
+		logger.error("content", "填充失败", {
+			err: err instanceof Error ? err.message : String(err),
+		});
 		return { ok: false, error: "填充时发生错误,请重试。" };
 	}
 }
