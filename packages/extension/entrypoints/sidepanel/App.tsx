@@ -1,4 +1,3 @@
-import type { ContentDraft } from "@51publisher/shared";
 import { useEffect, useRef, useState } from "react";
 import { isAuthenticated } from "../../lib/auth-client";
 import {
@@ -6,7 +5,7 @@ import {
 	resolveAdminTabId,
 } from "../../lib/messaging";
 import { DEFAULT_RECIPE } from "../../lib/recipe";
-import { clearCurrentDraft, getCurrentDraft, getSettings } from "../../lib/storage";
+import { getCurrentDraft, getSettings } from "../../lib/storage";
 import { AuthView } from "./AuthView";
 import { BatchView } from "./BatchView";
 import { ErrorDisplay } from "./components/ErrorDisplay";
@@ -71,6 +70,7 @@ export function App() {
 		},
 		loadingState,
 		saveDraft,
+		onToast: (msg, type) => setToast({ message: msg, type }),
 	});
 
 	useEffect(() => {
