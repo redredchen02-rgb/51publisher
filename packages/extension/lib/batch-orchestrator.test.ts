@@ -603,6 +603,80 @@ describe("approveBatch recordPost (U10)", () => {
 });
 
 // ================================================================
+// approveBatch — SlotDiff (assembledDraftSnapshot vs draft)
+// ================================================================
+
+describe("approveBatch slotDiff", () => {
+	it("assembledDraftSnapshot 存在且 draft 相同:slotDiff.changedSlots 为空", async () => {
+		const aiDraft: ContentDraft = { ...DRAFT, title: "AI原稿", body: "<p>原稿</p>" };
+		const batch: Batch = {
+			id: "batch_1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "2026-06-04T00:00:00.000Z",
+			items: [
+				{
+					id: "item_0",
+					topic: TOPIC_A,
+					status: "awaiting-approval" as const,
+					draft: { ...aiDraft },
+					assembledDraftSnapshot: { ...aiDraft },
+				},
+			],
+		};
+		const appendTrajectory = vi.fn(async () => ({ snapshotDropped: false }));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => batch),
+			appendTrajectory,
+		});
+		await approveBatch(deps);
+		const callArg = (appendTrajectory.mock.lastCall as unknown[])[0] as { slotDiff?: { changedSlots: string[] } };
+		expect(callArg.slotDiff?.changedSlots).toHaveLength(0);
+	});
+
+	it("assembledDraftSnapshot 存在且 draft.title 不同:slotDiff.changedSlots 包含 title", async () => {
+		const aiDraft: ContentDraft = { ...DRAFT, title: "AI原稿" };
+		const humanDraft: ContentDraft = { ...DRAFT, title: "人工改稿" };
+		const batch: Batch = {
+			id: "batch_1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "2026-06-04T00:00:00.000Z",
+			items: [
+				{
+					id: "item_0",
+					topic: TOPIC_A,
+					status: "awaiting-approval" as const,
+					draft: humanDraft,
+					assembledDraftSnapshot: aiDraft,
+				},
+			],
+		};
+		const appendTrajectory = vi.fn(async () => ({ snapshotDropped: false }));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => batch),
+			appendTrajectory,
+		});
+		await approveBatch(deps);
+		const callArg = (appendTrajectory.mock.lastCall as unknown[])[0] as { slotDiff?: { changedSlots: string[] } };
+		expect(callArg.slotDiff?.changedSlots).toContain("title");
+	});
+
+	it("assembledDraftSnapshot 缺失(旧条目):appendTrajectory slotDiff 为 undefined", async () => {
+		const batch = makeAwaitingBatch([TOPIC_A]);
+		// makeAwaitingBatch 不含 assembledDraftSnapshot
+		const appendTrajectory = vi.fn(async () => ({ snapshotDropped: false }));
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => batch),
+			appendTrajectory,
+		});
+		await approveBatch(deps);
+		const callArg = (appendTrajectory.mock.lastCall as unknown[])[0] as { slotDiff?: unknown };
+		expect(callArg.slotDiff).toBeUndefined();
+	});
+});
+
+// ================================================================
 // retryItem (U7)
 // ================================================================
 
