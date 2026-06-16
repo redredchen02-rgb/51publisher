@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { aggregateDegradeStats } from "../../lib/degrade-stats";
+import { getFeedback, type PublishFeedback } from "../../lib/publish-feedback";
 import { getBackendToken, getSettings, getTrajectory } from "../../lib/storage";
 import type { TrajectoryRecord } from "../../lib/trajectory";
 
@@ -11,6 +12,7 @@ interface PublishedCount {
 interface MetricsData {
 	trajectory: TrajectoryRecord[];
 	publishedCount: PublishedCount;
+	feedbacks: PublishFeedback[];
 }
 
 async function fetchPublishedCount(): Promise<number> {
@@ -91,13 +93,15 @@ export function MetricsPanel({ onBack }: { onBack: () => void }) {
 
 	useEffect(() => {
 		void (async () => {
-			const [trajectory, total] = await Promise.all([
+			const [trajectory, total, feedbacks] = await Promise.all([
 				getTrajectory(),
 				fetchPublishedCount(),
+				getFeedback(),
 			]);
 			setData({
 				trajectory,
 				publishedCount: { total, loaded: true },
+				feedbacks,
 			});
 			setLoading(false);
 		})();
@@ -111,7 +115,16 @@ export function MetricsPanel({ onBack }: { onBack: () => void }) {
 		);
 	}
 
-	const { trajectory, publishedCount } = data;
+	const { trajectory, publishedCount, feedbacks } = data;
+
+	// 用户反馈统计
+	const ratedCount = feedbacks.length;
+	const goodCount = feedbacks.filter((f) => f.rating === "good").length;
+	const badCount = feedbacks.filter((f) => f.rating === "bad").length;
+	const goodRate =
+		ratedCount > 0 ? Math.round((goodCount / ratedCount) * 100) : 0;
+	const badRate =
+		ratedCount > 0 ? Math.round((badCount / ratedCount) * 100) : 0;
 
 	// Token 用量
 	const withTokens = trajectory.filter((r) => r.llmCostTokens);
@@ -354,6 +367,33 @@ export function MetricsPanel({ onBack }: { onBack: () => void }) {
 							)}
 						</div>
 					</section>
+
+					{ratedCount >= 1 && (
+						<section style={{ marginBottom: "var(--space-xl)" }}>
+							<h2
+								style={{
+									fontSize: "var(--font-md)",
+									fontWeight: 600,
+									marginBottom: 10,
+								}}
+							>
+								用户反馈
+							</h2>
+							<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+								<StatCard label="已评分" value={ratedCount} sub="条记录" />
+								<StatCard
+									label="👍 好评率"
+									value={`${goodRate}%`}
+									sub={`${goodCount} 条好评`}
+								/>
+								<StatCard
+									label="👎 差评率"
+									value={`${badRate}%`}
+									sub={`${badCount} 条差评`}
+								/>
+							</div>
+						</section>
+					)}
 				</>
 			)}
 		</main>

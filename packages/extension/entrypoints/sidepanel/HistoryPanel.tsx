@@ -1,4 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import {
+	type FeedbackRating,
+	getFeedback,
+	saveFeedback,
+} from "../../lib/publish-feedback";
 import { getTrajectory } from "../../lib/storage";
 import type { TrajectoryRecord } from "../../lib/trajectory";
 import { rollbackTargets, verifyTrajectory } from "../../lib/trajectory";
@@ -6,17 +11,48 @@ import { Loading } from "./Loading";
 
 const PAGE_SIZE = 20;
 
+const RATING_LABELS: Record<FeedbackRating, string> = {
+	good: "👍",
+	ok: "😐",
+	bad: "👎",
+};
+const RATINGS: FeedbackRating[] = ["good", "ok", "bad"];
+
 export function HistoryPanel() {
 	const [records, setRecords] = useState<TrajectoryRecord[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [page, setPage] = useState(1);
+	const [feedbackMap, setFeedbackMap] = useState<Map<string, FeedbackRating>>(
+		new Map(),
+	);
 
 	useEffect(() => {
 		setLoading(true);
-		getTrajectory()
-			.then((r) => setRecords([...r].reverse()))
+		void Promise.all([getTrajectory(), getFeedback()])
+			.then(([trajectory, feedbacks]) => {
+				setRecords([...trajectory].reverse());
+				setFeedbackMap(new Map(feedbacks.map((f) => [f.itemId, f.rating])));
+			})
 			.finally(() => setLoading(false));
 	}, []);
+
+	function handleRate(r: TrajectoryRecord, rating: FeedbackRating) {
+		const prev = feedbackMap.get(r.id);
+		setFeedbackMap((m) => new Map(m).set(r.id, rating));
+		saveFeedback({
+			itemId: r.id,
+			topic: r.topic,
+			rating,
+			ts: new Date().toISOString(),
+		}).catch(() => {
+			setFeedbackMap((m) => {
+				const next = new Map(m);
+				if (prev === undefined) next.delete(r.id);
+				else next.set(r.id, prev);
+				return next;
+			});
+		});
+	}
 
 	const oldestFirst = useMemo(() => [...records].reverse(), [records]);
 	const intact = useMemo(() => verifyTrajectory(oldestFirst), [oldestFirst]);
@@ -122,6 +158,37 @@ export function HistoryPanel() {
 							>
 								⚠ {r.fields.filter((f) => f.status === "degraded").length}{" "}
 								个字段降级
+							</div>
+						)}
+						{r.status === "publish-confirmed" && (
+							<div
+								style={{
+									marginTop: "var(--space-xs)",
+									display: "flex",
+									gap: "var(--space-md)",
+								}}
+							>
+								{RATINGS.map((rating) => {
+									const selected = feedbackMap.get(r.id) === rating;
+									return (
+										<button
+											key={rating}
+											type="button"
+											className="btn btn-plain btn-sm"
+											aria-label={rating}
+											onClick={() => handleRate(r, rating)}
+											style={{
+												color: selected
+													? "var(--color-primary)"
+													: "var(--color-text-disabled)",
+												fontWeight: selected ? 700 : 400,
+												padding: "0 4px",
+											}}
+										>
+											{RATING_LABELS[rating]}
+										</button>
+									);
+								})}
 							</div>
 						)}
 					</li>
