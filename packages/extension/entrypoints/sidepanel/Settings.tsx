@@ -1,7 +1,6 @@
 import type { FewShotPair, FieldMapping } from "@51publisher/shared";
 import { isValidFieldMapping, VALID_FIELD_TYPES } from "@51publisher/shared";
 import { useCallback, useEffect, useState } from "react";
-import styles from "./Settings.module.css";
 import {
 	type ConnectionTestResult,
 	testConnection,
@@ -22,6 +21,7 @@ import {
 	saveSettings,
 } from "../../lib/storage";
 import { FewShotPairEditor } from "./components/FewShotPairEditor";
+import styles from "./Settings.module.css";
 
 const MAX_PAIRS = 8;
 
@@ -256,9 +256,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			>
 				← 返回
 			</button>
-			<h2 className={styles.heading}>
-				设置
-			</h2>
+			<h2 className={styles.heading}>设置</h2>
 
 			<p className={`field-hint ${styles.intro}`}>
 				⚙️ 大模型 endpoint 与 API Key 已在后端服务 .env 中配置，扩展不直接管理。
@@ -405,9 +403,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 				<div className="field-group">
 					<label className="field-label">
 						Few-shot 范例
-						<span
-							className={`font-normal text-muted ${styles.fewShotCount}`}
-						>
+						<span className={`font-normal text-muted ${styles.fewShotCount}`}>
 							({fewShotPairs.length}/{MAX_PAIRS})
 						</span>
 					</label>
