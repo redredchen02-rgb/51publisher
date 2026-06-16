@@ -218,6 +218,12 @@ export const HealthzResponse = Type.Object({
 	database: Type.Object({
 		healthy: Type.Boolean(),
 	}),
+	llm: Type.Object({
+		configured: Type.Boolean(),
+	}),
+	storage: Type.Object({
+		writable: Type.Boolean(),
+	}),
 	memory: Type.Object({
 		heapUsed: Type.Number(),
 	}),
@@ -226,6 +232,8 @@ export const HealthzResponse = Type.Object({
 		passRate: Type.Number(),
 		totalGenerations: Type.Number(),
 	}),
+	/** 最近批次终态条目发布失败率超过 30% 时为 true */
+	publishFailAlert: Type.Boolean(),
 });
 
 // ── Scraper Auto-Generate ────────────────────────────
