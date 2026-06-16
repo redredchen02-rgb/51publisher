@@ -59,6 +59,11 @@ export function useTodayBatchDomain(): TodayBatchDomain {
 
 	const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const progressPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	const isMounted = useRef(true);
+
+	useEffect(() => {
+		return () => { isMounted.current = false; };
+	}, []);
 
 	// 卸载时清掉批量启动期间的进度轮询
 	useEffect(() => {
@@ -179,9 +184,11 @@ export function useTodayBatchDomain(): TodayBatchDomain {
 					status: "queued" as const,
 					pendingTopicId: t.id,
 				}));
+			if (!isMounted.current) return;
 			setItems(finalItems);
 
 			const reads = await getReadItems();
+			if (!isMounted.current) return;
 			setReadItems(reads);
 			setStage("review");
 		} catch {
@@ -189,10 +196,11 @@ export function useTodayBatchDomain(): TodayBatchDomain {
 				clearInterval(progressPollRef.current);
 				progressPollRef.current = null;
 			}
+			if (!isMounted.current) return;
 			setError("启动批量失败,请重试。");
 			setStage("idle");
 		} finally {
-			setBusy(false);
+			if (isMounted.current) setBusy(false);
 		}
 	}
 

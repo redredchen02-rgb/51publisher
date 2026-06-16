@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { TrajectoryRecord } from "../../../lib/trajectory";
 import type { BatchItem } from "../../../lib/batch";
 import { btn, box } from "./constants";
@@ -16,6 +17,8 @@ export function QuarantineBlock({
 	onRelease,
 	onReleaseAll,
 }: Props) {
+	const [isConfirming, setIsConfirming] = useState(false);
+
 	if (quarantined.length === 0) return null;
 	return (
 		<div
@@ -34,21 +37,34 @@ export function QuarantineBlock({
 				这些条目发布中断且无回执,可能已发也可能没发——请去后台核对后再处置,系统绝不自动重发。
 			</div>
 			{onReleaseAll && quarantined.length > 1 && (
-				<button
-					type="button"
-					className="btn btn-plain btn-sm"
-					style={{ margin: "4px 0" }}
-					onClick={() => {
-						if (
-							window.confirm(
-								`将清除整批 ${quarantined.length} 条的人工核验闸(全部撤出隔离 → aborted)。请确认已逐条在后台核对。继续?`,
-							)
-						)
-							onReleaseAll?.();
-					}}
-				>
-					批量撤出全部({quarantined.length})
-				</button>
+				isConfirming ? (
+					<div style={{ display: "flex", gap: 6, margin: "4px 0", alignItems: "center", fontSize: 12 }}>
+						<span>已逐条核对后台？</span>
+						<button
+							type="button"
+							className="btn btn-plain btn-sm"
+							onClick={() => { setIsConfirming(false); onReleaseAll?.(); }}
+						>
+							确认撤出
+						</button>
+						<button
+							type="button"
+							className="btn btn-plain btn-sm"
+							onClick={() => setIsConfirming(false)}
+						>
+							取消
+						</button>
+					</div>
+				) : (
+					<button
+						type="button"
+						className="btn btn-plain btn-sm"
+						style={{ margin: "4px 0" }}
+						onClick={() => setIsConfirming(true)}
+					>
+						批量撤出全部({quarantined.length})
+					</button>
+				)
 			)}
 			{quarantined.map((it) => {
 				const traj = trajectoryContext?.get(it.id);
@@ -64,7 +80,7 @@ export function QuarantineBlock({
 						<div className="font-semibold">「{it.topic}」</div>
 						<QuarantineContext record={traj} />
 						<div className="flex" style={{ marginTop: 4, gap: 6 }}>
-							{traj?.publishUrl && (
+							{traj?.publishUrl?.startsWith("https://") && (
 								<a
 									href={traj.publishUrl}
 									target="_blank"
