@@ -16,11 +16,15 @@ All notable changes to this project will be documented in this file.
 - **发布/重试静默吞错**：`handlePublish` / `handleRetry` 现在在 `approveSingleItem` / `retryBatchItemMsg` 抛出时向用户展示错误提示
 - **设置页数据丢失**：`fewShotExamplesResolved` 回退值从旧状态 `fewShotExamples`（可能为空字符串）改为 `undefined`，防止覆盖迁移用户的遗留数据
 - **ApprovalBar 死字段**：移除从未实际使用的 `tabHealthy` 和 `onApproveBypass` props
+- **测试加固(落地前评审)**：`app.test.ts` 断言改为带 token 校验；`config-store`/`app` 测试新增 teardown 关闭 WAL 句柄；移除空断言与名不副实的测试标题
 
 ### Added (Tests)
 
+- **124 个单元/组件测试**：后端覆盖 config-store、metrics、scraper adapters、enrichment-utils、prompt store/routes、llm-config、app 路由；扩展覆盖 AuthView、DraftPreview、DryRunReport、ErrorBoundary、Settings、pending-client actions
 - **useTodayBatchDomain 单元测试**：6 个用例覆盖初始状态、加载设置、Tab 错误处理、handleDailyBatch 早退路径、handleToggleRead、状态 setter
 - **JWT 401 防护测试**：补全 gossip-routes / pending-routes / scraper-routes 缺失的 JWT 鉴权测试，确保无 token 请求返回 401
+
+
 
 ## [0.2.0.0] - 2026-06-11
 

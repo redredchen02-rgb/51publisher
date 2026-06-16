@@ -40,6 +40,7 @@ export function buildApp(): FastifyInstance {
 	initPendingDb();
 	// 日志:env 控制 level(默认 info);redaction 防鉴权头/密钥落日志(secret-hygiene)。
 	const server = Fastify({
+		genReqId: () => crypto.randomUUID(),
 		bodyLimit: 1048576, // 1MB 全局 body 大小限制
 		logger: {
 			level: process.env.LOG_LEVEL ?? "info",

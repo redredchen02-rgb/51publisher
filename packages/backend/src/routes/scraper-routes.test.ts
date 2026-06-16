@@ -90,7 +90,8 @@ describe("POST /api/v1/scraper/trigger — validation", () => {
 			payload: {},
 		});
 		expect(res.statusCode).toBe(400);
-		expect(res.json().error).toMatch(/siteName/);
+		// TypeBox schema validation rejects empty body before handler
+		expect(res.json().message).toMatch(/siteName/);
 	});
 
 	it("未知 siteName → 404", async () => {
