@@ -60,6 +60,32 @@ export function validateMapping(text: string): string | null {
 	return null;
 }
 
+export interface SettingsValidationValues {
+	endpoint: string;
+	mappingText: string;
+	backendUrl: string;
+}
+
+export function validateSettingsForm(
+	values: SettingsValidationValues,
+): string | null {
+	const { endpoint, mappingText, backendUrl } = values;
+	if (endpoint && !/^https:\/\//i.test(endpoint)) {
+		return "endpoint 必须是 https:// 地址(API key 会发往此处)。";
+	}
+	if (mappingText) {
+		const mapErr = validateMapping(mappingText);
+		if (mapErr) return mapErr;
+	}
+	if (
+		backendUrl &&
+		!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(backendUrl)
+	) {
+		return "后端 URL 必须是 localhost 或 127.0.0.1 地址（例：http://localhost:3001）。";
+	}
+	return null;
+}
+
 export function Settings({ onClose }: { onClose: () => void }) {
 	const [endpoint, setEndpoint] = useState("");
 	const [model, setModel] = useState("");
@@ -191,22 +217,9 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
 	async function handleSave() {
 		setSaved(false);
-		if (endpoint && !/^https:\/\//i.test(endpoint)) {
-			setError("endpoint 必须是 https:// 地址(API key 会发往此处)。");
-			return;
-		}
-		const mapErr = validateMapping(mappingText);
-		if (mapErr) {
-			setError(mapErr);
-			return;
-		}
-		if (
-			backendUrl &&
-			!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(backendUrl)
-		) {
-			setError(
-				"后端 URL 必须是 localhost 或 127.0.0.1 地址（例：http://localhost:3001）。",
-			);
+		const validationErr = validateSettingsForm({ endpoint, mappingText, backendUrl });
+		if (validationErr) {
+			setError(validationErr);
 			return;
 		}
 		if (backendUrl?.startsWith("http://")) {
@@ -409,7 +422,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			{/* Few-shot 范例 */}
 			<div className="card">
 				<div className="field-group">
-					<label className="field-label">
+					<div className="field-label" id="fewshot-label">
 						Few-shot 范例
 						<span
 							className="font-normal text-muted"
@@ -417,7 +430,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 						>
 							({fewShotPairs.length}/{MAX_PAIRS})
 						</span>
-					</label>
+					</div>
 					{importTruncated && (
 						<p role="alert" className="field-hint text-warning">
 							{importTruncated}
