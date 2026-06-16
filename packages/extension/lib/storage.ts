@@ -319,6 +319,17 @@ export function deriveFewShotExamples(pairs: FewShotPair[]): string {
 	return pairs.map((p) => `${p.input}\n---\n${p.output}`).join("\n\n");
 }
 
+export function parseFewShotExamples(raw: string): FewShotPair[] {
+	if (!raw) return [];
+	const blocks = raw.split(/\n\n+/).filter(Boolean);
+	return blocks.map((b) => {
+		const sep = b.indexOf("\n---\n");
+		return sep !== -1
+			? { input: b.slice(0, sep), output: b.slice(sep + 5) }
+			: { input: "", output: b };
+	});
+}
+
 const MAX_FEW_SHOT = 8;
 
 /**

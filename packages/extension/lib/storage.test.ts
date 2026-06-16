@@ -17,6 +17,7 @@ import {
 	clearFirstFlight,
 	clearTrajectory,
 	DEFAULT_SETTINGS,
+	deriveFewShotExamples,
 	getApiKey,
 	getAuthorizedHosts,
 	getBackendToken,
@@ -25,6 +26,7 @@ import {
 	getSafetyMode,
 	getSettings,
 	getTrajectory,
+	parseFewShotExamples,
 	removeLastFewShotPair,
 	saveApiKey,
 	saveBackendToken,
@@ -393,6 +395,41 @@ describe("storage", () => {
 			await writeFirstFlight({ mode: "dry-run", pending: PENDING });
 			await clearFirstFlight();
 			expect((await getFirstFlight()).state).toBe("absent");
+		});
+	});
+
+	describe("parseFewShotExamples / deriveFewShotExamples", () => {
+		it("happy path: 單條帶分隔符 → [{input, output}]", () => {
+			expect(parseFewShotExamples("A\n---\nB")).toEqual([{ input: "A", output: "B" }]);
+		});
+
+		it("happy path: 兩條以 \\n\\n 分隔 → 兩個 pair", () => {
+			expect(parseFewShotExamples("A\n---\nB\n\nC\n---\nD")).toEqual([
+				{ input: "A", output: "B" },
+				{ input: "C", output: "D" },
+			]);
+		});
+
+		it("edge case: 無分隔符的 block → {input: '', output: block}", () => {
+			expect(parseFewShotExamples("no separator here")).toEqual([
+				{ input: "", output: "no separator here" },
+			]);
+		});
+
+		it("edge case: 空字串 → []", () => {
+			expect(parseFewShotExamples("")).toEqual([]);
+		});
+
+		it("edge case: 只有空白行 → []", () => {
+			expect(parseFewShotExamples("\n\n\n")).toEqual([]);
+		});
+
+		it("round-trip: derive → parse 還原相同 pairs", () => {
+			const pairs = [
+				{ input: "Q1", output: "A1" },
+				{ input: "Q2", output: "A2" },
+			];
+			expect(parseFewShotExamples(deriveFewShotExamples(pairs))).toEqual(pairs);
 		});
 	});
 });
