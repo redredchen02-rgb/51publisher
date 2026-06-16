@@ -26,7 +26,9 @@ export async function saveFeedback(entry: PublishFeedback): Promise<void> {
 	await storage.setItem(FEEDBACK_KEY, next);
 }
 
-export async function getFeedbackForItem(itemId: string): Promise<PublishFeedback | undefined> {
+export async function getFeedbackForItem(
+	itemId: string,
+): Promise<PublishFeedback | undefined> {
 	const all = await getFeedback();
 	return all.find((r) => r.itemId === itemId);
 }

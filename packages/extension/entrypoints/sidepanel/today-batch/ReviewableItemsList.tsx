@@ -2,13 +2,21 @@ import { useEffect, useState } from "react";
 import type { BatchItem } from "../../../lib/batch";
 import {
 	type FeedbackRating,
-	type PublishFeedback,
 	getFeedbackForItem,
+	type PublishFeedback,
 	saveFeedback,
 } from "../../../lib/publish-feedback";
 
-const RATING_EMOJI: Record<FeedbackRating, string> = { good: "👍", ok: "🤔", bad: "👎" };
-const RATING_LABEL: Record<FeedbackRating, string> = { good: "不错", ok: "一般", bad: "需改进" };
+const RATING_EMOJI: Record<FeedbackRating, string> = {
+	good: "👍",
+	ok: "🤔",
+	bad: "👎",
+};
+const RATING_LABEL: Record<FeedbackRating, string> = {
+	good: "不错",
+	ok: "一般",
+	bad: "需改进",
+};
 
 function FeedbackWidget({ itemId, topic }: { itemId: string; topic: string }) {
 	const [feedback, setFeedback] = useState<PublishFeedback | null>(null);
@@ -39,16 +47,26 @@ function FeedbackWidget({ itemId, topic }: { itemId: string; topic: string }) {
 
 	if (feedback && !editing) {
 		return (
-			<div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+			<div
+				style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}
+			>
 				<span style={{ fontSize: 14 }}>{RATING_EMOJI[feedback.rating]}</span>
-				<span style={{ fontSize: "var(--font-xs)", color: "var(--color-text-secondary)" }}>
+				<span
+					style={{
+						fontSize: "var(--font-xs)",
+						color: "var(--color-text-secondary)",
+					}}
+				>
 					{RATING_LABEL[feedback.rating]}
 					{feedback.note ? `：${feedback.note}` : ""}
 				</span>
 				<button
 					type="button"
 					className="btn-icon"
-					style={{ fontSize: "var(--font-xs)", color: "var(--color-text-disabled)" }}
+					style={{
+						fontSize: "var(--font-xs)",
+						color: "var(--color-text-disabled)",
+					}}
 					onClick={() => {
 						setEditing(true);
 						setNote(feedback.note ?? "");
@@ -64,7 +82,14 @@ function FeedbackWidget({ itemId, topic }: { itemId: string; topic: string }) {
 	return (
 		<div style={{ marginTop: 6 }}>
 			<div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-				<span style={{ fontSize: "var(--font-xs)", color: "var(--color-text-secondary)" }}>质量反馈：</span>
+				<span
+					style={{
+						fontSize: "var(--font-xs)",
+						color: "var(--color-text-secondary)",
+					}}
+				>
+					质量反馈：
+				</span>
 				{(["good", "ok", "bad"] as FeedbackRating[]).map((r) => (
 					<button
 						key={r}
@@ -73,8 +98,12 @@ function FeedbackWidget({ itemId, topic }: { itemId: string; topic: string }) {
 						style={{
 							fontSize: 16,
 							padding: "2px 4px",
-							background: pending === r ? "var(--color-surface-elevated)" : "transparent",
-							border: pending === r ? "1px solid var(--color-border)" : "1px solid transparent",
+							background:
+								pending === r ? "var(--color-surface-elevated)" : "transparent",
+							border:
+								pending === r
+									? "1px solid var(--color-border)"
+									: "1px solid transparent",
 							borderRadius: 4,
 							cursor: "pointer",
 						}}
@@ -92,7 +121,12 @@ function FeedbackWidget({ itemId, topic }: { itemId: string; topic: string }) {
 						placeholder="备注（可选）"
 						value={note}
 						onChange={(e) => setNote(e.target.value)}
-						style={{ flex: 1, fontSize: "var(--font-xs)", padding: "2px 6px", height: 24 }}
+						style={{
+							flex: 1,
+							fontSize: "var(--font-xs)",
+							padding: "2px 6px",
+							height: 24,
+						}}
 						maxLength={200}
 					/>
 					<button
