@@ -2,7 +2,11 @@
 
 ## Backend / Infrastructure
 
-(无未决项)
+- **Prometheus 指标 counters 生产环境从未递增** | **Priority:** P2
+  `services/metrics.ts` 的 `counters` 仅被 `getMetrics()` 读取;生产代码任何路径(draft 生成 / batch 完成 / scraper 运行 / publish 尝试)都不递增它 → `/api/v1/metrics` 在生产环境永远报全 0。
+  `metrics.test.ts` 直接改写 `counters` 再读回,测试通过却掩盖了这个 wiring 缺失(测试假阳性)。
+  建议:在各路径的成功/失败分支接上 `counters.*++`(或一个 `recordX()` 辅助),并加一条端到端测试断言真实调用会反映在 `/metrics` 输出。
+  发现于: test/unit-coverage-suite 对抗评审 (2026-06-15)
 
 ## Completed (Backend / Infrastructure)
 
