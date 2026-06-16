@@ -11,6 +11,7 @@ import { executePublish } from "../lib/publish";
 import { sanitizeBody } from "../lib/sanitize";
 import { checkSelectorDrift, type DriftReport } from "../lib/selectors";
 import { getSettings } from "../lib/storage";
+import { logger } from "../lib/logger";
 
 // 隔离世界 content script:接收 side panel 的 FILL_PAGE 填充;接收 background 的
 // PUBLISH_GRANT 一次性"准许"才触发提交。**content 绝不自我授权**——无 grant 即从不提交。
@@ -41,7 +42,7 @@ async function handlePublishGrant(): Promise<PublishResult> {
 		const { doc: formDoc } = resolveFormFrame(document, fieldMapping, window);
 		return await executePublish({ doc: formDoc });
 	} catch (err) {
-		console.error("[content] 发布触发失败", err);
+		logger.error("content", "发布触发失败", { err });
 		return { ok: false, dryRun: false, error: "internal" };
 	}
 }
@@ -73,7 +74,7 @@ async function handleFill(draft: ContentDraft): Promise<FillPageResponse> {
 
 		return { ok: true, results };
 	} catch (err) {
-		console.error("[content] 填充失败", err);
+		logger.error("content", "填充失败", { err });
 		return { ok: false, error: "填充时发生错误,请重试。" };
 	}
 }

@@ -7,7 +7,7 @@ import {
 	recoverBatch,
 	saveBatch,
 } from "../services/batch-store.js";
-import { recordPublishAttempt } from "../services/metrics.js";
+import { recordBatchCompleted, recordPublishAttempt } from "../services/metrics.js";
 import { err } from "../utils/error-response.js";
 import { CreateBatchBody as CreateBatchBodySchema } from "../utils/schemas.js";
 
@@ -189,6 +189,12 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
 
 			batch.items[itemIdx] = item;
 			await saveBatch(batch);
+
+			// 所有条目离开活跃状态时记录批次完成
+			const ACTIVE = new Set(["queued", "generating", "filled", "awaiting-approval", "publish-dispatched"]);
+			if (batch.items.every((it) => !ACTIVE.has(it.status))) {
+				recordBatchCompleted();
+			}
 
 			return { ok: true, item };
 		},

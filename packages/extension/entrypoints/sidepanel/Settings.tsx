@@ -8,6 +8,7 @@ import { LLMSection } from "./components/LLMSection";
 import { PromptSection } from "./components/PromptSection";
 import { TagsSection } from "./components/TagsSection";
 import { useSettingsForm } from "./hooks/useSettingsForm";
+import { logger } from "../../lib/logger";
 
 export function parseTagsText(text: string): string[] {
 	return text
@@ -89,9 +90,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 		} else {
 			setError("");
 			if (formValues.backendUrl?.startsWith("http://")) {
-				console.warn(
-					"[Settings] 后端 URL 使用 HTTP，JWT 以明文传输。建议仅在本地开发时使用。",
-				);
+				logger.warn("Settings", "后端 URL 使用 HTTP，JWT 以明文传输。建议仅在本地开发时使用。");
 			}
 			setSaved(true);
 		}
