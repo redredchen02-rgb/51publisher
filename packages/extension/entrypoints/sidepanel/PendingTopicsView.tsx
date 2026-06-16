@@ -8,6 +8,7 @@ import {
 	triggerScrape,
 	updatePendingStatus,
 } from "../../lib/pending-client";
+import { Loading } from "./Loading";
 
 interface QuickDraftConfirm {
 	topics: PendingTopic[];
@@ -353,7 +354,7 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 				</div>
 			)}
 
-			{loading && <div className="text-muted">加载中…</div>}
+			{loading && <Loading />}
 
 			{!loading && topics.length === 0 && (
 				<div

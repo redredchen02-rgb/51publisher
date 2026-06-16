@@ -31,9 +31,11 @@ import { BatchReviewPanel } from "./BatchReviewPanel";
 import { BatchResultSummary } from "./components/BatchResultSummary";
 import { DryRunReport } from "./DryRunReport";
 import { HistoryPanel } from "./HistoryPanel";
+import { Loading } from "./Loading";
 
 export function BatchView({ onBack }: { onBack: () => void }) {
 	const [batch, setBatch] = useState<Batch | null>(null);
+	const [loading, setLoading] = useState(true);
 	const [safetyMode, setSafetyMode] = useState<SafetyMode>("off");
 	const [tabHealthy, setTabHealthy] = useState(true);
 	const [topics, setTopics] = useState("");
@@ -57,6 +59,7 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 	>([]);
 
 	const refresh = useCallback(async () => {
+		setLoading(true);
 		const [b, mode, alertCount] = await Promise.all([
 			getBatchState(),
 			getSafetyMode(),
@@ -65,6 +68,7 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 		setSafetyMode(mode);
 		setBatch(b);
 		setQuarantineAlert(alertCount);
+		setLoading(false);
 		if (b) {
 			try {
 				const tab = await browser.tabs.get(b.tabId);
@@ -255,6 +259,8 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 					{error}
 				</p>
 			)}
+
+			{loading && !batch && <Loading />}
 
 			{toast && (
 				<div

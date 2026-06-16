@@ -1,4 +1,5 @@
 import { apiFetch } from "./api-fetch";
+import { logger } from "./logger";
 
 export interface PendingTopic {
 	id: string;
@@ -90,7 +91,9 @@ export async function fetchPendingTopics(
 		const data = (await res.json()) as PendingTopicsResponse;
 		return data.ok && data.topics ? data.topics : [];
 	} catch (e) {
-		console.warn("[pending-client] fetchPendingTopics:", e);
+		logger.warn("pending-client", "fetchPendingTopics failed", {
+			error: e instanceof Error ? e.message : String(e),
+		});
 		return [];
 	}
 }
@@ -115,7 +118,9 @@ export async function patchPendingTopic(
 		if (res.status === 401) return false;
 		return res.ok;
 	} catch (e) {
-		console.warn("[pending-client] patchPendingTopic:", e);
+		logger.warn("pending-client", "patchPendingTopic failed", {
+			error: e instanceof Error ? e.message : String(e),
+		});
 		return false;
 	}
 }
@@ -136,7 +141,9 @@ export async function triggerScrape(
 		if (res.status === 401) return false;
 		return res.ok;
 	} catch (e) {
-		console.warn("[pending-client] triggerScrape:", e);
+		logger.warn("pending-client", "triggerScrape failed", {
+			error: e instanceof Error ? e.message : String(e),
+		});
 		return false;
 	}
 }
@@ -155,7 +162,9 @@ export async function fetchAdapters(timeoutMs = 10_000): Promise<string[]> {
 		};
 		return data.ok && data.adapters ? data.adapters.map((a) => a.name) : [];
 	} catch (e) {
-		console.warn("[pending-client] fetchAdapters:", e);
+		logger.warn("pending-client", "fetchAdapters failed", {
+			error: e instanceof Error ? e.message : String(e),
+		});
 		return [];
 	}
 }
@@ -184,7 +193,9 @@ export async function updatePendingStatus(
 		if (res.status === 401) return false;
 		return res.ok;
 	} catch (e) {
-		console.warn("[pending-client] updatePendingStatus:", e);
+		logger.warn("pending-client", "updatePendingStatus failed", {
+			error: e instanceof Error ? e.message : String(e),
+		});
 		return false;
 	}
 }
