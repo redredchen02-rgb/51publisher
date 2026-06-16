@@ -107,7 +107,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 		if (backendUrl?.startsWith("http://")) console.warn("[Settings] 后端 URL 使用 HTTP，JWT 以明文传输。建议仅在本地开发时使用。");
 		setError("");
 		const existing = await getSettings();
-		const fewShotExamplesResolved = fewShotPairs.length > 0 ? deriveFewShotExamples(fewShotPairs) : fewShotExamples;
+		const fewShotExamplesResolved = fewShotPairs.length > 0 ? deriveFewShotExamples(fewShotPairs) : undefined;
 		let fieldMappingParsed: FieldMapping;
 		try { fieldMappingParsed = JSON.parse(mappingText) as FieldMapping; } catch { setError("字段映射 JSON 解析失败。"); return; }
 		await saveSettings({

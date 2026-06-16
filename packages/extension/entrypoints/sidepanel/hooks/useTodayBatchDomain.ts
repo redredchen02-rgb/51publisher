@@ -120,7 +120,7 @@ export function useTodayBatchDomain(): TodayBatchDomain {
 				pollRef.current = null;
 			}
 		};
-	}, [stage, items]);
+	}, [stage]);
 
 	async function handleDailyBatch() {
 		if (adminTabId == null) {
@@ -202,6 +202,8 @@ export function useTodayBatchDomain(): TodayBatchDomain {
 		try {
 			const batch = await approveSingleItem(adminTabId, item.id);
 			if (batch) setItems(batch.items);
+		} catch {
+			setError("发布失败，请重试。");
 		} finally {
 			setPublishingItems((prev) => {
 				const next = new Set(prev);
@@ -212,8 +214,12 @@ export function useTodayBatchDomain(): TodayBatchDomain {
 	}
 
 	async function handleRetry(itemId: string) {
-		const batch = await retryBatchItemMsg(itemId);
-		if (batch) setItems(batch.items);
+		try {
+			const batch = await retryBatchItemMsg(itemId);
+			if (batch) setItems(batch.items);
+		} catch {
+			setError("重试失败，请重试。");
+		}
 	}
 
 	function handleToggleRead(itemId: string) {

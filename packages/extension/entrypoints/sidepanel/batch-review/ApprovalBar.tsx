@@ -8,11 +8,9 @@ interface Props {
 	summary: BatchSummary;
 	safetyMode: SafetyMode;
 	authorizedHost: string;
-	tabHealthy: boolean;
 	busy?: boolean;
 	canApprove: boolean;
 	onApprove: () => void;
-	onApproveBypass: () => void;
 	onKill: () => void;
 	onDriftCheck: () => void;
 }

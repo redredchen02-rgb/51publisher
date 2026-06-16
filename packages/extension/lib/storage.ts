@@ -322,7 +322,7 @@ export function deriveFewShotExamples(pairs: FewShotPair[]): string {
 const MAX_FEW_SHOT = 8;
 
 /**
- * 追加一条 few-shot 范例到末尾（双写 fewShotPairs + fewShotExamples）。
+ * 追加一条 few-shot 范例到末尾（只写 fewShotPairs；fewShotExamples 由 getSettings() 读时派生）。
  * 返回 { ok: false, reason: 'full' } 当已达上限，不写入。
  */
 export async function addFewShotPair(

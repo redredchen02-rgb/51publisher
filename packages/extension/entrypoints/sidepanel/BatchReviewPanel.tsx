@@ -164,11 +164,9 @@ export function BatchReviewPanel(props: Props) {
 				summary={summary}
 				safetyMode={safetyMode}
 				authorizedHost={authorizedHost}
-				tabHealthy={tabHealthy}
 				busy={busy}
 				canApprove={canApprove}
 				onApprove={props.onApprove}
-				onApproveBypass={props.onApproveBypass}
 				onKill={props.onKill}
 				onDriftCheck={props.onDriftCheck}
 			/>

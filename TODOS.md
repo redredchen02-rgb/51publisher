@@ -13,6 +13,14 @@
   dist 下的 `*.test.js` 仅是旧 build 产物,不进测试。该 P0 在当前 GitHub Actions CI(`pnpm -r test`)下不复现。
   发现于: feat/phase-2-measurement (2026-06-11);关闭于: feat/harden-safety-net (2026-06-15)
 
+## Extension / UI
+
+- **TodayBatchView + BatchReviewPanel render 时多次 filter 无 useMemo** | **Priority:** P3
+  TodayBatchView.tsx:41 有 8 次 Array.filter/every；BatchReviewPanel.tsx:74 有 3 次 filter + aggregateDegradeStats，均无 useMemo。
+  数量小（通常 ≤20 条），当前不影响性能，但随批次增大会退化。
+  修法：将所有 derived arrays 包进单个 `useMemo(() => { … }, [items])` 一次遍历。
+  发现于: refactor/maintainability-test-refactor, performance specialist review (2026-06-16)
+
 ## Architecture / Known Gaps
 
 - **off-mode trajectory status 命名误导 (non-blocking)** | **Priority:** P3

@@ -1,7 +1,9 @@
+import { randomBytes } from "node:crypto";
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PUBLIC_ROUTES, requireAuth } from "../middleware/auth-middleware.js";
 import { registerGossipRoutes } from "./gossip-routes.js";
 import { initPendingDb, resetPendingDb } from "../scraper/pending-db.js";
 
@@ -369,5 +371,50 @@ describe("gossip-routes", () => {
 			payload: { url: "https://gossip.com/article/err", siteName: "站點" },
 		});
 		expect(res.statusCode).toBe(502);
+	});
+});
+
+// ---- JWT 401 守護 ----
+
+const GOSSIP_SECRET = randomBytes(48).toString("hex");
+
+async function buildGossipAppWithAuth(): Promise<FastifyInstance> {
+	const app = Fastify({ logger: false });
+	app.addHook("preHandler", async (request, reply) => {
+		const url = request.url.split("?")[0];
+		if (PUBLIC_ROUTES.has(url)) return;
+		return requireAuth(request, reply);
+	});
+	await registerGossipRoutes(app);
+	await app.ready();
+	return app;
+}
+
+describe("gossip-routes — JWT 守護", () => {
+	let app: FastifyInstance;
+
+	beforeEach(async () => {
+		process.env.JWT_SECRET = GOSSIP_SECRET;
+		app = await buildGossipAppWithAuth();
+	});
+
+	afterEach(async () => {
+		await app.close();
+		delete process.env.JWT_SECRET;
+	});
+
+	it("無 token → GET /api/v1/gossip/sites 返回 401", async () => {
+		const res = await app.inject({ method: "GET", url: "/api/v1/gossip/sites" });
+		expect(res.statusCode).toBe(401);
+	});
+
+	it("無 token → POST /api/v1/gossip/sites 返回 401", async () => {
+		const res = await app.inject({ method: "POST", url: "/api/v1/gossip/sites", payload: { name: "test", url: "https://t.com" } });
+		expect(res.statusCode).toBe(401);
+	});
+
+	it("無 token → POST /api/v1/gossip/topics/from-url 返回 401", async () => {
+		const res = await app.inject({ method: "POST", url: "/api/v1/gossip/topics/from-url", payload: { url: "https://t.com/a", siteName: "s" } });
+		expect(res.statusCode).toBe(401);
 	});
 });
