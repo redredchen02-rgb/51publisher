@@ -1,4 +1,3 @@
-import type { FieldMapping } from "@51publisher/shared";
 import { isValidFieldMapping, VALID_FIELD_TYPES } from "@51publisher/shared";
 import { useEffect, useState } from "react";
 import { logger } from "../../lib/logger";
