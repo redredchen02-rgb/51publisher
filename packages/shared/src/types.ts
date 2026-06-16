@@ -3,7 +3,7 @@
 import type { FactsBlock } from "./facts.js";
 import type { DraftSlots } from "./post-assembler.js";
 
-/** Few-shot 范例对(结构化版;R11-R13)。source of truth;fewShotExamples 由此派生。 */
+/** Few-shot 范例对;结构化存储格式，序列化为 string 供 LLM prompt 使用。 */
 export interface FewShotPair {
 	input: string;
 	output: string;
@@ -95,9 +95,7 @@ export interface Settings {
 	fallbackModel?: string;
 	/** prompt 模板,用户主题会注入其中。支持占位符 {{topic}} {{facts}} {{fewshot}}。 */
 	promptTemplate: string;
-	/** 51娘 few-shot 范例原始字符串(后端 prompt 注入用)。派生自 fewShotPairs，或向前兼容旧存储；非用户直接编辑。 */
-	fewShotExamples?: string;
-	/** 结构化 few-shot 范例列表(R11-R13);与 fewShotExamples 并存,fewShotPairs 为编辑源。 */
+	/** 结构化 few-shot 范例列表;唯一编辑源,序列化由 deriveFewShotExamples() 处理。 */
 	fewShotPairs?: FewShotPair[];
 	/** 运营者维护的推荐标签子集(~20-50 条);注入 prompt 约束,防模型造词(R5-R6)。 */
 	recommendedTags?: string[];

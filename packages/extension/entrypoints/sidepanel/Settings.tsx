@@ -1,4 +1,3 @@
-import type { FieldMapping } from "@51publisher/shared";
 import { isValidFieldMapping, VALID_FIELD_TYPES } from "@51publisher/shared";
 import { useEffect, useState } from "react";
 import { logger } from "../../lib/logger";
@@ -147,14 +146,11 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			<PromptSection
 				promptTemplate={formValues.promptTemplate}
 				fewShotPairs={formValues.fewShotPairs}
-				importBanner={formValues.importBanner}
-				importTruncated={formValues.importTruncated}
 				prompts={hook.prompts}
 				selectedPromptId={hook.selectedPromptId}
 				promptStatus={hook.promptStatus}
 				setPromptTemplate={(v) => setFormValue("promptTemplate", v)}
 				setFewShotPairs={hook.setFewShotPairs}
-				onImportFewShot={hook.importFewShot}
 				onLoadPrompts={() => void hook.loadPrompts()}
 				onSelectPrompt={hook.selectPrompt}
 				onSavePromptToBackend={hook.savePromptToBackend}

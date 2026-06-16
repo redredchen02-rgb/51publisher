@@ -43,7 +43,7 @@ const settings: Settings = {
 	model: "gpt-4o-mini",
 	fallbackModel: "",
 	promptTemplate: "test template",
-	fewShotExamples: "test few shot",
+	fewShotPairs: [],
 	fieldMapping: {},
 };
 

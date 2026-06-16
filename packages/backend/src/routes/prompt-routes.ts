@@ -1,8 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import {
 	deletePrompt,
-	listPrompts,
-	loadPrompt,
+	getAllPrompts,
+	getPromptById,
 	type PromptTemplate,
 	type PromptTemplateCreate,
 	type PromptTemplateUpdate,
@@ -39,7 +39,7 @@ export async function registerPromptRoutes(
 ): Promise<void> {
 	// 列出所有模板
 	app.get("/api/v1/prompts", async () => {
-		const prompts = await listPrompts();
+		const prompts = await getAllPrompts();
 		return { ok: true, prompts };
 	});
 
@@ -52,7 +52,7 @@ export async function registerPromptRoutes(
 			},
 		},
 		async (request, _reply) => {
-			const { name, template, fewShotExamples, model } = request.body;
+			const { name, template, fewShotPairs, model } = request.body;
 
 			const now = new Date().toISOString();
 			const id = generateId("prompt");
@@ -60,7 +60,7 @@ export async function registerPromptRoutes(
 				id,
 				name,
 				template,
-				fewShotExamples: fewShotExamples ?? "",
+				fewShotPairs: fewShotPairs ?? [],
 				...(model ? { model } : {}),
 				createdAt: now,
 				updatedAt: now,
@@ -75,7 +75,7 @@ export async function registerPromptRoutes(
 	app.get<{ Params: PromptIdParams }>(
 		"/api/v1/prompts/:id",
 		async (request, reply) => {
-			const prompt = await loadPrompt(request.params.id);
+			const prompt = await getPromptById(request.params.id);
 			if (!prompt) return err(reply, 404, "Prompt not found");
 			return { ok: true, prompt };
 		},
@@ -91,7 +91,7 @@ export async function registerPromptRoutes(
 		},
 		async (request, reply) => {
 			const { id } = request.params;
-			const existing = await loadPrompt(id);
+			const existing = await getPromptById(id);
 			if (!existing) return err(reply, 404, "Prompt not found");
 
 			const body = request.body;
@@ -99,8 +99,8 @@ export async function registerPromptRoutes(
 				...existing,
 				...(body.name !== undefined ? { name: body.name } : {}),
 				...(body.template !== undefined ? { template: body.template } : {}),
-				...(body.fewShotExamples !== undefined
-					? { fewShotExamples: body.fewShotExamples }
+				...(body.fewShotPairs !== undefined
+					? { fewShotPairs: body.fewShotPairs }
 					: {}),
 				...(body.model !== undefined ? { model: body.model } : {}),
 				updatedAt: new Date().toISOString(),
@@ -115,7 +115,7 @@ export async function registerPromptRoutes(
 	app.delete<{ Params: PromptIdParams }>(
 		"/api/v1/prompts/:id",
 		async (request, reply) => {
-			const prompt = await loadPrompt(request.params.id);
+			const prompt = await getPromptById(request.params.id);
 			if (!prompt) return err(reply, 404, "Prompt not found");
 			await deletePrompt(request.params.id);
 			return { ok: true };

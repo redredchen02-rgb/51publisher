@@ -17,6 +17,7 @@ import {
 	clearFirstFlight,
 	clearTrajectory,
 	DEFAULT_SETTINGS,
+	deriveFewShotExamples,
 	getApiKey,
 	getAuthorizedHosts,
 	getBackendToken,
@@ -25,6 +26,7 @@ import {
 	getSafetyMode,
 	getSettings,
 	getTrajectory,
+	parseFewShotExamples,
 	removeLastFewShotPair,
 	saveApiKey,
 	saveBackendToken,
@@ -243,13 +245,12 @@ describe("storage", () => {
 	});
 
 	describe("addFewShotPair / removeLastFewShotPair", () => {
-		it("addFewShotPair:首条追加成功 → ok:true,settings 存有 pair + fewShotExamples 派生", async () => {
+		it("addFewShotPair:首条追加成功 → ok:true,settings 存有 pair", async () => {
 			const r = await addFewShotPair({ input: "Q1", output: "A1" });
 			expect(r).toEqual({ ok: true });
 			const s = await getSettings();
 			expect(s.fewShotPairs).toHaveLength(1);
 			expect(s.fewShotPairs?.[0]).toEqual({ input: "Q1", output: "A1" });
-			expect(s.fewShotExamples).toBe("Q1\n---\nA1");
 		});
 
 		it("addFewShotPair:已有 8 条 → ok:false, reason:full,不写入", async () => {
@@ -262,11 +263,14 @@ describe("storage", () => {
 			expect(s.fewShotPairs).toHaveLength(8);
 		});
 
-		it("addFewShotPair:多条时 fewShotExamples 以 \\n\\n 分隔", async () => {
+		it("addFewShotPair:多条时 fewShotPairs 正确储存", async () => {
 			await addFewShotPair({ input: "Q1", output: "A1" });
 			await addFewShotPair({ input: "Q2", output: "A2" });
 			const s = await getSettings();
-			expect(s.fewShotExamples).toBe("Q1\n---\nA1\n\nQ2\n---\nA2");
+			expect(s.fewShotPairs).toEqual([
+				{ input: "Q1", output: "A1" },
+				{ input: "Q2", output: "A2" },
+			]);
 		});
 
 		it("removeLastFewShotPair:移除末尾一条", async () => {
@@ -278,12 +282,11 @@ describe("storage", () => {
 			expect(s.fewShotPairs?.[0]).toEqual({ input: "Q1", output: "A1" });
 		});
 
-		it("removeLastFewShotPair:最后一条移除后 fewShotExamples 为 undefined", async () => {
+		it("removeLastFewShotPair:最后一条移除后 fewShotPairs 为空", async () => {
 			await addFewShotPair({ input: "Q1", output: "A1" });
 			await removeLastFewShotPair();
 			const s = await getSettings();
 			expect(s.fewShotPairs).toHaveLength(0);
-			expect(s.fewShotExamples).toBeUndefined();
 		});
 
 		it("removeLastFewShotPair:空列表时幂等,不报错", async () => {
@@ -393,6 +396,43 @@ describe("storage", () => {
 			await writeFirstFlight({ mode: "dry-run", pending: PENDING });
 			await clearFirstFlight();
 			expect((await getFirstFlight()).state).toBe("absent");
+		});
+	});
+
+	describe("parseFewShotExamples / deriveFewShotExamples", () => {
+		it("happy path: 單條帶分隔符 → [{input, output}]", () => {
+			expect(parseFewShotExamples("A\n---\nB")).toEqual([
+				{ input: "A", output: "B" },
+			]);
+		});
+
+		it("happy path: 兩條以 \\n\\n 分隔 → 兩個 pair", () => {
+			expect(parseFewShotExamples("A\n---\nB\n\nC\n---\nD")).toEqual([
+				{ input: "A", output: "B" },
+				{ input: "C", output: "D" },
+			]);
+		});
+
+		it("edge case: 無分隔符的 block → {input: '', output: block}", () => {
+			expect(parseFewShotExamples("no separator here")).toEqual([
+				{ input: "", output: "no separator here" },
+			]);
+		});
+
+		it("edge case: 空字串 → []", () => {
+			expect(parseFewShotExamples("")).toEqual([]);
+		});
+
+		it("edge case: 只有空白行 → []", () => {
+			expect(parseFewShotExamples("\n\n\n")).toEqual([]);
+		});
+
+		it("round-trip: derive → parse 還原相同 pairs", () => {
+			const pairs = [
+				{ input: "Q1", output: "A1" },
+				{ input: "Q2", output: "A2" },
+			];
+			expect(parseFewShotExamples(deriveFewShotExamples(pairs))).toEqual(pairs);
 		});
 	});
 });
