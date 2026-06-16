@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.2.0] - 2026-06-16
+
+### Fixed
+
+- **批次审稿「修改欄位」徽章始终显示 unknown**：`approveBatch` 中 SlotDiff 比较源由 `publishedDraft`（从未赋值）改为 `assembledDraftSnapshot`（AI 生成原稿快照）；ItemCard 现在正确显示「已修改 N 個欄位」或「未修改」
+- **auth 端点 rate limit 加严**：从 10/min 收紧为 5/min，降低暴力破解窗口
+
+### Changed
+
+- **`batch-orchestrator.ts` 拆分（677L → 3 模块 + 14L barrel）**：`batch-run.ts`（生成+评审管道）/ `batch-approve.ts`（审批+发布编排）/ `batch-item-ops.ts`（单条重试/丢弃）可独立单测；所有 import 无需改动
+- **App.tsx 萃取**：`<ErrorLogPanel>` 和 `<WorkflowNav>` 独立成组件；单篇生成流程封装为 `useMainDraftFlow` hook（mode/topic/draft/results 状态 + handleGenerate/Fill/Next/cancel/copy 处理器）
+
+### Added (Tests)
+
+- **`useMainDraftFlow` 单元测试（11 个用例）**：覆盖初始状态、generate 成功/失败/取消、fill 成功/降级、confirmNext 双步确认、next 重置、updateDraft
+- **`approveBatch` SlotDiff 测试（3 个用例）**：无修改 / 有修改 / snapshot 缺失（unknown）三种场景
+
 ## [0.2.1.0] - 2026-06-16
 
 ### Changed
