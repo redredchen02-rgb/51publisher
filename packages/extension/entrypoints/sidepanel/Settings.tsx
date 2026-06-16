@@ -7,8 +7,9 @@ import { FieldMappingSection } from "./components/FieldMappingSection";
 import { LLMSection } from "./components/LLMSection";
 import { PromptSection } from "./components/PromptSection";
 import { TagsSection } from "./components/TagsSection";
-import { useSettingsForm } from "./hooks/useSettingsForm";
 import { logger } from "../../lib/logger";
+import { useSettingsForm } from "./hooks/useSettingsForm";
+import styles from "./Settings.module.css";
 
 export function parseTagsText(text: string): string[] {
 	return text
@@ -74,13 +75,21 @@ export function validateSettingsForm(
 
 export function Settings({ onClose }: { onClose: () => void }) {
 	const hook = useSettingsForm();
-	const { formValues, setFormValue, getApiKey, getBackendToken, setApiKey, setBackendToken } = hook;
+	const {
+		formValues,
+		setFormValue,
+		getApiKey,
+		getBackendToken,
+		setApiKey,
+		setBackendToken,
+	} = hook;
 	const [error, setError] = useState("");
 	const [saved, setSaved] = useState(false);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: hook.load is stable across renders
 	useEffect(() => {
 		void hook.load();
-	}, []); // eslint-disable-line react-hooks/exhaustive-deps
+	}, []);
 
 	async function handleSave() {
 		setSaved(false);
@@ -101,16 +110,15 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			<button
 				type="button"
 				onClick={onClose}
-				className="btn btn-plain"
-				style={{ marginBottom: "var(--space-md)" }}
+				className={`btn btn-plain ${styles.backBtn}`}
 			>
 				← 返回
 			</button>
-			<h2 style={{ fontSize: "var(--font-lg)", margin: "0 0 var(--space-sm)" }}>
+			<h2 className={styles.heading}>
 				设置
 			</h2>
 
-			<p className="field-hint" style={{ marginBottom: "var(--space-md)" }}>
+			<p className={`field-hint ${styles.intro}`}>
 				⚙️ 大模型 endpoint 与 API Key 已在后端服务 .env 中配置，扩展不直接管理。
 			</p>
 
@@ -176,8 +184,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			<button
 				type="button"
 				onClick={() => void handleSave()}
-				className="btn btn-primary"
-				style={{ marginTop: "var(--space-lg)" }}
+				className={`btn btn-primary ${styles.saveBtn}`}
 			>
 				保存
 			</button>

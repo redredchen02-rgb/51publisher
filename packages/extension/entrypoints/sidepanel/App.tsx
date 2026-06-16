@@ -31,6 +31,7 @@ import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useLoadingState } from "./hooks/useLoadingState";
 import { useOperationHistory } from "./hooks/useOperationHistory";
 import { Loading } from "./Loading";
+import { MetricsPanel } from "./MetricsPanel";
 import { PendingTopicsView } from "./PendingTopicsView";
 import { Settings } from "./Settings";
 import { TodayBatchView } from "./TodayBatchView";
@@ -47,6 +48,7 @@ export function App() {
 		| "auth"
 		| "gossip"
 		| "firstflight"
+		| "metrics"
 	>("main");
 	const [ffEntry, setFfEntry] = useState<{
 		tabId: number;
@@ -267,6 +269,9 @@ export function App() {
 			</Wrap>
 		);
 
+	if (view === "metrics")
+		return <MetricsPanel onBack={() => setView("main")} />;
+
 	if (view === "firstflight" && ffEntry)
 		return (
 			<FirstFlightWizard
@@ -375,6 +380,16 @@ export function App() {
 						<span className="workflow-card-title">首飞向导</span>
 						<span className="workflow-card-desc">
 							最小授权窗口发布恰好一条,验证闸门时序
+						</span>
+					</button>
+					<button
+						type="button"
+						onClick={() => setView("metrics")}
+						className="workflow-card"
+					>
+						<span className="workflow-card-title">度量</span>
+						<span className="workflow-card-desc">
+							发布质量、LLM 用量、编辑率等统计看板
 						</span>
 					</button>
 				</nav>

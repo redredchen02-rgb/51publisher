@@ -27,9 +27,10 @@ supersedes: []
 | 防幻觉 | ✅ | grounding Phase 1+2 已合入 |
 | 首飞工具链 | ✅ | CLI wizard + runbook 已产出 |
 | 产品完成度 | 🔴 | **真实发布 = 0** |
-| 技术债 | 🟡 | 计划文件未归档 / deprecated 未清 / route 未整理 / TypeBox 未全覆盖 |
-| 运维基础 | 🟡 | 无 graceful shutdown / Request ID / CSP |
-| 扩展 UX | 🟡 | Loading states 不全 / 38 Console.log / inline CSS |
+| 技术债 | ✅ | 计划文件已归档 / routes 已移入 routes/ / TypeBox 已全覆盖 / graceful shutdown + Request ID + CSP + bodyLimit 已落地 |
+| 运维基础 | ✅ | Graceful shutdown / Request ID / CSP / bodyLimit / pino redaction / rate limit 均已落地 |
+| 扩展 UX | ✅ | Loading states 已补齐 / structured logger 已落地 / Settings 已拆为 hooks + sections |
+| 真实发布 | 🔴 | **尚未执行首飞（需人工操作）** |
 
 ## Core Sequencing Logic
 

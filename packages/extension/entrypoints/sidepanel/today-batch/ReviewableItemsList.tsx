@@ -1,5 +1,147 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { BatchItem } from "../../../lib/batch";
+import {
+	type FeedbackRating,
+	getFeedbackForItem,
+	type PublishFeedback,
+	saveFeedback,
+} from "../../../lib/publish-feedback";
+
+const RATING_EMOJI: Record<FeedbackRating, string> = {
+	good: "👍",
+	ok: "🤔",
+	bad: "👎",
+};
+const RATING_LABEL: Record<FeedbackRating, string> = {
+	good: "不错",
+	ok: "一般",
+	bad: "需改进",
+};
+
+function FeedbackWidget({ itemId, topic }: { itemId: string; topic: string }) {
+	const [feedback, setFeedback] = useState<PublishFeedback | null>(null);
+	const [editing, setEditing] = useState(false);
+	const [note, setNote] = useState("");
+	const [pending, setPending] = useState<FeedbackRating | null>(null);
+
+	useEffect(() => {
+		void getFeedbackForItem(itemId).then((f) => {
+			if (f) setFeedback(f);
+		});
+	}, [itemId]);
+
+	async function submit(rating: FeedbackRating) {
+		const entry: PublishFeedback = {
+			itemId,
+			topic,
+			rating,
+			note: note.trim() || undefined,
+			ts: new Date().toISOString(),
+		};
+		await saveFeedback(entry);
+		setFeedback(entry);
+		setEditing(false);
+		setPending(null);
+		setNote("");
+	}
+
+	if (feedback && !editing) {
+		return (
+			<div
+				style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}
+			>
+				<span style={{ fontSize: 14 }}>{RATING_EMOJI[feedback.rating]}</span>
+				<span
+					style={{
+						fontSize: "var(--font-xs)",
+						color: "var(--color-text-secondary)",
+					}}
+				>
+					{RATING_LABEL[feedback.rating]}
+					{feedback.note ? `：${feedback.note}` : ""}
+				</span>
+				<button
+					type="button"
+					className="btn-icon"
+					style={{
+						fontSize: "var(--font-xs)",
+						color: "var(--color-text-disabled)",
+					}}
+					onClick={() => {
+						setEditing(true);
+						setNote(feedback.note ?? "");
+						setPending(feedback.rating);
+					}}
+				>
+					改
+				</button>
+			</div>
+		);
+	}
+
+	return (
+		<div style={{ marginTop: 6 }}>
+			<div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+				<span
+					style={{
+						fontSize: "var(--font-xs)",
+						color: "var(--color-text-secondary)",
+					}}
+				>
+					质量反馈：
+				</span>
+				{(["good", "ok", "bad"] as FeedbackRating[]).map((r) => (
+					<button
+						key={r}
+						type="button"
+						onClick={() => setPending(r)}
+						style={{
+							fontSize: 16,
+							padding: "2px 4px",
+							background:
+								pending === r ? "var(--color-surface-elevated)" : "transparent",
+							border:
+								pending === r
+									? "1px solid var(--color-border)"
+									: "1px solid transparent",
+							borderRadius: 4,
+							cursor: "pointer",
+						}}
+						title={RATING_LABEL[r]}
+					>
+						{RATING_EMOJI[r]}
+					</button>
+				))}
+			</div>
+			{pending && (
+				<div style={{ marginTop: 4, display: "flex", gap: 4 }}>
+					<input
+						type="text"
+						className="field-input"
+						placeholder="备注（可选）"
+						value={note}
+						onChange={(e) => setNote(e.target.value)}
+						style={{
+							flex: 1,
+							fontSize: "var(--font-xs)",
+							padding: "2px 6px",
+							height: 24,
+						}}
+						maxLength={200}
+					/>
+					<button
+						type="button"
+						className="btn btn-primary btn-sm"
+						style={{ fontSize: "var(--font-xs)", padding: "2px 8px" }}
+						onClick={() => void submit(pending)}
+					>
+						提交
+					</button>
+				</div>
+			)}
+		</div>
+	);
+}
 
 const STATUS_COLOR: Record<string, string> = {
 	"gate-failed": "var(--color-error)",
@@ -30,6 +172,7 @@ interface ReviewableItemsListProps {
 	publishingItems: Set<string>;
 	onToggleRead: (id: string) => void;
 	onPublish: (item: BatchItem) => void;
+	onApproveAll?: () => void;
 }
 
 export function ReviewableItemsList({
@@ -38,6 +181,7 @@ export function ReviewableItemsList({
 	publishingItems,
 	onToggleRead,
 	onPublish,
+	onApproveAll,
 }: ReviewableItemsListProps) {
 	const [expandedBodies, setExpandedBodies] = useState<Set<string>>(new Set());
 
@@ -50,11 +194,32 @@ export function ReviewableItemsList({
 		});
 	}
 
+	const allRead = items.length > 1 && items.every((it) => readItems.has(it.id));
+
 	return (
 		<section style={{ marginBottom: "var(--space-xl)" }}>
-			<p className="text-muted" style={{ margin: "0 0 var(--space-lg)" }}>
-				待发布
-			</p>
+			<div
+				style={{
+					display: "flex",
+					justifyContent: "space-between",
+					alignItems: "center",
+					marginBottom: "var(--space-lg)",
+				}}
+			>
+				<p className="text-muted" style={{ margin: 0 }}>
+					待发布（{items.length} 条）
+				</p>
+				{onApproveAll && allRead && (
+					<button
+						type="button"
+						className="btn btn-sm"
+						onClick={onApproveAll}
+						style={{ background: "var(--color-success)", color: "#fff" }}
+					>
+						全部发布
+					</button>
+				)}
+			</div>
 			{items.map((item) => {
 				const isRead = readItems.has(item.id);
 				const isPublishing =
@@ -216,49 +381,73 @@ export function BatchResultSections({
 					<p className="text-muted" style={{ margin: "0 0 var(--space-lg)" }}>
 						内容问题
 					</p>
-					{gateFailedItems.map((item) => (
-						<div
-							key={item.id}
-							className="banner-error"
-							style={{ marginBottom: "var(--space-lg)" }}
-						>
+					{gateFailedItems.map((item) => {
+						const reason = item.gateFailReason ?? "";
+						const hint =
+							reason.includes("待補") || reason.includes("placeholder")
+								? "提示：草稿含【待補】佔位符，請補充事實後重試"
+								: reason.includes("link") ||
+										reason.includes("連結") ||
+										reason.includes("来源")
+									? "提示：缺少來源鏈接，請在選題事實中補充後重試"
+									: reason.includes("重複") || reason.includes("duplicate")
+										? "提示：內容與已發布帖子高度相似，建議換題"
+										: null;
+						return (
 							<div
-								style={{
-									display: "flex",
-									justifyContent: "space-between",
-									alignItems: "flex-start",
-								}}
+								key={item.id}
+								className="banner-error"
+								style={{ marginBottom: "var(--space-lg)" }}
 							>
-								<div style={{ flex: 1 }}>
-									<p className="font-medium" style={{ margin: 0 }}>
-										{item.topic}
-									</p>
-									{item.gateFailReason && (
-										<p
-											className="text-error"
-											style={{
-												margin: "var(--space-sm) 0 0",
-												fontSize: "var(--font-xs)",
-											}}
-										>
-											{item.gateFailReason}
-										</p>
-									)}
-								</div>
-								<button
-									type="button"
-									onClick={() => onRetry(item.id)}
-									className="btn btn-plain btn-sm text-error"
+								<div
 									style={{
-										flexShrink: 0,
-										borderColor: "var(--color-error-border)",
+										display: "flex",
+										justifyContent: "space-between",
+										alignItems: "flex-start",
 									}}
 								>
-									重新生成
-								</button>
+									<div style={{ flex: 1 }}>
+										<p className="font-medium" style={{ margin: 0 }}>
+											{item.topic}
+										</p>
+										{reason && (
+											<p
+												className="text-error"
+												style={{
+													margin: "var(--space-sm) 0 0",
+													fontSize: "var(--font-xs)",
+												}}
+											>
+												{reason}
+											</p>
+										)}
+										{hint && (
+											<p
+												style={{
+													margin: "var(--space-xs) 0 0",
+													fontSize: "var(--font-xs)",
+													color: "var(--color-warning)",
+												}}
+											>
+												{hint}
+											</p>
+										)}
+									</div>
+									<button
+										type="button"
+										onClick={() => onRetry(item.id)}
+										className="btn btn-plain btn-sm text-error"
+										style={{
+											flexShrink: 0,
+											borderColor: "var(--color-error-border)",
+										}}
+									>
+										重新生成
+									</button>
+								</div>
 							</div>
-						</div>
-					))}
+						);
+					})}
 				</section>
 			)}
 
@@ -298,26 +487,27 @@ export function BatchResultSections({
 							style={{
 								padding: "var(--space-lg) var(--space-xl)",
 								borderBottom: "1px solid var(--color-border-lighter)",
-								display: "flex",
-								justifyContent: "space-between",
 							}}
 						>
-							<span
-								style={{
-									overflow: "hidden",
-									textOverflow: "ellipsis",
-									whiteSpace: "nowrap",
-									flex: 1,
-								}}
-							>
-								{item.draft?.title ?? item.topic}
-							</span>
-							<span
-								className="text-success"
-								style={{ marginLeft: "var(--space-md)", flexShrink: 0 }}
-							>
-								✓ 已发布
-							</span>
+							<div style={{ display: "flex", justifyContent: "space-between" }}>
+								<span
+									style={{
+										overflow: "hidden",
+										textOverflow: "ellipsis",
+										whiteSpace: "nowrap",
+										flex: 1,
+									}}
+								>
+									{item.draft?.title ?? item.topic}
+								</span>
+								<span
+									className="text-success"
+									style={{ marginLeft: "var(--space-md)", flexShrink: 0 }}
+								>
+									✓ 已发布
+								</span>
+							</div>
+							<FeedbackWidget itemId={item.id} topic={item.topic} />
 						</div>
 					))}
 				</section>

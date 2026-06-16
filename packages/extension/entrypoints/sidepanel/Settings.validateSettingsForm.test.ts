@@ -56,7 +56,9 @@ describe("validateSettingsForm", () => {
 		expect(
 			validateSettingsForm({
 				endpoint: "",
-				mappingText: JSON.stringify({ title: { selector: "#x", fieldType: "bogus" } }),
+				mappingText: JSON.stringify({
+					title: { selector: "#x", fieldType: "bogus" },
+				}),
 				backendUrl: "",
 			}),
 		).toMatch(/fieldType/i);

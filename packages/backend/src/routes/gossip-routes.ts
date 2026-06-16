@@ -22,8 +22,9 @@ import {
 import { err } from "../utils/error-response.js";
 import { generateId } from "../utils/generate-id.js";
 import {
-	GossipSiteParams as GossipSiteParamsSchema,
 	GossipFromUrlBody as GossipFromUrlBodySchema,
+	GossipSiteCreate as GossipSiteCreateSchema,
+	GossipSiteParams as GossipSiteParamsSchema,
 } from "../utils/schemas.js";
 
 /** 返回 400 如果 hostname 是 IP literal（IPv4、decimal-encoded IPv4 或 IPv6）。 */
@@ -71,6 +72,7 @@ export async function registerGossipRoutes(
 	// POST /api/v1/gossip/sites — 新增站點設定
 	app.post<{ Body: GossipSiteCreate }>(
 		"/api/v1/gossip/sites",
+		{ schema: { body: GossipSiteCreateSchema } },
 		async (request, reply) => {
 			const { name, listUrl } = request.body ?? {};
 			if (!name || !listUrl) {
@@ -123,6 +125,7 @@ export async function registerGossipRoutes(
 	// POST /api/v1/gossip/sites/:id/discover — 觸發資源發現
 	app.post<{ Params: SiteParams }>(
 		"/api/v1/gossip/sites/:id/discover",
+		{ schema: { params: GossipSiteParamsSchema } },
 		async (request, reply) => {
 			const site = await getGossipSite(request.params.id);
 			if (!site) return err(reply, 404, "Site not found");

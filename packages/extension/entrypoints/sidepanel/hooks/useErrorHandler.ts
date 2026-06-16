@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { logger } from "../../../lib/logger";
 
 interface UseErrorHandlerReturn {
 	error: string | null;
@@ -12,7 +13,7 @@ export function useErrorHandler(): UseErrorHandlerReturn {
 	const handleError = useCallback((err: Error | string) => {
 		const message = err instanceof Error ? err.message : String(err);
 		setError(message);
-		console.error("[ErrorHandler]", message);
+		logger.error("ErrorHandler", message);
 	}, []);
 
 	const clearError = useCallback(() => {

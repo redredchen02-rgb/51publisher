@@ -17,7 +17,8 @@
 		"lint:ci": "biome ci --diagnostic-level=error .",
 		"format": "biome format --write",
 		"check": "biome check",
-		"postinstall": "git config core.hooksPath scripts/git-hooks"
+		"postinstall": "git config core.hooksPath scripts/git-hooks",
+		"eval:golden": "bash scripts/eval-golden.sh"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.16",

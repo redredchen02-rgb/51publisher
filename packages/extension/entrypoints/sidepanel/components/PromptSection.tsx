@@ -1,6 +1,6 @@
 import type { FewShotPair } from "@51publisher/shared";
-import { DEFAULT_SETTINGS } from "../../../lib/storage";
 import type { PromptTemplate } from "../../../lib/prompt-client";
+import { DEFAULT_SETTINGS } from "../../../lib/storage";
 import { FewShotPairEditor } from "./FewShotPairEditor";
 
 const MAX_PAIRS = 8;
@@ -80,8 +80,11 @@ export function PromptSection({
 				</div>
 				<p className="field-hint">
 					源接地:AI 只用 {"{{facts}}"}{" "}
-					里给的事实润色,缺的标【待补】,连结只用给定 URL——防止编造作品事实/连结。
+					里给的事实润色,缺的标【待补】,连结只用给定
+					URL——防止编造作品事实/连结。
 				</p>
+
+
 			</div>
 
 			<hr className="divider" />

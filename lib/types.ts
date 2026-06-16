@@ -93,10 +93,7 @@ export interface Settings {
 	fallbackModel?: { endpoint: string; model?: string };
 	/** 51publisher 后端 URL（http://localhost:3001 等）;空=不启用后端双写。 */
 	backendUrl?: string;
-	/**
-	 * Few-shot 范例原始字符串(后端 prompt 注入用)。
-	 * @deprecated 使用 fewShotPairs 作为编辑源；保存时由 fewShotPairs 派生此字段。
-	 */
+	/** Few-shot 范例原始字符串(后端 prompt 注入用)。派生自 fewShotPairs，或向前兼容旧存储。 */
 	fewShotExamples?: string;
 	/** 结构化 few-shot 范例列表；与 fewShotExamples 并存，fewShotPairs 为编辑源。 */
 	fewShotPairs?: FewShotPair[];
