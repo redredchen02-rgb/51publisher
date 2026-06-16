@@ -33,6 +33,7 @@ import type { GateDecision } from "./publish-orchestrator";
 import { isGateBlocked, orchestratePublish } from "./publish-orchestrator";
 import type { PublishedPostRecord } from "./published-posts-client";
 import type { TrajectoryInput } from "./trajectory";
+import { logger } from "./logger";
 
 // 批量编排逻辑(效果全注入,无 chrome/browser/* 直接依赖)。
 // 参照 lib/publish-orchestrator.ts 模式:background.ts 只做接线,逻辑在此可单测。
@@ -530,11 +531,8 @@ export async function approveBatch(
 						sourceTitle: item.topic,
 						publishUrl: r.url ?? "",
 						publishedAt: now(),
-					}).catch((err) =>
-						console.warn(
-							"[batch-orchestrator] recordPost 失败(best-effort)",
-							err,
-						),
+					}				).catch(() =>
+						logger.warn("batch-orchestrator", "recordPost 失败(best-effort)"),
 					);
 				}
 			},
@@ -591,11 +589,8 @@ export async function approveBatch(
 			ts: new Date().toISOString(),
 			items: dryRunItems,
 		};
-		saveDryRunReportFn(report).catch((e) =>
-			console.warn(
-				"[batch-orchestrator] saveDryRunReport 失败(best-effort)",
-				e,
-			),
+		saveDryRunReportFn(report).catch(() =>
+			logger.warn("batch-orchestrator", "saveDryRunReport 失败(best-effort)"),
 		);
 	}
 
@@ -603,9 +598,7 @@ export async function approveBatch(
 }
 
 function defaultSnapshotDropped(itemId: string): void {
-	console.warn(
-		`[batch-orchestrator] 轨迹快照含机密被丢弃(record 已落,无快照) itemId=${itemId}`,
-	);
+	logger.warn("batch-orchestrator", "轨迹快照含机密被丢弃", { itemId });
 }
 
 // ---- DISCARD ITEM ----

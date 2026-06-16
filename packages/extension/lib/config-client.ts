@@ -1,6 +1,7 @@
 import type { FieldMapping } from "@51publisher/shared";
 import { DEFAULT_FIELD_MAPPING } from "@51publisher/shared";
 import { apiFetch } from "./api-fetch";
+import { logger } from "./logger";
 
 /**
  * 后端配置客户端。
@@ -36,27 +37,21 @@ export async function fetchRemoteMappings(
 		}
 
 		if (!res.ok) {
-			console.warn("[config-client] 后端返回非 2xx，回落默认映射");
+			logger.warn("config-client", "后端返回非 2xx，回落默认映射");
 			return { mappings: DEFAULT_FIELD_MAPPING, remote: false };
 		}
 
 		const data = (await res.json()) as MappingsResponse;
 		if (data.ok && data.mappings) {
-			console.debug(
-				"[config-client] 成功拉取远程映射 (version=%d)",
-				data.version,
-			);
+			logger.debug("config-client", "成功拉取远程映射", { version: data.version });
 			return { mappings: data.mappings, remote: true };
 		}
 
-		console.warn("[config-client] 后端返回无效数据，回落默认映射");
+		logger.warn("config-client", "后端返回无效数据，回落默认映射");
 		return { mappings: DEFAULT_FIELD_MAPPING, remote: false };
 	} catch (err) {
 		const aborted = err instanceof Error && err.name === "AbortError";
-		console.warn(
-			"[config-client] %s，回落默认映射",
-			aborted ? "拉取映射超时" : "无法连接后端",
-		);
+		logger.warn("config-client", aborted ? "拉取映射超时" : "无法连接后端");
 		return { mappings: DEFAULT_FIELD_MAPPING, remote: false };
 	}
 }
@@ -97,17 +92,18 @@ export async function syncBatchItemStatus(
 
 		if (!res.ok) {
 			const errText = await res.text().catch(() => "");
-			console.warn(
-				"[config-client] Batch 状态同步失败 (%d): %s",
-				res.status,
-				errText,
-			);
+			logger.warn("config-client", "Batch 状态同步失败", {
+				status: res.status,
+				error: errText,
+			});
 			return { ok: false, error: `HTTP ${res.status}` };
 		}
 
 		return { ok: true };
 	} catch (err) {
-		console.warn("[config-client] Batch 状态同步异常:", err);
+		logger.warn("config-client", "Batch 状态同步异常", {
+			error: err instanceof Error ? err.message : String(err),
+		});
 		return {
 			ok: false,
 			error: err instanceof Error ? err.message : String(err),

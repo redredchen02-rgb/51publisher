@@ -2,15 +2,20 @@ import { useEffect, useMemo, useState } from "react";
 import { getTrajectory } from "../../lib/storage";
 import type { TrajectoryRecord } from "../../lib/trajectory";
 import { rollbackTargets, verifyTrajectory } from "../../lib/trajectory";
+import { Loading } from "./Loading";
 
 const PAGE_SIZE = 20;
 
 export function HistoryPanel() {
 	const [records, setRecords] = useState<TrajectoryRecord[]>([]);
+	const [loading, setLoading] = useState(true);
 	const [page, setPage] = useState(1);
 
 	useEffect(() => {
-		getTrajectory().then((r) => setRecords([...r].reverse()));
+		setLoading(true);
+		getTrajectory()
+			.then((r) => setRecords([...r].reverse()))
+			.finally(() => setLoading(false));
 	}, []);
 
 	const oldestFirst = useMemo(() => [...records].reverse(), [records]);
@@ -19,6 +24,14 @@ export function HistoryPanel() {
 		() => new Set(rollbackTargets(oldestFirst).map((r) => r.id)),
 		[oldestFirst],
 	);
+
+	if (loading) {
+		return (
+			<section style={{ paddingTop: "var(--space-lg)" }}>
+				<Loading />
+			</section>
+		);
+	}
 
 	if (records.length === 0) {
 		return (
