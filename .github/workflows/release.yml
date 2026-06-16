@@ -39,10 +39,10 @@ jobs:
         run: pnpm -r test
 
       - name: Build extension zip
-        run: pnpm --filter publisher-fill-assistant zip
+        run: pnpm --filter "@51publisher/extension" zip
 
       - name: Prepare extension artifact
-        run: cp packages/extension/.output/publisher-fill-assistant-*.zip ./extension.zip
+        run: cp packages/extension/.output/51publisherextension-*.zip ./extension.zip
 
       - name: Build Docker image
         run: docker build -f packages/backend/Dockerfile -t 51publisher-backend .

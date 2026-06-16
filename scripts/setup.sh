@@ -123,7 +123,7 @@ needs_build() {
 
 if needs_build; then
   info "构建后端..."
-  pnpm --filter publisher-backend build
+  pnpm --filter "@51publisher/backend" build
   ok "后端构建完成 ✓"
 else
   ok "后端构建产物是最新的，跳过构建 ✓"

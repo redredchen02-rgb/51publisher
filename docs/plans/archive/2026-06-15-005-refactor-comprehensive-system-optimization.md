@@ -138,7 +138,7 @@ supersedes: []
 - Edge: 非数字 `:id` param → 404 或 400
 
 **Verification:**
-- `pnpm --filter publisher-backend test` 全绿
+- `pnpm --filter "@51publisher/backend" test` 全绿
 - 每个缺失 schema 的 route 补完后独立验证
 
 ### U1.2. Migrations 编号整理
@@ -471,7 +471,7 @@ const server = Fastify({ bodyLimit: 1048576 }) // 1MB
 
 **Approach:**
 ```bash
-hyperfine --warmup 1 'pnpm --filter publisher-backend build' 'pnpm --filter publisher-fill-assistant build'
+hyperfine --warmup 1 'pnpm --filter "@51publisher/backend" build' 'pnpm --filter "@51publisher/extension" build'
 ```
 
 记录结果到 `docs/baselines/build-baseline.md`。

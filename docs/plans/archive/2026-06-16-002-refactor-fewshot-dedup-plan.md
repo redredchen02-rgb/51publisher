@@ -183,7 +183,7 @@ Unit 8  test suite updates (all files)
 - Edge case: 只有空白行 → `[]`（filter(Boolean) 行為）
 
 **Verification:**
-- `pnpm --filter publisher-fill-assistant test` 全綠，新函數有對應測試通過
+- `pnpm --filter "@51publisher/extension" test` 全綠，新函數有對應測試通過
 
 ---
 
@@ -271,7 +271,7 @@ Unit 8  test suite updates (all files)
 - Edge case: stored 為空 → 返回 `DEFAULT_SETTINGS`（含空 `fewShotPairs`）
 
 **Verification:**
-- `pnpm --filter publisher-fill-assistant test` 全綠
+- `pnpm --filter "@51publisher/extension" test` 全綠
 - `storage.test.ts` 中凡引用 `fewShotExamples` 的測試已全部更新或移除
 
 ---
@@ -301,7 +301,7 @@ Unit 8  test suite updates (all files)
 - Happy path: `updatePrompt(id, {fewShotPairs: [...]})` → 正確 PUT 請求
 
 **Verification:**
-- `pnpm --filter publisher-fill-assistant compile` 無錯（此時 prompt-client.ts 不再含 fewShotExamples 型別）
+- `pnpm --filter "@51publisher/extension" compile` 無錯（此時 prompt-client.ts 不再含 fewShotExamples 型別）
 
 ---
 
@@ -363,7 +363,7 @@ Unit 8  test suite updates (all files)
 - 確認 `importFewShot`（原 3 條測試）已移除或重新標記為 skip
 
 **Verification:**
-- `pnpm --filter publisher-fill-assistant test` 全綠
+- `pnpm --filter "@51publisher/extension" test` 全綠
 - `SettingsFormReturnValue` interface 無 `importFewShot`
 
 ---
@@ -410,7 +410,7 @@ Unit 8  test suite updates (all files)
 - Happy path: Settings 組件掛載後只渲染 `FewShotPairEditor`，無 `<textarea>` 存在於 DOM
 
 **Verification:**
-- `pnpm --filter publisher-fill-assistant test` 全綠
+- `pnpm --filter "@51publisher/extension" test` 全綠
 - `grep -rn "PromptCard\|PromptManagementCard" packages/extension` 結果為零（確認死碼已刪）
 
 ---

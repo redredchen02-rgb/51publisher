@@ -83,7 +83,7 @@ cd packages/backend && pnpm start
 
 | 检查项 | 方法 | 预期 |
 |--------|------|------|
-| 后端编译零错误 | `pnpm --filter publisher-backend compile` | 无红字 |
+| 后端编译零错误 | `pnpm --filter "@51publisher/backend" compile` | 无红字 |
 | 后端运行 | `curl http://127.0.0.1:3001/api/v1/auth/status` | `{"ok":true,"authenticated":false}` |
 | 扩展已加载今天构建 | chrome://extensions → 查看「最后更新」时间 | 今天 |
 | 登录 round-trip | 扩展侧边栏登录 | 200 + token |

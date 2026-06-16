@@ -17,7 +17,7 @@ needs_build() {
 
 if needs_build; then
   echo "[start-backend] dist is stale or missing — building…"
-  (cd "$REPO_ROOT" && pnpm --filter publisher-backend build)
+  (cd "$REPO_ROOT" && pnpm --filter "@51publisher/backend" build)
 fi
 
 # Check if backend is already running.

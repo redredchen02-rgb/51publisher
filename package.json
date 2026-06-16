@@ -1,13 +1,13 @@
 {
-	"name": "publisher-monorepo",
+	"name": "@51publisher/monorepo",
 	"private": true,
 	"type": "module",
 	"scripts": {
 		"setup": "pnpm install",
-		"dev:extension": "pnpm --filter publisher-fill-assistant dev",
-		"dev:backend": "pnpm --filter publisher-backend dev",
-		"build:extension": "pnpm --filter publisher-fill-assistant build",
-		"build:backend": "pnpm --filter publisher-backend build",
+		"dev:extension": "pnpm --filter @51publisher/extension dev",
+		"dev:backend": "pnpm --filter @51publisher/backend dev",
+		"build:extension": "pnpm --filter @51publisher/extension build",
+		"build:backend": "pnpm --filter @51publisher/backend build",
 		"test": "pnpm -r test",
 		"coverage": "pnpm -r --parallel coverage",
 		"compile": "pnpm -r compile",
@@ -22,10 +22,10 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.16",
-		"@vitest/coverage-v8": "^4.1.8",
+		"@vitest/coverage-v8": "^4.1.9",
 		"jsdom": "^25.0.1",
 		"tsx": "^4.19.2",
-		"vitest": "^4.1.8"
+		"vitest": "^4.1.9"
 	},
 	"pnpm": {
 		"onlyBuiltDependencies": [

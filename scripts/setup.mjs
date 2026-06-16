@@ -245,7 +245,7 @@ function needsBuild() {
 
 if (needsBuild()) {
 	info("构建后端...");
-	run("pnpm --filter publisher-backend build");
+	run('pnpm --filter "@51publisher/backend" build');
 	ok("后端构建完成 ✓");
 } else {
 	ok("后端构建产物是最新的，跳过构建 ✓");

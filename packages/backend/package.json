@@ -1,5 +1,5 @@
 {
-	"name": "publisher-backend",
+	"name": "@51publisher/backend",
 	"version": "0.2.2",
 	"private": true,
 	"type": "module",
@@ -32,6 +32,6 @@
 		"@types/node-cron": "^3.0.11",
 		"tsx": "^4.19.3",
 		"typescript": "^6.0.3",
-		"vitest": "^4.1.8"
+		"vitest": "^4.1.9"
 	}
 }
