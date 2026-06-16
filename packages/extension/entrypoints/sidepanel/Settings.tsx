@@ -21,6 +21,7 @@ import {
 	saveSettings,
 } from "../../lib/storage";
 import { FewShotPairEditor } from "./components/FewShotPairEditor";
+import styles from "./Settings.module.css";
 
 const MAX_PAIRS = 8;
 
@@ -251,16 +252,13 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			<button
 				type="button"
 				onClick={onClose}
-				className="btn btn-plain"
-				style={{ marginBottom: "var(--space-md)" }}
+				className={`btn btn-plain ${styles.backBtn}`}
 			>
 				← 返回
 			</button>
-			<h2 style={{ fontSize: "var(--font-lg)", margin: "0 0 var(--space-sm)" }}>
-				设置
-			</h2>
+			<h2 className={styles.heading}>设置</h2>
 
-			<p className="field-hint" style={{ marginBottom: "var(--space-md)" }}>
+			<p className={`field-hint ${styles.intro}`}>
 				⚙️ 大模型 endpoint 与 API Key 已在后端服务 .env 中配置，扩展不直接管理。
 			</p>
 
@@ -309,24 +307,18 @@ export function Settings({ onClose }: { onClose: () => void }) {
 				</p>
 
 				{/* 备用 LLM */}
-				<div className="card" style={{ marginTop: "var(--space-lg)" }}>
+				<div className={`card ${styles.nestedCard}`}>
 					<button
 						type="button"
 						aria-expanded={fallbackOpen}
 						onClick={() => setFallbackOpen((v) => !v)}
-						className="btn-icon text-secondary"
-						style={{
-							width: "100%",
-							textAlign: "left",
-							fontSize: "var(--font-sm)",
-							padding: 0,
-						}}
+						className={`btn-icon text-secondary ${styles.fallbackToggle}`}
 					>
 						{fallbackOpen ? "▼" : "▶"} 备用 LLM 模型
 						{fallbackModel ? " (已配置)" : " (可选)"}
 					</button>
 					{fallbackOpen && (
-						<div style={{ marginTop: "var(--space-lg)" }}>
+						<div className={styles.fallbackContent}>
 							<p className="field-hint">主模型失败时自动回退。留空即不启用。</p>
 							<div className="field-group">
 								<label htmlFor="fallback-model" className="field-label">
@@ -411,10 +403,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 				<div className="field-group">
 					<label className="field-label">
 						Few-shot 范例
-						<span
-							className="font-normal text-muted"
-							style={{ marginLeft: "var(--space-sm)" }}
-						>
+						<span className={`font-normal text-muted ${styles.fewShotCount}`}>
 							({fewShotPairs.length}/{MAX_PAIRS})
 						</span>
 					</label>
@@ -447,8 +436,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 						</button>
 					</label>
 					<textarea
-						className="field-input"
-						style={{ minHeight: 120 }}
+						className={`field-input ${styles.textareaMd}`}
 						value={promptTemplate}
 						onChange={(e) => setPromptTemplate(e.target.value)}
 					/>
@@ -473,8 +461,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 						</button>
 					</label>
 					<textarea
-						className="field-input"
-						style={{ minHeight: 100 }}
+						className={`field-input ${styles.textareaSm}`}
 						value={fewShotExamples}
 						onChange={(e) => setFewShotExamples(e.target.value)}
 					/>
@@ -492,8 +479,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 					</label>
 					<textarea
 						id="tags"
-						className="field-input"
-						style={{ minHeight: 80 }}
+						className={`field-input ${styles.textareaXs}`}
 						placeholder={"漢化\n無修正\n校園日常\n…（约 20–50 条为宜）"}
 						value={tagsText}
 						onChange={(e) => setTagsText(e.target.value)}
@@ -509,8 +495,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 					</label>
 					<textarea
 						id="review-criteria"
-						className="field-input"
-						style={{ minHeight: 80 }}
+						className={`field-input ${styles.textareaXs}`}
 						placeholder={
 							"留空=内置四维标准(内容丰富度/社群语气/标题质量/分类准确)。\n如需自定义,请按 JSON 格式写入各维度标准。"
 						}
@@ -541,8 +526,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 					</label>
 					{prompts.length > 0 && (
 						<select
-							className="field-input"
-							style={{ marginBottom: "var(--space-sm)" }}
+							className={`field-input ${styles.promptSelect}`}
 							value={selectedPromptId}
 							onChange={handleSelectPrompt}
 						>
@@ -556,8 +540,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 					)}
 					<button
 						type="button"
-						className="btn btn-plain btn-sm"
-						style={{ marginTop: "var(--space-xs)" }}
+						className={`btn btn-plain btn-sm ${styles.saveToBackendBtn}`}
 						onClick={handleSaveToBackend}
 					>
 						保存到后端
@@ -581,12 +564,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 						</button>
 					</label>
 					<textarea
-						className="field-input"
-						style={{
-							minHeight: 140,
-							fontFamily: "monospace",
-							fontSize: "var(--font-xs)",
-						}}
+						className={`field-input ${styles.textareaMapping}`}
 						value={mappingText}
 						onChange={(e) => setMappingText(e.target.value)}
 					/>
@@ -603,8 +581,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			<button
 				type="button"
 				onClick={handleSave}
-				className="btn btn-primary"
-				style={{ marginTop: "var(--space-lg)" }}
+				className={`btn btn-primary ${styles.saveBtn}`}
 			>
 				保存
 			</button>

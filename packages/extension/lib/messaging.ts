@@ -1,6 +1,9 @@
 import type {
 	ContentDraft,
 	FillPageResponse,
+	FirstFlightRehearseResult,
+	FirstFlightRunResult,
+	FirstFlightStatusResult,
 	GenerateDraftResponse,
 	RuntimeMessage,
 } from "@51publisher/shared";
@@ -22,7 +25,11 @@ const SW_TIMEOUT: Partial<Record<RuntimeMessage["type"], number>> = {
 	RELEASE_QUARANTINE: 10_000,
 	RELEASE_QUARANTINE_BATCH: 10_000,
 	RETRY_BATCH_ITEM: 10_000,
+	REFILL_ITEM_FACTS: 10_000, // 纯重组装 + 重跑闸门,无 LLM
 	DISCARD_BATCH_ITEM: 10_000,
+	FIRST_FLIGHT_REHEARSE: 60_000, // dry-run 填充 + grounding(无 LLM,但要等 content fill)
+	FIRST_FLIGHT_RUN: 120_000, // 排演 + 武装 + 派发一条 + revert
+	FIRST_FLIGHT_STATUS: 10_000,
 };
 
 function sendMsg<T>(msg: RuntimeMessage): Promise<T> {
@@ -174,6 +181,18 @@ export async function retryBatchItemMsg(
 	return sendMsg<BatchResponse>({ type: "RETRY_BATCH_ITEM", itemId });
 }
 
+/**
+ * 操作者补齐缺失事实(作品名/集数/…)后提交:background 合并事实 → 重组装 → 重跑闸门。
+ * 仅 gate-failed 且含 slots 的条目可用;通过则提升到 awaiting-approval,否则仍 gate-failed。
+ * 这是特权通道(改 facts/draft/snapshot 并驱动提升),只应从 side panel 发起。
+ */
+export async function refillItemFacts(
+	itemId: string,
+	facts: Partial<FactsBlock>,
+): Promise<BatchResponse> {
+	return sendMsg<BatchResponse>({ type: "REFILL_ITEM_FACTS", itemId, facts });
+}
+
 /** 操作者否决/丢弃单条 awaiting-approval 条目(→ aborted);rejectionReason 供后端统计用。 */
 export async function discardBatchItem(
 	itemId: string,
@@ -197,6 +216,37 @@ export async function approveSingleItem(
 /** 读当前批次(加载即崩溃恢复)。 */
 export async function getBatchState(): Promise<BatchResponse> {
 	return sendMsg<BatchResponse>({ type: "GET_BATCH" });
+}
+
+// ---- 首飞向导(first-flight wizard)----
+
+/** 首飞排演(只读):dry-run + grounding,不武装不派发。 */
+export async function firstFlightRehearse(
+	tabId: number,
+	itemId: string,
+): Promise<FirstFlightRehearseResult> {
+	return sendMsg<FirstFlightRehearseResult>({
+		type: "FIRST_FLIGHT_REHEARSE",
+		tabId,
+		itemId,
+	});
+}
+
+/** 首飞执行:排演→武装→最小窗口派发恰好一条→revert。host 由背景取,不接受携带。 */
+export async function firstFlightRun(
+	tabId: number,
+	itemId: string,
+): Promise<FirstFlightRunResult> {
+	return sendMsg<FirstFlightRunResult>({
+		type: "FIRST_FLIGHT_RUN",
+		tabId,
+		itemId,
+	});
+}
+
+/** 读首飞状态(mode/是否武装/坏值),供向导侦测背景强制 reset 再入。 */
+export async function firstFlightStatus(): Promise<FirstFlightStatusResult> {
+	return sendMsg<FirstFlightStatusResult>({ type: "FIRST_FLIGHT_STATUS" });
 }
 
 /** 轻量漂移自检:让钉住 tab 的 content 查关键选择器是否缺失。 */

@@ -512,7 +512,7 @@ describe("Phase-5 U9 features", () => {
 		fireEvent.click(screen.getByText("gate-topic"));
 		expect(screen.getByLabelText("接地拦截原因")).toBeTruthy();
 		expect(screen.getByText(/标题含【待补】/)).toBeTruthy();
-		expect(screen.getByText("重新生成")).toBeTruthy();
+		expect(screen.getByText("需重新生成")).toBeTruthy();
 	});
 
 	it("gate-failed 条目 → 不显示批准/审批按钮", () => {
@@ -558,7 +558,7 @@ describe("Phase-5 U9 features", () => {
 			/>,
 		);
 		fireEvent.click(screen.getByText("gate-topic"));
-		fireEvent.click(screen.getByText("重新生成"));
+		fireEvent.click(screen.getByText("需重新生成"));
 		expect(onRetryItem).toHaveBeenCalledWith("item_0");
 	});
 

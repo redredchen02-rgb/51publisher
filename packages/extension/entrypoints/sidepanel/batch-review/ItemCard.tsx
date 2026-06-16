@@ -1,7 +1,12 @@
-import type { ContentDraft, RejectionReason } from "@51publisher/shared";
+import type {
+	ContentDraft,
+	FactsBlock,
+	RejectionReason,
+} from "@51publisher/shared";
 import type { BatchItem } from "../../../lib/batch";
 import { DraftPreview } from "../DraftPreview";
 import { btn, REJECTION_REASON_LABELS, STATUS_LABEL } from "./constants";
+import { emptyFactSlots, FactsOverlay } from "./FactsOverlay";
 import { FillStatusTable, GroundingStrip } from "./sub-blocks";
 
 interface ItemCardProps {
@@ -16,7 +21,8 @@ interface ItemCardProps {
 	onItemEdited?: (itemId: string) => void;
 	onSaveAsFewShot?: (itemId: string) => void;
 	onDiscardItem?: (itemId: string, rejectionReason?: RejectionReason) => void;
-	onFixPlaceholder: (itemId: string, currentDraft: ContentDraft) => void;
+	/** U6:操作者补全缺失事实后提交(itemId + 补的事实);驱动后台重组装。 */
+	onRefillFacts?: (itemId: string, facts: Partial<FactsBlock>) => void;
 	/** U9:否决流程 — 当前正在选择拒绝原因的条目 id。 */
 	discardPickerId: string | null;
 	setDiscardPickerId: (id: string | null) => void;
@@ -36,7 +42,7 @@ export function ItemCard({
 	onItemEdited,
 	onSaveAsFewShot,
 	onDiscardItem,
-	onFixPlaceholder,
+	onRefillFacts,
 	discardPickerId,
 	setDiscardPickerId,
 	discardReason,
@@ -284,24 +290,50 @@ export function ItemCard({
 									</div>
 								</div>
 							)}
-							{onRetryItem && (
-								<button
-									type="button"
-									onClick={() => onRetryItem(it.id)}
-									disabled={busy}
-									style={{
-										...btn,
-										marginLeft: 6,
-										padding: "2px 8px",
-										fontSize: 11,
-										background: "var(--color-warning-light)",
-										border: "1px solid var(--color-warning-border)",
-										color: "var(--color-warning-deep)",
-									}}
-								>
-									重新生成
-								</button>
-							)}
+							{(() => {
+								// 可补全 = 含 slots(可重组装)且尚有为空的事实槽位。
+								// 否则(无 slots / 散文内残留【待补】、无可填字段)→ 走「需重新生成」兜底。
+								const fillable =
+									!!it.slots && onRefillFacts && emptyFactSlots(it).length > 0;
+								if (fillable && onRefillFacts) {
+									return (
+										<FactsOverlay
+											item={it}
+											busy={busy}
+											onRefillFacts={onRefillFacts}
+										/>
+									);
+								}
+								return (
+									onRetryItem && (
+										<div style={{ marginTop: 6 }}>
+											<span
+												className="text-warning-deep"
+												style={{ fontSize: 11, marginRight: 6 }}
+											>
+												{it.slots
+													? "无可补全的缺失事实(占位在散文内),需重新生成。"
+													: "该条目无可重组装的槽位(旧条目),需重新生成。"}
+											</span>
+											<button
+												type="button"
+												onClick={() => onRetryItem(it.id)}
+												disabled={busy}
+												style={{
+													...btn,
+													padding: "2px 8px",
+													fontSize: 11,
+													background: "var(--color-warning-light)",
+													border: "1px solid var(--color-warning-border)",
+													color: "var(--color-warning-deep)",
+												}}
+											>
+												需重新生成
+											</button>
+										</div>
+									)
+								);
+							})()}
 						</div>
 					)}
 					{it.status === "awaiting-approval" && it.draft && onDraftChange ? (
@@ -372,16 +404,6 @@ export function ItemCard({
 						<GroundingStrip
 							draft={draftOverrides?.get(it.id) ?? it.draft}
 							facts={it.facts}
-							onFixPlaceholder={
-								onDraftChange
-									? () =>
-											onFixPlaceholder(
-												it.id,
-												(draftOverrides?.get(it.id) ??
-													it.draft) as ContentDraft,
-											)
-									: undefined
-							}
 						/>
 					)}
 					<FillStatusTable results={it.fillResults} />

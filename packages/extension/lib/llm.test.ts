@@ -76,6 +76,45 @@ describe("Extension LLM client proxy", () => {
 		);
 	});
 
+	it("generateDraft passes slots through from the backend response", async () => {
+		const fakeDraft = { id: "draft_1", title: "hello", body: "body content" };
+		const fakeSlots = {
+			intro: "开场",
+			highlights: "看点",
+			subtitle: "副标题",
+		};
+		const f = mockFetch({ ok: true, draft: fakeDraft, slots: fakeSlots });
+
+		const res = await generateDraft("hi", {
+			settings,
+			apiKey: "",
+			facts: {},
+			fetchFn: f,
+		});
+
+		expect(res.ok).toBe(true);
+		if (res.ok) {
+			expect(res.slots).toEqual(fakeSlots);
+		}
+	});
+
+	it("generateDraft tolerates a response without slots (legacy)", async () => {
+		const fakeDraft = { id: "draft_1", title: "hello", body: "body content" };
+		const f = mockFetch({ ok: true, draft: fakeDraft });
+
+		const res = await generateDraft("hi", {
+			settings,
+			apiKey: "",
+			facts: {},
+			fetchFn: f,
+		});
+
+		expect(res.ok).toBe(true);
+		if (res.ok) {
+			expect(res.slots).toBeUndefined();
+		}
+	});
+
 	it("generateDraft returns error when backend returns non-ok response", async () => {
 		const f = mockFetch({ error: "Backend error" }, { ok: false, status: 500 });
 

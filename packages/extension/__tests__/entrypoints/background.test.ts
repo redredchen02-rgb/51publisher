@@ -1,4 +1,10 @@
-import type { ContentDraft, Settings } from "@51publisher/shared";
+import type {
+	ContentDraft,
+	DraftSlots,
+	FactsBlock,
+	Settings,
+} from "@51publisher/shared";
+import { assembleDraft, toDraft } from "@51publisher/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeBrowser } from "wxt/testing";
 import {
@@ -9,6 +15,7 @@ import {
 	runStartupGeneratingRecovery,
 } from "../../entrypoints/background";
 import type { Batch } from "../../lib/batch";
+import { evaluateGrounding } from "../../lib/grounding-gate";
 
 // ---- helpers ----
 
@@ -70,7 +77,11 @@ function makeDeps(
 		addPublishedTopics: vi.fn(async () => {}),
 		appendTrajectory: vi.fn(async () => ({ snapshotDropped: false })),
 		getSafetyMode: vi.fn(async () => "authorized" as const),
+		setSafetyMode: vi.fn(async () => {}),
 		getAuthorizedHosts: vi.fn(async () => [HOST]),
+		getFirstFlight: vi.fn(async () => ({ state: "absent" as const })),
+		writeFirstFlight: vi.fn(async () => true),
+		clearFirstFlight: vi.fn(async () => {}),
 		tabsGet: vi.fn(
 			async () =>
 				({ url: `https://${HOST}/admin`, id: 1 }) as {
@@ -725,6 +736,164 @@ describe("runStartupGeneratingRecovery", () => {
 	});
 });
 
+// ================================================================
+// handleRefillItemFacts (Unit 5)
+// ================================================================
+
+describe("handleRefillItemFacts", () => {
+	beforeEach(() => {
+		fakeBrowser.reset();
+	});
+
+	// 构造一个 gate-failed 条目:缺作品名 → assembleDraft 出 PLACEHOLDER 标题(残留【待补】)。
+	function makeGateFailedBatch(): Batch {
+		const slots: DraftSlots = {
+			titleSuffix: "成人動畫介紹",
+			subtitle: "一句吸睛话",
+			intro: "开场白",
+			highlights: "看点散文",
+		};
+		const facts: FactsBlock = {}; // 缺作品名/集数 → 标题带【待补】
+		const assembled = assembleDraft(slots, facts);
+		const failedDraft: ContentDraft = {
+			...toDraft(assembled, "2", [], "item_0", "2026-06-04T00:00:00.000Z"),
+			coverImageUrl: "https://cdn.example.com/cover.png",
+		};
+		return {
+			id: "batch_1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "2026-06-04T00:00:00.000Z",
+			items: [
+				{
+					id: "item_0",
+					topic: "topic-a",
+					status: "gate-failed",
+					draft: failedDraft,
+					assembledDraftSnapshot: failedDraft,
+					facts,
+					slots,
+					gateFailReason: "标题仍含【待补】(缺作品名),请补全或编辑后再发。",
+				},
+			],
+		};
+	}
+
+	it("happy: valid facts on gate-failed item with slots → awaiting-approval, saved", async () => {
+		const batch = makeGateFailedBatch();
+		const saveBatch = vi.fn(async () => {});
+		const deps = makeDeps({ getBatch: vi.fn(async () => batch), saveBatch });
+		const h = createHandlers(deps);
+		const result = await h.handleRefillItemFacts("item_0", {
+			作品名: "某作",
+			集数: "第3集",
+		});
+		expect(result?.items[0]?.status).toBe("awaiting-approval");
+		expect(result?.items[0]?.gateFailReason).toBeUndefined();
+		expect(saveBatch).toHaveBeenCalledTimes(1);
+	});
+
+	it("edge: item without slots → no-op (stays gate-failed, not saved)", async () => {
+		const batch = makeGateFailedBatch();
+		const item0 = batch.items[0];
+		if (item0) item0.slots = undefined; // 模拟旧条目缺 slots(不可重组装)
+		const saveBatch = vi.fn(async () => {});
+		const deps = makeDeps({ getBatch: vi.fn(async () => batch), saveBatch });
+		const h = createHandlers(deps);
+		const result = await h.handleRefillItemFacts("item_0", { 作品名: "某作" });
+		expect(result?.items[0]?.status).toBe("gate-failed");
+		expect(saveBatch).not.toHaveBeenCalled();
+	});
+
+	it("error: unknown itemId → no-op, not saved", async () => {
+		const batch = makeGateFailedBatch();
+		const saveBatch = vi.fn(async () => {});
+		const deps = makeDeps({ getBatch: vi.fn(async () => batch), saveBatch });
+		const h = createHandlers(deps);
+		const result = await h.handleRefillItemFacts("nope", { 作品名: "某作" });
+		expect(result).toBe(batch);
+		expect(saveBatch).not.toHaveBeenCalled();
+	});
+
+	it("error: item not gate-failed → no-op, not saved", async () => {
+		const batch = makeGateFailedBatch();
+		const item0 = batch.items[0];
+		if (item0) item0.status = "awaiting-approval";
+		const saveBatch = vi.fn(async () => {});
+		const deps = makeDeps({ getBatch: vi.fn(async () => batch), saveBatch });
+		const h = createHandlers(deps);
+		const result = await h.handleRefillItemFacts("item_0", { 作品名: "某作" });
+		expect(result?.items[0]?.status).toBe("awaiting-approval");
+		expect(saveBatch).not.toHaveBeenCalled();
+	});
+
+	it("getBatch null → returns null", async () => {
+		const deps = makeDeps({ getBatch: vi.fn(async () => null) });
+		const h = createHandlers(deps);
+		expect(await h.handleRefillItemFacts("item_0", {})).toBeNull();
+	});
+
+	it("error: invalid operator URL fact → kept gate-failed with reason, draft unchanged", async () => {
+		const batch = makeGateFailedBatch();
+		const originalDraft = batch.items[0]?.draft;
+		const saveBatch = vi.fn(async () => {});
+		const deps = makeDeps({ getBatch: vi.fn(async () => batch), saveBatch });
+		const h = createHandlers(deps);
+		const result = await h.handleRefillItemFacts("item_0", {
+			作品名: "某作",
+			漢化: "http://insecure.example.com/x",
+		});
+		expect(result?.items[0]?.status).toBe("gate-failed");
+		expect(result?.items[0]?.draft).toBe(originalDraft); // draft 未被改写
+		expect(result?.items[0]?.gateFailReason).toContain("漢化");
+		expect(saveBatch).toHaveBeenCalledTimes(1);
+	});
+
+	it("integration (no-mock): saved batch reflects new facts/draft/snapshot via REAL reassemble+refillGateFailed", async () => {
+		const batch = makeGateFailedBatch();
+		const saveBatch = vi.fn(async (_b: Batch) => {});
+		const deps = makeDeps({ getBatch: vi.fn(async () => batch), saveBatch });
+		const h = createHandlers(deps);
+		await h.handleRefillItemFacts("item_0", { 作品名: "某作", 集数: "第3集" });
+		const saved = saveBatch.mock.calls[0]?.[0];
+		const item = saved?.items[0];
+		expect(item?.facts?.作品名).toBe("某作");
+		expect(item?.facts?.集数).toBe("第3集");
+		// 标题不再含【待补】,且 draft 与 snapshot 内容一致(同由 assembler 写出)。
+		expect(item?.draft?.title).not.toContain("【待补");
+		expect(item?.assembledDraftSnapshot?.title).toBe(item?.draft?.title);
+		// 封面在重组装后被保留(toDraft 会归零,handler 显式保留)。
+		expect(item?.draft?.coverImageUrl).toBe(
+			"https://cdn.example.com/cover.png",
+		);
+	});
+
+	it("integration (no-mock, mirrors Unit 4): refill clears the REAL authorized grounding hard-gate", async () => {
+		const batch = makeGateFailedBatch();
+		// 重填前:authorized 闸门(读 snapshot ?? draft)必然拦(残留【待补】)。
+		const before = batch.items[0];
+		const beforeSnap = before?.assembledDraftSnapshot ?? before?.draft;
+		expect(
+			evaluateGrounding(beforeSnap as ContentDraft, before?.facts).ok,
+		).toBe(false);
+
+		const saveBatch = vi.fn(async (_b: Batch) => {});
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => batch),
+			saveBatch,
+		});
+		const h = createHandlers(deps);
+		await h.handleRefillItemFacts("item_0", { 作品名: "某作", 集数: "第3集" });
+
+		// 重填后:同一 authorized 闸门(checkGrounding(snapshot ?? draft, facts))现在放行。
+		const after = saveBatch.mock.calls[0]?.[0]?.items[0];
+		const afterSnap = after?.assembledDraftSnapshot ?? after?.draft;
+		const verdict = evaluateGrounding(afterSnap as ContentDraft, after?.facts);
+		expect(verdict.ok).toBe(true);
+		expect(after?.status).toBe("awaiting-approval");
+	});
+});
+
 describe("asPublishResult(R4 判别式形状校验)", () => {
 	it("合法成功(ok:true 无 error)原样通过", () => {
 		expect(
@@ -769,5 +938,583 @@ describe("asPublishResult(R4 判别式形状校验)", () => {
 			dryRun: false,
 			error: "content-response-invalid",
 		});
+	});
+});
+
+// ================================================================
+// First-flight: arm / startup reset / watchdog / interlock (Unit 4/5)
+// ================================================================
+
+import { hashDraft } from "../../lib/first-flight";
+import type { FirstFlightMarker, FirstFlightRead } from "../../lib/storage";
+
+/** 内存 first-flight store(模拟 durable 写 + 读回)。 */
+function makeFFStore(initial: FirstFlightRead = { state: "absent" }) {
+	let cur: FirstFlightRead = initial;
+	return {
+		getFirstFlight: vi.fn(async () => cur),
+		writeFirstFlight: vi.fn(async (m: FirstFlightMarker) => {
+			cur = { state: "ok", marker: m };
+			return true;
+		}),
+		clearFirstFlight: vi.fn(async () => {
+			cur = { state: "absent" };
+		}),
+		peek: () => cur,
+	};
+}
+
+describe("first-flight arm 串行武装", () => {
+	beforeEach(() => fakeBrowser.reset());
+
+	it("happy:写标记 + 读回确认 → 翻 authorized", async () => {
+		const ff = makeFFStore();
+		const setSafetyMode = vi.fn(async () => {});
+		const armWatchdog = vi.fn();
+		const deps = makeDeps({
+			getSafetyMode: vi.fn(async () => "dry-run" as const),
+			setSafetyMode,
+			getFirstFlight: ff.getFirstFlight,
+			writeFirstFlight: ff.writeFirstFlight,
+			clearFirstFlight: ff.clearFirstFlight,
+			armWatchdog,
+		});
+		const h = createHandlers(deps);
+		const res = await h.handleArmFirstFlight({
+			itemId: "item_0",
+			tabId: 1,
+			host: HOST,
+			draft: DRAFT,
+		});
+		expect(res.ok).toBe(true);
+		expect(setSafetyMode).toHaveBeenCalledWith("authorized");
+		expect(armWatchdog).toHaveBeenCalledOnce();
+		const cur = ff.peek();
+		expect(cur.state).toBe("ok");
+		if (cur.state === "ok") {
+			expect(cur.marker.mode).toBe("dry-run");
+			expect(cur.marker.pending?.contentHash).toBe(await hashDraft(DRAFT));
+		}
+	});
+
+	it("write 读回失败 → REJECT arm,绝不翻 authorized,清半写状态", async () => {
+		const setSafetyMode = vi.fn(async () => {});
+		const clearFirstFlight = vi.fn(async () => {});
+		const deps = makeDeps({
+			getFirstFlight: vi.fn(async () => ({ state: "absent" as const })),
+			writeFirstFlight: vi.fn(async () => false), // 读回不符
+			clearFirstFlight,
+			setSafetyMode,
+		});
+		const h = createHandlers(deps);
+		const res = await h.handleArmFirstFlight({
+			itemId: "item_0",
+			tabId: 1,
+			host: HOST,
+			draft: DRAFT,
+		});
+		expect(res.ok).toBe(false);
+		expect(setSafetyMode).not.toHaveBeenCalledWith("authorized");
+		expect(clearFirstFlight).toHaveBeenCalled();
+	});
+
+	it("并发双 arm:第二次因标记已在场被拒(串行队列)", async () => {
+		const ff = makeFFStore();
+		const deps = makeDeps({
+			getSafetyMode: vi.fn(async () => "dry-run" as const),
+			setSafetyMode: vi.fn(async () => {}),
+			getFirstFlight: ff.getFirstFlight,
+			writeFirstFlight: ff.writeFirstFlight,
+			clearFirstFlight: ff.clearFirstFlight,
+		});
+		const h = createHandlers(deps);
+		const [r1, r2] = await Promise.all([
+			h.handleArmFirstFlight({
+				itemId: "item_0",
+				tabId: 1,
+				host: HOST,
+				draft: DRAFT,
+			}),
+			h.handleArmFirstFlight({
+				itemId: "item_0",
+				tabId: 1,
+				host: HOST,
+				draft: DRAFT,
+			}),
+		]);
+		const oks = [r1.ok, r2.ok].filter(Boolean);
+		expect(oks).toHaveLength(1);
+	});
+});
+
+describe("first-flight 启动 reset", () => {
+	beforeEach(() => fakeBrowser.reset());
+
+	it("happy:无标记 → 不动 mode,无 alert", async () => {
+		const setSafetyMode = vi.fn(async () => {});
+		const emit = vi.fn();
+		const deps = makeDeps({
+			getFirstFlight: vi.fn(async () => ({ state: "absent" as const })),
+			setSafetyMode,
+			emitSecurityAlert: emit,
+		});
+		const h = createHandlers(deps);
+		await h.ensureStartupReset();
+		expect(setSafetyMode).not.toHaveBeenCalled();
+		expect(emit).not.toHaveBeenCalled();
+	});
+
+	it("pending 残留 + authorized → 强制 dry-run + 清标记 + 安全事件", async () => {
+		const setSafetyMode = vi.fn(async () => {});
+		const clearFirstFlight = vi.fn(async () => {});
+		const emit = vi.fn();
+		const marker: FirstFlightMarker = {
+			mode: "dry-run",
+			pending: {
+				itemId: "item_0",
+				tabId: 1,
+				host: HOST,
+				contentHash: "h",
+				nonce: "n",
+				ts: "t",
+			},
+		};
+		const deps = makeDeps({
+			getFirstFlight: vi.fn(async () => ({ state: "ok" as const, marker })),
+			setSafetyMode,
+			clearFirstFlight,
+			emitSecurityAlert: emit,
+		});
+		const h = createHandlers(deps);
+		await h.ensureStartupReset();
+		expect(setSafetyMode).toHaveBeenCalledWith("dry-run");
+		expect(clearFirstFlight).toHaveBeenCalled();
+		expect(emit).toHaveBeenCalledWith(
+			"first-flight-forced-reset",
+			expect.anything(),
+		);
+	});
+
+	it("坏值标记 → 强制 reset", async () => {
+		const setSafetyMode = vi.fn(async () => {});
+		const deps = makeDeps({
+			getFirstFlight: vi.fn(async () => ({ state: "bad" as const })),
+			setSafetyMode,
+		});
+		const h = createHandlers(deps);
+		await h.ensureStartupReset();
+		expect(setSafetyMode).toHaveBeenCalledWith("dry-run");
+	});
+
+	it("N 连续 reset → 回落 off + 要求重新启用", async () => {
+		const setSafetyMode = vi.fn(async () => {});
+		const emit = vi.fn();
+		const deps = makeDeps({
+			getFirstFlight: vi.fn(async () => ({ state: "bad" as const })),
+			setSafetyMode,
+			emitSecurityAlert: emit,
+		});
+		const h = createHandlers(deps);
+		await h.ensureStartupReset(); // 第 1 次:dry-run
+		// 强制再触发一次 reset(模拟 guard 再次发现坏标记):用 watchdog 路径制造第 2 次。
+		await h.handleWatchdog();
+		expect(setSafetyMode).toHaveBeenLastCalledWith("off");
+		expect(emit).toHaveBeenCalledWith(
+			"first-flight-wedge-fallback-off",
+			expect.anything(),
+		);
+	});
+
+	it("publish-class handler 发 grant 前 await 启动 reset", async () => {
+		// 残留标记:approve 必须先跑 reset(setSafetyMode dry-run)再继续。
+		const setSafetyMode = vi.fn(async () => {});
+		const order: string[] = [];
+		const marker: FirstFlightMarker = { mode: "dry-run", pending: null };
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => null),
+			getFirstFlight: vi.fn(async () => ({ state: "ok" as const, marker })),
+			setSafetyMode: vi.fn(async (m) => {
+				order.push(`setMode:${m}`);
+			}),
+			clearFirstFlight: vi.fn(async () => {
+				order.push("clear");
+			}),
+		});
+		const h = createHandlers(deps);
+		await h.handleApproveBatch(1);
+		// reset 在 approve 工作之前发生。
+		expect(order).toContain("setMode:dry-run");
+	});
+});
+
+describe("first-flight 看门狗", () => {
+	beforeEach(() => fakeBrowser.reset());
+
+	it("标记在场 → fire → 强制 dry-run + 清标记 + 安全事件", async () => {
+		const setSafetyMode = vi.fn(async () => {});
+		const clearFirstFlight = vi.fn(async () => {});
+		const emit = vi.fn();
+		const marker: FirstFlightMarker = {
+			mode: "dry-run",
+			pending: {
+				itemId: "item_0",
+				tabId: 1,
+				host: HOST,
+				contentHash: "h",
+				nonce: "n",
+				ts: "t",
+			},
+		};
+		const deps = makeDeps({
+			getFirstFlight: vi.fn(async () => ({ state: "ok" as const, marker })),
+			setSafetyMode,
+			clearFirstFlight,
+			emitSecurityAlert: emit,
+		});
+		const h = createHandlers(deps);
+		await h.handleWatchdog();
+		expect(setSafetyMode).toHaveBeenCalledWith("dry-run");
+		expect(clearFirstFlight).toHaveBeenCalled();
+		expect(emit).toHaveBeenCalledWith("first-flight-watchdog-fired", {});
+	});
+
+	it("无标记 → 看门狗 no-op", async () => {
+		const setSafetyMode = vi.fn(async () => {});
+		const deps = makeDeps({
+			getFirstFlight: vi.fn(async () => ({ state: "absent" as const })),
+			setSafetyMode,
+		});
+		const h = createHandlers(deps);
+		await h.handleWatchdog();
+		expect(setSafetyMode).not.toHaveBeenCalled();
+	});
+});
+
+describe("first-flight guard 集成(interlock)", () => {
+	beforeEach(() => fakeBrowser.reset());
+
+	async function armedMarker(
+		over: Partial<{
+			host: string;
+			tabId: number;
+			itemId: string;
+			nonce: string;
+			hash: string;
+		}> = {},
+	) {
+		const m: FirstFlightMarker = {
+			mode: "dry-run",
+			pending: {
+				itemId: over.itemId ?? "item_0",
+				tabId: over.tabId ?? 1,
+				host: over.host ?? HOST,
+				contentHash: over.hash ?? (await hashDraft(DRAFT)),
+				nonce: over.nonce ?? "live-nonce",
+				ts: "t",
+			},
+		};
+		return m;
+	}
+
+	it("全等 + nonce 匹配(经 arm 设 nonce)→ allowed", async () => {
+		const ff = makeFFStore();
+		const deps = makeDeps({
+			getSafetyMode: vi.fn(async () => "dry-run" as const),
+			setSafetyMode: vi.fn(async () => {}),
+			getFirstFlight: ff.getFirstFlight,
+			writeFirstFlight: ff.writeFirstFlight,
+			clearFirstFlight: ff.clearFirstFlight,
+		});
+		const h = createHandlers(deps);
+		// arm 设置 in-memory nonce + 标记。
+		await h.handleArmFirstFlight({
+			itemId: "item_0",
+			tabId: 1,
+			host: HOST,
+			draft: DRAFT,
+		});
+		const v = await h.firstFlightGuard({
+			itemId: "item_0",
+			tabId: 1,
+			host: HOST,
+			draft: DRAFT,
+		});
+		expect(v.allowed).toBe(true);
+	});
+
+	it("host 不符(同站之外)→ block + 触发 reset", async () => {
+		const marker = await armedMarker();
+		const setSafetyMode = vi.fn(async () => {});
+		const deps = makeDeps({
+			getFirstFlight: vi.fn(async () => ({ state: "ok" as const, marker })),
+			setSafetyMode,
+		});
+		const h = createHandlers(deps);
+		const v = await h.firstFlightGuard({
+			itemId: "item_0",
+			tabId: 1,
+			host: "evil.ympxbys.xyz",
+			draft: DRAFT,
+		});
+		expect(v.allowed).toBe(false);
+		expect(setSafetyMode).toHaveBeenCalledWith("dry-run"); // reset
+	});
+
+	it("SW 重启丢 nonce(标记在但内存 nonce null)→ block + reset", async () => {
+		const marker = await armedMarker();
+		const setSafetyMode = vi.fn(async () => {});
+		const deps = makeDeps({
+			getFirstFlight: vi.fn(async () => ({ state: "ok" as const, marker })),
+			setSafetyMode,
+		});
+		// createHandlers 全新 → liveArmNonce 为 null(模拟重启)。
+		const h = createHandlers(deps);
+		const v = await h.firstFlightGuard({
+			itemId: "item_0",
+			tabId: 1,
+			host: HOST,
+			draft: DRAFT,
+		});
+		expect(v.allowed).toBe(false);
+		expect(setSafetyMode).toHaveBeenCalledWith("dry-run");
+	});
+
+	it("draft 字节被篡改(hash 不符)→ block + reset", async () => {
+		const ff = makeFFStore();
+		const setSafetyMode = vi.fn(async () => {});
+		const deps = makeDeps({
+			getSafetyMode: vi.fn(async () => "dry-run" as const),
+			setSafetyMode,
+			getFirstFlight: ff.getFirstFlight,
+			writeFirstFlight: ff.writeFirstFlight,
+			clearFirstFlight: ff.clearFirstFlight,
+		});
+		const h = createHandlers(deps);
+		await h.handleArmFirstFlight({
+			itemId: "item_0",
+			tabId: 1,
+			host: HOST,
+			draft: DRAFT,
+		});
+		const v = await h.firstFlightGuard({
+			itemId: "item_0",
+			tabId: 1,
+			host: HOST,
+			draft: { ...DRAFT, body: "<p>tampered</p>" },
+		});
+		expect(v.allowed).toBe(false);
+		expect(setSafetyMode).toHaveBeenCalledWith("dry-run");
+	});
+
+	it("坏标记 → guard block first-flight-locked + reset", async () => {
+		const setSafetyMode = vi.fn(async () => {});
+		const deps = makeDeps({
+			getFirstFlight: vi.fn(async () => ({ state: "bad" as const })),
+			setSafetyMode,
+		});
+		const h = createHandlers(deps);
+		const v = await h.firstFlightGuard({
+			itemId: "item_0",
+			tabId: 1,
+			host: HOST,
+			draft: DRAFT,
+		});
+		expect(v.allowed).toBe(false);
+		expect(v.reason).toBe("first-flight-locked");
+		expect(setSafetyMode).toHaveBeenCalledWith("dry-run");
+	});
+
+	it("无标记 → guard 放行(零行为变更)", async () => {
+		const deps = makeDeps({
+			getFirstFlight: vi.fn(async () => ({ state: "absent" as const })),
+		});
+		const h = createHandlers(deps);
+		const v = await h.firstFlightGuard({
+			itemId: "item_0",
+			tabId: 1,
+			host: HOST,
+			draft: DRAFT,
+		});
+		expect(v.allowed).toBe(true);
+	});
+});
+
+// ================================================================
+// First-flight 向导编排(Unit 6):rehearse / run / status
+// ================================================================
+
+/**
+ * 有状态 mode store:setSafetyMode 写、getSafetyMode 读同一变量。
+ * 配合 makeFFStore 让 arm/revert/互锁在「真实档位翻转」上跑,而非全 mock。
+ */
+function makeModeStore(initial: "off" | "dry-run" | "authorized" = "dry-run") {
+	let mode = initial;
+	return {
+		getSafetyMode: vi.fn(async () => mode),
+		setSafetyMode: vi.fn(async (m: "off" | "dry-run" | "authorized") => {
+			mode = m;
+		}),
+		peek: () => mode,
+	};
+}
+
+describe("first-flight 向导编排(Unit 6)", () => {
+	beforeEach(() => fakeBrowser.reset());
+
+	it("rehearse:只读 dry-run + grounding,绝不翻 authorized、绝不武装", async () => {
+		const ff = makeFFStore();
+		const mode = makeModeStore("dry-run");
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => makeBatch("awaiting-approval")),
+			getSafetyMode: mode.getSafetyMode,
+			setSafetyMode: mode.setSafetyMode,
+			getFirstFlight: ff.getFirstFlight,
+			writeFirstFlight: ff.writeFirstFlight,
+			clearFirstFlight: ff.clearFirstFlight,
+		});
+		const h = createHandlers(deps);
+		const res = await h.handleFirstFlightRehearse(1, "item_0");
+		expect(res.ok).toBe(true);
+		expect(res.dryRunGreen).toBe(true);
+		expect(res.groundingOk).toBe(true);
+		// 排演后档位仍 dry-run、标记仍缺失(未武装)。
+		expect(mode.peek()).toBe("dry-run");
+		expect(ff.peek().state).toBe("absent");
+	});
+
+	it("rehearse:grounding 拦(标题含【待补】)→ ok=false,reasons 透出", async () => {
+		const badDraft = { ...DRAFT, title: "【待补】成人動畫介紹" };
+		const batch = makeBatch("awaiting-approval");
+		const it0 = batch.items[0];
+		if (!it0) throw new Error("fixture missing item");
+		it0.draft = badDraft;
+		it0.assembledDraftSnapshot = badDraft;
+		const deps = makeDeps({ getBatch: vi.fn(async () => batch) });
+		const h = createHandlers(deps);
+		const res = await h.handleFirstFlightRehearse(1, "item_0");
+		expect(res.ok).toBe(false);
+		expect(res.groundingOk).toBe(false);
+		expect(res.reasons.join(" ")).toContain("【待补】");
+	});
+
+	it("rehearse:host 取不到 → error=host-unreachable", async () => {
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => makeBatch("awaiting-approval")),
+			tabsGet: vi.fn(async () => ({}) as { url?: string; id?: number }),
+		});
+		const h = createHandlers(deps);
+		const res = await h.handleFirstFlightRehearse(1, "item_0");
+		expect(res.ok).toBe(false);
+		expect(res.error).toBe("host-unreachable");
+	});
+
+	// ---- 解耦机器验证:HARMLESS authorized host,不依赖占位/不碰真实帖子 ----
+	// 证明:一次 grant 放行(派发恰好一条) + 落定 revert 到 dry-run + 第二次未再排演被互锁挡。
+	it("decoupling 端到端:一次 grant 放行 + revert 到 dry-run + 第二次被挡", async () => {
+		const ff = makeFFStore();
+		const mode = makeModeStore("dry-run");
+		// 有状态 batch:dispatch 推进状态后回读。
+		let batch = makeBatch("awaiting-approval");
+		const grantCalls: unknown[] = [];
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => batch),
+			saveBatch: vi.fn(async (b: Batch) => {
+				batch = b;
+			}),
+			getSafetyMode: mode.getSafetyMode,
+			setSafetyMode: mode.setSafetyMode,
+			getFirstFlight: ff.getFirstFlight,
+			writeFirstFlight: ff.writeFirstFlight,
+			clearFirstFlight: ff.clearFirstFlight,
+			// content fill ACK + grant 回执(harmless host,不真发)。
+			tabsSendMessage: vi.fn(async (_id: number, msg: unknown) => {
+				const m = msg as { type: string };
+				if (m.type === "PUBLISH_GRANT") {
+					grantCalls.push(m);
+					return { ok: true, dryRun: false, url: `https://${HOST}/post/1` };
+				}
+				return { ok: true, results: [] };
+			}),
+			saveDryRunReportFn: vi.fn(async () => {}),
+		});
+		const h = createHandlers(deps);
+
+		const run1 = await h.handleFirstFlightRun(1, "item_0");
+		expect(run1.ok).toBe(true);
+		expect(run1.phase).toBe("dispatched");
+		// 恰好一次 grant。
+		expect(grantCalls).toHaveLength(1);
+		// 落定:档位已 revert 回 dry-run,标记已清。
+		expect(mode.peek()).toBe("dry-run");
+		expect(ff.peek().state).toBe("absent");
+		expect(run1.reverted).toBe(true);
+
+		// 第二次直接 run(未额外人工再排演的状态下,标记已清 + 档位 dry-run):
+		// 该条已是 publish-confirmed,approveBatch 不会再 fill/grant ⇒ 绝无第二次 grant。
+		const run2 = await h.handleFirstFlightRun(1, "item_0");
+		expect(grantCalls).toHaveLength(1); // 仍只有一次 —— 第二次未放行
+		expect(mode.peek()).toBe("dry-run"); // 仍 dry-run
+		expect(ff.peek().state).toBe("absent");
+		expect(run2.reverted).toBe(true);
+	});
+
+	it("R8 host 来自 tab:run 用 chrome.tabs.get 的 host,不接受消息携带 host", async () => {
+		const ff = makeFFStore();
+		const mode = makeModeStore("dry-run");
+		const tabsGet = vi.fn(
+			async () =>
+				({ url: `https://${HOST}/admin`, id: 1 }) as {
+					url?: string;
+					id?: number;
+				},
+		);
+		let batch = makeBatch("awaiting-approval");
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => batch),
+			saveBatch: vi.fn(async (b: Batch) => {
+				batch = b;
+			}),
+			getSafetyMode: mode.getSafetyMode,
+			setSafetyMode: mode.setSafetyMode,
+			getFirstFlight: ff.getFirstFlight,
+			writeFirstFlight: ff.writeFirstFlight,
+			clearFirstFlight: ff.clearFirstFlight,
+			tabsGet,
+			tabsSendMessage: vi.fn(async (_id: number, msg: unknown) => {
+				const m = msg as { type: string };
+				if (m.type === "PUBLISH_GRANT")
+					return { ok: true, dryRun: false, url: `https://${HOST}/post/1` };
+				return { ok: true, results: [] };
+			}),
+			saveDryRunReportFn: vi.fn(async () => {}),
+		});
+		const h = createHandlers(deps);
+		await h.handleFirstFlightRun(1, "item_0");
+		// host 解析必经 tabsGet(写入标记的 host 来自 tab)。
+		expect(tabsGet).toHaveBeenCalled();
+		// 武装时写入的 pending.host 来自 tab。
+		expect(ff.writeFirstFlight).toHaveBeenCalled();
+	});
+
+	it("status:无标记 → armed=false;dry-run 档", async () => {
+		const deps = makeDeps({
+			getSafetyMode: vi.fn(async () => "dry-run" as const),
+			getFirstFlight: vi.fn(async () => ({ state: "absent" as const })),
+		});
+		const h = createHandlers(deps);
+		const s = await h.handleFirstFlightStatus();
+		expect(s.mode).toBe("dry-run");
+		expect(s.armed).toBe(false);
+		expect(s.bad).toBe(false);
+	});
+
+	it("status:坏值标记 → bad=true(fail-closed)", async () => {
+		const deps = makeDeps({
+			getFirstFlight: vi.fn(async () => ({ state: "bad" as const })),
+		});
+		const h = createHandlers(deps);
+		const s = await h.handleFirstFlightStatus();
+		expect(s.bad).toBe(true);
+		expect(s.armed).toBe(false);
 	});
 });

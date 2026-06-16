@@ -1,4 +1,8 @@
-import type { ContentDraft, FieldFillResult } from "@51publisher/shared";
+import type {
+	ContentDraft,
+	FactsBlock,
+	FieldFillResult,
+} from "@51publisher/shared";
 import { describe, expect, it } from "vitest";
 import {
 	abortBatch,
@@ -17,6 +21,7 @@ import {
 	presentForApproval,
 	quarantinedTopics,
 	recoverBatch,
+	refillGateFailed,
 	releaseAllQuarantine,
 	releaseQuarantine,
 	retryBatchItem,
@@ -424,6 +429,84 @@ describe("Phase-3 reviewMeta", () => {
 });
 
 // ================================================================
+// Unit 1b — slots 线程化(markFilled 第八参数 + 持久化往返)
+// ================================================================
+
+describe("Unit 1b slots 线程化", () => {
+	const slotsFixture = {
+		titleSuffix: "成人動畫介紹",
+		subtitle: "一句俏皮吸睛话",
+		intro: "51娘 口吻开场",
+		highlights: "看点散文",
+		outro: "结尾招呼",
+	};
+
+	it("happy:markFilled 把 slots 与 draft/snapshot 一并存入 item", () => {
+		let b = newBatch(["x"]);
+		b = markGenerating(b, "item_0");
+		const d = draftFor("item_0");
+		b = markFilled(
+			b,
+			"item_0",
+			d,
+			undefined,
+			undefined,
+			undefined,
+			d,
+			slotsFixture,
+		);
+		expect(b.items[0]?.draft).toEqual(d);
+		expect(b.items[0]?.assembledDraftSnapshot).toEqual(d);
+		expect(b.items[0]?.slots).toEqual(slotsFixture);
+	});
+
+	it("edge:不传 slots(legacy/undefined)→ 字段不写入,且序列化/反序列化不报错", () => {
+		let b = newBatch(["x"]);
+		b = markGenerating(b, "item_0");
+		b = markFilled(b, "item_0", draftFor("item_0"));
+		expect("slots" in b.items[0]!).toBe(false);
+		// 存储层惰性:JSON 往返无异常,slots 仍缺省。
+		const roundTripped = JSON.parse(JSON.stringify(b)) as Batch;
+		expect(roundTripped.items[0]?.slots).toBeUndefined();
+	});
+
+	it("integration:存储往返反序列化逐字相等(加载时不二次校验)", () => {
+		let b = newBatch(["x"]);
+		b = markGenerating(b, "item_0");
+		const d = draftFor("item_0");
+		b = markFilled(
+			b,
+			"item_0",
+			d,
+			undefined,
+			undefined,
+			undefined,
+			d,
+			slotsFixture,
+		);
+		const roundTripped = JSON.parse(JSON.stringify(b)) as Batch;
+		expect(roundTripped).toEqual(b);
+		expect(roundTripped.items[0]?.slots).toEqual(slotsFixture);
+	});
+
+	it("security:slots.intro 内含 <script>/裸 URL 经存储往返保持原样(仅 assembleDraft 才中和)", () => {
+		// slots 是模型不可信文本:存储层惰性,绝不在此处消毒/渲染;
+		// 真正的转义/消毒发生在后续 assembleDraft(esc + sanitizeToPlainText)。
+		const dirty = {
+			...slotsFixture,
+			intro: "<script>alert(1)</script> 看 https://evil.example 了解",
+		};
+		let b = newBatch(["x"]);
+		b = markGenerating(b, "item_0");
+		const d = draftFor("item_0");
+		b = markFilled(b, "item_0", d, undefined, undefined, undefined, d, dirty);
+		const roundTripped = JSON.parse(JSON.stringify(b)) as Batch;
+		// 往返后 intro 字节级原样保留(惰性、未被中和)。
+		expect(roundTripped.items[0]?.slots?.intro).toBe(dirty.intro);
+	});
+});
+
+// ================================================================
 // gate-failed 状态(U2 — 接地闸门拦截)
 // ================================================================
 
@@ -529,5 +612,112 @@ describe("gate-failed 状态机", () => {
 		b = markGateFailed(b, "item_0", "no-source-link");
 		expect(b.items[0]?.status).toBe("gate-failed");
 		expect(b.items[0]?.pendingTopicId).toBe("topic-uuid-123"); // 字段保留
+	});
+});
+
+// ================================================================
+// Unit 4 — refillGateFailed: gate-failed → awaiting-approval 原子提升
+// ================================================================
+
+describe("refillGateFailed", () => {
+	const facts: FactsBlock = { 作品名: "某作", 集数: "第3集" };
+
+	/** 推一条 item 到 gate-failed 态。 */
+	function toGateFailed(reason = "残留【待补】"): Batch {
+		let b = newBatch(["x"]);
+		b = markGenerating(b, "item_0");
+		b = markFilled(b, "item_0", draftFor("item_0"));
+		b = markGateFailed(b, "item_0", reason);
+		return b;
+	}
+
+	it("happy:闸门通过 → awaiting-approval,gateFailReason 清除", () => {
+		const b = toGateFailed();
+		const snapshot = draftFor("item_0");
+		const okGate = () => ({ ok: true, reasons: [] });
+		const after = refillGateFailed(
+			b,
+			"item_0",
+			{ draft: snapshot, snapshot, facts },
+			okGate,
+		);
+		expect(after.items[0]?.status).toBe("awaiting-approval");
+		expect(after.items[0]?.gateFailReason).toBeUndefined();
+		expect(after.items[0]?.draft).toEqual(snapshot);
+		expect(after.items[0]?.assembledDraftSnapshot).toEqual(snapshot);
+		expect(after.items[0]?.facts).toEqual(facts);
+	});
+
+	it("edge:闸门失败 → 仍 gate-failed,draft/snapshot/facts 已写,残留原因被设置(非清除)", () => {
+		const b = toGateFailed("旧原因");
+		const snapshot = draftFor("item_0");
+		const failGate = () => ({ ok: false, reasons: ["标题仍含【待补】"] });
+		const after = refillGateFailed(
+			b,
+			"item_0",
+			{ draft: snapshot, snapshot, facts },
+			failGate,
+		);
+		expect(after.items[0]?.status).toBe("gate-failed");
+		expect(after.items[0]?.gateFailReason).toBe("标题仍含【待补】");
+		// draft/snapshot/facts 仍被刷新写入
+		expect(after.items[0]?.draft).toEqual(snapshot);
+		expect(after.items[0]?.assembledDraftSnapshot).toEqual(snapshot);
+		expect(after.items[0]?.facts).toEqual(facts);
+	});
+
+	it("atomicity:返回项 (status, gateFailReason) 一致 —— 无「已清原因+仍 gate-failed」中间态", () => {
+		const b = toGateFailed();
+		const snapshot = draftFor("item_0");
+		const failGate = () => ({ ok: false, reasons: ["残留"] });
+		const after = refillGateFailed(
+			b,
+			"item_0",
+			{ draft: snapshot, snapshot, facts },
+			failGate,
+		);
+		const it0 = after.items[0];
+		// 不变式:gate-failed 必有失败原因;awaiting-approval 必无。
+		if (it0?.status === "gate-failed") {
+			expect(it0.gateFailReason).toBeTruthy();
+		} else {
+			expect(it0?.status).toBe("awaiting-approval");
+			expect(it0?.gateFailReason).toBeUndefined();
+		}
+	});
+
+	it("verdict-shape:闸门以 (snapshot, facts, qualityScore) 调用 —— 与发布闸门同形", () => {
+		const b = toGateFailed();
+		const snapshot = draftFor("item_0");
+		const calls: unknown[][] = [];
+		const spyGate = (...args: unknown[]) => {
+			calls.push(args);
+			return { ok: true, reasons: [] };
+		};
+		refillGateFailed(
+			b,
+			"item_0",
+			{ draft: snapshot, snapshot, facts },
+			spyGate as never,
+			0.9,
+		);
+		expect(calls).toHaveLength(1);
+		expect(calls[0]).toEqual([snapshot, facts, 0.9]);
+	});
+
+	it("error:非 gate-failed 状态调用 → batch 原样返回(no-op)", () => {
+		let b = newBatch(["x"]);
+		b = markGenerating(b, "item_0");
+		b = markFilled(b, "item_0", draftFor("item_0"));
+		b = presentForApproval(b); // awaiting-approval
+		const snapshot = draftFor("item_0");
+		const okGate = () => ({ ok: true, reasons: [] });
+		const after = refillGateFailed(
+			b,
+			"item_0",
+			{ draft: snapshot, snapshot, facts },
+			okGate,
+		);
+		expect(after).toBe(b); // 引用相等 —— 完全未改
 	});
 });

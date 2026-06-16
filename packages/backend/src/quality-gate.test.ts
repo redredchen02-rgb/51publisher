@@ -46,6 +46,16 @@ describe("evaluateQuality", () => {
 		expect(check?.score).toBe(0);
 	});
 
+	// 行为变更:改用前缀 helper(containsPlaceholder)后,标注式/未闭合变体也判为占位,
+	// 比此前的精确字符串匹配更严。规范化裸式【待补】得分不变(仍为 0)。
+	it("标注式【待补:作品名】标题现在也判为占位(比旧精确匹配更严)", () => {
+		const draft = makeDraft({ title: "【待补:作品名】" });
+		const result = evaluateQuality(draft);
+		const check = result.checks.find((c) => c.name === "title_quality");
+		expect(check?.pass).toBe(false);
+		expect(check?.score).toBe(0);
+	});
+
 	it("标签不足时扣分", () => {
 		const draft = makeDraft({ tags: ["仅一个标签"] });
 		const result = evaluateQuality(draft);

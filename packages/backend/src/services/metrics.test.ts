@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { counters, getMetrics } from "./metrics.js";
+import {
+	counters,
+	getMetrics,
+	recordBatchCompleted,
+	recordDraft,
+	recordPublishAttempt,
+	recordScraperRun,
+} from "./metrics.js";
 
 function resetCounters() {
 	counters.draftsGenerated = 0;
@@ -11,7 +18,7 @@ function resetCounters() {
 	counters.publishAttempts.failed = 0;
 }
 
-describe("metrics.getMetrics", () => {
+describe("metrics", () => {
 	beforeEach(() => {
 		resetCounters();
 	});
@@ -61,5 +68,31 @@ describe("metrics.getMetrics", () => {
 
 	it("输出以换行结尾（Prometheus 抓取要求）", () => {
 		expect(getMetrics().endsWith("\n")).toBe(true);
+	});
+
+	it("recordDraft 递增正确计数器", () => {
+		recordDraft(true);
+		expect(counters.draftsGenerated).toBe(1);
+		recordDraft(false);
+		expect(counters.draftsFailed).toBe(1);
+	});
+
+	it("recordScraperRun 递增正确计数器", () => {
+		recordScraperRun(true);
+		expect(counters.scraperRuns.success).toBe(1);
+		recordScraperRun(false);
+		expect(counters.scraperRuns.failed).toBe(1);
+	});
+
+	it("recordPublishAttempt 递增正确计数器", () => {
+		recordPublishAttempt(true);
+		expect(counters.publishAttempts.success).toBe(1);
+		recordPublishAttempt(false);
+		expect(counters.publishAttempts.failed).toBe(1);
+	});
+
+	it("recordBatchCompleted 递增计数器", () => {
+		recordBatchCompleted();
+		expect(counters.batchesCompleted).toBe(1);
 	});
 });

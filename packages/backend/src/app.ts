@@ -24,13 +24,14 @@ import {
 	reviewDraftLlm,
 	rewriteDraftLlm,
 } from "./services/llm.js";
-import { getMetrics } from "./services/metrics.js";
+import { getMetrics, recordDraft } from "./services/metrics.js";
 import { startRevisitJob } from "./services/revisit-job.js";
 import { err } from "./utils/error-response.js";
 import { getLlmConfig, validateLlmConfig } from "./utils/llm-config.js";
 import {
 	GenerateDraftBody as GenerateDraftBodySchema,
 	GenerateDraftResponse,
+	HealthzResponse,
 	ReviewDraftBody as ReviewDraftBodySchema,
 	RewriteDraftBody as RewriteDraftBodySchema,
 } from "./utils/schemas.js";
@@ -39,6 +40,7 @@ export function buildApp(): FastifyInstance {
 	initPendingDb();
 	// 日志:env 控制 level(默认 info);redaction 防鉴权头/密钥落日志(secret-hygiene)。
 	const server = Fastify({
+		bodyLimit: 1048576, // 1MB 全局 body 大小限制
 		logger: {
 			level: process.env.LOG_LEVEL ?? "info",
 			redact: {
@@ -100,39 +102,62 @@ export function buildApp(): FastifyInstance {
 	server.register(cors, { origin: corsOrigins });
 	server.register(rateLimit, { max: 100, timeWindow: "1 minute" });
 
-	server.get("/api/v1/healthz", async () => {
-		const schedulerRunning = jobs.size > 0;
-		const dbHealthy = (() => {
-			try {
-				getDb().prepare("SELECT 1").get();
-				return true;
-			} catch {
-				return false;
-			}
-		})();
-
-		// 质量统计
-		let quality = { avgScore: 0, passRate: 0, totalGenerations: 0 };
-		try {
-			const { getQualityStats } = await import("./services/quality-metrics.js");
-			quality = await getQualityStats();
-		} catch {
-			// 质量统计不可用不影响健康检查
-		}
-
-		return {
-			ok: true,
-			uptime: Math.round(process.uptime()),
-			scheduler: { running: schedulerRunning, jobCount: jobs.size },
-			database: { healthy: dbHealthy },
-			memory: {
-				heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-			},
-			quality,
-		};
+	// CSP headers — 纵深防御,防止 XSS 在意外内容类型中执行
+	server.addHook("onSend", async (_request, reply, payload) => {
+		reply.header(
+			"Content-Security-Policy",
+			"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'",
+		);
+		return payload;
 	});
 
+	server.get<{
+		Reply: import("@sinclair/typebox").Static<typeof HealthzResponse>;
+	}>(
+		"/api/v1/healthz",
+		{ schema: { response: { 200: HealthzResponse } } },
+		async () => {
+			const schedulerRunning = jobs.size > 0;
+			const dbHealthy = (() => {
+				try {
+					getDb().prepare("SELECT 1").get();
+					return true;
+				} catch {
+					return false;
+				}
+			})();
+
+			// 质量统计
+			let quality = { avgScore: 0, passRate: 0, totalGenerations: 0 };
+			try {
+				const { getQualityStats } = await import(
+					"./services/quality-metrics.js"
+				);
+				quality = await getQualityStats();
+			} catch {
+				// 质量统计不可用不影响健康检查
+			}
+
+			return {
+				ok: true,
+				uptime: Math.round(process.uptime()),
+				scheduler: { running: schedulerRunning, jobCount: jobs.size },
+				database: { healthy: dbHealthy },
+				memory: {
+					heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+				},
+				quality,
+			} as import("@sinclair/typebox").Static<typeof HealthzResponse>;
+		},
+	);
+
 	server.get("/api/v1/metrics", async (_request, reply) => {
+		reply.header("Content-Type", "text/plain; version=0.0.4");
+		return getMetrics();
+	});
+
+	// Standard Prometheus scraping endpoint (without API prefix)
+	server.get("/metrics", async (_request, reply) => {
 		reply.header("Content-Type", "text/plain; version=0.0.4");
 		return getMetrics();
 	});
@@ -219,9 +244,14 @@ export function registerDraftRoutes(app: FastifyInstance): void {
 					facts,
 					enrichment,
 				});
-				if (!result.ok) return err(reply, 422, result.error, result.kind);
+				if (!result.ok) {
+					recordDraft(false);
+					return err(reply, 422, result.error, result.kind);
+				}
+				recordDraft(true);
 				return result;
 			} catch (e) {
+				recordDraft(false);
 				request.log.error(e, "Failed to generate draft via LLM");
 				return err(
 					reply,

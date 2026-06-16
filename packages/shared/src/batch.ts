@@ -1,4 +1,5 @@
 import type { FactsBlock } from "./facts.js";
+import type { DraftSlots } from "./post-assembler.js";
 import type { ContentDraft, FieldFillResult } from "./types.js";
 
 export type BatchItemStatus =
@@ -35,6 +36,9 @@ export interface BatchItem {
 	};
 	gateFailReason?: string;
 	assembledDraftSnapshot?: ContentDraft;
+	// 模型叙事槽位:供事实补全后经 assembleDraft 重新组装(re-assemble)。旧条目缺省则回退重新生成。
+	// ⚠️ 模型不可信文本:**只能**交给 assembleDraft 消费,绝不可直接渲染(已经 esc/sanitize 的输出才安全)。
+	slots?: DraftSlots;
 	pendingTopicId?: string;
 	enrichment?: string;
 }
