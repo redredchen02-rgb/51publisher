@@ -2,17 +2,16 @@ import type { FewShotPair, FieldMapping } from "@51publisher/shared";
 import { useCallback, useRef, useState } from "react";
 import type { ConnectionTestResult } from "../../../lib/connection-test";
 import { testConnection as runTestConnection } from "../../../lib/connection-test";
-import { createPrompt, fetchPrompts } from "../../../lib/prompt-client";
 import type { PromptTemplate } from "../../../lib/prompt-client";
+import { createPrompt, fetchPrompts } from "../../../lib/prompt-client";
 import {
 	deriveFewShotExamples,
-	getApiKey as storageGetApiKey,
-	getBackendToken as storageGetBackendToken,
 	getSettings,
-	parseFewShotExamples,
 	saveApiKey,
 	saveBackendToken,
 	saveSettings,
+	getApiKey as storageGetApiKey,
+	getBackendToken as storageGetBackendToken,
 } from "../../../lib/storage";
 import { parseTagsText, validateSettingsForm } from "../Settings";
 
@@ -76,8 +75,12 @@ export function useSettingsForm(): UseSettingsFormReturn {
 
 	const getApiKey = useCallback(() => apiKeyRef.current, []);
 	const getBackendToken = useCallback(() => backendTokenRef.current, []);
-	const setApiKey = useCallback((v: string) => { apiKeyRef.current = v; }, []);
-	const setBackendToken = useCallback((v: string) => { backendTokenRef.current = v; }, []);
+	const setApiKey = useCallback((v: string) => {
+		apiKeyRef.current = v;
+	}, []);
+	const setBackendToken = useCallback((v: string) => {
+		backendTokenRef.current = v;
+	}, []);
 
 	const load = useCallback(async () => {
 		if (loadedRef.current) return;
@@ -185,9 +188,10 @@ export function useSettingsForm(): UseSettingsFormReturn {
 		[formValues, loadPrompts],
 	);
 
-	const testConnectionFn = useCallback(async (): Promise<ConnectionTestResult> => {
-		return runTestConnection();
-	}, []);
+	const testConnectionFn =
+		useCallback(async (): Promise<ConnectionTestResult> => {
+			return runTestConnection();
+		}, []);
 
 	const setFormValue = useCallback(
 		<K extends keyof SettingsFormValues>(

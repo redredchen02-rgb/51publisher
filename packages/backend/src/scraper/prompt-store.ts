@@ -45,7 +45,11 @@ const promptStore = new JsonFileStore<PromptTemplate>({
 type RawPrompt = PromptTemplate & { fewShotExamples?: string };
 
 function migratePairs(raw: RawPrompt): PromptTemplate {
-	if ((!raw.fewShotPairs || raw.fewShotPairs.length === 0) && raw.fewShotExamples) {
+	if (
+		(!raw.fewShotPairs || raw.fewShotPairs.length === 0) &&
+		typeof raw.fewShotExamples === "string" &&
+		raw.fewShotExamples
+	) {
 		const blocks = raw.fewShotExamples.split(/\n\n+/).filter(Boolean);
 		const parsed: FewShotPair[] = blocks.map((b) => {
 			const sep = b.indexOf("\n---\n");
@@ -59,12 +63,14 @@ function migratePairs(raw: RawPrompt): PromptTemplate {
 }
 
 export async function getAllPrompts(): Promise<PromptTemplate[]> {
-	const raws = await promptStore.list() as RawPrompt[];
+	const raws = (await promptStore.list()) as RawPrompt[];
 	return raws.map(migratePairs);
 }
 
-export async function getPromptById(id: string): Promise<PromptTemplate | null> {
-	const raw = await promptStore.read(id) as RawPrompt | null;
+export async function getPromptById(
+	id: string,
+): Promise<PromptTemplate | null> {
+	const raw = (await promptStore.read(id)) as RawPrompt | null;
 	if (!raw) return null;
 	return migratePairs(raw);
 }
