@@ -95,10 +95,7 @@ export interface Settings {
 	fallbackModel?: string;
 	/** prompt 模板,用户主题会注入其中。支持占位符 {{topic}} {{facts}} {{fewshot}}。 */
 	promptTemplate: string;
-	/**
-	 * 51娘 few-shot 范例原始字符串(后端 prompt 注入用)。
-	 * @deprecated 使用 fewShotPairs 作为编辑源;保存时由 fewShotPairs 派生此字段(向前兼容)。
-	 */
+	/** 51娘 few-shot 范例原始字符串(后端 prompt 注入用)。派生自 fewShotPairs，或向前兼容旧存储；非用户直接编辑。 */
 	fewShotExamples?: string;
 	/** 结构化 few-shot 范例列表(R11-R13);与 fewShotExamples 并存,fewShotPairs 为编辑源。 */
 	fewShotPairs?: FewShotPair[];

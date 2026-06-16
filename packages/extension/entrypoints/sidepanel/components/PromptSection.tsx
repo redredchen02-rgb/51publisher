@@ -7,7 +7,6 @@ const MAX_PAIRS = 8;
 
 interface PromptSectionProps {
 	promptTemplate: string;
-	fewShotExamples: string;
 	fewShotPairs: FewShotPair[];
 	importBanner: string;
 	importTruncated: string;
@@ -15,7 +14,6 @@ interface PromptSectionProps {
 	selectedPromptId: string;
 	promptStatus: string;
 	setPromptTemplate: (v: string) => void;
-	setFewShotExamples: (v: string) => void;
 	setFewShotPairs: (pairs: FewShotPair[]) => void;
 	onImportFewShot: () => void;
 	onLoadPrompts: () => void;
@@ -25,7 +23,6 @@ interface PromptSectionProps {
 
 export function PromptSection({
 	promptTemplate,
-	fewShotExamples,
 	fewShotPairs,
 	importBanner,
 	importTruncated,
@@ -33,7 +30,6 @@ export function PromptSection({
 	selectedPromptId,
 	promptStatus,
 	setPromptTemplate,
-	setFewShotExamples,
 	setFewShotPairs,
 	onImportFewShot,
 	onLoadPrompts,
@@ -101,29 +97,7 @@ export function PromptSection({
 					URL——防止编造作品事实/连结。
 				</p>
 
-				<div className="field-group">
-					<label className="field-label">
-						Few-shot 原始文本(旧格式兼容,优先使用上方结构化编辑器)
-						<button
-							type="button"
-							className="btn btn-plain btn-sm ml-sm"
-							onClick={() =>
-								setFewShotExamples(DEFAULT_SETTINGS.fewShotExamples ?? "")
-							}
-						>
-							恢复默认
-						</button>
-					</label>
-					<textarea
-						className="field-input"
-						style={{ minHeight: 100 }}
-						value={fewShotExamples}
-						onChange={(e) => setFewShotExamples(e.target.value)}
-					/>
-				</div>
-				<p className="field-hint">
-					⚠️ 范例里别写真实連結(会随每次请求发往后端);用占位即可。
-				</p>
+
 			</div>
 
 			<hr className="divider" />

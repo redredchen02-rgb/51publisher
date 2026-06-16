@@ -146,7 +146,6 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
 			<PromptSection
 				promptTemplate={formValues.promptTemplate}
-				fewShotExamples={formValues.fewShotExamples}
 				fewShotPairs={formValues.fewShotPairs}
 				importBanner={formValues.importBanner}
 				importTruncated={formValues.importTruncated}
@@ -154,7 +153,6 @@ export function Settings({ onClose }: { onClose: () => void }) {
 				selectedPromptId={hook.selectedPromptId}
 				promptStatus={hook.promptStatus}
 				setPromptTemplate={(v) => setFormValue("promptTemplate", v)}
-				setFewShotExamples={(v) => setFormValue("fewShotExamples", v)}
 				setFewShotPairs={hook.setFewShotPairs}
 				onImportFewShot={hook.importFewShot}
 				onLoadPrompts={() => void hook.loadPrompts()}
