@@ -1,14 +1,19 @@
+import { Type } from "@sinclair/typebox";
 import type { RejectionReason } from "@51publisher/shared";
 import type { FastifyInstance } from "fastify";
 import { err } from "../utils/error-response.js";
 import { generateId } from "../utils/generate-id.js";
+import {
+	CreatePendingBody as CreatePendingBodySchema,
+	PendingIdParams as PendingIdParamsSchema,
+	UpdatePendingBody as UpdatePendingBodySchema,
+} from "../utils/schemas.js";
 import {
 	deletePendingTopic,
 	listPendingTopics,
 	loadPendingTopic,
 	type PendingStatus,
 	type PendingTopic,
-	type PendingTopicPatch,
 	savePendingTopic,
 	updatePendingTopicStatus,
 } from "./pending-store.js";
@@ -34,20 +39,6 @@ const VALID_REJECTION_REASONS = new Set<RejectionReason>([
 
 const VALID_STATUSES_SET = new Set<string>(["pending", "approved", "rejected"]);
 
-interface CreatePendingBody {
-	sourceUrl: string;
-	siteName: string;
-	title: string;
-	facts?: Record<string, unknown>;
-	confidence?: number;
-}
-
-interface UpdatePendingBody extends PendingTopicPatch {}
-
-interface PendingIdParams {
-	id: string;
-}
-
 export async function registerPendingRoutes(
 	app: FastifyInstance,
 ): Promise<void> {
@@ -60,7 +51,20 @@ export async function registerPendingRoutes(
 			fold_threshold?: string;
 			domain?: string;
 		};
-	}>("/api/v1/pending-topics", async (request) => {
+	}>(
+		"/api/v1/pending-topics",
+		{
+			schema: {
+				querystring: Type.Object({
+					limit: Type.Optional(Type.String()),
+					status: Type.Optional(Type.String()),
+					sort_by: Type.Optional(Type.String()),
+					fold_threshold: Type.Optional(Type.String()),
+					domain: Type.Optional(Type.String()),
+				}),
+			},
+		},
+		async (request) => {
 		const limit = Math.min(Math.max(Number(request.query.limit) || 50, 1), 200);
 		const rawStatus = request.query.status;
 		const status: PendingStatus | undefined =
@@ -94,8 +98,13 @@ export async function registerPendingRoutes(
 	});
 
 	// 获取单个待审核选题
-	app.get<{ Params: PendingIdParams }>(
+	app.get<{ Params: { id: string } }>(
 		"/api/v1/pending-topics/:id",
+		{
+			schema: {
+				params: PendingIdParamsSchema,
+			},
+		},
 		async (request, reply) => {
 			const topic = await loadPendingTopic(request.params.id);
 			if (!topic) return err(reply, 404, "Pending topic not found");
@@ -104,8 +113,13 @@ export async function registerPendingRoutes(
 	);
 
 	// 手动创建待审核选题
-	app.post<{ Body: CreatePendingBody }>(
+	app.post<{ Body: { sourceUrl: string; siteName: string; title: string; facts?: Record<string, unknown>; confidence?: number } }>(
 		"/api/v1/pending-topics",
+		{
+			schema: {
+				body: CreatePendingBodySchema,
+			},
+		},
 		async (request, reply) => {
 			const { sourceUrl, siteName, title, facts, confidence } = request.body;
 
@@ -137,8 +151,14 @@ export async function registerPendingRoutes(
 	);
 
 	// 更新待审核选题（approve / reject）
-	app.patch<{ Params: PendingIdParams; Body: UpdatePendingBody }>(
+	app.patch<{ Params: { id: string }; Body: { status?: string; rejectedReason?: string; facts?: Record<string, unknown>; confidence?: number } }>(
 		"/api/v1/pending-topics/:id",
+		{
+			schema: {
+				params: PendingIdParamsSchema,
+				body: UpdatePendingBodySchema,
+			},
+		},
 		async (request, reply) => {
 			const { id } = request.params;
 			const body = request.body;
@@ -168,7 +188,7 @@ export async function registerPendingRoutes(
 
 				const updated = await updatePendingTopicStatus(
 					id,
-					body.status,
+					body.status as PendingStatus,
 					body.rejectedReason,
 				);
 				if (!updated) return err(reply, 404, "Pending topic not found");
@@ -187,8 +207,13 @@ export async function registerPendingRoutes(
 	);
 
 	// 删除待审核选题
-	app.delete<{ Params: PendingIdParams }>(
+	app.delete<{ Params: { id: string } }>(
 		"/api/v1/pending-topics/:id",
+		{
+			schema: {
+				params: PendingIdParamsSchema,
+			},
+		},
 		async (request, reply) => {
 			const topic = await loadPendingTopic(request.params.id);
 			if (!topic) return err(reply, 404, "Pending topic not found");

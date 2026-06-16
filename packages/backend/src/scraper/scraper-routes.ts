@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { err } from "../utils/error-response.js";
 import { generateId } from "../utils/generate-id.js";
+import { recordScraperRun } from "../services/metrics.js";
 import { extractFacts } from "./fact-extractor.js";
 import { type PendingTopic, savePendingTopic } from "./pending-store.js";
 import { scraperConfig } from "./scraper-config.js";
@@ -190,9 +191,11 @@ export async function registerScraperRoutes(
 				};
 
 				await savePendingTopic(pendingTopic);
+				recordScraperRun(true);
 
 				return { ok: true, pendingTopic };
 			} catch (e) {
+				recordScraperRun(false);
 				request.log.error(e, `Scrape failed for ${siteName}`);
 				return err(reply, 500, "Scrape failed. Check server logs for details.");
 			}

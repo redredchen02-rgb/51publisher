@@ -29,6 +29,9 @@ jobs:
       - name: Check fixture secrets
         run: bash scripts/check-fixture-secrets.sh
 
+      - name: Dependency audit
+        run: pnpm audit --audit-level=high || echo "::warning::高/严重依赖漏洞"
+
       - name: Build shared
         run: pnpm --filter @51publisher/shared build
 

@@ -6,6 +6,28 @@ export const counters = {
 	publishAttempts: { success: 0, failed: 0 },
 };
 
+// 指标递增收口在这里:各业务路径调用以下函数,/api/v1/metrics 才反映真实活动
+// (否则 counters 永远为 0)。
+
+export function recordDraft(ok: boolean): void {
+	if (ok) counters.draftsGenerated++;
+	else counters.draftsFailed++;
+}
+
+export function recordScraperRun(ok: boolean): void {
+	if (ok) counters.scraperRuns.success++;
+	else counters.scraperRuns.failed++;
+}
+
+export function recordPublishAttempt(ok: boolean): void {
+	if (ok) counters.publishAttempts.success++;
+	else counters.publishAttempts.failed++;
+}
+
+export function recordBatchCompleted(): void {
+	counters.batchesCompleted++;
+}
+
 export function getMetrics(): string {
 	const lines = [
 		"# HELP publisher_drafts_total Total drafts generated",
