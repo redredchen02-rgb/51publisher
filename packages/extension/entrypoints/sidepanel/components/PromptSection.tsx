@@ -1,6 +1,6 @@
 import type { FewShotPair } from "@51publisher/shared";
-import { DEFAULT_SETTINGS } from "../../../lib/storage";
 import type { PromptTemplate } from "../../../lib/prompt-client";
+import { DEFAULT_SETTINGS } from "../../../lib/storage";
 import { FewShotPairEditor } from "./FewShotPairEditor";
 
 const MAX_PAIRS = 8;
@@ -97,7 +97,8 @@ export function PromptSection({
 				</div>
 				<p className="field-hint">
 					源接地:AI 只用 {"{{facts}}"}{" "}
-					里给的事实润色,缺的标【待补】,连结只用给定 URL——防止编造作品事实/连结。
+					里给的事实润色,缺的标【待补】,连结只用给定
+					URL——防止编造作品事实/连结。
 				</p>
 
 				<div className="field-group">
@@ -106,7 +107,9 @@ export function PromptSection({
 						<button
 							type="button"
 							className="btn btn-plain btn-sm ml-sm"
-							onClick={() => setFewShotExamples(DEFAULT_SETTINGS.fewShotExamples ?? "")}
+							onClick={() =>
+								setFewShotExamples(DEFAULT_SETTINGS.fewShotExamples ?? "")
+							}
 						>
 							恢复默认
 						</button>

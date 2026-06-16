@@ -63,7 +63,8 @@ export function LLMSection({
 				/>
 			</div>
 			<p className="field-hint">
-				⚠️ key 以明文存储于本地浏览器(chrome.storage.local),并会随请求发往上面配置的
+				⚠️ key
+				以明文存储于本地浏览器(chrome.storage.local),并会随请求发往上面配置的
 				endpoint。请只配置可信地址,建议使用权限受限的专用 key。
 			</p>
 
