@@ -1,7 +1,7 @@
 ---
 title: "refactor: 深度優化第二輪 — App.tsx 萃取 + batch-orchestrator 拆分 + 完善工程健康"
 type: refactor
-status: active
+status: completed
 date: 2026-06-16
 origin: 2026-06-16 路線圖對帳（Phase 1+4 已實質完成）+ batch-orchestrator.ts 677L 重構需求
 supersedes:
