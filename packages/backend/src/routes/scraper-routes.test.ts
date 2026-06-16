@@ -1,12 +1,14 @@
+import { randomBytes } from "node:crypto";
 import Fastify, { type FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { scraperConfig } from "./scraper-config.js";
+import { PUBLIC_ROUTES, requireAuth } from "../middleware/auth-middleware.js";
+import { scraperConfig } from "../scraper/scraper-config.js";
+import type { RawContent, SiteAdapter } from "../scraper/site-adapter.js";
 import { registerScraperRoutes } from "./scraper-routes.js";
-import type { RawContent, SiteAdapter } from "./site-adapter.js";
 
 // ---- mocks ----
 
-vi.mock("./fact-extractor.js", () => ({
+vi.mock("../scraper/fact-extractor.js", () => ({
 	extractFacts: vi.fn(async () => ({
 		facts: { 作品名: "测试作品" },
 		confidence: 0.85,
@@ -15,11 +17,11 @@ vi.mock("./fact-extractor.js", () => ({
 	})),
 }));
 
-vi.mock("./pending-store.js", () => ({
+vi.mock("../scraper/pending-store.js", () => ({
 	savePendingTopic: vi.fn(async () => undefined),
 }));
 
-vi.mock("./web-enricher.js", () => ({
+vi.mock("../scraper/web-enricher.js", () => ({
 	enrichContext: vi.fn(async () => ({ queryResults: [] })),
 }));
 
@@ -88,7 +90,8 @@ describe("POST /api/v1/scraper/trigger — validation", () => {
 			payload: {},
 		});
 		expect(res.statusCode).toBe(400);
-		expect(res.json().error).toMatch(/siteName/);
+		// TypeBox schema validation rejects empty body before handler
+		expect(res.json().message).toMatch(/siteName/);
 	});
 
 	it("未知 siteName → 404", async () => {
@@ -236,5 +239,52 @@ describe("GET /api/v1/scraper/adapters", () => {
 			(a) => a.name,
 		);
 		expect(names).toContain(`adapter-${testId}`);
+	});
+});
+
+// ---- JWT 401 守護 ----
+
+const SCRAPER_SECRET = randomBytes(48).toString("hex");
+
+async function buildScraperAppWithAuth(): Promise<FastifyInstance> {
+	const app = Fastify({ logger: false });
+	app.addHook("preHandler", async (request, reply) => {
+		const url = request.url.split("?")[0];
+		if (PUBLIC_ROUTES.has(url)) return;
+		return requireAuth(request, reply);
+	});
+	await registerScraperRoutes(app);
+	await app.ready();
+	return app;
+}
+
+describe("scraper-routes — JWT 守護", () => {
+	let app: FastifyInstance;
+
+	beforeEach(async () => {
+		process.env.JWT_SECRET = SCRAPER_SECRET;
+		app = await buildScraperAppWithAuth();
+	});
+
+	afterEach(async () => {
+		await app.close();
+		delete process.env.JWT_SECRET;
+	});
+
+	it("無 token → POST /api/v1/scraper/trigger 返回 401", async () => {
+		const res = await app.inject({
+			method: "POST",
+			url: "/api/v1/scraper/trigger",
+			payload: { url: "https://t.com/a", siteName: "s" },
+		});
+		expect(res.statusCode).toBe(401);
+	});
+
+	it("無 token → GET /api/v1/scraper/adapters 返回 401", async () => {
+		const res = await app.inject({
+			method: "GET",
+			url: "/api/v1/scraper/adapters",
+		});
+		expect(res.statusCode).toBe(401);
 	});
 });

@@ -7,17 +7,17 @@ import { PUBLIC_ROUTES, requireAuth } from "./middleware/auth-middleware.js";
 import { registerAuthRoutes } from "./routes/auth-routes.js";
 import { registerBatchRoutes } from "./routes/batch-routes.js";
 import { registerConfigRoutes } from "./routes/config-routes.js";
+import { registerGossipRoutes } from "./routes/gossip-routes.js";
+import { registerPendingRoutes } from "./routes/pending-routes.js";
 import { registerPreflightRoutes } from "./routes/preflight-routes.js";
+import { registerPromptRoutes } from "./routes/prompt-routes.js";
 import { registerPublishedPostsRoutes } from "./routes/published-posts-routes.js";
+import { registerScraperRoutes } from "./routes/scraper-routes.js";
 import { acgs51Adapter } from "./scraper/adapters/acgs51-adapter.js";
 import { demoAdapter } from "./scraper/adapters/demo-adapter.js";
-import { registerGossipRoutes } from "./scraper/gossip-routes.js";
 import { getDb, initPendingDb } from "./scraper/pending-db.js";
-import { registerPendingRoutes } from "./scraper/pending-routes.js";
-import { registerPromptRoutes } from "./scraper/prompt-routes.js";
 import { jobs, startScheduler } from "./scraper/scheduler.js";
 import { scraperConfig } from "./scraper/scraper-config.js";
-import { registerScraperRoutes } from "./scraper/scraper-routes.js";
 import {
 	generateDraft,
 	listModels,
@@ -40,6 +40,7 @@ export function buildApp(): FastifyInstance {
 	initPendingDb();
 	// 日志:env 控制 level(默认 info);redaction 防鉴权头/密钥落日志(secret-hygiene)。
 	const server = Fastify({
+		genReqId: () => crypto.randomUUID(),
 		bodyLimit: 1048576, // 1MB 全局 body 大小限制
 		logger: {
 			level: process.env.LOG_LEVEL ?? "info",
