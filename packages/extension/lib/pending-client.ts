@@ -22,7 +22,7 @@ export interface PendingTopic {
 	folded?: boolean;
 	/** 预格式化的 web 搜索富化文本，可直接注入 LLM prompt（后端 formatEnrichmentForPrompt 输出）。 */
 	enrichmentText?: string;
-	domain?: "acg" | "gossip";
+	domain?: "acg";
 	createdAt: string;
 	updatedAt: string;
 }
@@ -31,7 +31,7 @@ export interface FetchPendingTopicsOptions {
 	status?: string;
 	sort_by?: "score" | "created_at";
 	fold_threshold?: number;
-	domain?: "acg" | "gossip";
+	domain?: "acg";
 }
 
 export interface PendingTopicsResponse {

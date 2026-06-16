@@ -10,7 +10,6 @@ import { PUBLIC_ROUTES, requireAuth } from "./middleware/auth-middleware.js";
 import { registerAuthRoutes } from "./routes/auth-routes.js";
 import { registerBatchRoutes } from "./routes/batch-routes.js";
 import { registerConfigRoutes } from "./routes/config-routes.js";
-import { registerGossipRoutes } from "./routes/gossip-routes.js";
 import { registerPendingRoutes } from "./routes/pending-routes.js";
 import { registerPreflightRoutes } from "./routes/preflight-routes.js";
 import { registerPromptRoutes } from "./routes/prompt-routes.js";
@@ -221,7 +220,6 @@ export function buildApp(): FastifyInstance {
 	registerPreflightRoutes(server);
 	registerBatchRoutes(server);
 	registerScraperRoutes(server);
-	registerGossipRoutes(server);
 	registerPendingRoutes(server);
 	registerPromptRoutes(server);
 	registerPublishedPostsRoutes(server);

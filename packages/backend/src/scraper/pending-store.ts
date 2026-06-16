@@ -1,4 +1,4 @@
-import type { FactsBlock, GossipFactsBlock } from "@51publisher/shared";
+import type { FactsBlock } from "@51publisher/shared";
 import {
 	type BetterSqlite3DB,
 	getDb,
@@ -25,24 +25,24 @@ export interface PendingTopic {
 	siteName: string;
 	title: string;
 	rawContent?: RawContent;
-	facts: FactsBlock | GossipFactsBlock;
+	facts: FactsBlock;
 	confidence: number;
 	status: PendingStatus;
 	rejectedReason?: string;
 	coverImageUrl?: string;
 	score?: number;
 	enrichment?: EnrichedContext;
-	domain?: "acg" | "gossip";
+	domain?: "acg";
 	createdAt: string;
 	updatedAt: string;
 }
 
 export interface PendingTopicPatch {
-	facts?: FactsBlock | GossipFactsBlock;
+	facts?: FactsBlock;
 	confidence?: number;
 	status?: PendingStatus;
 	rejectedReason?: string;
-	domain?: "acg" | "gossip";
+	domain?: "acg";
 }
 
 interface PendingRow {
@@ -81,14 +81,14 @@ function safeJsonParse<T>(
 }
 
 function rowToTopic(row: PendingRow): PendingTopic {
-	const domain = row.domain === "gossip" ? "gossip" : "acg";
+	const domain = "acg" as const;
 	return {
 		id: row.id,
 		sourceUrl: row.source_url,
 		siteName: row.site_name,
 		title: row.title,
 		rawContent: safeJsonParse<RawContent>(row.raw_content, undefined),
-		facts: safeJsonParse<FactsBlock | GossipFactsBlock>(row.facts, {}),
+		facts: safeJsonParse<FactsBlock>(row.facts, {}),
 		confidence: row.confidence,
 		status: isValidPendingStatus(row.status) ? row.status : "pending",
 		rejectedReason: row.rejected_reason ?? undefined,
@@ -258,7 +258,7 @@ export async function listPendingTopics(
 	limit?: number,
 	status?: PendingStatus,
 	sortBy?: "score" | "created_at",
-	domain?: "acg" | "gossip",
+	domain?: "acg",
 ): Promise<PendingTopic[]> {
 	const db = getDb();
 	const cap = Math.min(Math.max(limit ?? 50, 1), 500);
