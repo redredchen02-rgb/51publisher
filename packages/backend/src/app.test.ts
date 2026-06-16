@@ -106,8 +106,11 @@ describe("buildApp", () => {
 		expect(typeof body.uptime).toBe("number");
 		expect(body.scheduler).toHaveProperty("jobCount");
 		expect(body.database).toHaveProperty("healthy");
+		expect(body.llm).toHaveProperty("configured");
+		expect(body.storage).toHaveProperty("writable");
 		expect(body.memory).toHaveProperty("heapUsed");
 		expect(body.quality).toBeDefined();
+		expect(typeof body.publishFailAlert).toBe("boolean");
 	});
 
 	it("GET /api/v1/metrics 无 token → 401（preHandler 全局生效，metrics 不在白名单）", async () => {
