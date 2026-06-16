@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
+import { recordScraperRun } from "../services/metrics.js";
 import { err } from "../utils/error-response.js";
 import { generateId } from "../utils/generate-id.js";
-import { recordScraperRun } from "../services/metrics.js";
 import { extractFacts } from "./fact-extractor.js";
 import { type PendingTopic, savePendingTopic } from "./pending-store.js";
 import { scraperConfig } from "./scraper-config.js";

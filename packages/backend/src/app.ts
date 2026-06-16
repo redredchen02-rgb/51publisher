@@ -111,40 +111,45 @@ export function buildApp(): FastifyInstance {
 		return payload;
 	});
 
-	server.get<{ Reply: import("@sinclair/typebox").Static<typeof HealthzResponse> }>(
+	server.get<{
+		Reply: import("@sinclair/typebox").Static<typeof HealthzResponse>;
+	}>(
 		"/api/v1/healthz",
 		{ schema: { response: { 200: HealthzResponse } } },
 		async () => {
-		const schedulerRunning = jobs.size > 0;
-		const dbHealthy = (() => {
+			const schedulerRunning = jobs.size > 0;
+			const dbHealthy = (() => {
+				try {
+					getDb().prepare("SELECT 1").get();
+					return true;
+				} catch {
+					return false;
+				}
+			})();
+
+			// 质量统计
+			let quality = { avgScore: 0, passRate: 0, totalGenerations: 0 };
 			try {
-				getDb().prepare("SELECT 1").get();
-				return true;
+				const { getQualityStats } = await import(
+					"./services/quality-metrics.js"
+				);
+				quality = await getQualityStats();
 			} catch {
-				return false;
+				// 质量统计不可用不影响健康检查
 			}
-		})();
 
-		// 质量统计
-		let quality = { avgScore: 0, passRate: 0, totalGenerations: 0 };
-		try {
-			const { getQualityStats } = await import("./services/quality-metrics.js");
-			quality = await getQualityStats();
-		} catch {
-			// 质量统计不可用不影响健康检查
-		}
-
-		return {
-			ok: true,
-			uptime: Math.round(process.uptime()),
-			scheduler: { running: schedulerRunning, jobCount: jobs.size },
-			database: { healthy: dbHealthy },
-			memory: {
-				heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-			},
-			quality,
-		} as import("@sinclair/typebox").Static<typeof HealthzResponse>;
-	});
+			return {
+				ok: true,
+				uptime: Math.round(process.uptime()),
+				scheduler: { running: schedulerRunning, jobCount: jobs.size },
+				database: { healthy: dbHealthy },
+				memory: {
+					heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+				},
+				quality,
+			} as import("@sinclair/typebox").Static<typeof HealthzResponse>;
+		},
+	);
 
 	server.get("/api/v1/metrics", async (_request, reply) => {
 		reply.header("Content-Type", "text/plain; version=0.0.4");

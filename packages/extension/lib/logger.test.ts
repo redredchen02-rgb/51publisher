@@ -51,8 +51,6 @@ describe("logger", () => {
 	it("logs without context (no trailing JSON)", () => {
 		const spy = vi.spyOn(console, "info").mockImplementation(() => {});
 		logger.info("test", "no context");
-		expect(spy).toHaveBeenCalledWith(
-			"[51publisher] [info] [test] no context",
-		);
+		expect(spy).toHaveBeenCalledWith("[51publisher] [info] [test] no context");
 	});
 });

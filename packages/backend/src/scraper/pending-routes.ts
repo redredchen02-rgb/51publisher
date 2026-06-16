@@ -1,5 +1,5 @@
-import { Type } from "@sinclair/typebox";
 import type { RejectionReason } from "@51publisher/shared";
+import { Type } from "@sinclair/typebox";
 import type { FastifyInstance } from "fastify";
 import { err } from "../utils/error-response.js";
 import { generateId } from "../utils/generate-id.js";
@@ -65,37 +65,41 @@ export async function registerPendingRoutes(
 			},
 		},
 		async (request) => {
-		const limit = Math.min(Math.max(Number(request.query.limit) || 50, 1), 200);
-		const rawStatus = request.query.status;
-		const status: PendingStatus | undefined =
-			rawStatus !== undefined && VALID_STATUSES_SET.has(rawStatus)
-				? (rawStatus as PendingStatus)
-				: undefined;
-		const sortBy =
-			request.query.sort_by === "score"
-				? ("score" as const)
-				: ("created_at" as const);
-		const foldThreshold =
-			request.query.fold_threshold !== undefined
-				? Number(request.query.fold_threshold)
-				: undefined;
-		const domain =
-			request.query.domain === "acg" || request.query.domain === "gossip"
-				? (request.query.domain as "acg" | "gossip")
-				: undefined;
+			const limit = Math.min(
+				Math.max(Number(request.query.limit) || 50, 1),
+				200,
+			);
+			const rawStatus = request.query.status;
+			const status: PendingStatus | undefined =
+				rawStatus !== undefined && VALID_STATUSES_SET.has(rawStatus)
+					? (rawStatus as PendingStatus)
+					: undefined;
+			const sortBy =
+				request.query.sort_by === "score"
+					? ("score" as const)
+					: ("created_at" as const);
+			const foldThreshold =
+				request.query.fold_threshold !== undefined
+					? Number(request.query.fold_threshold)
+					: undefined;
+			const domain =
+				request.query.domain === "acg" || request.query.domain === "gossip"
+					? (request.query.domain as "acg" | "gossip")
+					: undefined;
 
-		const rawTopics = await listPendingTopics(limit, status, sortBy, domain);
+			const rawTopics = await listPendingTopics(limit, status, sortBy, domain);
 
-		const topics =
-			foldThreshold !== undefined && !Number.isNaN(foldThreshold)
-				? rawTopics.map((t) => ({
-						...t,
-						folded: (t.score ?? 0) < foldThreshold,
-					}))
-				: rawTopics;
+			const topics =
+				foldThreshold !== undefined && !Number.isNaN(foldThreshold)
+					? rawTopics.map((t) => ({
+							...t,
+							folded: (t.score ?? 0) < foldThreshold,
+						}))
+					: rawTopics;
 
-		return { ok: true, topics: topics.map(toApiTopic) };
-	});
+			return { ok: true, topics: topics.map(toApiTopic) };
+		},
+	);
 
 	// 获取单个待审核选题
 	app.get<{ Params: { id: string } }>(
@@ -113,7 +117,15 @@ export async function registerPendingRoutes(
 	);
 
 	// 手动创建待审核选题
-	app.post<{ Body: { sourceUrl: string; siteName: string; title: string; facts?: Record<string, unknown>; confidence?: number } }>(
+	app.post<{
+		Body: {
+			sourceUrl: string;
+			siteName: string;
+			title: string;
+			facts?: Record<string, unknown>;
+			confidence?: number;
+		};
+	}>(
 		"/api/v1/pending-topics",
 		{
 			schema: {
@@ -151,7 +163,15 @@ export async function registerPendingRoutes(
 	);
 
 	// 更新待审核选题（approve / reject）
-	app.patch<{ Params: { id: string }; Body: { status?: string; rejectedReason?: string; facts?: Record<string, unknown>; confidence?: number } }>(
+	app.patch<{
+		Params: { id: string };
+		Body: {
+			status?: string;
+			rejectedReason?: string;
+			facts?: Record<string, unknown>;
+			confidence?: number;
+		};
+	}>(
 		"/api/v1/pending-topics/:id",
 		{
 			schema: {

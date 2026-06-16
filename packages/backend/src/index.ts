@@ -7,7 +7,10 @@ const safeEnvPath = `${process.env.HOME}/.51publisher/.env`;
 dotenv.config({ path: safeEnvPath });
 dotenv.config(); // fallback: load in-repo .env for any vars not already set
 
-const gracefulShutdown = async (signal: string, app: Awaited<ReturnType<typeof buildApp>>) => {
+const gracefulShutdown = async (
+	signal: string,
+	app: Awaited<ReturnType<typeof buildApp>>,
+) => {
 	app.log.info(`Received ${signal}, shutting down gracefully...`);
 	try {
 		await app.close();

@@ -43,7 +43,9 @@ export async function fetchRemoteMappings(
 
 		const data = (await res.json()) as MappingsResponse;
 		if (data.ok && data.mappings) {
-			logger.debug("config-client", "成功拉取远程映射", { version: data.version });
+			logger.debug("config-client", "成功拉取远程映射", {
+				version: data.version,
+			});
 			return { mappings: data.mappings, remote: true };
 		}
 
