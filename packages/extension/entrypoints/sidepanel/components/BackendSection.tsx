@@ -21,7 +21,9 @@ export function BackendSection({
 	onTestConnection,
 }: BackendSectionProps) {
 	const [testing, setTesting] = useState(false);
-	const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
+	const [testResult, setTestResult] = useState<ConnectionTestResult | null>(
+		null,
+	);
 
 	async function handleTest() {
 		setTesting(true);
@@ -75,7 +77,9 @@ export function BackendSection({
 						role="status"
 						className={`field-hint ${testResult.status === "ok" ? "text-success" : "text-warning"}`}
 					>
-						{testResult.status === "ok" ? "✓ 連線成功" : "✗ 連線失敗，請確認 URL 和 Token"}
+						{testResult.status === "ok"
+							? "✓ 連線成功"
+							: "✗ 連線失敗，請確認 URL 和 Token"}
 					</p>
 				)}
 			</div>
