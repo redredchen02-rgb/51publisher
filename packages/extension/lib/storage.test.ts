@@ -401,7 +401,9 @@ describe("storage", () => {
 
 	describe("parseFewShotExamples / deriveFewShotExamples", () => {
 		it("happy path: 單條帶分隔符 → [{input, output}]", () => {
-			expect(parseFewShotExamples("A\n---\nB")).toEqual([{ input: "A", output: "B" }]);
+			expect(parseFewShotExamples("A\n---\nB")).toEqual([
+				{ input: "A", output: "B" },
+			]);
 		});
 
 		it("happy path: 兩條以 \\n\\n 分隔 → 兩個 pair", () => {

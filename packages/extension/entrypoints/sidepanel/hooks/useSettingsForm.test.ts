@@ -45,7 +45,9 @@ const DEFAULT_SETTINGS_MOCK = {
 	promptTemplate: "Write a post about {topic}",
 	fewShotPairs: [],
 	recommendedTags: ["漢化", "無修正"],
-	fieldMapping: { title: { selector: 'input[name="title"]', fieldType: "text" } },
+	fieldMapping: {
+		title: { selector: 'input[name="title"]', fieldType: "text" },
+	},
 	fallbackModel: undefined,
 	backendUrl: "http://localhost:3001",
 	reviewCriteriaPrompt: "",
@@ -207,9 +209,16 @@ describe("useSettingsForm — Unit 3: loadPrompts / selectPrompt / savePromptToB
 		mocks.saveSettings.mockResolvedValue(undefined);
 		mocks.saveApiKey.mockResolvedValue(undefined);
 		mocks.saveBackendToken.mockResolvedValue(undefined);
-		mocks.fetchPrompts.mockResolvedValue({ ok: true, prompts: PROMPT_LIST_MOCK });
+		mocks.fetchPrompts.mockResolvedValue({
+			ok: true,
+			prompts: PROMPT_LIST_MOCK,
+		});
 		mocks.createPrompt.mockResolvedValue({ ok: true });
-		mocks.testConnection.mockResolvedValue({ status: "ok", message: "連線正常", modelCount: 3 });
+		mocks.testConnection.mockResolvedValue({
+			status: "ok",
+			message: "連線正常",
+			modelCount: 3,
+		});
 	});
 
 	it("loadPrompts() 成功 → prompts 有值，promptStatus 含「已加載」", async () => {
@@ -239,8 +248,12 @@ describe("useSettingsForm — Unit 3: loadPrompts / selectPrompt / savePromptToB
 		act(() => {
 			result.current.selectPrompt("p1");
 		});
-		expect(result.current.formValues.promptTemplate).toBe("寫一篇關於{topic}的文章");
-		expect(result.current.formValues.fewShotPairs).toEqual([{ input: "Q", output: "A" }]);
+		expect(result.current.formValues.promptTemplate).toBe(
+			"寫一篇關於{topic}的文章",
+		);
+		expect(result.current.formValues.fewShotPairs).toEqual([
+			{ input: "Q", output: "A" },
+		]);
 	});
 
 	it("selectPrompt(id) id 不存在 → promptTemplate 不改變（no-op）", async () => {
