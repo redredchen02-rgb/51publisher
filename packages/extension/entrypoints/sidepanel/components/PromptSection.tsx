@@ -8,14 +8,11 @@ const MAX_PAIRS = 8;
 interface PromptSectionProps {
 	promptTemplate: string;
 	fewShotPairs: FewShotPair[];
-	importBanner: string;
-	importTruncated: string;
 	prompts: PromptTemplate[];
 	selectedPromptId: string;
 	promptStatus: string;
 	setPromptTemplate: (v: string) => void;
 	setFewShotPairs: (pairs: FewShotPair[]) => void;
-	onImportFewShot: () => void;
 	onLoadPrompts: () => void;
 	onSelectPrompt: (id: string) => void;
 	onSavePromptToBackend: (name: string) => Promise<void>;
@@ -24,14 +21,11 @@ interface PromptSectionProps {
 export function PromptSection({
 	promptTemplate,
 	fewShotPairs,
-	importBanner,
-	importTruncated,
 	prompts,
 	selectedPromptId,
 	promptStatus,
 	setPromptTemplate,
 	setFewShotPairs,
-	onImportFewShot,
 	onLoadPrompts,
 	onSelectPrompt,
 	onSavePromptToBackend,
@@ -56,17 +50,7 @@ export function PromptSection({
 							({fewShotPairs.length}/{MAX_PAIRS})
 						</span>
 					</div>
-					{importTruncated && (
-						<p role="alert" className="field-hint text-warning">
-							{importTruncated}
-						</p>
-					)}
-					<FewShotPairEditor
-						pairs={fewShotPairs}
-						onChange={setFewShotPairs}
-						importBanner={importBanner || undefined}
-						onImport={onImportFewShot}
-					/>
+					<FewShotPairEditor pairs={fewShotPairs} onChange={setFewShotPairs} />
 				</div>
 			</div>
 
@@ -96,8 +80,6 @@ export function PromptSection({
 					里给的事实润色,缺的标【待补】,连结只用给定
 					URL——防止编造作品事实/连结。
 				</p>
-
-
 			</div>
 
 			<hr className="divider" />

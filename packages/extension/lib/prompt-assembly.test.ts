@@ -2,6 +2,7 @@ import type { FactsBlock, Settings } from "@51publisher/shared";
 import { describe, expect, it } from "vitest";
 import { buildPrompt } from "./messaging";
 import { assemblePrompt, buildConstraintSuffix } from "./prompt-assembly";
+import { deriveFewShotExamples } from "./storage";
 
 const BASE: Settings = {
 	endpoint: "https://api.example.com",
@@ -20,7 +21,7 @@ function inline(settings: Settings, topic: string, facts?: FactsBlock): string {
 			settings.promptTemplate,
 			topic,
 			facts,
-			settings.fewShotExamples,
+			deriveFewShotExamples(settings.fewShotPairs ?? []),
 		) + buildConstraintSuffix(settings.recommendedTags ?? [])
 	);
 }

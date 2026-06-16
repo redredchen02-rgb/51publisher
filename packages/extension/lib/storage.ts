@@ -83,14 +83,6 @@ export async function getSettings(): Promise<Settings> {
 			...(stored.fieldMapping ?? {}),
 		},
 	};
-	// fewShotPairs is the source of truth for fewShotExamples; when pairs are
-	// explicitly stored as empty, clear fewShotExamples instead of falling back
-	// to the DEFAULT_SETTINGS example string.
-	if (stored.fewShotPairs !== undefined && stored.fewShotPairs.length === 0) {
-		merged.fewShotExamples = undefined;
-	} else if (merged.fewShotPairs && merged.fewShotPairs.length > 0) {
-		merged.fewShotExamples = deriveFewShotExamples(merged.fewShotPairs);
-	}
 	// 读取时确保 dailyBatchSize 始终在合法范围内
 	merged.dailyBatchSize = clampDailyBatchSize(merged.dailyBatchSize);
 	return merged;
@@ -319,10 +311,21 @@ export function deriveFewShotExamples(pairs: FewShotPair[]): string {
 	return pairs.map((p) => `${p.input}\n---\n${p.output}`).join("\n\n");
 }
 
+export function parseFewShotExamples(raw: string): FewShotPair[] {
+	if (!raw) return [];
+	const blocks = raw.split(/\n\n+/).filter(Boolean);
+	return blocks.map((b) => {
+		const sep = b.indexOf("\n---\n");
+		return sep !== -1
+			? { input: b.slice(0, sep), output: b.slice(sep + 5) }
+			: { input: "", output: b };
+	});
+}
+
 const MAX_FEW_SHOT = 8;
 
 /**
- * 追加一条 few-shot 范例到末尾（只写 fewShotPairs；fewShotExamples 由 getSettings() 读时派生）。
+ * 追加一条 few-shot 范例到末尾（只写 fewShotPairs）。
  * 返回 { ok: false, reason: 'full' } 当已达上限，不写入。
  */
 export async function addFewShotPair(

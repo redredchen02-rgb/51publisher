@@ -18,7 +18,6 @@ vi.mock("../../lib/storage", () => ({
 		endpoint: "",
 		model: "gpt-4o-mini",
 		promptTemplate: "{{topic}}",
-		fewShotExamples: "",
 		recommendedTags: ["漢化"],
 		fieldMapping: {},
 		backendUrl: "",

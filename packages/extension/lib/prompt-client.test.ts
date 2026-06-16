@@ -30,7 +30,7 @@ describe("prompt-client — fetchPrompts", () => {
 				id: "p1",
 				name: "n",
 				template: "t",
-				fewShotExamples: "",
+				fewShotPairs: [],
 				createdAt: "x",
 				updatedAt: "y",
 			},
@@ -88,7 +88,7 @@ describe("prompt-client — createPrompt", () => {
 	it("Happy: 2xx → POST 命中 /prompts，携带 body", async () => {
 		const { capturedUrls, capturedInits, fn } = mockFetch({ ok: true });
 		const result = await createPrompt(
-			{ name: "n", template: "t", fewShotExamples: "" },
+			{ name: "n", template: "t", fewShotPairs: [] },
 			10_000,
 			fn,
 		);
@@ -101,7 +101,7 @@ describe("prompt-client — createPrompt", () => {
 	it("Error 401 → clearToken()，ok:false", async () => {
 		const { fn } = mockFetch({}, 401);
 		const result = await createPrompt(
-			{ name: "n", template: "t", fewShotExamples: "" },
+			{ name: "n", template: "t", fewShotPairs: [] },
 			10_000,
 			fn,
 		);
@@ -120,7 +120,7 @@ describe("prompt-client — updatePrompt", () => {
 		const { capturedUrls, capturedInits, fn } = mockFetch({ ok: true });
 		const result = await updatePrompt(
 			"p1",
-			{ name: "n", template: "t", fewShotExamples: "" },
+			{ name: "n", template: "t", fewShotPairs: [] },
 			10_000,
 			fn,
 		);
@@ -133,7 +133,7 @@ describe("prompt-client — updatePrompt", () => {
 		const { fn } = mockFetch({}, 500);
 		const result = await updatePrompt(
 			"p1",
-			{ name: "n", template: "t", fewShotExamples: "" },
+			{ name: "n", template: "t", fewShotPairs: [] },
 			10_000,
 			fn,
 		);

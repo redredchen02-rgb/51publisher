@@ -1,13 +1,13 @@
 import type { FieldMapping } from "@51publisher/shared";
 import { isValidFieldMapping, VALID_FIELD_TYPES } from "@51publisher/shared";
 import { useEffect, useState } from "react";
+import { logger } from "../../lib/logger";
 import { DEFAULT_SETTINGS } from "../../lib/storage";
 import { BackendSection } from "./components/BackendSection";
 import { FieldMappingSection } from "./components/FieldMappingSection";
 import { LLMSection } from "./components/LLMSection";
 import { PromptSection } from "./components/PromptSection";
 import { TagsSection } from "./components/TagsSection";
-import { logger } from "../../lib/logger";
 import { useSettingsForm } from "./hooks/useSettingsForm";
 import styles from "./Settings.module.css";
 
@@ -99,7 +99,10 @@ export function Settings({ onClose }: { onClose: () => void }) {
 		} else {
 			setError("");
 			if (formValues.backendUrl?.startsWith("http://")) {
-				logger.warn("Settings", "后端 URL 使用 HTTP，JWT 以明文传输。建议仅在本地开发时使用。");
+				logger.warn(
+					"Settings",
+					"后端 URL 使用 HTTP，JWT 以明文传输。建议仅在本地开发时使用。",
+				);
 			}
 			setSaved(true);
 		}
@@ -114,9 +117,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			>
 				← 返回
 			</button>
-			<h2 className={styles.heading}>
-				设置
-			</h2>
+			<h2 className={styles.heading}>设置</h2>
 
 			<p className={`field-hint ${styles.intro}`}>
 				⚙️ 大模型 endpoint 与 API Key 已在后端服务 .env 中配置，扩展不直接管理。
@@ -146,14 +147,11 @@ export function Settings({ onClose }: { onClose: () => void }) {
 			<PromptSection
 				promptTemplate={formValues.promptTemplate}
 				fewShotPairs={formValues.fewShotPairs}
-				importBanner={formValues.importBanner}
-				importTruncated={formValues.importTruncated}
 				prompts={hook.prompts}
 				selectedPromptId={hook.selectedPromptId}
 				promptStatus={hook.promptStatus}
 				setPromptTemplate={(v) => setFormValue("promptTemplate", v)}
 				setFewShotPairs={hook.setFewShotPairs}
-				onImportFewShot={hook.importFewShot}
 				onLoadPrompts={() => void hook.loadPrompts()}
 				onSelectPrompt={hook.selectPrompt}
 				onSavePromptToBackend={hook.savePromptToBackend}

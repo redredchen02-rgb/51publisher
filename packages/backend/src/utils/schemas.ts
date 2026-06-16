@@ -242,16 +242,21 @@ export const TriggerScrapeBody = Type.Object({
 });
 
 // ── Prompts ──────────────────────────────────────────
+const FewShotPairSchema = Type.Object({
+	input: Type.String(),
+	output: Type.String(),
+});
+
 export const CreatePromptBody = Type.Object({
 	name: Type.String({ minLength: 1, maxLength: 100 }),
 	template: Type.String({ minLength: 1, maxLength: 50000 }),
-	fewShotExamples: Type.Optional(Type.String({ maxLength: 50000 })),
+	fewShotPairs: Type.Optional(Type.Array(FewShotPairSchema)),
 	model: Type.Optional(Type.String({ maxLength: 100 })),
 });
 
 export const UpdatePromptBody = Type.Object({
 	name: Type.Optional(Type.String({ minLength: 1, maxLength: 100 })),
 	template: Type.Optional(Type.String({ minLength: 1, maxLength: 50000 })),
-	fewShotExamples: Type.Optional(Type.String({ maxLength: 50000 })),
+	fewShotPairs: Type.Optional(Type.Array(FewShotPairSchema)),
 	model: Type.Optional(Type.String({ maxLength: 100 })),
 });

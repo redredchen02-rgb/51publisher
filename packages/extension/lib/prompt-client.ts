@@ -1,3 +1,4 @@
+import type { FewShotPair } from "@51publisher/shared";
 import { apiFetch } from "./api-fetch";
 
 function errorMessage(err: unknown): string {
@@ -8,7 +9,7 @@ export interface PromptTemplate {
 	id: string;
 	name: string;
 	template: string;
-	fewShotExamples: string;
+	fewShotPairs: FewShotPair[];
 	model?: string;
 	createdAt: string;
 	updatedAt: string;
@@ -39,7 +40,7 @@ export async function createPrompt(
 	data: {
 		name: string;
 		template: string;
-		fewShotExamples: string;
+		fewShotPairs: FewShotPair[];
 		model?: string;
 	},
 	timeoutMs = 10_000,
@@ -69,7 +70,7 @@ export async function updatePrompt(
 	data: {
 		name: string;
 		template: string;
-		fewShotExamples: string;
+		fewShotPairs: FewShotPair[];
 		model?: string;
 	},
 	timeoutMs = 10_000,
