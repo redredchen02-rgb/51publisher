@@ -60,13 +60,14 @@ describe("prompt-routes", () => {
 	// ---- POST /api/v1/prompts ----
 
 	it("POST /api/v1/prompts：有效 body → 200 + 返回含 id 的 prompt", async () => {
+		const pairs = [{ input: "Q1", output: "A1" }];
 		const res = await app.inject({
 			method: "POST",
 			url: "/api/v1/prompts",
 			payload: {
 				name: "測試模板",
 				template: "請依據以下資訊生成文章：{{facts}}",
-				fewShotExamples: "Q1\n---\nA1",
+				fewShotPairs: pairs,
 			},
 		});
 		expect(res.statusCode).toBe(200);
@@ -74,7 +75,23 @@ describe("prompt-routes", () => {
 		expect(body.ok).toBe(true);
 		expect(body.prompt.id).toBeDefined();
 		expect(body.prompt.name).toBe("測試模板");
-		expect(body.prompt.fewShotExamples).toBe("Q1\n---\nA1");
+		expect(body.prompt.fewShotPairs).toEqual(pairs);
+	});
+
+	it("POST /api/v1/prompts：傳舊格式 fewShotExamples → 200，但回傳 fewShotPairs（舊欄位被忽略）", async () => {
+		const res = await app.inject({
+			method: "POST",
+			url: "/api/v1/prompts",
+			payload: {
+				name: "測試模板",
+				template: "template",
+				fewShotExamples: "Q\n---\nA",
+			},
+		});
+		expect(res.statusCode).toBe(200);
+		const body = res.json();
+		expect(body.prompt.fewShotPairs).toEqual([]);
+		expect(body.prompt).not.toHaveProperty("fewShotExamples");
 	});
 
 	it("POST /api/v1/prompts：缺必填欄位 name → 400", async () => {
