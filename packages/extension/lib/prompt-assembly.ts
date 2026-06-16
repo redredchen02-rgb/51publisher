@@ -1,5 +1,6 @@
 import type { FactsBlock, Settings } from "@51publisher/shared";
 import { buildPrompt } from "./messaging";
+import { deriveFewShotExamples } from "./storage";
 
 /** 构造 prompt 末尾的分类/标签约束块。recommendedTags 为空时只含分类约束。 */
 export function buildConstraintSuffix(recommendedTags: string[]): string {
@@ -27,7 +28,7 @@ export function assemblePrompt(
 			settings.promptTemplate,
 			topic,
 			facts,
-			settings.fewShotExamples,
+			deriveFewShotExamples(settings.fewShotPairs ?? []),
 		) + buildConstraintSuffix(settings.recommendedTags ?? [])
 	);
 }
