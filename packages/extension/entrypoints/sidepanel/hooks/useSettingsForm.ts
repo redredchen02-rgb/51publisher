@@ -40,6 +40,8 @@ export interface UseSettingsFormReturn {
 	formValues: SettingsFormValues;
 	getApiKey: () => string;
 	getBackendToken: () => string;
+	setApiKey: (v: string) => void;
+	setBackendToken: (v: string) => void;
 	derivedFewShotExamples: string;
 	prompts: PromptTemplate[];
 	selectedPromptId: string;
@@ -85,6 +87,8 @@ export function useSettingsForm(): UseSettingsFormReturn {
 
 	const getApiKey = useCallback(() => apiKeyRef.current, []);
 	const getBackendToken = useCallback(() => backendTokenRef.current, []);
+	const setApiKey = useCallback((v: string) => { apiKeyRef.current = v; }, []);
+	const setBackendToken = useCallback((v: string) => { backendTokenRef.current = v; }, []);
 
 	const load = useCallback(async () => {
 		if (loadedRef.current) return;
@@ -258,6 +262,8 @@ export function useSettingsForm(): UseSettingsFormReturn {
 		formValues,
 		getApiKey,
 		getBackendToken,
+		setApiKey,
+		setBackendToken,
 		derivedFewShotExamples,
 		prompts,
 		selectedPromptId,
