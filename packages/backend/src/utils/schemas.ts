@@ -180,6 +180,11 @@ export const GossipSiteParams = Type.Object({
 	id: Type.String({ minLength: 1 }),
 });
 
+export const GossipSiteCreate = Type.Object({
+	name: Type.String({ minLength: 1, maxLength: 200 }),
+	listUrl: Type.String({ minLength: 1 }),
+});
+
 export const GossipFromUrlBody = Type.Object({
 	url: Type.String({ minLength: 1 }),
 	siteName: Type.String({ minLength: 1, maxLength: 200 }),

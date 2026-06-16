@@ -418,7 +418,7 @@ describe("gossip-routes — JWT 守護", () => {
 		const res = await app.inject({
 			method: "POST",
 			url: "/api/v1/gossip/sites",
-			payload: { name: "test", url: "https://t.com" },
+			payload: { name: "test", listUrl: "https://t.com" },
 		});
 		expect(res.statusCode).toBe(401);
 	});
