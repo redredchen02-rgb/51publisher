@@ -101,6 +101,7 @@ export function buildApp(): FastifyInstance {
 		.map((s) => s.trim())
 		.filter((s) => s && s !== "*");
 	server.register(cors, { origin: corsOrigins });
+	// 全局 rate limit: 100 req/min；关键端点再通过 per-route config 加严
 	server.register(rateLimit, { max: 100, timeWindow: "1 minute" });
 
 	// CSP headers — 纵深防御,防止 XSS 在意外内容类型中执行
@@ -222,6 +223,7 @@ export function registerDraftRoutes(app: FastifyInstance): void {
 	app.post<{ Body: GenerateDraftBody }>(
 		"/api/v1/drafts/generate",
 		{
+			config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
 			schema: {
 				body: GenerateDraftBodySchema,
 				response: { 200: GenerateDraftResponse },

@@ -1,5 +1,6 @@
 import type { ContentDraft } from "@51publisher/shared";
 import { useCallback, useEffect, useRef } from "react";
+import { logger } from "../../../lib/logger";
 import { saveCurrentDraft } from "../../../lib/storage";
 
 interface UseAutoSaveReturn {
@@ -18,7 +19,7 @@ export function useAutoSave(delay = 1000): UseAutoSaveReturn {
 			const doSave = () => {
 				const result = saveCurrentDraft(draft);
 				if (result && typeof result.catch === "function") {
-					result.catch(console.error);
+					result.catch((e: unknown) => logger.error("useAutoSave", e instanceof Error ? e.message : String(e)));
 				}
 			};
 

@@ -26,10 +26,11 @@ interface TriggerBody {
 export async function registerScraperRoutes(
 	app: FastifyInstance,
 ): Promise<void> {
-	// 手动触发单个站点的抓取
+	// 手动触发单个站点的抓取（scraper 触发是昂贵操作，加严 rate limit）
 	app.post<{ Body: TriggerBody }>(
 		"/api/v1/scraper/trigger",
 		{
+			config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
 			schema: {
 				body: TriggerScrapeBodySchema,
 			},
