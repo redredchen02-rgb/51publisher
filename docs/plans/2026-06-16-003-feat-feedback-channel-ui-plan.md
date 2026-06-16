@@ -1,7 +1,7 @@
 ---
 title: "feat: 发布反馈通道 UI — HistoryPanel 评分 + MetricsPanel 满意度统计"
 type: feat
-status: active
+status: completed
 date: 2026-06-16
 origin: docs/brainstorms/2026-06-16-feedback-channel-ui-requirements.md
 ---
