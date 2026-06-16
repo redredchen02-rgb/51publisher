@@ -1,8 +1,8 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { getDb, initPendingDb } from "./pending-db.js";
+import { getDb, initPendingDb } from "../scraper/pending-db.js";
 import { registerPendingRoutes } from "./pending-routes.js";
-import { type PendingTopic, savePendingTopic } from "./pending-store.js";
+import { type PendingTopic, savePendingTopic } from "../scraper/pending-store.js";
 
 // ---- helpers ----
 

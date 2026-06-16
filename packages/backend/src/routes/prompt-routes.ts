@@ -13,7 +13,7 @@ import {
 	type PromptTemplateCreate,
 	type PromptTemplateUpdate,
 	savePrompt,
-} from "./prompt-store.js";
+} from "../scraper/prompt-store.js";
 
 /**
  * Prompt 模板管理 API。

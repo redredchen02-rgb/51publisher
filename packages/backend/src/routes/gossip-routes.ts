@@ -1,23 +1,23 @@
 import type { FastifyInstance } from "fastify";
 import { err } from "../utils/error-response.js";
 import { generateId } from "../utils/generate-id.js";
-import { fetchContent, fetchList } from "./adapters/generic-adapter.js";
+import { fetchContent, fetchList } from "../scraper/adapters/generic-adapter.js";
 import {
 	type ExtractedGossipFacts,
 	gossipExtractFacts,
-} from "./gossip-fact-extractor.js";
+} from "../scraper/gossip-fact-extractor.js";
 import {
 	deleteGossipSite,
 	type GossipSiteCreate,
 	getGossipSite,
 	listGossipSites,
 	saveGossipSite,
-} from "./gossip-site-store.js";
-import type { PendingTopic } from "./pending-store.js";
+} from "../scraper/gossip-site-store.js";
+import type { PendingTopic } from "../scraper/pending-store.js";
 import {
 	pendingTopicExistsBySourceUrl,
 	savePendingTopic,
-} from "./pending-store.js";
+} from "../scraper/pending-store.js";
 
 /** 返回 400 如果 hostname 是 IP literal（IPv4、decimal-encoded IPv4 或 IPv6）。 */
 function isIpLiteral(hostname: string): boolean {

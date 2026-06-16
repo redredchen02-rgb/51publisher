@@ -59,21 +59,6 @@ export const DEFAULT_SETTINGS: Settings = {
 		"",
 		"{{facts}}",
 	].join("\n"),
-	// 范例只示口吻与槽位结构;绝不含真实连结/事实(脱敏)。
-	fewShotExamples: [
-		"范例(仅示口吻与 JSON 槽位结构;事实一律来自【事实】,不要编造):",
-		"输出 JSON:",
-		"{",
-		'  "intro": "嗨嗨~大家好我是51娘ヾ(≧▽≦*)o 今天為各位紳士帶來一部讓人血脈賁張的作品!",',
-		'  "highlights": "畫面精緻、福利滿滿,劇情雖不複雜卻很對味,喜歡這類題材的紳士絕不能錯過~",',
-		'  "titleSuffix": "成人動畫介紹",',
-		'  "subtitle": "紳士們準備好衛生紙了嗎?",',
-		'  "outro": "那麼今天就介紹到這裡,各位紳士我們下次見啦(*/ω＼*)",',
-		'  "category": "",',
-		'  "tags": []',
-		"}",
-		"",
-	].join("\n"),
 	fewShotPairs: [] as FewShotPair[],
 	recommendedTags: [] as string[],
 	fieldMapping: DEFAULT_FIELD_MAPPING,
@@ -103,6 +88,8 @@ export async function getSettings(): Promise<Settings> {
 	// to the DEFAULT_SETTINGS example string.
 	if (stored.fewShotPairs !== undefined && stored.fewShotPairs.length === 0) {
 		merged.fewShotExamples = undefined;
+	} else if (merged.fewShotPairs && merged.fewShotPairs.length > 0) {
+		merged.fewShotExamples = deriveFewShotExamples(merged.fewShotPairs);
 	}
 	// 读取时确保 dailyBatchSize 始终在合法范围内
 	merged.dailyBatchSize = clampDailyBatchSize(merged.dailyBatchSize);
@@ -348,7 +335,6 @@ export async function addFewShotPair(
 	await saveSettings({
 		...settings,
 		fewShotPairs: next,
-		fewShotExamples: deriveFewShotExamples(next),
 	});
 	return { ok: true };
 }
@@ -365,7 +351,6 @@ export async function removeLastFewShotPair(): Promise<void> {
 	await saveSettings({
 		...settings,
 		fewShotPairs: next,
-		fewShotExamples: next.length > 0 ? deriveFewShotExamples(next) : undefined,
 	});
 }
 

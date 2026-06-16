@@ -3,20 +3,20 @@ import { join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerGossipRoutes } from "./gossip-routes.js";
-import { initPendingDb, resetPendingDb } from "./pending-db.js";
+import { initPendingDb, resetPendingDb } from "../scraper/pending-db.js";
 
 // Mock generic-adapter and gossip-fact-extractor
-vi.mock("./adapters/generic-adapter.js", () => ({
+vi.mock("../scraper/adapters/generic-adapter.js", () => ({
 	fetchList: vi.fn(),
 	fetchContent: vi.fn(),
 }));
 
-vi.mock("./gossip-fact-extractor.js", () => ({
+vi.mock("../scraper/gossip-fact-extractor.js", () => ({
 	gossipExtractFacts: vi.fn(),
 }));
 
-import { fetchContent, fetchList } from "./adapters/generic-adapter.js";
-import { gossipExtractFacts } from "./gossip-fact-extractor.js";
+import { fetchContent, fetchList } from "../scraper/adapters/generic-adapter.js";
+import { gossipExtractFacts } from "../scraper/gossip-fact-extractor.js";
 
 const mockFetchList = vi.mocked(fetchList);
 const mockFetchContent = vi.mocked(fetchContent);

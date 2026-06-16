@@ -209,11 +209,10 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 		}
 	}
 
-	async function handlePublish(item: BatchItem, postStatus: string) {
+	async function handlePublish(item: BatchItem) {
 		if (adminTabId == null) return;
 		setPublishingItems((prev) => new Set([...prev, item.id]));
 		try {
-			void postStatus;
 			const batch = await approveSingleItem(adminTabId, item.id);
 			if (batch) setItems(batch.items);
 		} finally {
@@ -592,7 +591,7 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 											<button
 												type="button"
 												disabled={!isRead || isPublishing}
-												onClick={() => void handlePublish(item, "0")}
+												onClick={() => void handlePublish(item)}
 												title={!isRead ? "请先展开预览后才能发布" : ""}
 												className="btn btn-sm"
 												style={{
