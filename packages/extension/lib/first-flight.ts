@@ -13,7 +13,7 @@
 //
 // 并发:arm 全流程由调用方(background)包进 `createSerialQueue` 临界区;本模块的读回确认是
 // chrome.storage.local 无 CAS 下的额外防线(并发第二写覆盖即读回不符 → 拒绝 arm)。
-import type { SafetyMode } from "@51publisher/shared";
+import type { ContentDraft, SafetyMode } from "@51publisher/shared";
 import type { FirstFlightPending } from "./storage";
 
 export const MAX_CONSECUTIVE_RESETS = 2;
@@ -113,6 +113,33 @@ export interface StartupResetOutcome {
  * 强制复位(残留授权窗口绝不延续过 SW 回收)。无残留 → 不动。
  * 连续 N 次强制复位无干净 settle → 回落 off(真 fail-closed)+ 需显式重启用。
  */
+// ---- draft hashing utilities (U5 首飞联锁) ----
+
+function stableJsonStringify(value: unknown): string {
+	if (value === null || typeof value !== "object") return JSON.stringify(value);
+	if (Array.isArray(value))
+		return `[${value.map(stableJsonStringify).join(",")}]`;
+	const keys = Object.keys(value as object).sort();
+	return `{${keys
+		.map(
+			(k) =>
+				`${JSON.stringify(k)}:${stableJsonStringify((value as Record<string, unknown>)[k])}`,
+		)
+		.join(",")}}`;
+}
+
+/**
+ * SHA-256 of a stable (sorted-key) JSON serialization of the draft.
+ * Used by armFirstFlight caller (to store contentHash) and by the interlock guard (to verify).
+ */
+export async function hashDraft(draft: ContentDraft): Promise<string> {
+	const bytes = new TextEncoder().encode(stableJsonStringify(draft));
+	const buf = await crypto.subtle.digest("SHA-256", bytes);
+	return Array.from(new Uint8Array(buf))
+		.map((b) => b.toString(16).padStart(2, "0"))
+		.join("");
+}
+
 export async function runStartupFirstFlightReset(
 	deps: FirstFlightDeps,
 ): Promise<StartupResetOutcome> {

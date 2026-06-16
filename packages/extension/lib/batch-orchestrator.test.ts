@@ -1321,3 +1321,86 @@ describe("approveBatch itemIdFilter", () => {
 		expect(sendGrant).toHaveBeenCalledTimes(2);
 	});
 });
+
+// ================================================================
+// approveBatch — firstFlight interlock (U5)
+// ================================================================
+
+describe("approveBatch — firstFlight interlock (U5)", () => {
+	it("guard 不存在 → 正常流程不受影响(向后兼容)", async () => {
+		const batch = makeAwaitingBatch();
+		const deps = makeApproveDeps({ getBatch: vi.fn(async () => batch) });
+		const result = await approveBatch(deps);
+		expect(result?.items[0]?.status).toBe("publish-confirmed");
+		expect(deps.sendFill).toHaveBeenCalledOnce();
+		expect(deps.sendGrant).toHaveBeenCalledOnce();
+	});
+
+	it("guard 返回 true → 正常流程(sendFill/sendGrant 均被调用)", async () => {
+		const batch = makeAwaitingBatch();
+		const guard = vi.fn(async () => true);
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => batch),
+			firstFlightGuard: guard,
+		});
+		const result = await approveBatch(deps);
+		expect(result?.items[0]?.status).toBe("publish-confirmed");
+		expect(guard).toHaveBeenCalledOnce();
+		expect(guard).toHaveBeenCalledWith(
+			"item_0",
+			expect.objectContaining({ id: "item_0" }),
+		);
+		expect(deps.sendFill).toHaveBeenCalledOnce();
+		expect(deps.sendGrant).toHaveBeenCalledOnce();
+	});
+
+	it("guard 返回 false → 条目 gate-failed,sendFill/sendGrant 均不被调用", async () => {
+		const batch = makeAwaitingBatch();
+		const guard = vi.fn(async () => false);
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => batch),
+			firstFlightGuard: guard,
+		});
+		const result = await approveBatch(deps);
+		expect(result?.items[0]?.status).toBe("gate-failed");
+		expect(deps.sendFill).not.toHaveBeenCalled();
+		expect(deps.sendGrant).not.toHaveBeenCalled();
+	});
+
+	it("guard 在 writeTombstone 之前被调用(顺序:guard → tombstone → fill)", async () => {
+		const batch = makeAwaitingBatch();
+		const callOrder: string[] = [];
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => batch),
+			firstFlightGuard: vi.fn(async () => {
+				callOrder.push("guard");
+				return true;
+			}),
+			writeTombstone: vi.fn(async () => {
+				callOrder.push("tombstone");
+			}),
+			sendFill: vi.fn(async () => {
+				callOrder.push("fill");
+				return { ok: true as const, results: [] };
+			}),
+		});
+		await approveBatch(deps);
+		expect(callOrder[0]).toBe("guard");
+		expect(callOrder[1]).toBe("tombstone");
+		expect(callOrder[2]).toBe("fill");
+	});
+
+	it("多条目:guard 放行 item_0、拦截 item_1 → item_0 confirmed、item_1 gate-failed", async () => {
+		const batch = makeAwaitingBatch([TOPIC_A, TOPIC_B]);
+		const guard = vi.fn(async (itemId: string) => itemId === "item_0");
+		const deps = makeApproveDeps({
+			getBatch: vi.fn(async () => batch),
+			firstFlightGuard: guard,
+		});
+		const result = await approveBatch(deps);
+		expect(result?.items[0]?.status).toBe("publish-confirmed");
+		expect(result?.items[1]?.status).toBe("gate-failed");
+		expect(deps.sendFill).toHaveBeenCalledOnce(); // 只有 item_0
+		expect(deps.sendGrant).toHaveBeenCalledOnce(); // 只有 item_0
+	});
+});

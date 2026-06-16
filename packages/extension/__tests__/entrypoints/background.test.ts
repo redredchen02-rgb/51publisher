@@ -9,6 +9,8 @@ import {
 	runStartupGeneratingRecovery,
 } from "../../entrypoints/background";
 import type { Batch } from "../../lib/batch";
+import { hashDraft } from "../../lib/first-flight";
+import { setFirstFlightPending } from "../../lib/storage";
 
 // ---- helpers ----
 
@@ -820,5 +822,147 @@ describe("首飞门控 firstFlightReady", () => {
 		const h = createHandlers(deps);
 		await h.handleApproveBatch(1);
 		expect(deps.tabsSendMessage).toHaveBeenCalled();
+	});
+});
+
+// ================================================================
+// 首飞联锁守卫(firstFlightGuard) — background 集成(U5)
+// ================================================================
+
+describe("首飞联锁守卫 firstFlightGuard (U5)", () => {
+	beforeEach(() => {
+		fakeBrowser.reset();
+	});
+
+	/** 根据 DRAFT 的实际 hash 构造 matching pending。 */
+	async function makePending(
+		overrides: Partial<Parameters<typeof setFirstFlightPending>[0]> = {},
+	) {
+		const hash = await hashDraft(DRAFT);
+		const base = {
+			itemId: "item_0",
+			tabId: 1,
+			host: HOST,
+			contentHash: hash,
+			nonce: "test-nonce",
+			ts: "2026-06-15T00:00:00.000Z",
+		};
+		await setFirstFlightPending({ ...base, ...overrides });
+		return base;
+	}
+
+	function makeTabsSendMessage() {
+		return vi.fn(async (_id: number, msg: unknown) => {
+			const m = msg as { type: string };
+			if (m.type === "FILL_PAGE") return { ok: true, results: [] };
+			if (m.type === "PUBLISH_GRANT")
+				return { ok: true, dryRun: false, url: `https://${HOST}/post/1` };
+			return null;
+		});
+	}
+
+	it("无 pending → guard 放行,PUBLISH_GRANT 正常发出", async () => {
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => makeBatch("awaiting-approval")),
+			tabsSendMessage: makeTabsSendMessage(),
+			getActiveArmNonce: vi.fn(() => null),
+		});
+		const h = createHandlers(deps);
+		await h.handleApproveBatch(1);
+		expect(deps.tabsSendMessage).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({ type: "PUBLISH_GRANT" }),
+		);
+	});
+
+	it("pending 全字段匹配 → guard 放行,PUBLISH_GRANT 发出", async () => {
+		await makePending();
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => makeBatch("awaiting-approval")),
+			tabsSendMessage: makeTabsSendMessage(),
+			getActiveArmNonce: vi.fn(() => "test-nonce"),
+		});
+		const h = createHandlers(deps);
+		await h.handleApproveBatch(1);
+		expect(deps.tabsSendMessage).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({ type: "PUBLISH_GRANT" }),
+		);
+	});
+
+	it("pending.itemId 不匹配 → guard 拦截,PUBLISH_GRANT 不发出", async () => {
+		await makePending({ itemId: "item_WRONG" });
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => makeBatch("awaiting-approval")),
+			tabsSendMessage: makeTabsSendMessage(),
+			getActiveArmNonce: vi.fn(() => "test-nonce"),
+		});
+		const h = createHandlers(deps);
+		await h.handleApproveBatch(1);
+		const grantCalls = (
+			deps.tabsSendMessage as ReturnType<typeof vi.fn>
+		).mock.calls.filter(
+			(c) => (c[1] as { type: string }).type === "PUBLISH_GRANT",
+		);
+		expect(grantCalls).toHaveLength(0);
+	});
+
+	it("pending.tabId 不匹配 → guard 拦截,PUBLISH_GRANT 不发出", async () => {
+		await makePending({ tabId: 99 });
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => makeBatch("awaiting-approval")),
+			tabsSendMessage: makeTabsSendMessage(),
+			getActiveArmNonce: vi.fn(() => "test-nonce"),
+		});
+		const h = createHandlers(deps);
+		await h.handleApproveBatch(1);
+		const grantCalls = (
+			deps.tabsSendMessage as ReturnType<typeof vi.fn>
+		).mock.calls.filter(
+			(c) => (c[1] as { type: string }).type === "PUBLISH_GRANT",
+		);
+		expect(grantCalls).toHaveLength(0);
+	});
+
+	it("pending.nonce 与内存 nonce 不匹配 → guard 拦截", async () => {
+		await makePending({ nonce: "real-nonce" });
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => makeBatch("awaiting-approval")),
+			tabsSendMessage: makeTabsSendMessage(),
+			getActiveArmNonce: vi.fn(() => "WRONG-NONCE"),
+		});
+		const h = createHandlers(deps);
+		await h.handleApproveBatch(1);
+		const grantCalls = (
+			deps.tabsSendMessage as ReturnType<typeof vi.fn>
+		).mock.calls.filter(
+			(c) => (c[1] as { type: string }).type === "PUBLISH_GRANT",
+		);
+		expect(grantCalls).toHaveLength(0);
+	});
+
+	it("draft 被篡改(hash 不匹配) → guard 拦截", async () => {
+		// pending 存原版 hash,但 batch 里的 draft 已被改
+		await makePending(); // contentHash = hash(DRAFT)
+		const modifiedDraft: ContentDraft = { ...DRAFT, title: "TAMPERED TITLE" };
+		const batchWithModified: Batch = {
+			...makeBatch("awaiting-approval"),
+			items: [
+				{ ...makeBatch("awaiting-approval").items[0]!, draft: modifiedDraft },
+			],
+		};
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => batchWithModified),
+			tabsSendMessage: makeTabsSendMessage(),
+			getActiveArmNonce: vi.fn(() => "test-nonce"),
+		});
+		const h = createHandlers(deps);
+		await h.handleApproveBatch(1);
+		const grantCalls = (
+			deps.tabsSendMessage as ReturnType<typeof vi.fn>
+		).mock.calls.filter(
+			(c) => (c[1] as { type: string }).type === "PUBLISH_GRANT",
+		);
+		expect(grantCalls).toHaveLength(0);
 	});
 });

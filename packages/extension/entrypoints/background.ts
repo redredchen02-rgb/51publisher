@@ -24,6 +24,7 @@ import {
 import { withBackendSync } from "../lib/batch-sync";
 import {
 	type FirstFlightDeps,
+	hashDraft,
 	revertFirstFlight,
 	runStartupFirstFlightReset,
 } from "../lib/first-flight";
@@ -109,6 +110,11 @@ export interface BackgroundHandlerDeps {
 	 * 省略 = 不门控(测试 / 无首飞场景)。
 	 */
 	firstFlightReady?: Promise<unknown>;
+	/**
+	 * SW 内存活动 nonce 读取(首飞联锁 U5)。
+	 * 省略 = 不验 nonce(无首飞场景 / 测试)。
+	 */
+	getActiveArmNonce?: () => string | null;
 }
 
 // buildConstraintSuffix / assemblePrompt 已抽到 lib/prompt-assembly.ts。
@@ -305,6 +311,24 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 			clearTombstone: deps.clearTombstone,
 			checkGrounding: evaluateGrounding,
 			recordPost: deps.recordPost ?? recordPublishedPost,
+			// 首飞联锁守卫(U5):pending 在场时验证 item+tab+host+draft+nonce 五项全等。
+			firstFlightGuard: async (
+				itemId: string,
+				draft: ContentDraft,
+			): Promise<boolean> => {
+				const { pending, corrupt } = await getFirstFlightPending();
+				if (!pending) return true; // 无首飞窗口:放行
+				if (corrupt) return false; // 坏标记:阻断
+				if (pending.itemId !== itemId) return false;
+				if (pending.tabId !== tabId) return false;
+				const host = await resolveTabHost(tabId);
+				if (!host || pending.host !== host) return false;
+				const hash = await hashDraft(draft);
+				if (pending.contentHash !== hash) return false;
+				const activeNonce = deps.getActiveArmNonce?.() ?? null;
+				if (pending.nonce !== activeNonce) return false;
+				return true;
+			},
 			...(itemIdFilter ? { itemIdFilter } : {}),
 		};
 	}
@@ -645,6 +669,8 @@ export default defineBackground(() => {
 		clearTombstone: clearFillTombstone,
 		// 首飞门控:runApprove 在发 grant 前 await 启动复位完成。
 		firstFlightReady,
+		// 首飞联锁 nonce 读取:interlock guard 在 approveBatch 内校验内存 nonce(U5)。
+		getActiveArmNonce: () => activeArmNonce,
 	};
 
 	const handlers = createHandlers(liveDeps);

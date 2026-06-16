@@ -40,8 +40,9 @@ import type { TrajectoryInput } from "./trajectory";
 /**
  * 生成阶段并发度:每条 item 的 LLM 工作(generate + review + rewrite)彼此独立,
  * 并发跑可把大批量(100 条 ~1h)压到 ~15min。配合 LLM 层既有 429/5xx 退避,3 路并发对供应商 rate-limit 友好。
+ * 导出自定义值可从外部覆盖(如测试注入 1 做串行校验)。
  */
-const GENERATION_CONCURRENCY = 3;
+export const DEFAULT_GENERATION_CONCURRENCY = 3;
 
 /**
  * 串行互斥队列:把并发 worker 的状态变更逐个排队执行,保证对共享 batch 累积态的「读→改→save」原子化,
@@ -130,6 +131,8 @@ export interface RunBatchDeps {
 		draft: ContentDraft,
 		facts?: FactsBlock,
 	) => GroundingVerdict;
+	/** 生成階段併發度;省略時用 DEFAULT_GENERATION_CONCURRENCY(3)。 */
+	generationConcurrency?: number;
 }
 
 /** 批量生成循环。返回最终 Batch 状态;host 解析失败或所有 topic 均被重入过滤 → null。 */
@@ -233,7 +236,9 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
 	let paused = false;
 	const workItems = batch.items; // 快照初始 items;mark* 按 id 在当前 batch 内查找,引用稳定。
 
-	await mapWithConcurrency(workItems, GENERATION_CONCURRENCY, async (item) => {
+	const concurrency =
+		deps.generationConcurrency ?? DEFAULT_GENERATION_CONCURRENCY;
+	await mapWithConcurrency(workItems, concurrency, async (item) => {
 		if (paused) return;
 		if (!(await pinnedHostOk(batch))) {
 			paused = true;
@@ -356,6 +361,12 @@ export interface ApproveBatchDeps {
 	now?: () => string;
 	/** 存在时只处理 id 匹配的单条;省略=处理全部 awaiting-approval。 */
 	itemIdFilter?: string;
+	/**
+	 * 首飞联锁守卫(U5):pending 在场时仅当 item+tab+host+draft+nonce 五项全等才放行。
+	 * 返回 false → 当前条目 gate-failed,sendFill/sendGrant 均不被调用。
+	 * 省略 = 不门控(无首飞场景 / 测试)。
+	 */
+	firstFlightGuard?: (itemId: string, draft: ContentDraft) => Promise<boolean>;
 }
 
 /** 批量发布循环。返回最终 Batch;无批次 → null。 */
@@ -378,6 +389,7 @@ export async function approveBatch(
 		recordPost,
 		now = () => new Date().toISOString(),
 		itemIdFilter,
+		firstFlightGuard,
 	} = deps;
 
 	const loaded = await getBatch();
@@ -422,6 +434,18 @@ export async function approveBatch(
 					continue;
 				}
 			}
+		}
+
+		// 首飞联锁(U5):pending 在场时验证 item+tab+host+draft+nonce 五项全等。
+		// 任一不符 → gate-failed,sendFill/sendGrant 均不调用。
+		if (firstFlightGuard && !(await firstFlightGuard(item.id, item.draft))) {
+			batch = markGateFailed(
+				batch,
+				item.id,
+				"首飞联锁拦截:item/tab/host/draft/nonce 不匹配",
+			);
+			await save(batch);
+			continue;
 		}
 
 		// Tombstone 写在 sendFill 之前:若 SW 在 fill 飞行中被回收,重启时扫到 tombstone → 隔离。
