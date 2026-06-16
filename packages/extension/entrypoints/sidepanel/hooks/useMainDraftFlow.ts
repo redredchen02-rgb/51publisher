@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
 import type { ContentDraft, FieldFillResult } from "@51publisher/shared";
+import { useRef, useState } from "react";
 import {
 	buildPrompt,
 	requestFill,
@@ -106,9 +106,7 @@ export function useMainDraftFlow(deps: MainDraftFlowDeps): MainDraftFlowReturn {
 				void recordOperation({ type: "generate", topic, success: true });
 			} else {
 				const errMsg =
-					res.kind === "no-key"
-						? `${res.error}(点右上角设置)`
-						: res.error;
+					res.kind === "no-key" ? `${res.error}(点右上角设置)` : res.error;
 				handleError(errMsg);
 				setMode(draft ? "draft" : "empty");
 				loadingState.completeLoading();

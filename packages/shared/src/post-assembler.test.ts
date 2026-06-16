@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { FactsBlock } from "./facts.js";
 import {
-	PLACEHOLDER,
 	assembleDraft,
 	containsPlaceholder,
 	esc,
+	PLACEHOLDER,
 	sanitizeToPlainText,
 } from "./post-assembler.js";
 
@@ -75,7 +75,9 @@ describe("sanitizeToPlainText", () => {
 
 describe("esc", () => {
 	it("escapes HTML special chars", () => {
-		expect(esc('a & b < c > d "e"')).toBe("a &amp; b &lt; c &gt; d &quot;e&quot;");
+		expect(esc('a & b < c > d "e"')).toBe(
+			"a &amp; b &lt; c &gt; d &quot;e&quot;",
+		);
 	});
 
 	it("passes through plain text unchanged", () => {
@@ -127,7 +129,7 @@ describe("assembleDraft", () => {
 
 	it("model prose HTML tags are stripped", () => {
 		const injectionSlots = {
-			intro: '<script>alert(1)</script>大家好',
+			intro: "<script>alert(1)</script>大家好",
 			highlights: "精彩",
 		};
 		const result = assembleDraft(injectionSlots, fullFacts);

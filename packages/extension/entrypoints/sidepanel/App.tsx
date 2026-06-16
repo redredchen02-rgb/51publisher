@@ -1,20 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { isAuthenticated } from "../../lib/auth-client";
-import {
-	getBatchState,
-	resolveAdminTabId,
-} from "../../lib/messaging";
+import { getBatchState, resolveAdminTabId } from "../../lib/messaging";
 import { DEFAULT_RECIPE } from "../../lib/recipe";
 import { getCurrentDraft, getSettings } from "../../lib/storage";
 import { AuthView } from "./AuthView";
 import { BatchView } from "./BatchView";
 import { ErrorDisplay } from "./components/ErrorDisplay";
-import { ErrorLogPanel } from "./ErrorLogPanel";
-import { WorkflowNav } from "./WorkflowNav";
 import { KeyboardShortcutsHelp } from "./components/KeyboardShortcutsHelp";
 import { ProgressBar } from "./components/ProgressBar";
 import { Toast } from "./components/Toast";
 import { DraftPreview } from "./DraftPreview";
+import { ErrorLogPanel } from "./ErrorLogPanel";
 import { FillResultPanel } from "./FillResultPanel";
 import { FirstFlightWizard } from "./FirstFlightWizard";
 import { GossipView } from "./GossipView";
@@ -30,6 +26,7 @@ import { MetricsPanel } from "./MetricsPanel";
 import { PendingTopicsView } from "./PendingTopicsView";
 import { Settings } from "./Settings";
 import { TodayBatchView } from "./TodayBatchView";
+import { WorkflowNav } from "./WorkflowNav";
 
 export function App() {
 	const [view, setView] = useState<
@@ -49,7 +46,8 @@ export function App() {
 		itemId: string;
 	} | null>(null);
 	const { error, handleError, clearError } = useErrorHandler();
-	const { logs, logError, retrieveLogs, clearLogs, exportLogs } = useErrorLogger();
+	const { logs, logError, retrieveLogs, clearLogs, exportLogs } =
+		useErrorLogger();
 	const [showLogs, setShowLogs] = useState(false);
 	const { recordOperation } = useOperationHistory();
 	const [toast, setToast] = useState<{
@@ -66,7 +64,12 @@ export function App() {
 		handleError,
 		logError,
 		recordOperation: (op) => {
-			recordOperation({ type: op.type as never, topic: op.topic, success: op.success, details: op.details });
+			recordOperation({
+				type: op.type as never,
+				topic: op.topic,
+				success: op.success,
+				details: op.details,
+			});
 		},
 		loadingState,
 		saveDraft,

@@ -246,9 +246,7 @@ export async function runBatch(deps: RunBatchDeps): Promise<Batch | null> {
 			);
 			if (reviewRes.ok) {
 				const dims = reviewRes.result.dimensions ?? [];
-				const failedDims = dims
-					.filter((d) => !d.pass)
-					.map((d) => d.name);
+				const failedDims = dims.filter((d) => !d.pass).map((d) => d.name);
 				if (failedDims.length === 0) {
 					reviewMeta = {
 						triggered: false,

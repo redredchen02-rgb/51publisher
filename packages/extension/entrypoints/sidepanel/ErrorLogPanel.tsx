@@ -20,10 +20,7 @@ export function ErrorLogPanel({ logs, onExport, onClear }: ErrorLogPanelProps) {
 				marginBottom: "var(--space-lg)",
 			}}
 		>
-			<div
-				className="flex-between"
-				style={{ marginBottom: "var(--space-md)" }}
-			>
+			<div className="flex-between" style={{ marginBottom: "var(--space-md)" }}>
 				<span className="font-semibold">错误日志</span>
 				<div style={{ display: "flex", gap: "var(--space-md)" }}>
 					<button

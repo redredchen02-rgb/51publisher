@@ -152,9 +152,7 @@ export function ItemCard({
 					{slotDiff !== undefined && !slotDiff.unknown && (
 						<span
 							className={
-								slotDiff.changedSlots.length > 0
-									? "text-warning"
-									: "text-muted"
+								slotDiff.changedSlots.length > 0 ? "text-warning" : "text-muted"
 							}
 							style={{ marginLeft: 4, fontSize: 10, flexShrink: 0 }}
 							title="含 AI 自動重寫"
