@@ -52,7 +52,9 @@ describe("chrome-storage-utils", () => {
 	it("Edge: get 不存在的 key → 返回空 Record（無該 key）", async () => {
 		const storage = getStorage();
 		const result = await storage!.get("nonexistent_key_xyz");
-		expect((result as Record<string, unknown>).nonexistent_key_xyz).toBeUndefined();
+		expect(
+			(result as Record<string, unknown>).nonexistent_key_xyz,
+		).toBeUndefined();
 	});
 
 	it("Integration: set A + set B → remove A → B 仍存在", async () => {

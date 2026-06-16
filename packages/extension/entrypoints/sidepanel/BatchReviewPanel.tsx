@@ -115,7 +115,9 @@ export function BatchReviewPanel(props: Props) {
 			<SummaryBar
 				phase={phase}
 				summary={summary}
-				aiOptimizedCount={batch.items.filter((i) => i.aiReviewTriggered === true).length}
+				aiOptimizedCount={
+					batch.items.filter((i) => i.aiReviewTriggered === true).length
+				}
 				ds={ds}
 			/>
 

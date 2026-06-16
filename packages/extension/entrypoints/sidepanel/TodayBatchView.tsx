@@ -42,7 +42,9 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 		(it) => it.status === "filled" || it.status === "awaiting-approval",
 	);
 	const gateFailedItems = items.filter((it) => it.status === "gate-failed");
-	const confirmedItems = items.filter((it) => it.status === "publish-confirmed");
+	const confirmedItems = items.filter(
+		(it) => it.status === "publish-confirmed",
+	);
 	const terminalOtherItems = items.filter(
 		(it) => it.status === "error" || it.status === "aborted",
 	);
@@ -68,11 +70,19 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 	const completedCount = confirmedItems.length;
 	const progressValue =
 		totalCount === 0 ? 0 : Math.round((producedCount / totalCount) * 100);
-	const readReviewCount = reviewableItems.filter((it) => readItems.has(it.id)).length;
+	const readReviewCount = reviewableItems.filter((it) =>
+		readItems.has(it.id),
+	).length;
 	const isAllTerminal =
 		totalCount > 0 &&
 		items.every((it) =>
-			["publish-confirmed", "gate-failed", "error", "aborted", "needs-human-verification"].includes(it.status),
+			[
+				"publish-confirmed",
+				"gate-failed",
+				"error",
+				"aborted",
+				"needs-human-verification",
+			].includes(it.status),
 		);
 	const currentStep =
 		totalCount === 0
@@ -99,23 +109,43 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 				</button>
 			</nav>
 
-			{tabError && <p role="alert" className="text-error">{tabError}</p>}
-			{error && <p role="alert" className="text-error">{error}</p>}
+			{tabError && (
+				<p role="alert" className="text-error">
+					{tabError}
+				</p>
+			)}
+			{error && (
+				<p role="alert" className="text-error">
+					{error}
+				</p>
+			)}
 
 			<section className="pipeline-strip" aria-label="今日流水线进度">
-				<div className={`pipeline-step ${currentStep === "选题" ? "active" : totalCount > 0 ? "done" : ""}`}>
+				<div
+					className={`pipeline-step ${currentStep === "选题" ? "active" : totalCount > 0 ? "done" : ""}`}
+				>
 					<span className="pipeline-step-label">选题</span>
 					<span className="pipeline-step-value">{dailyBatchSize}</span>
 				</div>
-				<div className={`pipeline-step ${currentStep === "生成" ? "active" : producedCount > 0 ? "done" : ""}`}>
+				<div
+					className={`pipeline-step ${currentStep === "生成" ? "active" : producedCount > 0 ? "done" : ""}`}
+				>
 					<span className="pipeline-step-label">生成</span>
-					<span className="pipeline-step-value">{producedCount}/{totalCount || dailyBatchSize}</span>
+					<span className="pipeline-step-value">
+						{producedCount}/{totalCount || dailyBatchSize}
+					</span>
 				</div>
-				<div className={`pipeline-step ${currentStep === "审读" ? "active" : completedCount > 0 ? "done" : ""}`}>
+				<div
+					className={`pipeline-step ${currentStep === "审读" ? "active" : completedCount > 0 ? "done" : ""}`}
+				>
 					<span className="pipeline-step-label">审读</span>
-					<span className="pipeline-step-value">{readReviewCount}/{reviewableItems.length}</span>
+					<span className="pipeline-step-value">
+						{readReviewCount}/{reviewableItems.length}
+					</span>
 				</div>
-				<div className={`pipeline-step ${currentStep === "发布" ? "active" : completedCount > 0 ? "done" : ""}`}>
+				<div
+					className={`pipeline-step ${currentStep === "发布" ? "active" : completedCount > 0 ? "done" : ""}`}
+				>
 					<span className="pipeline-step-label">发布</span>
 					<span className="pipeline-step-value">{completedCount}</span>
 				</div>
@@ -123,26 +153,61 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 
 			{stage !== "review" && (
 				<>
-					<p className="text-secondary" style={{ margin: "0 0 var(--space-xl)" }}>
-						自动从高分待审选题中取前 <strong>{dailyBatchSize}</strong> 条，一键触发批量生成。
+					<p
+						className="text-secondary"
+						style={{ margin: "0 0 var(--space-xl)" }}
+					>
+						自动从高分待审选题中取前 <strong>{dailyBatchSize}</strong>{" "}
+						条，一键触发批量生成。
 					</p>
 					<button
 						type="button"
 						onClick={() => void handleDailyBatch()}
 						disabled={busy || adminTabId == null}
 						className="btn btn-primary"
-						style={{ width: "100%", marginBottom: "var(--space-xl)", fontSize: "var(--font-md)", padding: "var(--space-md) var(--space-lg)" }}
+						style={{
+							width: "100%",
+							marginBottom: "var(--space-xl)",
+							fontSize: "var(--font-md)",
+							padding: "var(--space-md) var(--space-lg)",
+						}}
 					>
-						{busy ? `生成中 ${items.length - generatingCount}/${items.length}…` : "一键备稿"}
+						{busy
+							? `生成中 ${items.length - generatingCount}/${items.length}…`
+							: "一键备稿"}
 					</button>
 					{busy && items.length > 0 && (
 						<ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
 							{items.map((item) => (
-								<li key={item.id} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid var(--color-border-lighter)", fontSize: "var(--font-sm)" }}>
-									<span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+								<li
+									key={item.id}
+									style={{
+										display: "flex",
+										justifyContent: "space-between",
+										padding: "5px 0",
+										borderBottom: "1px solid var(--color-border-lighter)",
+										fontSize: "var(--font-sm)",
+									}}
+								>
+									<span
+										style={{
+											overflow: "hidden",
+											textOverflow: "ellipsis",
+											whiteSpace: "nowrap",
+											flex: 1,
+										}}
+									>
 										{item.topic}
 									</span>
-									<span style={{ marginLeft: "var(--space-md)", color: STATUS_COLOR[item.status] ?? "var(--color-text-disabled)", flexShrink: 0 }}>
+									<span
+										style={{
+											marginLeft: "var(--space-md)",
+											color:
+												STATUS_COLOR[item.status] ??
+												"var(--color-text-disabled)",
+											flexShrink: 0,
+										}}
+									>
 										{STATUS_LABEL[item.status] ?? item.status}
 									</span>
 								</li>
@@ -173,15 +238,33 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 						</div>
 					</section>
 
-					<div className="flex-between" style={{ marginBottom: "var(--space-lg)" }}>
-						<span className="text-secondary">当前批次 · {currentStep}中 · 共 {items.length} 条</span>
-						<button type="button" onClick={() => { setStage("idle"); setItems([]); setError(""); }} className="btn btn-plain btn-sm">
+					<div
+						className="flex-between"
+						style={{ marginBottom: "var(--space-lg)" }}
+					>
+						<span className="text-secondary">
+							当前批次 · {currentStep}中 · 共 {items.length} 条
+						</span>
+						<button
+							type="button"
+							onClick={() => {
+								setStage("idle");
+								setItems([]);
+								setError("");
+							}}
+							className="btn btn-plain btn-sm"
+						>
 							新批次
 						</button>
 					</div>
 
 					{isAllTerminal && (
-						<p className="text-success" style={{ marginBottom: "var(--space-lg)" }}>✓ 批次已完成</p>
+						<p
+							className="text-success"
+							style={{ marginBottom: "var(--space-lg)" }}
+						>
+							✓ 批次已完成
+						</p>
 					)}
 
 					{reviewableItems.length > 0 && (

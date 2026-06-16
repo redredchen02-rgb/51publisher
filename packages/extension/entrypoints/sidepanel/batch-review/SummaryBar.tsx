@@ -23,11 +23,17 @@ export function SummaryBar({ phase, summary, aiOptimizedCount, ds }: Props) {
 				共 {summary.total} 条 · 待审 {summary.awaitingApproval} · 已发{" "}
 				{summary.confirmed} · 失败 {summary.errored}
 				{summary.quarantined > 0 && (
-					<strong className="text-error"> · 待人工核 {summary.quarantined}</strong>
+					<strong className="text-error">
+						{" "}
+						· 待人工核 {summary.quarantined}
+					</strong>
 				)}
 				{summary.aborted > 0 && <span> · 已停 {summary.aborted}</span>}
 				{aiOptimizedCount > 0 && (
-					<span className="text-muted"> · ✦ {aiOptimizedCount} 条自评已优化</span>
+					<span className="text-muted">
+						{" "}
+						· ✦ {aiOptimizedCount} 条自评已优化
+					</span>
 				)}
 				{phase === "done" && ds.itemsWithAnyDegrade > 0 && (
 					<span
@@ -46,8 +52,9 @@ export function SummaryBar({ phase, summary, aiOptimizedCount, ds }: Props) {
 				)}
 			</div>
 
-			{phase === "done" && ds.totalItemsWithResults > 0 && (
-				ds.itemsWithAnyDegrade === 0 ? (
+			{phase === "done" &&
+				ds.totalItemsWithResults > 0 &&
+				(ds.itemsWithAnyDegrade === 0 ? (
 					<div
 						style={{
 							...box,
@@ -69,15 +76,19 @@ export function SummaryBar({ phase, summary, aiOptimizedCount, ds }: Props) {
 							fontSize: 12,
 						}}
 					>
-						⚠️ 本批次 {ds.itemsWithAnyDegrade}/{ds.totalItemsWithResults} 条目有字段降级
+						⚠️ 本批次 {ds.itemsWithAnyDegrade}/{ds.totalItemsWithResults}{" "}
+						条目有字段降级
 						{ds.topFields.length > 0 && (
 							<span>
-								{" "}| 高频：{ds.topFields.map((f) => `${f.field}（${f.count}x）`).join("，")}
+								{" "}
+								| 高频：
+								{ds.topFields
+									.map((f) => `${f.field}（${f.count}x）`)
+									.join("，")}
 							</span>
 						)}
 					</div>
-				)
-			)}
+				))}
 		</>
 	);
 }

@@ -4,8 +4,8 @@ import { join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PUBLIC_ROUTES, requireAuth } from "../middleware/auth-middleware.js";
-import { registerGossipRoutes } from "./gossip-routes.js";
 import { initPendingDb, resetPendingDb } from "../scraper/pending-db.js";
+import { registerGossipRoutes } from "./gossip-routes.js";
 
 // Mock generic-adapter and gossip-fact-extractor
 vi.mock("../scraper/adapters/generic-adapter.js", () => ({
@@ -17,7 +17,10 @@ vi.mock("../scraper/gossip-fact-extractor.js", () => ({
 	gossipExtractFacts: vi.fn(),
 }));
 
-import { fetchContent, fetchList } from "../scraper/adapters/generic-adapter.js";
+import {
+	fetchContent,
+	fetchList,
+} from "../scraper/adapters/generic-adapter.js";
 import { gossipExtractFacts } from "../scraper/gossip-fact-extractor.js";
 
 const mockFetchList = vi.mocked(fetchList);
@@ -404,17 +407,28 @@ describe("gossip-routes — JWT 守護", () => {
 	});
 
 	it("無 token → GET /api/v1/gossip/sites 返回 401", async () => {
-		const res = await app.inject({ method: "GET", url: "/api/v1/gossip/sites" });
+		const res = await app.inject({
+			method: "GET",
+			url: "/api/v1/gossip/sites",
+		});
 		expect(res.statusCode).toBe(401);
 	});
 
 	it("無 token → POST /api/v1/gossip/sites 返回 401", async () => {
-		const res = await app.inject({ method: "POST", url: "/api/v1/gossip/sites", payload: { name: "test", url: "https://t.com" } });
+		const res = await app.inject({
+			method: "POST",
+			url: "/api/v1/gossip/sites",
+			payload: { name: "test", url: "https://t.com" },
+		});
 		expect(res.statusCode).toBe(401);
 	});
 
 	it("無 token → POST /api/v1/gossip/topics/from-url 返回 401", async () => {
-		const res = await app.inject({ method: "POST", url: "/api/v1/gossip/topics/from-url", payload: { url: "https://t.com/a", siteName: "s" } });
+		const res = await app.inject({
+			method: "POST",
+			url: "/api/v1/gossip/topics/from-url",
+			payload: { url: "https://t.com/a", siteName: "s" },
+		});
 		expect(res.statusCode).toBe(401);
 	});
 });

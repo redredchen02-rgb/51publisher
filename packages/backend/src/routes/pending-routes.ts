@@ -1,13 +1,6 @@
 import type { RejectionReason } from "@51publisher/shared";
 import { Type } from "@sinclair/typebox";
 import type { FastifyInstance } from "fastify";
-import { err } from "../utils/error-response.js";
-import { generateId } from "../utils/generate-id.js";
-import {
-	CreatePendingBody as CreatePendingBodySchema,
-	PendingIdParams as PendingIdParamsSchema,
-	UpdatePendingBody as UpdatePendingBodySchema,
-} from "../utils/schemas.js";
 import {
 	deletePendingTopic,
 	listPendingTopics,
@@ -18,6 +11,13 @@ import {
 	updatePendingTopicStatus,
 } from "../scraper/pending-store.js";
 import { formatEnrichmentForPrompt } from "../scraper/web-enricher.js";
+import { err } from "../utils/error-response.js";
+import { generateId } from "../utils/generate-id.js";
+import {
+	CreatePendingBody as CreatePendingBodySchema,
+	PendingIdParams as PendingIdParamsSchema,
+	UpdatePendingBody as UpdatePendingBodySchema,
+} from "../utils/schemas.js";
 
 /** 把后端 PendingTopic 转成 API 响应格式，附加预格式化的 enrichmentText 字段。 */
 function toApiTopic(

@@ -100,7 +100,11 @@ describe("useTodayBatchDomain", () => {
 		act(() => result.current.setError("测试错误"));
 		expect(result.current.error).toBe("测试错误");
 
-		act(() => result.current.setItems([{ id: "x", topic: "t", facts: {}, status: "queued" }]));
+		act(() =>
+			result.current.setItems([
+				{ id: "x", topic: "t", facts: {}, status: "queued" },
+			]),
+		);
 		expect(result.current.items).toHaveLength(1);
 	});
 });

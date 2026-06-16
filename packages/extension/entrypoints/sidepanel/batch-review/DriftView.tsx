@@ -1,5 +1,5 @@
 import type { DriftReport } from "../../../lib/selectors";
-import { btn, box } from "./constants";
+import { box, btn } from "./constants";
 
 interface Props {
 	driftResult: DriftReport;
@@ -8,7 +8,12 @@ interface Props {
 	onApproveBypass: () => void;
 }
 
-export function DriftView({ driftResult, busy, onDriftCheck, onApproveBypass }: Props) {
+export function DriftView({
+	driftResult,
+	busy,
+	onDriftCheck,
+	onApproveBypass,
+}: Props) {
 	return (
 		<div
 			style={{

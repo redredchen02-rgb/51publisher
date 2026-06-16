@@ -1,6 +1,6 @@
 import type { SafetyMode } from "@51publisher/shared";
 import { useState } from "react";
-import { type BatchPhase, type BatchSummary } from "../../../lib/batch";
+import type { BatchPhase, BatchSummary } from "../../../lib/batch";
 import { btn } from "./constants";
 
 interface Props {

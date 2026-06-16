@@ -3,8 +3,8 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PUBLIC_ROUTES, requireAuth } from "../middleware/auth-middleware.js";
 import { scraperConfig } from "../scraper/scraper-config.js";
-import { registerScraperRoutes } from "./scraper-routes.js";
 import type { RawContent, SiteAdapter } from "../scraper/site-adapter.js";
+import { registerScraperRoutes } from "./scraper-routes.js";
 
 // ---- mocks ----
 
@@ -271,12 +271,19 @@ describe("scraper-routes — JWT 守護", () => {
 	});
 
 	it("無 token → POST /api/v1/scraper/trigger 返回 401", async () => {
-		const res = await app.inject({ method: "POST", url: "/api/v1/scraper/trigger", payload: { url: "https://t.com/a", siteName: "s" } });
+		const res = await app.inject({
+			method: "POST",
+			url: "/api/v1/scraper/trigger",
+			payload: { url: "https://t.com/a", siteName: "s" },
+		});
 		expect(res.statusCode).toBe(401);
 	});
 
 	it("無 token → GET /api/v1/scraper/adapters 返回 401", async () => {
-		const res = await app.inject({ method: "GET", url: "/api/v1/scraper/adapters" });
+		const res = await app.inject({
+			method: "GET",
+			url: "/api/v1/scraper/adapters",
+		});
 		expect(res.statusCode).toBe(401);
 	});
 });

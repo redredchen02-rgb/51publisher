@@ -55,14 +55,18 @@ export function useTodayBatchDomain(): TodayBatchDomain {
 	const [stage, setStage] = useState<"idle" | "generating" | "review">("idle");
 	const [items, setItems] = useState<BatchItem[]>([]);
 	const [readItems, setReadItems] = useState<Set<string>>(new Set());
-	const [publishingItems, setPublishingItems] = useState<Set<string>>(new Set());
+	const [publishingItems, setPublishingItems] = useState<Set<string>>(
+		new Set(),
+	);
 
 	const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const progressPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const isMounted = useRef(true);
 
 	useEffect(() => {
-		return () => { isMounted.current = false; };
+		return () => {
+			isMounted.current = false;
+		};
 	}, []);
 
 	// 卸载时清掉批量启动期间的进度轮询
@@ -96,6 +100,7 @@ export function useTodayBatchDomain(): TodayBatchDomain {
 		})();
 	}, []);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: items intentionally omitted — adding it would recreate the interval on every setItems call, causing the infinite-polling bug fixed earlier
 	useEffect(() => {
 		if (stage !== "review") {
 			if (pollRef.current) {

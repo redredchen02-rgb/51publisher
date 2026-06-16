@@ -43,8 +43,13 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 	const [error, setError] = useState("");
 	const [view, setView] = useState<"batch" | "history">("batch");
 	const [quarantineAlert, setQuarantineAlert] = useState(0);
-	const [draftOverrides, setDraftOverrides] = useState<Map<string, ContentDraft>>(new Map());
-	const [toast, setToast] = useState<{ message: string; undoable: boolean } | null>(null);
+	const [draftOverrides, setDraftOverrides] = useState<
+		Map<string, ContentDraft>
+	>(new Map());
+	const [toast, setToast] = useState<{
+		message: string;
+		undoable: boolean;
+	} | null>(null);
 	const [readItems, setReadItems] = useState<Set<string>>(new Set());
 	const savingItems = useRef(new Set<string>());
 	const toastTimer = useRef<number | null>(null);
@@ -79,7 +84,9 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 			"local:batch",
 			(newBatch) => {
 				if (debounceRef.current) clearTimeout(debounceRef.current);
-				debounceRef.current = setTimeout(() => { setBatch(newBatch ?? null); }, 100);
+				debounceRef.current = setTimeout(() => {
+					setBatch(newBatch ?? null);
+				}, 100);
 			},
 		);
 		return () => {
@@ -113,8 +120,14 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 		if (!item?.draft) return;
 		savingItems.current.add(itemId);
 		try {
-			const result = await addFewShotPair({ input: item.topic, output: item.draft.body });
-			showToast(result.ok ? "已保存为范例" : "范例已满（8/8），请先在设置中删除旧条目", result.ok);
+			const result = await addFewShotPair({
+				input: item.topic,
+				output: item.draft.body,
+			});
+			showToast(
+				result.ok ? "已保存为范例" : "范例已满（8/8），请先在设置中删除旧条目",
+				result.ok,
+			);
 		} catch (e) {
 			showToast(e instanceof Error ? e.message : "保存范例失败", false);
 		} finally {
@@ -123,11 +136,18 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 	}
 
 	const onItemRead = useCallback((id: string) => {
-		setReadItems((prev) => { const n = new Set(prev); n.add(id); return n; });
+		setReadItems((prev) => {
+			const n = new Set(prev);
+			n.add(id);
+			return n;
+		});
 	}, []);
 
 	const onDiscardItem = useCallback(
-		(itemId: string, rejectionReason?: import("@51publisher/shared").RejectionReason) => {
+		(
+			itemId: string,
+			rejectionReason?: import("@51publisher/shared").RejectionReason,
+		) => {
 			setBusy(true);
 			setError("");
 			discardBatchItem(itemId, rejectionReason)
@@ -146,10 +166,16 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 		}
 		const list = [...byTopic.keys()];
 		const factsList = [...byTopic.values()];
-		if (list.length === 0) { setError("请先输入选题(每行一条)。"); return; }
+		if (list.length === 0) {
+			setError("请先输入选题(每行一条)。");
+			return;
+		}
 		await withBusy(async () => {
 			const adminTabId = await resolveAdminTabId();
-			if (adminTabId == null) { setError("未找到后台发帖页标签——请先打开后台发帖页。"); return; }
+			if (adminTabId == null) {
+				setError("未找到后台发帖页标签——请先打开后台发帖页。");
+				return;
+			}
 			await runBatch(list, adminTabId, factsList);
 			setTopics("");
 			await refresh();
@@ -161,8 +187,16 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 		await withBusy(async () => {
 			const report = await checkSelectors(batch.tabId);
 			setDrift(report);
-			if (!report.ok) { setError(`选择器自检失败,缺失:${report.missing.join("、")}。请点"漂移自检"了解详情,或在目标页修复后重试。`); return; }
-			const overrides = draftOverrides.size > 0 ? Object.fromEntries(draftOverrides) : undefined;
+			if (!report.ok) {
+				setError(
+					`选择器自检失败,缺失:${report.missing.join("、")}。请点"漂移自检"了解详情,或在目标页修复后重试。`,
+				);
+				return;
+			}
+			const overrides =
+				draftOverrides.size > 0
+					? Object.fromEntries(draftOverrides)
+					: undefined;
 			await approveBatch(batch.tabId, overrides);
 			setDraftOverrides(new Map());
 			await refresh();
@@ -171,44 +205,108 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 
 	async function handleApproveBypass() {
 		if (!batch) return;
-		const overrides = draftOverrides.size > 0 ? Object.fromEntries(draftOverrides) : undefined;
-		await withBusy(async () => { await approveBatch(batch.tabId, overrides); setDraftOverrides(new Map()); await refresh(); });
+		const overrides =
+			draftOverrides.size > 0 ? Object.fromEntries(draftOverrides) : undefined;
+		await withBusy(async () => {
+			await approveBatch(batch.tabId, overrides);
+			setDraftOverrides(new Map());
+			await refresh();
+		});
 	}
 
 	async function handleIterate() {
 		if (!batch) return;
-		await withBusy(async () => { await runBatch(batch.items.map((it) => it.topic), batch.tabId, batch.items.map((it) => it.facts ?? {}), undefined, true); await refresh(); });
+		await withBusy(async () => {
+			await runBatch(
+				batch.items.map((it) => it.topic),
+				batch.tabId,
+				batch.items.map((it) => it.facts ?? {}),
+				undefined,
+				true,
+			);
+			await refresh();
+		});
 	}
 
-	const showStarter = view === "batch" && (!batch || batchPhase(batch) === "done" || batchPhase(batch) === "empty");
-	const batchActive = batch && batchPhase(batch) !== "done" && batchPhase(batch) !== "empty";
-	const awaitingApprovalItems = batch ? batch.items.filter((it) => it.status === "awaiting-approval") : [];
-	const allRead = awaitingApprovalItems.length > 0 && awaitingApprovalItems.every((it) => readItems.has(it.id));
-	const readCount = awaitingApprovalItems.filter((it) => readItems.has(it.id)).length;
+	const showStarter =
+		view === "batch" &&
+		(!batch || batchPhase(batch) === "done" || batchPhase(batch) === "empty");
+	const batchActive =
+		batch && batchPhase(batch) !== "done" && batchPhase(batch) !== "empty";
+	const awaitingApprovalItems = batch
+		? batch.items.filter((it) => it.status === "awaiting-approval")
+		: [];
+	const allRead =
+		awaitingApprovalItems.length > 0 &&
+		awaitingApprovalItems.every((it) => readItems.has(it.id));
+	const readCount = awaitingApprovalItems.filter((it) =>
+		readItems.has(it.id),
+	).length;
 
 	return (
-		<main className="fade-in" style={{ fontFamily: "system-ui, sans-serif", padding: "var(--space-lg)", fontSize: "var(--font-md)" }}>
+		<main
+			className="fade-in"
+			style={{
+				fontFamily: "system-ui, sans-serif",
+				padding: "var(--space-lg)",
+				fontSize: "var(--font-md)",
+			}}
+		>
 			<nav className="flex-between mb-md">
 				<div className="flex gap-sm" style={{ alignItems: "center" }}>
 					<h1 style={{ fontSize: "var(--font-xl)", margin: 0 }}>批量发布</h1>
-					<button type="button" onClick={() => setView("batch")} className={`tab-btn ${view === "batch" ? "active" : ""}`}>
+					<button
+						type="button"
+						onClick={() => setView("batch")}
+						className={`tab-btn ${view === "batch" ? "active" : ""}`}
+					>
 						批次{batchActive ? " •" : ""}
 					</button>
-					<button type="button" onClick={() => setView("history")} className={`tab-btn ${view === "history" ? "active" : ""}`}>
+					<button
+						type="button"
+						onClick={() => setView("history")}
+						className={`tab-btn ${view === "history" ? "active" : ""}`}
+					>
 						历史
 					</button>
 				</div>
-				<button type="button" onClick={onBack} className="btn btn-plain btn-sm">← 单条</button>
+				<button type="button" onClick={onBack} className="btn btn-plain btn-sm">
+					← 单条
+				</button>
 			</nav>
 
-			{error && <p role="alert" className="text-error">{error}</p>}
+			{error && (
+				<p role="alert" className="text-error">
+					{error}
+				</p>
+			)}
 			{loading && !batch && <Loading />}
 
 			{toast && (
-				<div role="status" aria-live="polite" className={toast.undoable ? "banner-success" : "banner-warning"} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+				<div
+					role="status"
+					aria-live="polite"
+					className={toast.undoable ? "banner-success" : "banner-warning"}
+					style={{
+						display: "flex",
+						justifyContent: "space-between",
+						alignItems: "center",
+					}}
+				>
 					<span>{toast.message}</span>
 					{toast.undoable && (
-						<button type="button" onClick={() => { void removeLastFewShotPair(); setToast(null); }} className="btn-icon text-info" style={{ fontSize: "var(--font-sm)", padding: "0 var(--space-sm)" }}>
+						<button
+							type="button"
+							onClick={() => {
+								void removeLastFewShotPair();
+								setToast(null);
+							}}
+							className="btn-icon text-info"
+							style={{
+								fontSize: "var(--font-sm)",
+								padding: "0 var(--space-sm)",
+							}}
+						>
 							撤销
 						</button>
 					)}
@@ -217,9 +315,28 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 
 			{quarantineAlert > 0 && (
 				<div className="banner-warning" role="alert">
-					<div className="text-warning-deep font-semibold">⚠ {quarantineAlert} 条帖子在上次关机时状态不确定</div>
-					<div className="text-warning-deep" style={{ fontSize: "var(--font-sm)", marginTop: "var(--space-xs)" }}>请前往「历史」面板核对后再继续。</div>
-					<button type="button" onClick={() => { clearPendingQuarantineAlert().catch(() => {}); setQuarantineAlert(0); }} className="btn btn-plain btn-sm" style={{ marginTop: "var(--space-lg)", borderColor: "var(--color-warning-border)", color: "var(--color-warning-deep)" }}>
+					<div className="text-warning-deep font-semibold">
+						⚠ {quarantineAlert} 条帖子在上次关机时状态不确定
+					</div>
+					<div
+						className="text-warning-deep"
+						style={{ fontSize: "var(--font-sm)", marginTop: "var(--space-xs)" }}
+					>
+						请前往「历史」面板核对后再继续。
+					</div>
+					<button
+						type="button"
+						onClick={() => {
+							clearPendingQuarantineAlert().catch(() => {});
+							setQuarantineAlert(0);
+						}}
+						className="btn btn-plain btn-sm"
+						style={{
+							marginTop: "var(--space-lg)",
+							borderColor: "var(--color-warning-border)",
+							color: "var(--color-warning-deep)",
+						}}
+					>
 						我知道了
 					</button>
 				</div>
@@ -229,11 +346,20 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 
 			{view === "batch" && batch && batchPhase(batch) !== "empty" && (
 				<>
-					{batchPhase(batch) === "awaiting-approval" && awaitingApprovalItems.length > 0 && (
-						<div className={allRead ? "text-success" : "text-warning-deep"} style={{ fontSize: "var(--font-sm)", marginBottom: "var(--space-lg)" }}>
-							{allRead ? "✓ 全部已读,可发布" : `已读 ${readCount}/${awaitingApprovalItems.length} 篇(请展开每条审阅后再发布)`}
-						</div>
-					)}
+					{batchPhase(batch) === "awaiting-approval" &&
+						awaitingApprovalItems.length > 0 && (
+							<div
+								className={allRead ? "text-success" : "text-warning-deep"}
+								style={{
+									fontSize: "var(--font-sm)",
+									marginBottom: "var(--space-lg)",
+								}}
+							>
+								{allRead
+									? "✓ 全部已读,可发布"
+									: `已读 ${readCount}/${awaitingApprovalItems.length} 篇(请展开每条审阅后再发布)`}
+							</div>
+						)}
 					<BatchReviewPanel
 						batch={batch}
 						draftOverrides={draftOverrides}
@@ -246,51 +372,112 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 						onItemRead={onItemRead}
 						onDiscardItem={onDiscardItem}
 						allRead={allRead}
-						onModeChange={(mode) => void persistSafetyMode(mode).then(() => refresh())}
+						onModeChange={(mode) =>
+							void persistSafetyMode(mode).then(() => refresh())
+						}
 						onApprove={() => void handleApprove()}
 						onApproveBypass={() => void handleApproveBypass()}
-						onDraftChange={(itemId, draft) => setDraftOverrides((prev) => new Map(prev).set(itemId, draft))}
-						onRefillFacts={(itemId, facts) => void withBusy(async () => {
-							await refillItemFacts(itemId, facts);
-							setDraftOverrides((prev) => { if (!prev.has(itemId)) return prev; const next = new Map(prev); next.delete(itemId); return next; });
-							await refresh();
-						})}
-						onKill={() => void withBusy(async () => { await killBatch(); setDraftOverrides(new Map()); await refresh(); })}
-						onRelease={(itemId) => void withBusy(async () => { await releaseQuarantine(itemId); await refresh(); })}
-						onReleaseAll={() => void withBusy(async () => { await releaseQuarantineBatch(); await refresh(); })}
-						onRetryItem={(itemId) => void withBusy(async () => { await retryBatchItemMsg(itemId); await refresh(); })}
-						onDriftCheck={() => void withBusy(async () => { setDrift(await checkSelectors(batch.tabId)); })}
+						onDraftChange={(itemId, draft) =>
+							setDraftOverrides((prev) => new Map(prev).set(itemId, draft))
+						}
+						onRefillFacts={(itemId, facts) =>
+							void withBusy(async () => {
+								await refillItemFacts(itemId, facts);
+								setDraftOverrides((prev) => {
+									if (!prev.has(itemId)) return prev;
+									const next = new Map(prev);
+									next.delete(itemId);
+									return next;
+								});
+								await refresh();
+							})
+						}
+						onKill={() =>
+							void withBusy(async () => {
+								await killBatch();
+								setDraftOverrides(new Map());
+								await refresh();
+							})
+						}
+						onRelease={(itemId) =>
+							void withBusy(async () => {
+								await releaseQuarantine(itemId);
+								await refresh();
+							})
+						}
+						onReleaseAll={() =>
+							void withBusy(async () => {
+								await releaseQuarantineBatch();
+								await refresh();
+							})
+						}
+						onRetryItem={(itemId) =>
+							void withBusy(async () => {
+								await retryBatchItemMsg(itemId);
+								await refresh();
+							})
+						}
+						onDriftCheck={() =>
+							void withBusy(async () => {
+								setDrift(await checkSelectors(batch.tabId));
+							})
+						}
 						onResume={() => void refresh()}
-						onItemEdited={(itemId) => void (async () => { await markItemEdited(itemId); await refresh(); })()}
+						onItemEdited={(itemId) =>
+							void (async () => {
+								await markItemEdited(itemId);
+								await refresh();
+							})()
+						}
 						onSaveAsFewShot={(itemId) => void handleSaveAsFewShot(itemId)}
 					/>
 				</>
 			)}
 
-			{view === "batch" && batch && batchPhase(batch) === "awaiting-approval" && (
-				<div style={{ marginTop: "var(--space-md)" }}>
-					<button type="button" onClick={() => void handleIterate()} disabled={busy} title="改了 Settings 的 prompt/few-shot 后,用同批题目重跑生成(只生成不发,可对比效果)" className="btn btn-plain btn-sm">
-						{busy ? "重跑中…" : "↻ 重跑生成(改 prompt 后对比)"}
-					</button>
-				</div>
-			)}
+			{view === "batch" &&
+				batch &&
+				batchPhase(batch) === "awaiting-approval" && (
+					<div style={{ marginTop: "var(--space-md)" }}>
+						<button
+							type="button"
+							onClick={() => void handleIterate()}
+							disabled={busy}
+							title="改了 Settings 的 prompt/few-shot 后,用同批题目重跑生成(只生成不发,可对比效果)"
+							className="btn btn-plain btn-sm"
+						>
+							{busy ? "重跑中…" : "↻ 重跑生成(改 prompt 后对比)"}
+						</button>
+					</div>
+				)}
 
 			{view === "batch" && safetyMode === "dry-run" && <DryRunReport />}
 
 			{showStarter && (
 				<div style={{ marginTop: "var(--space-xl)" }}>
-					<div className="text-secondary" style={{ marginBottom: "var(--space-sm)" }}>
-						选题(每行一条);可附事实防幻觉:<code>选题 || 作品名=… | 集数=… | 漢化=… | 無修=…</code>
+					<div
+						className="text-secondary"
+						style={{ marginBottom: "var(--space-sm)" }}
+					>
+						选题(每行一条);可附事实防幻觉:
+						<code>选题 || 作品名=… | 集数=… | 漢化=… | 無修=…</code>
 					</div>
 					<textarea
 						className="field-input"
 						style={{ minHeight: 80 }}
-						placeholder={"某里番作品介绍 || 作品名=◯◯◯ | 集数=6 | 漢化=https://… | 無修=https://…\n某新番看点(纯选题也行,缺的会标【待补】)"}
+						placeholder={
+							"某里番作品介绍 || 作品名=◯◯◯ | 集数=6 | 漢化=https://… | 無修=https://…\n某新番看点(纯选题也行,缺的会标【待补】)"
+						}
 						value={topics}
 						disabled={busy}
 						onChange={(e) => setTopics(e.target.value)}
 					/>
-					<button type="button" onClick={() => void handleStart()} disabled={busy} className="btn btn-primary" style={{ marginTop: "var(--space-md)" }}>
+					<button
+						type="button"
+						onClick={() => void handleStart()}
+						disabled={busy}
+						className="btn btn-primary"
+						style={{ marginTop: "var(--space-md)" }}
+					>
 						{busy ? "生成中…" : "开始批量(生成+填充)"}
 					</button>
 				</div>

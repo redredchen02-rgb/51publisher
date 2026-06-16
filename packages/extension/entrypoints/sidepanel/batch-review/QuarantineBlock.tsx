@@ -1,7 +1,7 @@
 import { useState } from "react";
-import type { TrajectoryRecord } from "../../../lib/trajectory";
 import type { BatchItem } from "../../../lib/batch";
-import { btn, box } from "./constants";
+import type { TrajectoryRecord } from "../../../lib/trajectory";
+import { box, btn } from "./constants";
 import { QuarantineContext } from "./sub-blocks";
 
 interface Props {
@@ -36,14 +36,26 @@ export function QuarantineBlock({
 			<div style={{ fontSize: 12, margin: "4px 0" }}>
 				这些条目发布中断且无回执,可能已发也可能没发——请去后台核对后再处置,系统绝不自动重发。
 			</div>
-			{onReleaseAll && quarantined.length > 1 && (
-				isConfirming ? (
-					<div style={{ display: "flex", gap: 6, margin: "4px 0", alignItems: "center", fontSize: 12 }}>
+			{onReleaseAll &&
+				quarantined.length > 1 &&
+				(isConfirming ? (
+					<div
+						style={{
+							display: "flex",
+							gap: 6,
+							margin: "4px 0",
+							alignItems: "center",
+							fontSize: 12,
+						}}
+					>
 						<span>已逐条核对后台？</span>
 						<button
 							type="button"
 							className="btn btn-plain btn-sm"
-							onClick={() => { setIsConfirming(false); onReleaseAll?.(); }}
+							onClick={() => {
+								setIsConfirming(false);
+								onReleaseAll?.();
+							}}
 						>
 							确认撤出
 						</button>
@@ -64,8 +76,7 @@ export function QuarantineBlock({
 					>
 						批量撤出全部({quarantined.length})
 					</button>
-				)
-			)}
+				))}
 			{quarantined.map((it) => {
 				const traj = trajectoryContext?.get(it.id);
 				return (

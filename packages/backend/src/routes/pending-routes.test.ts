@@ -3,8 +3,11 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PUBLIC_ROUTES, requireAuth } from "../middleware/auth-middleware.js";
 import { getDb, initPendingDb } from "../scraper/pending-db.js";
+import {
+	type PendingTopic,
+	savePendingTopic,
+} from "../scraper/pending-store.js";
 import { registerPendingRoutes } from "./pending-routes.js";
-import { type PendingTopic, savePendingTopic } from "../scraper/pending-store.js";
 
 // ---- helpers ----
 
@@ -292,12 +295,19 @@ describe("pending-routes — JWT 守護", () => {
 	});
 
 	it("無 token → GET /api/v1/pending-topics 返回 401", async () => {
-		const res = await app.inject({ method: "GET", url: "/api/v1/pending-topics" });
+		const res = await app.inject({
+			method: "GET",
+			url: "/api/v1/pending-topics",
+		});
 		expect(res.statusCode).toBe(401);
 	});
 
 	it("無 token → PATCH /api/v1/pending-topics/:id 返回 401", async () => {
-		const res = await app.inject({ method: "PATCH", url: "/api/v1/pending-topics/nonexistent-id", payload: { status: "approved" } });
+		const res = await app.inject({
+			method: "PATCH",
+			url: "/api/v1/pending-topics/nonexistent-id",
+			payload: { status: "approved" },
+		});
 		expect(res.statusCode).toBe(401);
 	});
 });

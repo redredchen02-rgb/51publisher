@@ -1,7 +1,8 @@
 import type { FastifyInstance } from "fastify";
-import { err } from "../utils/error-response.js";
-import { generateId } from "../utils/generate-id.js";
-import { fetchContent, fetchList } from "../scraper/adapters/generic-adapter.js";
+import {
+	fetchContent,
+	fetchList,
+} from "../scraper/adapters/generic-adapter.js";
 import {
 	type ExtractedGossipFacts,
 	gossipExtractFacts,
@@ -18,6 +19,8 @@ import {
 	pendingTopicExistsBySourceUrl,
 	savePendingTopic,
 } from "../scraper/pending-store.js";
+import { err } from "../utils/error-response.js";
+import { generateId } from "../utils/generate-id.js";
 
 /** 返回 400 如果 hostname 是 IP literal（IPv4、decimal-encoded IPv4 或 IPv6）。 */
 function isIpLiteral(hostname: string): boolean {
