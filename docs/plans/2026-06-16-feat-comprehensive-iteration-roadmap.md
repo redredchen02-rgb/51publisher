@@ -1,7 +1,7 @@
 ---
 title: "feat: 全面迭代路线图 — 首飞到产品能力升级"
 type: feat
-status: active
+status: completed
 date: 2026-06-16
 origin: 用户需求 + 多轮体检对账 (2026-06-09 至 2026-06-15)
 supersedes: []
