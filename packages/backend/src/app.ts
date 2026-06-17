@@ -1,3 +1,6 @@
+import { accessSync, constants } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { FactsBlock, Settings } from "@51publisher/shared";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
@@ -7,7 +10,6 @@ import { PUBLIC_ROUTES, requireAuth } from "./middleware/auth-middleware.js";
 import { registerAuthRoutes } from "./routes/auth-routes.js";
 import { registerBatchRoutes } from "./routes/batch-routes.js";
 import { registerConfigRoutes } from "./routes/config-routes.js";
-import { registerGossipRoutes } from "./routes/gossip-routes.js";
 import { registerPendingRoutes } from "./routes/pending-routes.js";
 import { registerPreflightRoutes } from "./routes/preflight-routes.js";
 import { registerPromptRoutes } from "./routes/prompt-routes.js";
@@ -129,6 +131,47 @@ export function buildApp(): FastifyInstance {
 				}
 			})();
 
+			// LLM 是否已配置
+			const llmConfigured = Boolean(process.env.LLM_ENDPOINT);
+
+			// 存储目录可写性检查
+			const storageWritable = (() => {
+				try {
+					const __dirname = dirname(fileURLToPath(import.meta.url));
+					const dataDir =
+						process.env.PUBLISHER_DATA_DIR ??
+						join(__dirname, "..", "..", "data");
+					accessSync(dataDir, constants.W_OK);
+					return true;
+				} catch {
+					return false;
+				}
+			})();
+
+			// 发布失败率告警:最近 10 批次终态条目，失败率 > 30% 时告警
+			let publishFailAlert = false;
+			try {
+				const rows = getDb()
+					.prepare(
+						"SELECT items FROM batches ORDER BY created_at DESC LIMIT 10",
+					)
+					.all() as { items: string }[];
+				const allItems = rows.flatMap(
+					(r) => JSON.parse(r.items) as Array<{ status: string }>,
+				);
+				const terminal = allItems.filter((i) =>
+					["publish-confirmed", "error", "aborted"].includes(i.status),
+				);
+				if (terminal.length >= 5) {
+					const failed = terminal.filter(
+						(i) => i.status !== "publish-confirmed",
+					).length;
+					publishFailAlert = failed / terminal.length > 0.3;
+				}
+			} catch {
+				// 失败率统计不可用不影响健康检查
+			}
+
 			// 质量统计
 			let quality = { avgScore: 0, passRate: 0, totalGenerations: 0 };
 			try {
@@ -145,10 +188,13 @@ export function buildApp(): FastifyInstance {
 				uptime: Math.round(process.uptime()),
 				scheduler: { running: schedulerRunning, jobCount: jobs.size },
 				database: { healthy: dbHealthy },
+				llm: { configured: llmConfigured },
+				storage: { writable: storageWritable },
 				memory: {
 					heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
 				},
 				quality,
+				publishFailAlert,
 			} as import("@sinclair/typebox").Static<typeof HealthzResponse>;
 		},
 	);
@@ -174,7 +220,6 @@ export function buildApp(): FastifyInstance {
 	registerPreflightRoutes(server);
 	registerBatchRoutes(server);
 	registerScraperRoutes(server);
-	registerGossipRoutes(server);
 	registerPendingRoutes(server);
 	registerPromptRoutes(server);
 	registerPublishedPostsRoutes(server);

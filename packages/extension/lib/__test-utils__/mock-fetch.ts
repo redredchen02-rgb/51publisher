@@ -1,6 +1,6 @@
 /**
  * 共享测试工具:模拟 fetch 并捕获请求 URL/init,以及从 init 提取 Authorization 头。
- * 由 config-client / prompt-client / gossip-client 的测试复用。
+ * 由 config-client / prompt-client 的测试复用。
  */
 
 export interface MockResult {

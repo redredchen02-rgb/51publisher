@@ -23,7 +23,6 @@ import { Toast } from "./components/Toast";
 import { DraftPreview } from "./DraftPreview";
 import { FillResultPanel } from "./FillResultPanel";
 import { FirstFlightWizard } from "./FirstFlightWizard";
-import { GossipView } from "./GossipView";
 import { useAutoSave } from "./hooks/useAutoSave";
 import { useErrorHandler } from "./hooks/useErrorHandler";
 import { useErrorLogger } from "./hooks/useErrorLogger";
@@ -46,7 +45,6 @@ export function App() {
 		| "pending"
 		| "today"
 		| "auth"
-		| "gossip"
 		| "firstflight"
 		| "metrics"
 	>("main");
@@ -259,16 +257,6 @@ export function App() {
 				onError={(msg) => handleError(msg)}
 			/>
 		);
-	if (view === "gossip")
-		return (
-			<Wrap>
-				<GossipView
-					onBack={() => setView("main")}
-					onTopicAdded={() => setView("pending")}
-				/>
-			</Wrap>
-		);
-
 	if (view === "metrics")
 		return <MetricsPanel onBack={() => setView("main")} />;
 
@@ -343,14 +331,6 @@ export function App() {
 						<span className="workflow-card-desc">
 							自动取高分待审选题，生成草稿，逐篇审读后发布
 						</span>
-					</button>
-					<button
-						type="button"
-						onClick={() => setView("gossip")}
-						className="btn btn-plain"
-						aria-label="吃瓜素材"
-					>
-						🍉 吃瓜
 					</button>
 					<button
 						type="button"

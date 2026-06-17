@@ -83,9 +83,7 @@ export async function registerPendingRoutes(
 					? Number(request.query.fold_threshold)
 					: undefined;
 			const domain =
-				request.query.domain === "acg" || request.query.domain === "gossip"
-					? (request.query.domain as "acg" | "gossip")
-					: undefined;
+				request.query.domain === "acg" ? ("acg" as const) : undefined;
 
 			const rawTopics = await listPendingTopics(limit, status, sortBy, domain);
 

@@ -1,6 +1,6 @@
 {
 	"name": "@51publisher/shared",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"private": true,
 	"type": "module",
 	"main": "./dist/index.js",
@@ -17,10 +17,11 @@
 	"scripts": {
 		"build": "tsc",
 		"compile": "tsc",
-		"dev": "tsc --watch"
+		"dev": "tsc --watch",
+		"test": "vitest run"
 	},
-	"dependencies": {},
 	"devDependencies": {
-		"typescript": "^6.0.3"
+		"typescript": "^6.0.3",
+		"vitest": "^4.1.8"
 	}
 }

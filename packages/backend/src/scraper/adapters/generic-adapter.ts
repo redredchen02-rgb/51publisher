@@ -1,5 +1,4 @@
-// 通用 HTML adapter：不實作 SiteAdapter interface，僅供 gossip-routes.ts 直接呼叫。
-// 以 heuristic <a href> 過濾發現詳情頁 URL，fetchContent 提取 og meta 為主。
+// 通用 HTML adapter：heuristic <a href> 過濾發現詳情頁 URL，fetchContent 提取 og meta 為主。
 
 import type { RawContent } from "../site-adapter.js";
 import { safeFetch } from "../ssrf-guard.js";

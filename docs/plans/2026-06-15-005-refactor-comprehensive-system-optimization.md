@@ -1,7 +1,7 @@
 ---
 title: 全面系统优化计划 — 收口所有剩余缺口
 type: refactor
-status: planned
+status: completed
 date: 2026-06-15
 origin: 多轮体检 + 既往计划对账 (2026-06-09 至 2026-06-15)
 supersedes: []

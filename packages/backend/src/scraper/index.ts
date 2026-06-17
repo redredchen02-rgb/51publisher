@@ -1,4 +1,3 @@
-export { registerGossipRoutes } from "../routes/gossip-routes.js";
 export { registerPendingRoutes } from "../routes/pending-routes.js";
 export { registerPromptRoutes } from "../routes/prompt-routes.js";
 export { registerScraperRoutes } from "../routes/scraper-routes.js";

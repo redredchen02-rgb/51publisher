@@ -1,37 +1,36 @@
 # Build Performance Baseline
 
 紀錄日期: 2026-06-16
-Node: 20.x
-pnpm: 9.x
+Node: v22.22.3（開發機）/ 20.x（CI）
+pnpm: 10.33.0
 
-## 測量結果
+## 測量結果（開發機，單次冷快取）
 
-```bash
-# pnpm --filter publisher-backend build   (冷快取)
-# pnpm --filter publisher-fill-assistant build   (冷快取)
-# pnpm --filter @51publisher/shared build        (冷快取)
-```
+| 構建目標 | 指令 | 實測時間 |
+|----------|------|---------|
+| `@51publisher/shared` | `pnpm --filter @51publisher/shared build` | **0.66s** |
+| `publisher-backend` | `pnpm --filter publisher-backend build` | **3.58s** |
+| `publisher-fill-assistant` | `pnpm build:extension` | **2.30s** |
 
-> ⚠️ 基線值為一次性測量，啟動 CI 後應更新為實際 CI 環境數據。
->
-> 建議用 `hyperfine --warmup 1` 在開發機上測三次取中位數。
+> 建議用 `hyperfine --warmup 1` 在同一台機器上跑三次取中位數作為更可靠基線。
+> CI 環境數據應從 GitHub Actions log 讀取後更新至下方歷史表。
 
 ## 目標閾值
 
-| 構建目標 | 當前時間 | CI 目標 | 優化觸發線 |
-|----------|----------|---------|-----------|
-| `@51publisher/shared` | TBD | < 5s | > 10s |
-| `publisher-backend` | TBD | < 15s | > 30s |
-| `publisher-fill-assistant` | TBD | < 30s | > 60s |
+| 構建目標 | 開發機基線 | CI 目標 | 優化觸發線 |
+|----------|-----------|---------|-----------|
+| `@51publisher/shared` | 0.66s | < 5s | > 10s |
+| `publisher-backend` | 3.58s | < 15s | > 30s |
+| `publisher-fill-assistant` | 2.30s | < 30s | > 60s |
 
 ## CI 構建時間歷史
 
 | Commit | 日期 | Backend | Extension | Shared | 總和 |
 |--------|------|---------|-----------|--------|------|
-| 初次基線 | 2026-06-16 | TBD | TBD | TBD | TBD |
+| 8f343417 | 2026-06-16 | — | — | — | — |
 
 ## 優化歷史
 
 | 日期 | 變更 | 效果 |
 |------|------|------|
-| - | 基線 | - |
+| 2026-06-16 | 初次基線建立 | — |
