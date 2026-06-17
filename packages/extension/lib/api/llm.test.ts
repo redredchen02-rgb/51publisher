@@ -294,6 +294,73 @@ describe("Extension LLM client proxy", () => {
 		expect(res.ok).toBe(false);
 		if (!res.ok) expect(res.error).toContain("连接");
 	});
+
+	it("generateDraft: 遇到 5xx 错误在限制次数内重试并成功", async () => {
+		const fakeDraft = { id: "draft_1", title: "retry_ok", body: "ok" };
+		let attempts = 0;
+		const f = vi.fn(async () => {
+			attempts++;
+			if (attempts < 3) {
+				return {
+					ok: false,
+					status: 502,
+					statusText: "Bad Gateway",
+					text: async () => "Bad Gateway",
+					json: async () => ({ error: "Bad Gateway" }),
+				} as Response;
+			}
+			return {
+				ok: true,
+				status: 200,
+				statusText: "OK",
+				json: async () => ({ ok: true, draft: fakeDraft }),
+				text: async () => JSON.stringify({ ok: true, draft: fakeDraft }),
+			} as Response;
+		});
+
+		const res = await generateDraft("hi", {
+			settings,
+			apiKey: "",
+			facts: {},
+			fetchFn: f,
+		});
+
+		expect(res.ok).toBe(true);
+		if (res.ok) expect(res.draft.title).toBe("retry_ok");
+		expect(attempts).toBe(3); // 两次失败 + 一次成功
+	});
+
+	it("generateDraft: 遇到超时在限制次数内重试并成功", async () => {
+		const fakeDraft = { id: "draft_1", title: "retry_ok_timeout", body: "ok" };
+		let attempts = 0;
+		const f = vi.fn(async () => {
+			attempts++;
+			if (attempts < 3) {
+				const e = new Error("timeout");
+				e.name = "AbortError";
+				throw e;
+			}
+			return {
+				ok: true,
+				status: 200,
+				statusText: "OK",
+				json: async () => ({ ok: true, draft: fakeDraft }),
+				text: async () => JSON.stringify({ ok: true, draft: fakeDraft }),
+			} as Response;
+		});
+
+		const res = await generateDraft("hi", {
+			settings,
+			apiKey: "",
+			facts: {},
+			fetchFn: f,
+			timeoutMs: 100,
+		});
+
+		expect(res.ok).toBe(true);
+		if (res.ok) expect(res.draft.title).toBe("retry_ok_timeout");
+		expect(attempts).toBe(3);
+	});
 });
 
 const draft: ContentDraft = {

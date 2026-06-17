@@ -67,47 +67,65 @@ async function backendProxy<T>(
 	parseError?: (res: Response) => Promise<ProxyError>,
 ): Promise<T> {
 	const { method, body, fetchFn: fn = fetch, timeoutMs = 20_000 } = init;
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-	try {
-		const token = await getToken();
-		const headers: Record<string, string> = {
-			"Content-Type": "application/json",
-		};
-		if (token) headers.Authorization = `Bearer ${token}`;
+	const maxAttempts = 3;
+	let attempt = 0;
 
-		const backendUrl = await getBackendUrl();
-		const res = await fn(`${backendUrl}${path}`, {
-			method,
-			body,
-			headers,
-			signal: controller.signal,
-		});
+	while (true) {
+		attempt++;
+		const controller = new AbortController();
+		const timer = setTimeout(() => controller.abort(), timeoutMs);
+		try {
+			const token = await getToken();
+			const headers: Record<string, string> = {
+				"Content-Type": "application/json",
+			};
+			if (token) headers.Authorization = `Bearer ${token}`;
 
-		if (res.status === 401) {
-			await clearToken();
-			return { ok: false, kind: "network", error: messages.authExpired } as T;
-		}
+			const backendUrl = await getBackendUrl();
+			const res = await fn(`${backendUrl}${path}`, {
+				method,
+				body,
+				headers,
+				signal: controller.signal,
+			});
 
-		if (!res.ok) {
-			if (parseError) return (await parseError(res)) as T;
+			if (res.status === 401) {
+				await clearToken();
+				clearTimeout(timer);
+				return { ok: false, kind: "network", error: messages.authExpired } as T;
+			}
+
+			if (!res.ok) {
+				// 5xx 服务器错误并且未达重试次数上限时重试
+				if (res.status >= 500 && attempt < maxAttempts) {
+					clearTimeout(timer);
+					await new Promise((r) => setTimeout(r, 500));
+					continue;
+				}
+				clearTimeout(timer);
+				if (parseError) return (await parseError(res)) as T;
+				return {
+					ok: false,
+					kind: "network",
+					error: `后端服务返回错误 (${res.status})`,
+				} as T;
+			}
+
+			clearTimeout(timer);
+			return (await res.json()) as T;
+		} catch (err) {
+			clearTimeout(timer);
+			const aborted = err instanceof Error && err.name === "AbortError";
+			if (attempt < maxAttempts) {
+				await new Promise((r) => setTimeout(r, 500));
+				continue;
+			}
 			return {
 				ok: false,
 				kind: "network",
-				error: `后端服务返回错误 (${res.status})`,
+				error: aborted ? messages.timeout : messages.network,
 			} as T;
 		}
-
-		return (await res.json()) as T;
-	} catch (err) {
-		const aborted = err instanceof Error && err.name === "AbortError";
-		return {
-			ok: false,
-			kind: "network",
-			error: aborted ? messages.timeout : messages.network,
-		} as T;
-	} finally {
-		clearTimeout(timer);
 	}
 }
 
