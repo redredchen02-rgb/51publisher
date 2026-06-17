@@ -35,11 +35,7 @@
 
 ## Architecture / Known Gaps
 
-- **off-mode trajectory status 命名误导 (non-blocking)** | **Priority:** P3
-  `handleApproveBatch` 在 `result.error === 'blocked'`（off 模式）时写入 `status: 'fill-completed'`，
-  但该状态在语义上意味着"网关拦截(off模式)"而非"填充成功"。若批次在审批前被 kill，不写轨迹。
-  建议：引入 `status: 'gateway-blocked'` 或 `'fill-only'` 明确区分；off 模式下 kill 亦应记录轨迹。
-  发现于: feat/phase-2-measurement, adversarial review (2026-06-11)
+_当前无开放性架构问题。_
 
 ## Completed
 
@@ -62,6 +58,12 @@
   引入 `fewShotQueue` Promise 队列串行化 `addFewShotPair` 和 `removeLastFewShotPair`。
 
 - **off-mode 下缺少 appendTrajectory 调用** | **Priority:** P2 | **Verified:** 2026-06-12
+
+- **off-mode trajectory status 命名误导** | **Priority:** P3 | **已過期（代碼被重構移除）:** 2026-06-17
+  原報告：`handleApproveBatch` 在 off-mode 寫入誤導的 `fill-completed` 狀態。
+  核實：`fill-completed` 字串及 `handleApproveBatch` 函數在當前 main 已不存在。
+  batch 審批/軌跡系統已被重構，該問題已隨之消除。
+  发现于: feat/phase-2-measurement, adversarial review (2026-06-11); 关闭于: refactor/remove-gossip-pipeline (2026-06-17)
   代码验证：off-mode 下 `result.dryRun === false`，`appendTrajectory` 已被正确调用。
 
 - **backend auth-routes 测试超时** | **Priority:** P0 | **Fixed:** 2026-06-12
