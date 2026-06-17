@@ -4,7 +4,7 @@ import type {
 	RejectionReason,
 	SafetyMode,
 } from "@51publisher/shared";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { type Batch, batchPhase, batchSummary } from "../../lib/batch";
 import { aggregateDegradeStats } from "../../lib/degrade-stats";
 import type { DriftReport } from "../../lib/selectors";
@@ -78,12 +78,16 @@ export function BatchReviewPanel(props: Props) {
 	const [discardPickerId, setDiscardPickerId] = useState<string | null>(null);
 	const [discardReason, setDiscardReason] = useState<RejectionReason>("other");
 
-	const quarantined = batch.items.filter(
-		(it) => it.status === "needs-human-verification",
-	);
-	const awaitingApprovalCount = batch.items.filter(
-		(it) => it.status === "awaiting-approval",
-	).length;
+	const { quarantined, awaitingApprovalCount, aiOptimizedCount, ds } = useMemo(() => {
+		const quarantined = batch.items.filter(
+			(it) => it.status === "needs-human-verification",
+		);
+		const awaitingApprovalCount = batch.items.filter(
+			(it) => it.status === "awaiting-approval",
+		).length;
+		const aiOptimizedCount = batch.items.filter((i) => i.aiReviewTriggered === true).length;
+		return { quarantined, awaitingApprovalCount, aiOptimizedCount, ds: aggregateDegradeStats(batch.items) };
+	}, [batch.items]);
 	const readGateOk = awaitingApprovalCount === 0 || (allRead ?? false);
 	const canApprove =
 		phase === "awaiting-approval" &&
@@ -92,7 +96,6 @@ export function BatchReviewPanel(props: Props) {
 		(safetyMode === "authorized" || safetyMode === "dry-run") &&
 		!busy &&
 		readGateOk;
-	const ds = aggregateDegradeStats(batch.items);
 
 	function toggle(id: string) {
 		setExpanded((prev) => {
@@ -122,9 +125,7 @@ export function BatchReviewPanel(props: Props) {
 			<SummaryBar
 				phase={phase}
 				summary={summary}
-				aiOptimizedCount={
-					batch.items.filter((i) => i.aiReviewTriggered === true).length
-				}
+				aiOptimizedCount={aiOptimizedCount}
 				ds={ds}
 			/>
 
