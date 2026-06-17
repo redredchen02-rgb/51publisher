@@ -19,7 +19,7 @@
 		"@fastify/swagger-ui": "^6.0.0",
 		"@fastify/type-provider-typebox": "^6.1.0",
 		"@sinclair/typebox": "^0.34.49",
-		"better-sqlite3": "^12.10.0",
+		"better-sqlite3": "^12.11.1",
 		"dotenv": "^16.4.7",
 		"fastify": "^5.2.1",
 		"jsonwebtoken": "^9.0.2",

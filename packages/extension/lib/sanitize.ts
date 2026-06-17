@@ -13,7 +13,7 @@ import { DEFAULT_RECIPE } from "./recipe";
 //   - 钉定 DOMPurify 版本(版本/配置漂移须触发测试复核)。
 
 /** 钉定版本:升级 DOMPurify 须同步复核白名单与 mXSS 语料后改此值。 */
-export const PINNED_DOMPURIFY_VERSION = "3.4.7";
+export const PINNED_DOMPURIFY_VERSION = "3.4.10";
 
 // 白名单单一来源 = SiteRecipe(lib/recipe.ts)。
 const ALLOWED_TAGS = DEFAULT_RECIPE.sanitize.allowedTags;
