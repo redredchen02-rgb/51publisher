@@ -323,7 +323,9 @@ describe("startScheduler — 错误路径", () => {
 
 		const invalidSite = `invalid-cron-site-${testId}-b`;
 		// 只对 "invalid-cron" 返回 false，其他 expression 正常返回 true
-		vi.mocked(cron.validate).mockImplementation((expr) => expr !== "invalid-cron");
+		vi.mocked(cron.validate).mockImplementation(
+			(expr) => expr !== "invalid-cron",
+		);
 		scraperConfig.registerAdapter(makeMockAdapter(`err-adapter-${testId}-b`));
 		scraperConfig.addSiteConfig({
 			siteName: invalidSite,
@@ -349,5 +351,51 @@ describe("startScheduler — 错误路径", () => {
 		startScheduler(DEPS);
 		expect(isSchedulerRunning(currentSite)).toBe(true);
 		expect(isSchedulerRunning("non-existent-site-xyz")).toBe(false);
+	});
+
+	it("重复 startScheduler → 已有 job 的站点跳过并发出警告", () => {
+		const warnSite = `warn-site-${testId}`;
+		const warnLogger = {
+			warn: vi.fn(),
+			error: vi.fn(),
+			info: vi.fn(),
+			debug: vi.fn(),
+			trace: vi.fn(),
+			fatal: vi.fn(),
+			silent: vi.fn(),
+			child: vi.fn(),
+			level: "info" as const,
+		};
+		scraperConfig.registerAdapter(makeMockAdapter(`warn-adapter-${testId}`));
+		scraperConfig.addSiteConfig({
+			siteName: warnSite,
+			adapterName: `warn-adapter-${testId}`,
+			url: currentUrl,
+			cron: "0 * * * *",
+			enabled: true,
+		});
+		startScheduler({ ...DEPS, logger: warnLogger });
+		expect(isSchedulerRunning(warnSite)).toBe(true);
+		startScheduler({ ...DEPS, logger: warnLogger });
+		expect(warnLogger.warn).toHaveBeenCalledWith(
+			expect.stringContaining(warnSite),
+		);
+	});
+
+	it("无 logger 的 deps → warn 分支静默通过（无崩溃）", () => {
+		const silentSite = `silent-site-${testId}`;
+		scraperConfig.registerAdapter(makeMockAdapter(`silent-adapter-${testId}`));
+		scraperConfig.addSiteConfig({
+			siteName: silentSite,
+			adapterName: `silent-adapter-${testId}`,
+			url: currentUrl,
+			cron: "0 * * * *",
+			enabled: true,
+		});
+		const SILENT_DEPS = { ...DEPS, logger: undefined };
+		startScheduler(SILENT_DEPS);
+		expect(isSchedulerRunning(silentSite)).toBe(true);
+		// 第二次调用 → 触发 deps.logger?.warn（logger 为 undefined，?.保证不崩溃）
+		expect(() => startScheduler(SILENT_DEPS)).not.toThrow();
 	});
 });
