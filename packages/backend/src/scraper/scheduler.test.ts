@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { recordScraperRun } from "../services/metrics.js";
 import { extractFacts } from "./fact-extractor.js";
 import {
 	type PendingTopic,
@@ -27,6 +28,10 @@ vi.mock("./fact-extractor.js", () => ({
 vi.mock("./pending-store.js", () => ({
 	savePendingTopic: vi.fn(async () => ({ inserted: true })),
 	pendingTopicExistsBySourceUrl: vi.fn(async () => false),
+}));
+
+vi.mock("../services/metrics.js", () => ({
+	recordScraperRun: vi.fn(),
 }));
 
 vi.mock("../services/telegram.js", () => ({
@@ -397,5 +402,161 @@ describe("startScheduler — 错误路径", () => {
 		expect(isSchedulerRunning(silentSite)).toBe(true);
 		// 第二次调用 → 触发 deps.logger?.warn（logger 为 undefined，?.保证不崩溃）
 		expect(() => startScheduler(SILENT_DEPS)).not.toThrow();
+	});
+});
+
+// ================================================================
+// fetchWithRetry 重试机制
+// ================================================================
+
+describe("startScheduler — fetchWithRetry retry 路径", () => {
+	beforeEach(() => {
+		vi.mocked(pendingTopicExistsBySourceUrl).mockResolvedValue(false);
+		vi.mocked(savePendingTopic).mockResolvedValue({ inserted: true });
+		vi.mocked(extractFacts).mockResolvedValue({
+			facts: { 作品名: "重试作品" },
+			confidence: 0.9,
+			coverImageUrl: undefined,
+			extractionMode: "strict",
+		});
+	});
+
+	it("fetchContent 前两次失败第三次成功 → topic 被 save，recordScraperRun(true)", async () => {
+		const retryAdapter: SiteAdapter = {
+			name: `retry-adapter-${testId}`,
+			fetchContent: vi
+				.fn()
+				.mockRejectedValueOnce(new Error("fail 1"))
+				.mockRejectedValueOnce(new Error("fail 2"))
+				.mockResolvedValueOnce(MOCK_RAW),
+		};
+		scraperConfig.registerAdapter(retryAdapter);
+		scraperConfig.addSiteConfig({
+			siteName: currentSite,
+			adapterName: `retry-adapter-${testId}`,
+			url: currentUrl,
+			cron: "0 * * * *",
+			enabled: true,
+		});
+		startScheduler(DEPS);
+		const job = vi.mocked(cron.schedule).mock
+			.calls[0][1] as () => Promise<void>;
+		await job();
+
+		expect(vi.mocked(savePendingTopic)).toHaveBeenCalledOnce();
+		expect(vi.mocked(recordScraperRun)).toHaveBeenCalledWith(true);
+	});
+
+	it("fetchContent 三次全失败 → savePendingTopic 不调用，recordScraperRun(false)", async () => {
+		const alwaysFailAdapter: SiteAdapter = {
+			name: `always-fail-adapter-${testId}`,
+			fetchContent: vi.fn().mockRejectedValue(new Error("always fails")),
+		};
+		scraperConfig.registerAdapter(alwaysFailAdapter);
+		scraperConfig.addSiteConfig({
+			siteName: currentSite,
+			adapterName: `always-fail-adapter-${testId}`,
+			url: currentUrl,
+			cron: "0 * * * *",
+			enabled: true,
+		});
+		startScheduler(DEPS);
+		const job = vi.mocked(cron.schedule).mock
+			.calls[0][1] as () => Promise<void>;
+		await job();
+
+		expect(vi.mocked(savePendingTopic)).not.toHaveBeenCalled();
+		expect(vi.mocked(recordScraperRun)).toHaveBeenCalledWith(false);
+	});
+});
+
+// ================================================================
+// runListDiscovery 边界：无 listUrl
+// ================================================================
+
+describe("startScheduler — runListDiscovery 无 listUrl 分支", () => {
+	beforeEach(() => {
+		vi.mocked(pendingTopicExistsBySourceUrl).mockResolvedValue(false);
+		vi.mocked(savePendingTopic).mockResolvedValue({ inserted: true });
+		vi.mocked(extractFacts).mockResolvedValue({
+			facts: { 作品名: "无listUrl作品" },
+			confidence: 0.8,
+			coverImageUrl: undefined,
+			extractionMode: "strict",
+		});
+	});
+
+	it("adapter 有 fetchList 但 site 无 listUrl → warn 后跳过，不调用 fetchContent", async () => {
+		const warnLogger = {
+			warn: vi.fn(),
+			error: vi.fn(),
+			info: vi.fn(),
+			debug: vi.fn(),
+			trace: vi.fn(),
+			fatal: vi.fn(),
+			silent: vi.fn(),
+			child: vi.fn(),
+			level: "info" as const,
+		};
+		const adapterWithList: SiteAdapter = {
+			name: `no-listurl-adapter-${testId}`,
+			fetchContent: vi.fn(async () => MOCK_RAW),
+			fetchList: vi.fn(async () => ["https://example.com/acg/1"]),
+		};
+		scraperConfig.registerAdapter(adapterWithList);
+		scraperConfig.addSiteConfig({
+			siteName: currentSite,
+			adapterName: `no-listurl-adapter-${testId}`,
+			url: currentUrl,
+			// listUrl 故意不设，让 site.listUrl 为 undefined
+			cron: "0 * * * *",
+			enabled: true,
+		});
+		startScheduler({ ...DEPS, logger: warnLogger });
+		const job = vi.mocked(cron.schedule).mock
+			.calls[0][1] as () => Promise<void>;
+		await job();
+
+		// site.listUrl 为 undefined → adapter.fetchList && site.listUrl 为 false → 走 runSingleUrl
+		// fetchContent 被调用一次（单条路径）
+		expect(vi.mocked(adapterWithList.fetchContent)).toHaveBeenCalledWith(
+			currentUrl,
+		);
+	});
+
+	it("list-discovery: fetchContent 失败不满 3 次 → sendAlert 不被调用", async () => {
+		const { sendAlert } = await import("../services/telegram.js");
+		vi.mocked(sendAlert).mockClear();
+
+		const partialFailAdapter: SiteAdapter = {
+			name: `partial-fail-adapter-${testId}`,
+			fetchContent: vi
+				.fn()
+				.mockRejectedValueOnce(new Error("fail 1"))
+				.mockRejectedValueOnce(new Error("fail 2"))
+				.mockResolvedValueOnce(MOCK_RAW),
+			fetchList: vi.fn(async () => [
+				"https://test-site.example.com/acg/pf1",
+				"https://test-site.example.com/acg/pf2",
+				"https://test-site.example.com/acg/pf3",
+			]),
+		};
+		scraperConfig.registerAdapter(partialFailAdapter);
+		scraperConfig.addSiteConfig({
+			siteName: currentSite,
+			adapterName: `partial-fail-adapter-${testId}`,
+			url: currentUrl,
+			listUrl: LIST_URL,
+			cron: "0 * * * *",
+			enabled: true,
+		});
+		startScheduler(DEPS);
+		const job = vi.mocked(cron.schedule).mock
+			.calls[0][1] as () => Promise<void>;
+		await job();
+
+		// 连续失败 2 次后第 3 次成功，consecutiveFailures 重置，不触发 alert（连续失败阈值=3）
+		expect(vi.mocked(sendAlert)).toHaveBeenCalledTimes(1); // only the success alert
+		expect(vi.mocked(sendAlert).mock.calls[0][0]).toContain("new topic");
 	});
 });

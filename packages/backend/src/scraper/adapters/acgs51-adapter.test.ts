@@ -122,3 +122,199 @@ describe("acgs51Adapter.fetchList", () => {
 		expect(result?.[0]).toBe("https://51acgs.com/anime/4001");
 	});
 });
+
+const DETAIL_URL = "https://51acgs.com/acg/12345.html";
+
+describe("acgs51Adapter.fetchContent", () => {
+	it("正常：h1 + title + og:image → 返回 title/body/coverImageUrl", async () => {
+		const html = `<html><head>
+<title>测试作品 - 51acgs.com</title>
+<meta property="og:image" content="https://cdn.example.com/cover.jpg" />
+</head><body>
+<h1>测试作品</h1>
+<meta name="description" content="这是一篇测试描述内容，超过五十个字符以确保 body 被正确提取并传回给调用方。" />
+</body></html>`;
+		mockFetch.mockResolvedValue(makeResponse(html));
+
+		const result = await acgs51Adapter.fetchContent(DETAIL_URL);
+
+		expect(result.title).toBe("测试作品");
+		expect(result.coverImageUrl).toBe("https://cdn.example.com/cover.jpg");
+		expect(result.url).toBe(DETAIL_URL);
+	});
+
+	it("无 h1 时 fallback 到 title（去掉站名后缀）", async () => {
+		const html = `<html><head>
+<title>漫画作品名 - 51acgs</title>
+<meta name="description" content="描述" />
+</head><body></body></html>`;
+		mockFetch.mockResolvedValue(makeResponse(html));
+
+		const result = await acgs51Adapter.fetchContent(DETAIL_URL);
+
+		expect(result.title).toBe("漫画作品名");
+	});
+
+	it("HTTP 错误 → throw Error 含状态码", async () => {
+		mockFetch.mockResolvedValue(makeResponse("", false, 404));
+
+		await expect(acgs51Adapter.fetchContent(DETAIL_URL)).rejects.toThrow(
+			"HTTP 404",
+		);
+	});
+
+	it("无法提取 title → throw 'Could not extract title'", async () => {
+		const html = `<html><body><p>无标题页面</p></body></html>`;
+		mockFetch.mockResolvedValue(makeResponse(html));
+
+		await expect(acgs51Adapter.fetchContent(DETAIL_URL)).rejects.toThrow(
+			"Could not extract title",
+		);
+	});
+
+	it("og:image content-first 格式（content=xxx property=og:image）", async () => {
+		const html = `<html><head>
+<title>作品</title>
+<h1>作品</h1>
+<meta content="https://cdn.example.com/alt-cover.jpg" property="og:image" />
+</head></html>`;
+		mockFetch.mockResolvedValue(makeResponse(html));
+
+		const result = await acgs51Adapter.fetchContent(DETAIL_URL);
+
+		expect(result.coverImageUrl).toBe("https://cdn.example.com/alt-cover.jpg");
+	});
+
+	it("有效 data-comic-info JSON → metadata 含题材/标签", async () => {
+		const info = JSON.stringify({
+			comic_type_name: "奇幻",
+			comic_tag_name: "冒险,热血",
+		}).replace(/"/g, "&quot;");
+		const html = `<html><head><title>作品</title></head><body>
+<h1>作品</h1>
+<div data-comic-info="${info}"></div>
+</body></html>`;
+		mockFetch.mockResolvedValue(makeResponse(html));
+
+		const result = await acgs51Adapter.fetchContent(DETAIL_URL);
+
+		expect(result.metadata?.题材).toBe("奇幻");
+		expect(result.metadata?.标签).toBe("冒险,热血");
+	});
+
+	it("data-comic-info JSON 格式错误 → 静默跳过不崩溃", async () => {
+		const html = `<html><head><title>作品</title></head><body>
+<h1>作品</h1>
+<div data-comic-info="not-valid-json-&quot;broken"></div>
+</body></html>`;
+		mockFetch.mockResolvedValue(makeResponse(html));
+
+		await expect(acgs51Adapter.fetchContent(DETAIL_URL)).resolves.toBeDefined();
+	});
+
+	it("HTML 含作者 /creator/ URL pattern → metadata.制作 被填充", async () => {
+		const html = `<html><head><title>作品</title></head><body>
+<h1>作品</h1>
+<span>作者：</span><a href="/creator/42"><span>山田太郎</span></a>
+</body></html>`;
+		mockFetch.mockResolvedValue(makeResponse(html));
+
+		const result = await acgs51Adapter.fetchContent(DETAIL_URL);
+
+		expect(result.metadata?.制作).toBe("山田太郎");
+	});
+
+	it("标题含 [作者名] 括号 → metadata.制作 被提取", async () => {
+		const html = `<html><head><title>[画师ABC] 漫画标题 - 51acgs</title></head><body>
+<h1>[画师ABC] 漫画标题</h1>
+</body></html>`;
+		mockFetch.mockResolvedValue(makeResponse(html));
+
+		const result = await acgs51Adapter.fetchContent(DETAIL_URL);
+
+		expect(result.metadata?.制作).toBe("画师ABC");
+	});
+
+	it("标题含 [中国翻訳] → metadata.漢化 被填充", async () => {
+		const html = `<html><head><title>[中国翻訳] 漫画作品</title></head><body>
+<h1>漫画作品</h1>
+</body></html>`;
+		mockFetch.mockResolvedValue(makeResponse(html));
+
+		const result = await acgs51Adapter.fetchContent(DETAIL_URL);
+
+		expect(result.metadata?.漢化).toBe("中国翻訳");
+	});
+
+	it("标题含 无修正 → metadata.無修 被填充", async () => {
+		const html = `<html><head><title>漫画作品 无修正版</title></head><body>
+<h1>漫画作品</h1>
+</body></html>`;
+		mockFetch.mockResolvedValue(makeResponse(html));
+
+		const result = await acgs51Adapter.fetchContent(DETAIL_URL);
+
+		expect(result.metadata?.無修).toBe("無修正版");
+	});
+
+	it("HTML 含 class='is-serial' → metadata.状态 = '连载'", async () => {
+		const html = `<html><head><title>作品</title></head><body>
+<h1>作品</h1>
+<span class="is-serial">连载中</span>
+</body></html>`;
+		mockFetch.mockResolvedValue(makeResponse(html));
+
+		const result = await acgs51Adapter.fetchContent(DETAIL_URL);
+
+		expect(result.metadata?.状态).toBe("连载");
+	});
+
+	it("HTML 含 class='is-complete' → metadata.状态 = '完结'", async () => {
+		const html = `<html><head><title>作品</title></head><body>
+<h1>作品</h1>
+<span class="is-complete">已完结</span>
+</body></html>`;
+		mockFetch.mockResolvedValue(makeResponse(html));
+
+		const result = await acgs51Adapter.fetchContent(DETAIL_URL);
+
+		expect(result.metadata?.状态).toBe("完结");
+	});
+
+	it("HTML 有 chapter/ 链接 → metadata.章节数 被填充", async () => {
+		const html = `<html><head><title>作品</title></head><body>
+<h1>作品</h1>
+<a href="/chapter/101">第1话</a>
+<a href="/chapter/102">第2话</a>
+<a href="/chapter/103">第3话</a>
+</body></html>`;
+		mockFetch.mockResolvedValue(makeResponse(html));
+
+		const result = await acgs51Adapter.fetchContent(DETAIL_URL);
+
+		expect(result.metadata?.章节数).toBe("3");
+	});
+
+	it("无 body 内容区 → fallback 到 meta description 作为 body", async () => {
+		const html = `<html><head>
+<title>作品</title>
+<meta name="description" content="这是从 meta description 提取的内容作为正文备用" />
+</head><body><h1>作品</h1></body></html>`;
+		mockFetch.mockResolvedValue(makeResponse(html));
+
+		const result = await acgs51Adapter.fetchContent(DETAIL_URL);
+
+		expect(result.body).toContain("meta description");
+	});
+
+	it("无任何结构化元数据 → rawContent.metadata 为 undefined", async () => {
+		const html = `<html><head><title>纯净作品</title></head><body>
+<h1>纯净作品</h1>
+</body></html>`;
+		mockFetch.mockResolvedValue(makeResponse(html));
+
+		const result = await acgs51Adapter.fetchContent(DETAIL_URL);
+
+		expect(result.metadata).toBeUndefined();
+	});
+});
