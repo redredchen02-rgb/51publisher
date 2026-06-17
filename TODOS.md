@@ -26,17 +26,16 @@
 
 ## Extension / UI
 
-- **TodayBatchView + BatchReviewPanel render 时多次 filter 无 useMemo** | **Priority:** P3
-  TodayBatchView.tsx:41 有 8 次 Array.filter/every；BatchReviewPanel.tsx:74 有 3 次 filter + aggregateDegradeStats，均无 useMemo。
-  数量小（通常 ≤20 条），当前不影响性能，但随批次增大会退化。
-  修法：将所有 derived arrays 包进单个 `useMemo(() => { … }, [items])` 一次遍历。
-  发现于: refactor/maintainability-test-refactor, performance specialist review (2026-06-16)
-
 ## Architecture / Known Gaps
 
 _当前无开放性架构问题。_
 
 ## Completed
+
+- **TodayBatchView + BatchReviewPanel render 时多次 filter 无 useMemo** | **Priority:** P3 | **Fixed:** 2026-06-17
+  BatchReviewPanel.tsx 中 4 次独立 batch.items 遍历合并为单个 `useMemo([batch.items])`，消除重复计算。
+  TodayBatchView 已有 useMemo（第 58 行），无需修改。
+  发现于: performance specialist review (2026-06-16); 关闭于: main (2026-06-17)
 
 - **slotDiff semantic issue** | **Priority:** P2 | **Fixed:** 2026-06-12
   在 `batch-orchestrator.ts` 中集成 `computeSlotDiff`，比较 AI 原稿(publishedDraft)与最终发布草稿(draft)。
