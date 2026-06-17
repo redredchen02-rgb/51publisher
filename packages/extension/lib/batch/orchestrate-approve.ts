@@ -45,6 +45,8 @@ export interface ApproveBatchDeps {
 	checkGrounding?: (
 		draft: ContentDraft,
 		facts?: FactsBlock,
+		qualityScore?: number,
+		recommendedTags?: string[],
 	) => GroundingVerdict;
 	recordPost?: (record: PublishedPostRecord) => Promise<void>;
 	now?: () => string;

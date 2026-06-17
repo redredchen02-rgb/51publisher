@@ -194,6 +194,7 @@ export type GroundingFn = (
 	draft: ContentDraft,
 	facts?: FactsBlock,
 	qualityScore?: number,
+	recommendedTags?: string[],
 ) => { ok: boolean; reasons: string[] };
 
 /**
