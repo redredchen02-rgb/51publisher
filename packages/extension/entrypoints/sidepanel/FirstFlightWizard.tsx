@@ -1,8 +1,8 @@
-import { useFirstFlightWizard } from "./hooks/useFirstFlightWizard";
 import { StepConfirm } from "./firstflight/StepConfirm";
 import { StepPreflight } from "./firstflight/StepPreflight";
 import { StepRehearse } from "./firstflight/StepRehearse";
 import { StepResult } from "./firstflight/StepResult";
+import { useFirstFlightWizard } from "./hooks/useFirstFlightWizard";
 
 // 首飞向导(Unit 7):线性五步,把「证明闸门时序」拆成操作者可逐步确认的流程。
 // 安全脊柱(UI 侧零旁路):
@@ -22,14 +22,27 @@ export interface FirstFlightWizardProps {
 	onBack: () => void;
 }
 
-export function FirstFlightWizard({ tabId, host, itemId, onBack }: FirstFlightWizardProps) {
+export function FirstFlightWizard({
+	tabId,
+	host,
+	itemId,
+	onBack,
+}: FirstFlightWizardProps) {
 	const wiz = useFirstFlightWizard(tabId, itemId, host);
 
 	return (
-		<main className="glass-panel fade-in" style={{ padding: "var(--space-xl)", margin: "12px auto", maxWidth: 480 }}>
-			<header className="flex-between" style={{ marginBottom: "var(--space-lg)" }}>
+		<main
+			className="glass-panel fade-in"
+			style={{ padding: "var(--space-xl)", margin: "12px auto", maxWidth: 480 }}
+		>
+			<header
+				className="flex-between"
+				style={{ marginBottom: "var(--space-lg)" }}
+			>
 				<h1 style={{ fontSize: "var(--font-xl)", margin: 0 }}>首飞向导</h1>
-				<button type="button" onClick={onBack} className="btn btn-plain btn-sm">返回</button>
+				<button type="button" onClick={onBack} className="btn btn-plain btn-sm">
+					返回
+				</button>
 			</header>
 
 			<ol className="pipeline-strip" aria-label="首飞步骤">
@@ -90,7 +103,11 @@ export function FirstFlightWizard({ tabId, host, itemId, onBack }: FirstFlightWi
 						⏳ 正在最小授权窗口内发布恰好一条,请<strong>不要关闭面板</strong>。
 						若超过看门狗时限,系统会强制回落 dry-run。
 					</div>
-					<div aria-busy={wiz.dispatching} className="text-secondary" style={{ marginTop: 8 }}>
+					<div
+						aria-busy={wiz.dispatching}
+						className="text-secondary"
+						style={{ marginTop: 8 }}
+					>
 						派发进行中…
 					</div>
 				</section>

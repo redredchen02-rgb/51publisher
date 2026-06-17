@@ -129,7 +129,9 @@ describe("DraftPreview — readonlyFields", () => {
 				readonlyFields={new Set(["title", "body"])}
 			/>,
 		);
-		const bodyEl = screen.getByDisplayValue("<p>正文</p>") as HTMLTextAreaElement;
+		const bodyEl = screen.getByDisplayValue(
+			"<p>正文</p>",
+		) as HTMLTextAreaElement;
 		expect(bodyEl.readOnly).toBe(true);
 	});
 
@@ -141,7 +143,9 @@ describe("DraftPreview — readonlyFields", () => {
 				readonlyFields={new Set(["title", "body"])}
 			/>,
 		);
-		const subtitleInput = screen.getByDisplayValue("副标题") as HTMLInputElement;
+		const subtitleInput = screen.getByDisplayValue(
+			"副标题",
+		) as HTMLInputElement;
 		expect(subtitleInput.readOnly).toBe(false);
 	});
 
@@ -175,7 +179,9 @@ describe("DraftPreview — description 双态", () => {
 				facts={{ 作品名: "A", 简介: "grounded 简介" }}
 			/>,
 		);
-		const desc = screen.getByDisplayValue("grounded 简介") as HTMLTextAreaElement;
+		const desc = screen.getByDisplayValue(
+			"grounded 简介",
+		) as HTMLTextAreaElement;
 		expect(desc.readOnly).toBe(true);
 	});
 
@@ -204,9 +210,7 @@ describe("DraftPreview — description 双态", () => {
 	});
 
 	it("facts 未传 → description 可编辑", () => {
-		render(
-			<DraftPreview draft={makeDraft()} onChange={vi.fn()} />,
-		);
+		render(<DraftPreview draft={makeDraft()} onChange={vi.fn()} />);
 		const desc = screen.getByDisplayValue("描述") as HTMLTextAreaElement;
 		expect(desc.readOnly).toBe(false);
 	});

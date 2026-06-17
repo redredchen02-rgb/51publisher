@@ -4,7 +4,9 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../../lib/messaging", () => ({
-	buildPrompt: vi.fn((template: string, topic: string) => `${template}:${topic}`),
+	buildPrompt: vi.fn(
+		(template: string, topic: string) => `${template}:${topic}`,
+	),
 	requestGenerate: vi.fn(),
 	requestFill: vi.fn(),
 }));

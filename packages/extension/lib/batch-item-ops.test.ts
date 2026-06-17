@@ -1,7 +1,10 @@
 import type { ContentDraft } from "@51publisher/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { Batch } from "./batch";
-import type { RegenItemWithFactsDeps, RetryItemDeps } from "./batch-orchestrator";
+import type {
+	RegenItemWithFactsDeps,
+	RetryItemDeps,
+} from "./batch-orchestrator";
 import { regenItemWithFacts, retryItem } from "./batch-orchestrator";
 
 const TOPIC_A = "topic-a";

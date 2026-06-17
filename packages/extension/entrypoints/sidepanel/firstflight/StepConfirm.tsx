@@ -11,7 +11,15 @@ interface Props {
 	onBack: () => void;
 }
 
-export function StepConfirm({ host, gesture, setGesture, gestureOk, warningRef, onRun, onBack }: Props) {
+export function StepConfirm({
+	host,
+	gesture,
+	setGesture,
+	gestureOk,
+	warningRef,
+	onRun,
+	onBack,
+}: Props) {
 	return (
 		<section aria-label="确认真实站点">
 			<div className="banner-error" role="alert" tabIndex={-1} ref={warningRef}>
@@ -20,9 +28,14 @@ export function StepConfirm({ host, gesture, setGesture, gestureOk, warningRef, 
 			</div>
 			<div style={{ marginTop: "var(--space-md)" }}>
 				<div className="pipeline-step-label">真实目标站点(来自当前标签页)</div>
-				<div className="pipeline-step-value" data-testid="real-host">{host}</div>
+				<div className="pipeline-step-value" data-testid="real-host">
+					{host}
+				</div>
 			</div>
-			<label style={{ display: "block", marginTop: "var(--space-md)" }} htmlFor="ff-gesture">
+			<label
+				style={{ display: "block", marginTop: "var(--space-md)" }}
+				htmlFor="ff-gesture"
+			>
 				<span className="text-secondary">
 					防误点:请手动输入站点主标签「{lastLabel(host)}」以确认
 				</span>

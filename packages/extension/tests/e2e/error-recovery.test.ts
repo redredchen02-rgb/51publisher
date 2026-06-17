@@ -80,7 +80,9 @@ describe("E1 字段缺失容错", () => {
 		const draft = makeDraft();
 		const results = fillDraft(draft, DEFAULT_FIELD_MAPPING, doc);
 
-		const skipped = results.filter((r) => r.status === "skipped").map((r) => r.field);
+		const skipped = results
+			.filter((r) => r.status === "skipped")
+			.map((r) => r.field);
 		expect(skipped).toContain("title");
 		expect(skipped).toContain("subtitle");
 
@@ -160,7 +162,12 @@ describe("E3 完全无字段场景", () => {
 		uninstall = installBodyResponder(document, win, document);
 		const spy = installSubmitSpy(fakeForm, fakeBtn as HTMLButtonElement);
 
-		const outcome = await requestBodyFill("<p>正文</p>", "#editor", 3000, document);
+		const outcome = await requestBodyFill(
+			"<p>正文</p>",
+			"#editor",
+			3000,
+			document,
+		);
 		await microtask();
 
 		expect(outcome.ok).toBe(false);

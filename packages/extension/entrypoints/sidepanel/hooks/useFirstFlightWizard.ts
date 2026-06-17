@@ -1,4 +1,7 @@
-import type { FirstFlightRehearseResult, FirstFlightRunResult } from "@51publisher/shared";
+import type {
+	FirstFlightRehearseResult,
+	FirstFlightRunResult,
+} from "@51publisher/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "../../../lib/api-fetch";
 import {
@@ -38,7 +41,9 @@ export function useFirstFlightWizard(
 	const [preflight, setPreflight] = useState<PreflightResponse | null>(null);
 	const [preflightError, setPreflightError] = useState<string | null>(null);
 	const [rehearsing, setRehearsing] = useState(false);
-	const [rehearsal, setRehearsal] = useState<FirstFlightRehearseResult | null>(null);
+	const [rehearsal, setRehearsal] = useState<FirstFlightRehearseResult | null>(
+		null,
+	);
 	const [gesture, setGesture] = useState("");
 	const [dispatching, setDispatching] = useState(false);
 	const [runResult, setRunResult] = useState<FirstFlightRunResult | null>(null);
@@ -62,7 +67,9 @@ export function useFirstFlightWizard(
 				if (alive) setPreflightError("无法连接后端自检接口");
 			}
 		})();
-		return () => { alive = false; };
+		return () => {
+			alive = false;
+		};
 	}, []);
 
 	useEffect(() => {
@@ -75,10 +82,15 @@ export function useFirstFlightWizard(
 					setResetNotice("首飞授权被强制重置(检测到异常标记)");
 					setStep((cur) => (cur > 2 ? 1 : cur));
 				}
-			} catch { /* ignore */ }
+			} catch {
+				/* ignore */
+			}
 		};
 		const id = setInterval(() => void tick(), 1500);
-		return () => { alive = false; clearInterval(id); };
+		return () => {
+			alive = false;
+			clearInterval(id);
+		};
 	}, []);
 
 	useEffect(() => {

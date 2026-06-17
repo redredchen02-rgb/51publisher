@@ -216,7 +216,12 @@ describe("Batch Routes", () => {
 				payload: { id, tabId: 1, authorizedHost: "h.com", topics: ["t1"] },
 			});
 			// queued → generating → filled → awaiting-approval → publish-dispatched
-			for (const status of ["generating", "filled", "awaiting-approval", "publish-dispatched"]) {
+			for (const status of [
+				"generating",
+				"filled",
+				"awaiting-approval",
+				"publish-dispatched",
+			]) {
 				await app.inject({
 					method: "PATCH",
 					url: `/api/v1/batches/${id}/items/item_0`,

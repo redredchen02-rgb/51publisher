@@ -1,21 +1,14 @@
-import type {
-	ContentDraft,
-	DraftSlots,
-	FactsBlock,
-} from "@51publisher/shared";
+import type { ContentDraft, DraftSlots, FactsBlock } from "@51publisher/shared";
 import { assembleDraft, toDraft } from "@51publisher/shared";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	createHandlers,
 	runStartupGeneratingRecovery,
 } from "../../entrypoints/background";
 import type { Batch } from "../../lib/batch";
+import { runStartupTombstoneScan } from "../../lib/bg-startup";
 import { evaluateGrounding } from "../../lib/grounding-gate";
-import {
-	DRAFT,
-	HOST,
-	makeDeps,
-} from "./bg-test-fixtures";
+import { DRAFT, HOST, makeDeps } from "./bg-test-fixtures";
 
 // ================================================================
 // runStartupGeneratingRecovery
@@ -97,6 +90,17 @@ describe("runStartupGeneratingRecovery", () => {
 		const deps = {
 			getBatch: vi.fn(async () => {
 				throw new Error("storage-failure");
+			}),
+			saveBatch: vi.fn(async () => {}),
+		};
+		await expect(runStartupGeneratingRecovery(deps)).resolves.toBeUndefined();
+		expect(deps.saveBatch).not.toHaveBeenCalled();
+	});
+
+	it("getBatch throws non-Error → swallows, saveBatch not called", async () => {
+		const deps = {
+			getBatch: vi.fn(async () => {
+				throw "string-error";
 			}),
 			saveBatch: vi.fn(async () => {}),
 		};
@@ -245,6 +249,33 @@ describe("handleRefillItemFacts", () => {
 		);
 	});
 
+	it("error: unparseable URL fact → gate-failed with reason", async () => {
+		const batch = makeGateFailedBatch();
+		const saveBatch = vi.fn(async () => {});
+		const deps = makeDeps({ getBatch: vi.fn(async () => batch), saveBatch });
+		const h = createHandlers(deps);
+		// https://[invalid bracket is extracted by extractUrls but fails new URL()
+		const result = await h.handleRefillItemFacts("item_0", {
+			作品名: "某作",
+			漢化: "https://[invalid-bracket",
+		});
+		expect(result?.items[0]?.status).toBe("gate-failed");
+		expect(result?.items[0]?.gateFailReason).toContain("漢化");
+	});
+
+	it("error: IDN/punycode URL fact → gate-failed with reason", async () => {
+		const batch = makeGateFailedBatch();
+		const saveBatch = vi.fn(async () => {});
+		const deps = makeDeps({ getBatch: vi.fn(async () => batch), saveBatch });
+		const h = createHandlers(deps);
+		const result = await h.handleRefillItemFacts("item_0", {
+			作品名: "某作",
+			漢化: "https://xn--nxasmq6b3bcgu2a.com/path",
+		});
+		expect(result?.items[0]?.status).toBe("gate-failed");
+		expect(result?.items[0]?.gateFailReason).toContain("漢化");
+	});
+
 	it("integration (no-mock, mirrors Unit 4): refill clears the REAL authorized grounding hard-gate", async () => {
 		const batch = makeGateFailedBatch();
 		const before = batch.items[0];
@@ -266,5 +297,103 @@ describe("handleRefillItemFacts", () => {
 		const verdict = evaluateGrounding(afterSnap as ContentDraft, after?.facts);
 		expect(verdict.ok).toBe(true);
 		expect(after?.status).toBe("awaiting-approval");
+	});
+});
+
+// ================================================================
+// runStartupTombstoneScan
+// ================================================================
+
+const mockGetBatch = vi.fn<() => Promise<Batch | null>>();
+const mockGetFillTombstones = vi.fn<() => Promise<Record<string, boolean>>>();
+const mockClearFillTombstone = vi.fn<(id: string) => Promise<void>>();
+const mockClearAllFillTombstones = vi.fn<() => Promise<void>>();
+const mockSetPendingQuarantineAlert = vi.fn<(n: number) => Promise<void>>();
+
+vi.mock("../../lib/storage", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../../lib/storage")>();
+	return {
+		...actual,
+		getBatch: (...args: Parameters<typeof mockGetBatch>) =>
+			mockGetBatch(...args),
+		getFillTombstones: (...args: Parameters<typeof mockGetFillTombstones>) =>
+			mockGetFillTombstones(...args),
+		clearFillTombstone: (...args: Parameters<typeof mockClearFillTombstone>) =>
+			mockClearFillTombstone(...args),
+		clearAllFillTombstones: (
+			...args: Parameters<typeof mockClearAllFillTombstones>
+		) => mockClearAllFillTombstones(...args),
+		setPendingQuarantineAlert: (
+			...args: Parameters<typeof mockSetPendingQuarantineAlert>
+		) => mockSetPendingQuarantineAlert(...args),
+	};
+});
+
+describe("runStartupTombstoneScan", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockClearFillTombstone.mockResolvedValue(undefined);
+		mockClearAllFillTombstones.mockResolvedValue(undefined);
+		mockSetPendingQuarantineAlert.mockResolvedValue(undefined);
+	});
+
+	it("no tombstones → early return, no clears", async () => {
+		mockGetBatch.mockResolvedValue(null);
+		mockGetFillTombstones.mockResolvedValue({});
+		await runStartupTombstoneScan();
+		expect(mockClearFillTombstone).not.toHaveBeenCalled();
+		expect(mockClearAllFillTombstones).not.toHaveBeenCalled();
+	});
+
+	it("tombstones exist but no batch → clearAllFillTombstones", async () => {
+		mockGetBatch.mockResolvedValue(null);
+		mockGetFillTombstones.mockResolvedValue({ item_0: true, item_1: true });
+		await runStartupTombstoneScan();
+		expect(mockClearAllFillTombstones).toHaveBeenCalledOnce();
+	});
+
+	it("stale tombstones (not in batch) → clearFillTombstone per stale id", async () => {
+		const batch: Batch = {
+			id: "b1",
+			tabId: 1,
+			authorizedHost: "h",
+			createdAt: "",
+			items: [{ id: "item_0", topic: "t", status: "filled" }],
+		};
+		mockGetBatch.mockResolvedValue(batch);
+		mockGetFillTombstones.mockResolvedValue({ item_0: true, item_stale: true });
+		await runStartupTombstoneScan();
+		expect(mockClearFillTombstone).toHaveBeenCalledWith("item_stale");
+		expect(mockClearFillTombstone).not.toHaveBeenCalledWith("item_0");
+	});
+
+	it("needs-human-verification items → setPendingQuarantineAlert with count", async () => {
+		const batch: Batch = {
+			id: "b1",
+			tabId: 1,
+			authorizedHost: "h",
+			createdAt: "",
+			items: [
+				{ id: "item_0", topic: "t", status: "needs-human-verification" },
+				{ id: "item_1", topic: "t", status: "needs-human-verification" },
+				{ id: "item_2", topic: "t", status: "filled" },
+			],
+		};
+		mockGetBatch.mockResolvedValue(batch);
+		mockGetFillTombstones.mockResolvedValue({ item_0: true });
+		await runStartupTombstoneScan();
+		expect(mockSetPendingQuarantineAlert).toHaveBeenCalledWith(2);
+	});
+
+	it("error thrown → silent warn, no propagation", async () => {
+		mockGetBatch.mockRejectedValue(new Error("db gone"));
+		mockGetFillTombstones.mockResolvedValue({ x: true });
+		await expect(runStartupTombstoneScan()).resolves.toBeUndefined();
+	});
+
+	it("non-Error thrown → silent warn, no propagation", async () => {
+		mockGetFillTombstones.mockRejectedValue("plain-string-thrown");
+		mockGetBatch.mockResolvedValue(null);
+		await expect(runStartupTombstoneScan()).resolves.toBeUndefined();
 	});
 });

@@ -55,7 +55,12 @@ export function DraftSection({
 			{it.status === "awaiting-approval" && onItemEdited && (
 				<label
 					className="flex"
-					style={{ alignItems: "center", gap: 4, marginTop: 6, cursor: "pointer" }}
+					style={{
+						alignItems: "center",
+						gap: 4,
+						marginTop: 6,
+						cursor: "pointer",
+					}}
 				>
 					<input
 						type="checkbox"

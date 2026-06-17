@@ -78,16 +78,24 @@ export function BatchReviewPanel(props: Props) {
 	const [discardPickerId, setDiscardPickerId] = useState<string | null>(null);
 	const [discardReason, setDiscardReason] = useState<RejectionReason>("other");
 
-	const { quarantined, awaitingApprovalCount, aiOptimizedCount, ds } = useMemo(() => {
-		const quarantined = batch.items.filter(
-			(it) => it.status === "needs-human-verification",
-		);
-		const awaitingApprovalCount = batch.items.filter(
-			(it) => it.status === "awaiting-approval",
-		).length;
-		const aiOptimizedCount = batch.items.filter((i) => i.aiReviewTriggered === true).length;
-		return { quarantined, awaitingApprovalCount, aiOptimizedCount, ds: aggregateDegradeStats(batch.items) };
-	}, [batch.items]);
+	const { quarantined, awaitingApprovalCount, aiOptimizedCount, ds } =
+		useMemo(() => {
+			const quarantined = batch.items.filter(
+				(it) => it.status === "needs-human-verification",
+			);
+			const awaitingApprovalCount = batch.items.filter(
+				(it) => it.status === "awaiting-approval",
+			).length;
+			const aiOptimizedCount = batch.items.filter(
+				(i) => i.aiReviewTriggered === true,
+			).length;
+			return {
+				quarantined,
+				awaitingApprovalCount,
+				aiOptimizedCount,
+				ds: aggregateDegradeStats(batch.items),
+			};
+		}, [batch.items]);
 	const readGateOk = awaitingApprovalCount === 0 || (allRead ?? false);
 	const canApprove =
 		phase === "awaiting-approval" &&

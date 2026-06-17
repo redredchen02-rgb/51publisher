@@ -48,6 +48,19 @@ const settings: Settings = {
 };
 
 describe("Extension LLM client proxy", () => {
+	it("generateDraft sets Authorization header when token is present", async () => {
+		const { getToken } = await import("./auth-client");
+		vi.mocked(getToken).mockResolvedValueOnce("tok-xyz");
+		const fakeDraft = { id: "d1", title: "t", body: "b" };
+		const f = mockFetch({ ok: true, draft: fakeDraft });
+		await generateDraft("hi", { settings, apiKey: "", facts: {}, fetchFn: f });
+		const callInit = (f as ReturnType<typeof vi.fn>).mock
+			.calls[0]?.[1] as RequestInit;
+		expect(
+			(callInit.headers as Record<string, string>)?.["Authorization"],
+		).toBe("Bearer tok-xyz");
+	});
+
 	it("generateDraft forwards options to backend server", async () => {
 		const fakeDraft = { id: "draft_1", title: "hello", body: "body content" };
 		const f = mockFetch({ ok: true, draft: fakeDraft });
@@ -115,6 +128,19 @@ describe("Extension LLM client proxy", () => {
 		}
 	});
 
+	it("generateDraft: 401 → clearToken() + ok:false", async () => {
+		const { clearToken } = await import("./auth-client");
+		const f = mockFetch({}, { ok: false, status: 401 });
+		const res = await generateDraft("hi", {
+			settings,
+			apiKey: "",
+			facts: {},
+			fetchFn: f,
+		});
+		expect(res.ok).toBe(false);
+		expect(clearToken).toHaveBeenCalled();
+	});
+
 	it("generateDraft returns error when backend returns non-ok response", async () => {
 		const f = mockFetch({ error: "Backend error" }, { ok: false, status: 500 });
 
@@ -129,6 +155,72 @@ describe("Extension LLM client proxy", () => {
 		if (!res.ok) {
 			expect(res.error).toBe("Backend error");
 		}
+	});
+
+	it("generateDraft: non-ok response with invalid JSON body → generic error", async () => {
+		const f = vi.fn(
+			async () =>
+				({
+					ok: false,
+					status: 503,
+					text: async () => "Service Unavailable (not JSON)",
+					json: async () => {
+						throw new Error("not json");
+					},
+				}) as unknown as Response,
+		);
+
+		const res = await generateDraft("hi", {
+			settings,
+			apiKey: "",
+			facts: {},
+			fetchFn: f,
+		});
+		expect(res.ok).toBe(false);
+		if (!res.ok) expect(res.error).toContain("503");
+	});
+
+	it("generateDraft: non-ok response with JSON but no .error field → generic error", async () => {
+		const f = mockFetch(
+			{ message: "no error key" },
+			{ ok: false, status: 422 },
+		);
+
+		const res = await generateDraft("hi", {
+			settings,
+			apiKey: "",
+			facts: {},
+			fetchFn: f,
+		});
+		expect(res.ok).toBe(false);
+		if (!res.ok) expect(res.error).toContain("422");
+	});
+
+	it("generateDraft: AbortError (timeout) → timeout message", async () => {
+		const f = mockFetch({}, { throwName: "AbortError" });
+
+		const res = await generateDraft("hi", {
+			settings,
+			apiKey: "",
+			facts: {},
+			fetchFn: f,
+			timeoutMs: 100,
+		});
+		expect(res.ok).toBe(false);
+		if (!res.ok) expect(res.error).toContain("超时");
+	});
+
+	it("generateDraft: non-AbortError fetch throws → connection error message", async () => {
+		const f = mockFetch({}, { throwName: "TypeError" });
+
+		const res = await generateDraft("hi", {
+			settings,
+			apiKey: "",
+			facts: {},
+			fetchFn: f,
+		});
+		expect(res.ok).toBe(false);
+		if (!res.ok) expect(res.error).toContain("连接");
 	});
 
 	it("listModels calls backend list models endpoint", async () => {
@@ -146,6 +238,61 @@ describe("Extension LLM client proxy", () => {
 				headers: { "Content-Type": "application/json" },
 			}),
 		);
+	});
+
+	it("listModels sets Authorization header when token is present", async () => {
+		const { getToken } = await import("./auth-client");
+		vi.mocked(getToken).mockResolvedValueOnce("tok-list");
+		const f = mockFetch({ ok: true, models: [] });
+		await listModels("http://127.0.0.1:3001", "", f);
+		const callInit = (f as ReturnType<typeof vi.fn>).mock
+			.calls[0]?.[1] as RequestInit;
+		expect(
+			(callInit.headers as Record<string, string>)?.["Authorization"],
+		).toBe("Bearer tok-list");
+	});
+
+	it("listModels: 401 → clearToken + ok:false", async () => {
+		const { clearToken } = await import("./auth-client");
+		const f = mockFetch({}, { ok: false, status: 401 });
+		const res = await listModels("http://127.0.0.1:3001", "", f);
+		expect(res.ok).toBe(false);
+		expect(clearToken).toHaveBeenCalled();
+	});
+
+	it("listModels: non-ok 500 → ok:false with status in error", async () => {
+		const f = mockFetch({ error: "server down" }, { ok: false, status: 500 });
+		const res = await listModels("http://127.0.0.1:3001", "", f);
+		expect(res.ok).toBe(false);
+		if (!res.ok) expect(res.error).toContain("server down");
+	});
+
+	it("listModels: non-ok with invalid JSON body → generic error with status", async () => {
+		const f = vi.fn(
+			async () =>
+				({
+					ok: false,
+					status: 503,
+					text: async () => "not json",
+				}) as unknown as Response,
+		);
+		const res = await listModels("http://127.0.0.1:3001", "", f);
+		expect(res.ok).toBe(false);
+		if (!res.ok) expect(res.error).toContain("503");
+	});
+
+	it("listModels: AbortError → timeout message", async () => {
+		const f = mockFetch({}, { throwName: "AbortError" });
+		const res = await listModels("http://127.0.0.1:3001", "", f, 100);
+		expect(res.ok).toBe(false);
+		if (!res.ok) expect(res.error).toContain("超时");
+	});
+
+	it("listModels: non-AbortError → connection error message", async () => {
+		const f = mockFetch({}, { throwName: "TypeError" });
+		const res = await listModels("http://127.0.0.1:3001", "", f);
+		expect(res.ok).toBe(false);
+		if (!res.ok) expect(res.error).toContain("连接");
 	});
 });
 
@@ -229,6 +376,28 @@ describe("rewriteDraft proxy", () => {
 			fetchFn: f,
 		});
 		expect(res.ok).toBe(false);
+	});
+
+	it("401 → 清 token + ok:false", async () => {
+		const { clearToken } = await import("./auth-client");
+		const f = mockFetch({}, { ok: false, status: 401 });
+		const res = await rewriteDraft(draft, ["title_quality"], {
+			...deps,
+			fetchFn: f,
+		});
+		expect(res.ok).toBe(false);
+		expect(clearToken).toHaveBeenCalled();
+	});
+
+	it("AbortError (timeout) → ok:false timeout message", async () => {
+		const f = mockFetch({}, { throwName: "AbortError" });
+		const res = await rewriteDraft(draft, ["title_quality"], {
+			...deps,
+			fetchFn: f,
+			timeoutMs: 100,
+		});
+		expect(res.ok).toBe(false);
+		if (!res.ok) expect(res.error).toContain("超时");
 	});
 });
 

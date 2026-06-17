@@ -398,7 +398,11 @@ describe("approveBatch recordPost (U10)", () => {
 
 describe("approveBatch slotDiff", () => {
 	it("assembledDraftSnapshot 存在且 draft 相同:slotDiff.changedSlots 为空", async () => {
-		const aiDraft: ContentDraft = { ...DRAFT, title: "AI原稿", body: "<p>原稿</p>" };
+		const aiDraft: ContentDraft = {
+			...DRAFT,
+			title: "AI原稿",
+			body: "<p>原稿</p>",
+		};
 		const batch: Batch = {
 			id: "batch_1",
 			tabId: 1,
@@ -420,7 +424,9 @@ describe("approveBatch slotDiff", () => {
 			appendTrajectory,
 		});
 		await approveBatch(deps);
-		const callArg = (appendTrajectory.mock.lastCall as unknown[])[0] as { slotDiff?: { changedSlots: string[] } };
+		const callArg = (appendTrajectory.mock.lastCall as unknown[])[0] as {
+			slotDiff?: { changedSlots: string[] };
+		};
 		expect(callArg.slotDiff?.changedSlots).toHaveLength(0);
 	});
 
@@ -448,7 +454,9 @@ describe("approveBatch slotDiff", () => {
 			appendTrajectory,
 		});
 		await approveBatch(deps);
-		const callArg = (appendTrajectory.mock.lastCall as unknown[])[0] as { slotDiff?: { changedSlots: string[] } };
+		const callArg = (appendTrajectory.mock.lastCall as unknown[])[0] as {
+			slotDiff?: { changedSlots: string[] };
+		};
 		expect(callArg.slotDiff?.changedSlots).toContain("title");
 	});
 
@@ -460,7 +468,9 @@ describe("approveBatch slotDiff", () => {
 			appendTrajectory,
 		});
 		await approveBatch(deps);
-		const callArg = (appendTrajectory.mock.lastCall as unknown[])[0] as { slotDiff?: unknown };
+		const callArg = (appendTrajectory.mock.lastCall as unknown[])[0] as {
+			slotDiff?: unknown;
+		};
 		expect(callArg.slotDiff).toBeUndefined();
 	});
 });

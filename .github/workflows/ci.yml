@@ -18,7 +18,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "pnpm"
 
       - name: Install dependencies
@@ -45,6 +45,11 @@ jobs:
 
       - name: Test
         run: pnpm -r test
+
+      # 覆盖率阈值门控:Stmts/Lines/Branches/Functions 均须 ≥80%,低于则 CI 失败。
+      # vitest.config.ts 的 thresholds 配置使 coverage 命令在不达标时非零退出。
+      - name: Coverage thresholds
+        run: pnpm -r coverage
 
       # e2e 真闸 + 跳过可见:把 vitest 的 passed/skipped 汇总写进 CI step summary,
       # 杜绝「无 API_KEY 全 skip 却显示绿」的假绿。e2e 失败仍中断(真闸)。

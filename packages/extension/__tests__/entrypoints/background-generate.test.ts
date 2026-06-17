@@ -4,12 +4,7 @@ import {
 	buildConstraintSuffix,
 	createHandlers,
 } from "../../entrypoints/background";
-import {
-	DRAFT,
-	HOST,
-	SETTINGS,
-	makeDeps,
-} from "./bg-test-fixtures";
+import { DRAFT, HOST, makeDeps, SETTINGS } from "./bg-test-fixtures";
 
 // ================================================================
 // handleGenerate
@@ -34,6 +29,17 @@ describe("handleGenerate", () => {
 		const deps = makeDeps({
 			generateDraftFn: vi.fn(async () => {
 				throw new Error("network");
+			}),
+		});
+		const h = createHandlers(deps);
+		const result = await h.handleGenerate("prompt");
+		expect(result).toMatchObject({ ok: false });
+	});
+
+	it("generateDraftFn throws non-Error → String(err) branch", async () => {
+		const deps = makeDeps({
+			generateDraftFn: vi.fn(async () => {
+				throw "string-thrown";
 			}),
 		});
 		const h = createHandlers(deps);

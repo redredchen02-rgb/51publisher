@@ -1,8 +1,8 @@
 import type { RuntimeMessage } from "@51publisher/shared";
 import { storage } from "#imports";
 import {
+	type BackgroundHandlerDeps as _BHD,
 	asPublishResult,
-	BackgroundHandlerDeps as _BHD,
 	buildConstraintSuffix,
 	createHandlers,
 	generateDraft,
@@ -12,14 +12,18 @@ import {
 	saveBatch,
 	withBackendSync,
 } from "../lib/bg-handlers";
+
 export { createHandlers };
+
 import {
 	runStartupGeneratingRecovery,
 	runStartupTombstoneScan,
 } from "../lib/bg-startup";
+import { logger } from "../lib/logger";
 import {
 	addPublishedTopics,
 	appendTrajectory,
+	clearFillTombstone,
 	clearFirstFlight,
 	getApiKey,
 	getAuthorizedHosts,
@@ -28,11 +32,9 @@ import {
 	getSafetyMode,
 	saveDryRunReport,
 	setSafetyMode,
-	clearFillTombstone,
 	writeFillTombstone,
 	writeFirstFlight,
 } from "../lib/storage";
-import { logger } from "../lib/logger";
 
 // Background service worker:调度中心 + 发布闸门。
 // - 点扩展图标打开 side panel

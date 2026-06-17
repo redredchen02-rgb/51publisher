@@ -1,4 +1,8 @@
-import type { ContentDraft, FactsBlock, GenerateDraftResponse } from "@51publisher/shared";
+import type {
+	ContentDraft,
+	FactsBlock,
+	GenerateDraftResponse,
+} from "@51publisher/shared";
 import type { Batch } from "./batch";
 import {
 	markFilled,

@@ -30,7 +30,8 @@ export function ItemCardHeader({
 	discardReason,
 	setDiscardReason,
 }: ItemCardHeaderProps) {
-	const degraded = it.fillResults?.filter((r) => r.status === "degraded").length ?? 0;
+	const degraded =
+		it.fillResults?.filter((r) => r.status === "degraded").length ?? 0;
 
 	return (
 		<div className="flex" style={{ alignItems: "center" }}>
@@ -95,7 +96,9 @@ export function ItemCardHeader({
 				</span>
 				{slotDiff !== undefined && !slotDiff.unknown && (
 					<span
-						className={slotDiff.changedSlots.length > 0 ? "text-warning" : "text-muted"}
+						className={
+							slotDiff.changedSlots.length > 0 ? "text-warning" : "text-muted"
+						}
 						style={{ marginLeft: 4, fontSize: 10, flexShrink: 0 }}
 						title="含 AI 自動重寫"
 					>
@@ -134,11 +137,13 @@ export function ItemCardHeader({
 								border: "1px solid var(--color-border)",
 							}}
 						>
-							{(Object.keys(REJECTION_REASON_LABELS) as RejectionReason[]).map((r) => (
-								<option key={r} value={r}>
-									{REJECTION_REASON_LABELS[r]}
-								</option>
-							))}
+							{(Object.keys(REJECTION_REASON_LABELS) as RejectionReason[]).map(
+								(r) => (
+									<option key={r} value={r}>
+										{REJECTION_REASON_LABELS[r]}
+									</option>
+								),
+							)}
 						</select>
 						<button
 							type="button"

@@ -177,3 +177,60 @@ describe("reassembleWithFacts", () => {
 		expect(res.draft).toEqual(fresh);
 	});
 });
+
+describe("reassembleWithFacts — URL validation branches", () => {
+	it("IDN punycode URL (xn-- prefix) → rejected with invalid-url reason", () => {
+		const item = makeItem();
+		const res = reassembleWithFacts(
+			item,
+			{ 漢化: "https://xn--bcher-kva.example.com/path" },
+			NOW,
+		);
+		expect(res.ok).toBe(false);
+		if (!res.ok) {
+			expect(res.reason).toBe("invalid-url");
+			expect(res.message).toContain("IDN");
+		}
+	});
+
+	it("internal host (localhost) URL → rejected", () => {
+		const item = makeItem();
+		const res = reassembleWithFacts(
+			item,
+			{ 漢化: "https://localhost/path" },
+			NOW,
+		);
+		expect(res.ok).toBe(false);
+		if (!res.ok) expect(res.reason).toBe("invalid-url");
+	});
+
+	it("URL with credentials → rejected", () => {
+		const item = makeItem();
+		const res = reassembleWithFacts(
+			item,
+			{ 漢化: "https://user:pass@example.com/path" },
+			NOW,
+		);
+		expect(res.ok).toBe(false);
+		if (!res.ok) expect(res.reason).toBe("invalid-url");
+	});
+
+	it("URL too long → rejected", () => {
+		const item = makeItem();
+		const longUrl = `https://example.com/${"a".repeat(3000)}`;
+		const res = reassembleWithFacts(item, { 漢化: longUrl }, NOW);
+		expect(res.ok).toBe(false);
+		if (!res.ok) expect(res.reason).toBe("invalid-url");
+	});
+
+	it("127.0.0.1 URL → rejected as internal host", () => {
+		const item = makeItem();
+		const res = reassembleWithFacts(
+			item,
+			{ 漢化: "https://127.0.0.1/path" },
+			NOW,
+		);
+		expect(res.ok).toBe(false);
+		if (!res.ok) expect(res.reason).toBe("invalid-url");
+	});
+});

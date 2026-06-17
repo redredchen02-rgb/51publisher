@@ -32,12 +32,18 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 	const [busy, setBusy] = useState(false);
 	const [loading, setLoading] = useState(true);
 	const [hideLowScore, setHideLowScore] = useState(false);
-	const [quickDraftConfirm, setQuickDraftConfirm] = useState<PendingTopic[] | null>(null);
+	const [quickDraftConfirm, setQuickDraftConfirm] = useState<
+		PendingTopic[] | null
+	>(null);
 	const [quickDraftStatus, setQuickDraftStatus] = useState("");
 
 	const refresh = useCallback(async () => {
 		setLoading(true);
-		const list = await fetchPendingTopics({ status: "pending", sort_by: "score", domain: "acg" });
+		const list = await fetchPendingTopics({
+			status: "pending",
+			sort_by: "score",
+			domain: "acg",
+		});
 		setTopics(list);
 		setLoading(false);
 	}, []);
@@ -134,7 +140,11 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 		setQuickDraftStatus("备稿中…");
 		setQuickDraftConfirm(null);
 		try {
-			const sorted = await fetchPendingTopics({ status: "pending", sort_by: "score", domain: "acg" });
+			const sorted = await fetchPendingTopics({
+				status: "pending",
+				sort_by: "score",
+				domain: "acg",
+			});
 			if (sorted.length === 0) {
 				setQuickDraftStatus("待审池暂无选题，请先抓取");
 				return;
@@ -199,7 +209,10 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 			{scrapeStatus && (
 				<div
 					className="text-warning"
-					style={{ fontSize: "var(--font-sm)", marginBottom: "var(--space-sm)" }}
+					style={{
+						fontSize: "var(--font-sm)",
+						marginBottom: "var(--space-sm)",
+					}}
 				>
 					{scrapeStatus}
 				</div>
@@ -207,8 +220,13 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 
 			{quickDraftStatus && !quickDraftConfirm && (
 				<div
-					className={quickDraftStatus.startsWith("待审池") ? "text-muted" : "text-info"}
-					style={{ fontSize: "var(--font-sm)", marginBottom: "var(--space-sm)" }}
+					className={
+						quickDraftStatus.startsWith("待审池") ? "text-muted" : "text-info"
+					}
+					style={{
+						fontSize: "var(--font-sm)",
+						marginBottom: "var(--space-sm)",
+					}}
 				>
 					{quickDraftStatus}
 				</div>
@@ -219,16 +237,28 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 					topics={quickDraftConfirm}
 					busy={busy}
 					onConfirm={() => void handleQuickDraftConfirm()}
-					onCancel={() => { setQuickDraftConfirm(null); setQuickDraftStatus(""); }}
+					onCancel={() => {
+						setQuickDraftConfirm(null);
+						setQuickDraftStatus("");
+					}}
 				/>
 			)}
 
 			{loading && <Loading />}
 
 			{!loading && topics.length === 0 && (
-				<div className="text-center text-muted" style={{ marginTop: "var(--space-xl)" }}>
+				<div
+					className="text-center text-muted"
+					style={{ marginTop: "var(--space-xl)" }}
+				>
 					暂无待审核选题。
-					<div style={{ marginTop: "var(--space-md)", fontSize: "var(--font-sm)", color: "var(--color-text-disabled)" }}>
+					<div
+						style={{
+							marginTop: "var(--space-md)",
+							fontSize: "var(--font-sm)",
+							color: "var(--color-text-disabled)",
+						}}
+					>
 						可通过后端 POST /api/v1/scraper/trigger 抓取新内容。
 					</div>
 				</div>
@@ -236,7 +266,10 @@ export function PendingTopicsView({ onBack, onBatchStarted, onError }: Props) {
 
 			{topics.length > 0 && (
 				<>
-					<div className="flex-between" style={{ marginBottom: "var(--space-md)", alignItems: "center" }}>
+					<div
+						className="flex-between"
+						style={{ marginBottom: "var(--space-md)", alignItems: "center" }}
+					>
 						<span className="text-sm text-muted">
 							{topics.length} 条待审核 · 已选 {selected.size} 条
 						</span>

@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { useErrorLogger } from "./useErrorLogger";
 
 vi.mock("../../../lib/chrome-storage-utils", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("../../../lib/chrome-storage-utils")>();
+	const actual =
+		await importOriginal<typeof import("../../../lib/chrome-storage-utils")>();
 	return { ...actual };
 });
 

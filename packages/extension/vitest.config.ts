@@ -12,6 +12,12 @@ export default defineConfig({
 			reporter: ["text", "lcov"],
 			include: ["entrypoints/**", "lib/**"],
 			exclude: ["**/*.html"],
+			thresholds: {
+				statements: 80,
+				lines: 80,
+				branches: 80,
+				functions: 80,
+			},
 		},
 	},
 });

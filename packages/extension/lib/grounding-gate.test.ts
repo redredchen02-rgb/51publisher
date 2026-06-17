@@ -233,7 +233,11 @@ describe("evaluateGrounding — Phase 2 新增校验", () => {
 
 	it("tags 全在 recommendedTags → 放行", () => {
 		const draft: ContentDraft = { ...base, tags: ["漫画", "热血"] };
-		const v = evaluateGrounding(draft, FULL, undefined, ["漫画", "热血", "冒险"]);
+		const v = evaluateGrounding(draft, FULL, undefined, [
+			"漫画",
+			"热血",
+			"冒险",
+		]);
 		expect(v.ok).toBe(true);
 	});
 

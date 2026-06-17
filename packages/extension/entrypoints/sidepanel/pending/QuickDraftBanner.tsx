@@ -10,7 +10,10 @@ interface Props {
 export function QuickDraftBanner({ topics, busy, onConfirm, onCancel }: Props) {
 	return (
 		<div className="banner-info" style={{ marginBottom: "var(--space-md)" }}>
-			<div className="font-semibold" style={{ marginBottom: "var(--space-lg)" }}>
+			<div
+				className="font-semibold"
+				style={{ marginBottom: "var(--space-lg)" }}
+			>
 				将生成 {topics.length} 篇草稿：
 			</div>
 			<ul

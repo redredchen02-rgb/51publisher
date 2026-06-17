@@ -3,12 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeBrowser } from "wxt/testing";
 import { createHandlers } from "../../entrypoints/background";
 import type { Batch } from "../../lib/batch";
-import {
-	DRAFT,
-	HOST,
-	makeBatch,
-	makeDeps,
-} from "./bg-test-fixtures";
+import { DRAFT, HOST, makeBatch, makeDeps } from "./bg-test-fixtures";
 
 // ================================================================
 // handleRunBatch
@@ -103,6 +98,13 @@ describe("handleApproveBatch", () => {
 		const deps = makeDeps({ getBatch: vi.fn(async () => null) });
 		const h = createHandlers(deps);
 		const result = await h.handleApproveBatch(1);
+		expect(result).toBeNull();
+	});
+
+	it("draftOverrides 非空但 getBatch null → 不 patch,继续 runApprove", async () => {
+		const deps = makeDeps({ getBatch: vi.fn(async () => null) });
+		const h = createHandlers(deps);
+		const result = await h.handleApproveBatch(1, { item_0: DRAFT });
 		expect(result).toBeNull();
 	});
 
@@ -381,5 +383,121 @@ describe("handleReleaseQuarantineBatch", () => {
 		const h = createHandlers(deps);
 		await h.handleReleaseQuarantineBatch();
 		expect(saveBatch).not.toHaveBeenCalled();
+	});
+
+	it("null batch → returns null", async () => {
+		const deps = makeDeps({ getBatch: vi.fn(async () => null) });
+		const h = createHandlers(deps);
+		expect(await h.handleReleaseQuarantineBatch()).toBeNull();
+	});
+});
+
+describe("handleReleaseQuarantine: null batch", () => {
+	it("null batch → returns null", async () => {
+		const deps = makeDeps({ getBatch: vi.fn(async () => null) });
+		const h = createHandlers(deps);
+		expect(await h.handleReleaseQuarantine("item_0")).toBeNull();
+	});
+});
+
+// ================================================================
+// handleMarkItemEdited
+// ================================================================
+
+describe("handleMarkItemEdited", () => {
+	it("happy: existing unedited item → userEdited set to true, saveBatch called", async () => {
+		const batch: Batch = {
+			id: "b1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "",
+			items: [
+				{ id: "item_0", topic: "t", status: "awaiting-approval", draft: DRAFT },
+			],
+		};
+		const saveBatch = vi.fn(async () => {});
+		const deps = makeDeps({ getBatch: vi.fn(async () => batch), saveBatch });
+		const h = createHandlers(deps);
+		await h.handleMarkItemEdited("item_0");
+		expect(saveBatch).toHaveBeenCalledOnce();
+		// biome-ignore lint/suspicious/noExplicitAny: mock call args are typed as [] but contain Batch
+		const saved = (saveBatch.mock.calls[0] as any)[0] as Batch;
+		expect(saved.items[0]?.userEdited).toBe(true);
+	});
+
+	it("already userEdited → idempotent, saveBatch not called again", async () => {
+		const batch: Batch = {
+			id: "b1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "",
+			items: [
+				{
+					id: "item_0",
+					topic: "t",
+					status: "awaiting-approval",
+					draft: DRAFT,
+					userEdited: true,
+				},
+			],
+		};
+		const saveBatch = vi.fn(async () => {});
+		const deps = makeDeps({ getBatch: vi.fn(async () => batch), saveBatch });
+		const h = createHandlers(deps);
+		await h.handleMarkItemEdited("item_0");
+		expect(saveBatch).not.toHaveBeenCalled();
+	});
+
+	it("unknown itemId → no-op, saveBatch not called", async () => {
+		const batch: Batch = {
+			id: "b1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "",
+			items: [
+				{ id: "item_0", topic: "t", status: "awaiting-approval", draft: DRAFT },
+			],
+		};
+		const saveBatch = vi.fn(async () => {});
+		const deps = makeDeps({ getBatch: vi.fn(async () => batch), saveBatch });
+		const h = createHandlers(deps);
+		await h.handleMarkItemEdited("no-such-id");
+		expect(saveBatch).not.toHaveBeenCalled();
+	});
+
+	it("null batch → returns undefined without throwing", async () => {
+		const deps = makeDeps({ getBatch: vi.fn(async () => null) });
+		const h = createHandlers(deps);
+		await expect(h.handleMarkItemEdited("item_0")).resolves.toBeUndefined();
+	});
+});
+
+// ================================================================
+// handleDiscardBatchItem
+// ================================================================
+
+describe("handleDiscardBatchItem", () => {
+	it("happy: existing item → aborted, saveBatch called", async () => {
+		const batch: Batch = {
+			id: "b1",
+			tabId: 1,
+			authorizedHost: HOST,
+			createdAt: "",
+			items: [
+				{ id: "item_0", topic: "t", status: "awaiting-approval", draft: DRAFT },
+			],
+		};
+		const saveBatch = vi.fn(async () => {});
+		const deps = makeDeps({ getBatch: vi.fn(async () => batch), saveBatch });
+		const h = createHandlers(deps);
+		const result = await h.handleDiscardBatchItem("item_0");
+		expect(result?.items[0]?.status).toBe("aborted");
+		expect(saveBatch).toHaveBeenCalledOnce();
+	});
+
+	it("null batch → returns null", async () => {
+		const deps = makeDeps({ getBatch: vi.fn(async () => null) });
+		const h = createHandlers(deps);
+		expect(await h.handleDiscardBatchItem("item_0")).toBeNull();
 	});
 });

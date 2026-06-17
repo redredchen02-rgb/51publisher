@@ -51,8 +51,17 @@ export interface MainDraftFlowReturn {
 	copyBody: () => void;
 }
 
-export function useMainDraftFlow(deps: UseMainDraftFlowDeps): MainDraftFlowReturn {
-	const { saveDraft, handleError, logError, recordOperation, loadingState, onToast } = deps;
+export function useMainDraftFlow(
+	deps: UseMainDraftFlowDeps,
+): MainDraftFlowReturn {
+	const {
+		saveDraft,
+		handleError,
+		logError,
+		recordOperation,
+		loadingState,
+		onToast,
+	} = deps;
 
 	const [mode, setMode] = useState<Mode>("empty");
 	const [topic, setTopic] = useState("");

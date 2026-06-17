@@ -15,8 +15,13 @@ export function StepResult({ runResult, onReRehearse, onBack }: Props) {
 						✅ 已派发恰好一条(条目终态:{runResult.itemStatus ?? "未知"})。
 						{runResult.reverted && " 授权已回落 dry-run、标记已清。"}
 					</div>
-					<div className="banner-warning" role="note" style={{ marginTop: "var(--space-md)" }}>
-						🔴 请到真实站点核实帖子是否真的落地(URL/内容)——首飞只证明闸门时序正确,
+					<div
+						className="banner-warning"
+						role="note"
+						style={{ marginTop: "var(--space-md)" }}
+					>
+						🔴
+						请到真实站点核实帖子是否真的落地(URL/内容)——首飞只证明闸门时序正确,
 						<strong>不</strong>代表发布一定成功。
 						{runResult.publishUrl && (
 							<div style={{ marginTop: 4 }}>
@@ -34,7 +39,11 @@ export function StepResult({ runResult, onReRehearse, onBack }: Props) {
 				</div>
 			)}
 			<div style={{ marginTop: "var(--space-lg)", display: "flex", gap: 8 }}>
-				<button type="button" className="btn btn-primary" onClick={onReRehearse}>
+				<button
+					type="button"
+					className="btn btn-primary"
+					onClick={onReRehearse}
+				>
 					重新排演并重试
 				</button>
 				<button type="button" className="btn btn-plain" onClick={onBack}>

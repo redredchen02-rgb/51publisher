@@ -9,11 +9,19 @@ interface Props {
 	onBack: () => void;
 }
 
-export function StepRehearse({ rehearsing, rehearsal, canForwardFrom2, onRehearse, onNext, onBack }: Props) {
+export function StepRehearse({
+	rehearsing,
+	rehearsal,
+	canForwardFrom2,
+	onRehearse,
+	onNext,
+	onBack,
+}: Props) {
 	return (
 		<section aria-label="排演">
 			<p className="text-secondary">
-				排演会在 dry-run 档跑一遍填充并核对接地(grounding),全绿才能继续。绝不真发。
+				排演会在 dry-run
+				档跑一遍填充并核对接地(grounding),全绿才能继续。绝不真发。
 			</p>
 			<button
 				type="button"
@@ -25,7 +33,11 @@ export function StepRehearse({ rehearsing, rehearsal, canForwardFrom2, onRehears
 				{rehearsing ? "排演中…" : "开始排演"}
 			</button>
 			{rehearsing && (
-				<div aria-live="polite" className="text-secondary" style={{ marginTop: 8 }}>
+				<div
+					aria-live="polite"
+					className="text-secondary"
+					style={{ marginTop: 8 }}
+				>
 					正在 dry-run 排演,请稍候…
 				</div>
 			)}

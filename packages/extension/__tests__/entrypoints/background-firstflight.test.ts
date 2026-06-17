@@ -539,4 +539,77 @@ describe("first-flight 向导编排(Unit 6)", () => {
 		expect(s.bad).toBe(true);
 		expect(s.armed).toBe(false);
 	});
+
+	it("status:ok 标记但 pending=null → armed=false", async () => {
+		const marker = {
+			mode: "dry-run" as const,
+			pending: null,
+			dispatchHash: "",
+		};
+		const deps = makeDeps({
+			getSafetyMode: vi.fn(async () => "dry-run" as const),
+			getFirstFlight: vi.fn(async () => ({ state: "ok" as const, marker })),
+		});
+		const h = createHandlers(deps);
+		const s = await h.handleFirstFlightStatus();
+		expect(s.armed).toBe(false);
+		expect(s.bad).toBe(false);
+	});
+
+	it("rehearse:item 无 assembledDraftSnapshot → grounding 报缺快照", async () => {
+		const batch = makeBatch("awaiting-approval");
+		const item0 = batch.items[0];
+		if (!item0) throw new Error("fixture missing item");
+		item0.assembledDraftSnapshot = undefined;
+		const deps = makeDeps({ getBatch: vi.fn(async () => batch) });
+		const h = createHandlers(deps);
+		const res = await h.handleFirstFlightRehearse(1, "item_0");
+		expect(res.groundingOk).toBe(false);
+		expect(res.reasons.some((r) => r.includes("assembledDraftSnapshot"))).toBe(
+			true,
+		);
+	});
+
+	it("run:host 取不到 → ok=false error=host-unreachable", async () => {
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => makeBatch("awaiting-approval")),
+			tabsGet: vi.fn(async () => ({}) as { url?: string; id?: number }),
+		});
+		const h = createHandlers(deps);
+		const res = await h.handleFirstFlightRun(1, "item_0");
+		expect(res.ok).toBe(false);
+		expect(res.error).toBe("host-unreachable");
+	});
+
+	it("rehearse:getBatch throws → catch returns rehearse-internal-error", async () => {
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => {
+				throw new Error("storage crashed");
+			}),
+		});
+		const h = createHandlers(deps);
+		const res = await h.handleFirstFlightRehearse(1, "item_0");
+		expect(res.ok).toBe(false);
+		expect(res.error).toBe("rehearse-internal-error");
+	});
+
+	it("run:getBatch throws → catch returns run-internal-error + reverted=true", async () => {
+		const ff = makeFFStore();
+		const mode = makeModeStore("dry-run");
+		const deps = makeDeps({
+			getBatch: vi.fn(async () => {
+				throw new Error("storage crashed");
+			}),
+			getSafetyMode: mode.getSafetyMode,
+			setSafetyMode: mode.setSafetyMode,
+			getFirstFlight: ff.getFirstFlight,
+			writeFirstFlight: ff.writeFirstFlight,
+			clearFirstFlight: ff.clearFirstFlight,
+		});
+		const h = createHandlers(deps);
+		const res = await h.handleFirstFlightRun(1, "item_0");
+		expect(res.ok).toBe(false);
+		expect(res.error).toBe("run-internal-error");
+		expect(res.reverted).toBe(true);
+	});
 });

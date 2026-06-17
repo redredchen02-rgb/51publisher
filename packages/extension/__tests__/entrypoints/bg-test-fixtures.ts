@@ -1,7 +1,4 @@
-import type {
-	ContentDraft,
-	Settings,
-} from "@51publisher/shared";
+import type { ContentDraft, Settings } from "@51publisher/shared";
 import { vi } from "vitest";
 import type { BackgroundHandlerDeps } from "../../entrypoints/background";
 import type { Batch } from "../../lib/batch";

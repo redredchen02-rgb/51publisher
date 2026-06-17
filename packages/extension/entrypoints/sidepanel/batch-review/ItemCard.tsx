@@ -6,12 +6,12 @@ import type {
 import { useMemo, useState } from "react";
 import type { BatchItem } from "../../../lib/batch";
 import { computeSlotDiff } from "../../../lib/draft-diff";
+import { btn } from "./constants";
 import { FactsEdit } from "./FactsEdit";
-import { FillStatusTable, GroundingStrip } from "./sub-blocks";
 import { DraftSection } from "./item-card/DraftSection";
 import { GateFailedSection } from "./item-card/GateFailedSection";
 import { ItemCardHeader } from "./item-card/ItemCardHeader";
-import { btn } from "./constants";
+import { FillStatusTable, GroundingStrip } from "./sub-blocks";
 
 interface ItemCardProps {
 	item: BatchItem;
@@ -103,7 +103,8 @@ export function ItemCard({
 					)}
 
 					{onEditFactsAndRegen &&
-						(it.status === "gate-failed" || it.status === "awaiting-approval") && (
+						(it.status === "gate-failed" ||
+							it.status === "awaiting-approval") && (
 							<div style={{ marginBottom: 4 }}>
 								{factsEditOpen ? (
 									<FactsEdit
@@ -153,7 +154,8 @@ export function ItemCard({
 					)}
 					<FillStatusTable results={it.fillResults} />
 
-					{it.status === "error" && it.error?.startsWith("grounding-blocked:") ? (
+					{it.status === "error" &&
+					it.error?.startsWith("grounding-blocked:") ? (
 						<div style={{ marginTop: 6 }}>
 							<span
 								role="alert"

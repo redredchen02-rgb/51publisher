@@ -1,14 +1,8 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { isAuthenticated } from "../../lib/auth-client";
-import {
-	getBatchState,
-	resolveAdminTabId,
-} from "../../lib/messaging";
+import { getBatchState, resolveAdminTabId } from "../../lib/messaging";
 import { DEFAULT_RECIPE } from "../../lib/recipe";
-import {
-	getCurrentDraft,
-	getSettings,
-} from "../../lib/storage";
+import { getCurrentDraft, getSettings } from "../../lib/storage";
 import { AuthView } from "./AuthView";
 import { ErrorDisplay } from "./components/ErrorDisplay";
 import { KeyboardShortcutsHelp } from "./components/KeyboardShortcutsHelp";
@@ -27,12 +21,24 @@ import { useOperationHistory } from "./hooks/useOperationHistory";
 import { Loading } from "./Loading";
 import { WorkflowNav } from "./WorkflowNav";
 
-const BatchView = lazy(() => import("./BatchView").then((m) => ({ default: m.BatchView })));
-const FirstFlightWizard = lazy(() => import("./FirstFlightWizard").then((m) => ({ default: m.FirstFlightWizard })));
-const MetricsPanel = lazy(() => import("./MetricsPanel").then((m) => ({ default: m.MetricsPanel })));
-const PendingTopicsView = lazy(() => import("./PendingTopicsView").then((m) => ({ default: m.PendingTopicsView })));
-const Settings = lazy(() => import("./Settings").then((m) => ({ default: m.Settings })));
-const TodayBatchView = lazy(() => import("./TodayBatchView").then((m) => ({ default: m.TodayBatchView })));
+const BatchView = lazy(() =>
+	import("./BatchView").then((m) => ({ default: m.BatchView })),
+);
+const FirstFlightWizard = lazy(() =>
+	import("./FirstFlightWizard").then((m) => ({ default: m.FirstFlightWizard })),
+);
+const MetricsPanel = lazy(() =>
+	import("./MetricsPanel").then((m) => ({ default: m.MetricsPanel })),
+);
+const PendingTopicsView = lazy(() =>
+	import("./PendingTopicsView").then((m) => ({ default: m.PendingTopicsView })),
+);
+const Settings = lazy(() =>
+	import("./Settings").then((m) => ({ default: m.Settings })),
+);
+const TodayBatchView = lazy(() =>
+	import("./TodayBatchView").then((m) => ({ default: m.TodayBatchView })),
+);
 
 export function App() {
 	const [view, setView] = useState<
@@ -59,7 +65,8 @@ export function App() {
 	const [showLogs, setShowLogs] = useState(false);
 
 	const { error, handleError, clearError } = useErrorHandler();
-	const { logs, logError, retrieveLogs, clearLogs, exportLogs } = useErrorLogger();
+	const { logs, logError, retrieveLogs, clearLogs, exportLogs } =
+		useErrorLogger();
 	const { recordOperation } = useOperationHistory();
 	const loadingState = useLoadingState();
 	const { saveDraft } = useAutoSave();
@@ -159,9 +166,18 @@ export function App() {
 				</Suspense>
 			</Wrap>
 		);
-	if (view === "batch") return <Suspense fallback={<Loading />}><BatchView onBack={() => setView("main")} /></Suspense>;
+	if (view === "batch")
+		return (
+			<Suspense fallback={<Loading />}>
+				<BatchView onBack={() => setView("main")} />
+			</Suspense>
+		);
 	if (view === "today")
-		return <Suspense fallback={<Loading />}><TodayBatchView onBack={() => setView("main")} /></Suspense>;
+		return (
+			<Suspense fallback={<Loading />}>
+				<TodayBatchView onBack={() => setView("main")} />
+			</Suspense>
+		);
 	if (view === "pending")
 		return (
 			<Suspense fallback={<Loading />}>
@@ -173,7 +189,11 @@ export function App() {
 			</Suspense>
 		);
 	if (view === "metrics")
-		return <Suspense fallback={<Loading />}><MetricsPanel onBack={() => setView("main")} /></Suspense>;
+		return (
+			<Suspense fallback={<Loading />}>
+				<MetricsPanel onBack={() => setView("main")} />
+			</Suspense>
+		);
 
 	if (view === "firstflight" && ffEntry)
 		return (

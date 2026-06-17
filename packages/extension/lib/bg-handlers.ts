@@ -72,11 +72,16 @@ import {
 } from "./storage";
 
 export type { FirstFlightMarker, FirstFlightRead };
+// re-export 保留既有导出面(background.test.ts 仍从 background 导入 buildConstraintSuffix)。
 export {
+	_withBackendSync as withBackendSync,
 	addPublishedTopics,
 	appendTrajectory,
+	buildConstraintSuffix,
 	clearAllFillTombstones,
 	clearFillTombstone,
+	clearFirstFlight,
+	generateDraft,
 	getApiKey,
 	getAuthorizedHosts,
 	getBatch,
@@ -92,14 +97,7 @@ export {
 	setSafetyMode,
 	writeFillTombstone,
 	writeFirstFlight,
-	clearFirstFlight,
-	generateDraft,
 };
-
-export { _withBackendSync as withBackendSync };
-
-// re-export 保留既有导出面(background.test.ts 仍从 background 导入 buildConstraintSuffix)。
-export { buildConstraintSuffix };
 
 export interface BackgroundHandlerDeps {
 	getBatch: () => Promise<Batch | null>;

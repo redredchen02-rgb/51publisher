@@ -68,7 +68,10 @@ export const counters = new Proxy(
 			if (prop === "scraperRuns")
 				return makeNestedProxy("scraper_runs_success", "scraper_runs_failed");
 			if (prop === "publishAttempts")
-				return makeNestedProxy("publish_attempts_success", "publish_attempts_failed");
+				return makeNestedProxy(
+					"publish_attempts_success",
+					"publish_attempts_failed",
+				);
 			const keyMap: Record<string, string> = {
 				draftsGenerated: "drafts_generated",
 				draftsFailed: "drafts_failed",
