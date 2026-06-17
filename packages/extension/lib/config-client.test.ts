@@ -116,6 +116,13 @@ describe("config-client — fetchBatchState", () => {
 		expect(result.ok).toBe(false);
 		expect(await getToken()).toBeNull();
 	});
+
+	it("网络异常 → ok:false 含错误信息", async () => {
+		const fn = vi.fn(async () => { throw new Error("network down"); });
+		const result = await fetchBatchState("b1", fn as unknown as typeof fetch);
+		expect(result.ok).toBe(false);
+		expect(result.error).toContain("network down");
+	});
 });
 
 describe("config-client — createRemoteBatch", () => {
@@ -143,6 +150,26 @@ describe("config-client — createRemoteBatch", () => {
 		);
 		expect(result.ok).toBe(false);
 		expect(await getToken()).toBeNull();
+	});
+
+	it("Error 500 → ok:false 含 HTTP 状态", async () => {
+		const { fn } = mockFetch({ message: "server error" }, 500);
+		const result = await createRemoteBatch(
+			{ id: "b1", tabId: 1, authorizedHost: "h", topics: [] },
+			fn,
+		);
+		expect(result.ok).toBe(false);
+		expect(result.error).toContain("500");
+	});
+
+	it("网络异常 → ok:false 含错误信息", async () => {
+		const fn = vi.fn(async () => { throw new Error("timeout"); });
+		const result = await createRemoteBatch(
+			{ id: "b1", tabId: 1, authorizedHost: "h", topics: [] },
+			fn as unknown as typeof fetch,
+		);
+		expect(result.ok).toBe(false);
+		expect(result.error).toContain("timeout");
 	});
 
 	it("Integration: 注入的 fetchFn 确实被调用", async () => {
