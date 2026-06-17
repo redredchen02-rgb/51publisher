@@ -2,7 +2,7 @@
 	"name": "publisher-fill-assistant",
 	"description": "51publisher 发帖填充助手 — 只填充、绝不自动提交的 Chrome 扩展",
 	"private": true,
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"type": "module",
 	"scripts": {
 		"dev": "wxt",

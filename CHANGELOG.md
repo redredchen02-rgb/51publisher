@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.2.0] - 2026-06-17
+
+### Added
+
+- **grounding 闸 Phase 2：全字段保护**：`evaluateGrounding()` 新增三项发布前校验：① tags 不在 `Settings.recommendedTags` 白名单中 → 拦截（可配置；白名单为空时优雅跳过）；② category 不在合法值集合（`2`=漫画 / `4`=动漫）→ 拦截；③ description/subtitle 含无来源裸 URL → 拦截，防止幻觉链接混入简介
+- **FactsEdit 内联组件**：审核卡片中 gate-failed / awaiting-approval 条目新增「✏ 修改事实并重新生成」入口；操作者可直接编辑全部事实字段（含 URL 格式校验）并提交触发 LLM 重新生成，无需退出批量视图
+- **EDIT_FACTS_AND_REGEN 消息**：新增 `regenItemWithFacts()` 原子 handler：`generateDraft` 成功后才一次写入 facts+draft+snapshot；失败时 facts 不变，item 转 error（atomicity invariant）
+- **DraftPreview readonlyFields**：新增 `readonlyFields?: ReadonlySet<keyof ContentDraft>` prop，锁定有接地数据的字段；description 双态：`facts.简介` 存在时只读，否则可编辑
+- **recommendedTags 下传链路**：`BatchView` 在 `refresh()` 时加载 `Settings.recommendedTags`，经 `BatchReviewPanel → ItemCard → GroundingStrip` 传入 `evaluateGrounding()`，实现标签白名单实时校验
+
+### Fixed
+
+- **enrichment 参数丢失**：`handleEditFactsAndRegen` 的 `generateDraft` 闭包原缺少 `enrichment` 参数，导致富化条目重生成时丢失富化上下文；已补全
+- **FactsEdit 在 facts 为空时无法弹出**：`it.facts` 为 `undefined` 时点击「修改事实并重新生成」按钮无反应；改为以 `{}` 作为初始值允许从零填写
+- **extractRawUrls 尾部标点误判**：原正则将 URL 后紧跟的句号、括号等标点纳入 URL，导致已登记来源的 URL 被误判为编造链接；修复后自动剥离尾部标点再做来源比对
+
+### Changed
+
+- **VALID_CATEGORIES 提升模块作用域**：从每次调用 `evaluateGrounding()` 内部 `new Set(...)` 改为模块级常量，避免重复分配
+
 ## [0.2.1.0] - 2026-06-16
 
 ### Changed
