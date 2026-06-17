@@ -160,4 +160,62 @@ describe("batch-sync", () => {
 			expect(result).toEqual({});
 		});
 	});
+
+	describe("withBackendSync — item optional fields (draft/publishUrl/error/fillResults)", () => {
+		it("syncs item with draft/publishUrl/error/fillResults → all included in payload", async () => {
+			const localSave = vi.fn().mockResolvedValue(undefined);
+			mockCreateRemoteBatch.mockResolvedValue({ ok: true });
+			mockSyncBatchItemStatus.mockResolvedValue({ ok: true });
+
+			const batch = makeBatch();
+			const sync = withBackendSync(localSave);
+
+			// First call to set createdRemote=true
+			await sync(batch);
+
+			// Second call with item that has all optional fields
+			const batchWithOptionals = makeBatch({
+				items: [
+					{
+						id: "item-1",
+						topic: "Topic 1",
+						status: "publish-confirmed",
+						facts: {},
+						draft: {
+							id: "item-1",
+							title: "Title",
+							subtitle: "",
+							body: "<p></p>",
+							description: "",
+							tags: [],
+							category: "",
+							coverImageUrl: "",
+							postStatus: "1",
+							publishedAt: "",
+							mediaId: "",
+							status: "draft" as const,
+							createdAt: "2026-01-01T00:00:00.000Z",
+						},
+						publishUrl: "https://example.com/post/1",
+						error: "some error",
+						fillResults: [{ field: "title", status: "filled" as const }],
+					},
+				],
+			});
+
+			await sync(batchWithOptionals);
+
+			// syncBatchItemStatus should have been called with all optional fields
+			expect(mockSyncBatchItemStatus).toHaveBeenCalledWith(
+				"batch-1",
+				"item-1",
+				expect.objectContaining({
+					draft: expect.any(Object),
+					publishUrl: "https://example.com/post/1",
+					error: "some error",
+					fillResults: expect.any(Array),
+				}),
+			);
+		});
+	});
 });
