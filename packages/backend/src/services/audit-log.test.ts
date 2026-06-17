@@ -66,4 +66,12 @@ describe("auditLogin", () => {
 			expect(() => auditLogin(r, "0.0.0.0")).not.toThrow();
 		}
 	});
+
+	it("PUBLISHER_DATA_DIR 未设置时回退到默认 logs/ 路径", async () => {
+		delete process.env.PUBLISHER_DATA_DIR;
+		vi.resetModules();
+		const { AUDIT_LOG_PATH } = await import("./audit-log.js");
+		expect(AUDIT_LOG_PATH).toContain("logs");
+		process.env.PUBLISHER_DATA_DIR = tmpDir;
+	});
 });

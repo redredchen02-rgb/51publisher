@@ -91,6 +91,30 @@ describe("JsonFileStore.delete", () => {
 	});
 });
 
+describe("JsonFileStore.delete — non-ENOENT error propagates", () => {
+	it("throws when unlink fails with non-ENOENT error", async () => {
+		// Write an item to create the directory, then make it unwritable by
+		// replacing the file with a directory so unlink fails with EISDIR.
+		// Easier: mock fs.promises.unlink is not available; instead test that
+		// delete re-throws when the error code is unexpected.
+		// We simulate by pointing the store at a path where stat would fail:
+		const store2 = new JsonFileStore<Item>({
+			dirPath: join(tmpDir, "sub"),
+			sanitize: () => "item",
+		});
+		await store2.write({ id: "item", name: "x" });
+		// Corrupt the file to a directory — on macOS unlink on a directory yields EPERM
+		// which is NOT ENOENT; verify the error propagates.
+		const { mkdirSync } = await import("node:fs");
+		const { unlink } = await import("node:fs/promises");
+		const badPath = join(tmpDir, "sub", "item.json");
+		// Remove the file and replace with a dir to cause EISDIR on unlink
+		await unlink(badPath);
+		mkdirSync(badPath);
+		await expect(store2.delete("item")).rejects.toThrow();
+	});
+});
+
 describe("JsonFileStore.list", () => {
 	it("returns empty array when dir is empty", async () => {
 		expect(await store.list()).toEqual([]);

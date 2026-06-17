@@ -15,6 +15,10 @@ export const PUBLIC_ROUTES = new Set([
 	"/api/v1/auth/login",
 	"/api/v1/auth/status",
 	"/api/v1/healthz",
+	// Prometheus scraping endpoints — metrics contain no user data and must be
+	// reachable by the scraper without a Bearer token.
+	"/api/v1/metrics",
+	"/metrics",
 ]);
 
 export async function requireAuth(
