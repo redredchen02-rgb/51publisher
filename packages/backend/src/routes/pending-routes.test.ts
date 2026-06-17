@@ -264,6 +264,144 @@ describe("GET /api/v1/pending-topics — sort_by + fold_threshold (U7)", () => {
 	});
 });
 
+// ================================================================
+// GET /api/v1/pending-topics/:id
+// ================================================================
+
+describe("GET /api/v1/pending-topics/:id", () => {
+	it("存在的 id → 200 + topic", async () => {
+		const topic = makeTopic({ id: "get-single-1" });
+		await savePendingTopic(topic);
+		const res = await app.inject({
+			method: "GET",
+			url: "/api/v1/pending-topics/get-single-1",
+		});
+		expect(res.statusCode).toBe(200);
+		expect(res.json().ok).toBe(true);
+		expect(res.json().topic.id).toBe("get-single-1");
+	});
+
+	it("不存在的 id → 404", async () => {
+		const res = await app.inject({
+			method: "GET",
+			url: "/api/v1/pending-topics/nonexistent-xyz",
+		});
+		expect(res.statusCode).toBe(404);
+	});
+});
+
+// ================================================================
+// POST /api/v1/pending-topics
+// ================================================================
+
+describe("POST /api/v1/pending-topics", () => {
+	it("Happy: 创建新选题 → 200 + ok:true", async () => {
+		const res = await app.inject({
+			method: "POST",
+			url: "/api/v1/pending-topics",
+			payload: {
+				sourceUrl: "https://example.com/article/1",
+				siteName: "test-site",
+				title: "新选题标题",
+				facts: { 作品名: "测试作品" },
+				confidence: 0.9,
+			},
+		});
+		expect(res.statusCode).toBe(200);
+		expect(res.json().ok).toBe(true);
+		expect(res.json().topic.title).toBe("新选题标题");
+		expect(res.json().topic.status).toBe("pending");
+	});
+
+	it("缺少 title → 400", async () => {
+		const res = await app.inject({
+			method: "POST",
+			url: "/api/v1/pending-topics",
+			payload: {
+				sourceUrl: "https://example.com/article/1",
+				siteName: "test-site",
+			},
+		});
+		expect(res.statusCode).toBe(400);
+	});
+});
+
+// ================================================================
+// PATCH partial update (facts / confidence, 无 status)
+// ================================================================
+
+describe("PATCH /api/v1/pending-topics/:id — partial update", () => {
+	it("只更新 facts → 200, facts 被替换", async () => {
+		const topic = makeTopic({ id: "patch-facts-1" });
+		await savePendingTopic(topic);
+		const res = await app.inject({
+			method: "PATCH",
+			url: "/api/v1/pending-topics/patch-facts-1",
+			payload: { facts: { 作品名: "新作品名" } },
+		});
+		expect(res.statusCode).toBe(200);
+		expect(res.json().ok).toBe(true);
+		expect(res.json().topic.facts?.["作品名"]).toBe("新作品名");
+	});
+
+	it("只更新 confidence → 200, confidence 被替换", async () => {
+		const topic = makeTopic({ id: "patch-conf-1" });
+		await savePendingTopic(topic);
+		const res = await app.inject({
+			method: "PATCH",
+			url: "/api/v1/pending-topics/patch-conf-1",
+			payload: { confidence: 0.99 },
+		});
+		expect(res.statusCode).toBe(200);
+		expect(res.json().topic.confidence).toBe(0.99);
+	});
+
+	it("partial update: 不存在的 id → 404", async () => {
+		const res = await app.inject({
+			method: "PATCH",
+			url: "/api/v1/pending-topics/no-such-id",
+			payload: { facts: { 作品名: "任意" } },
+		});
+		expect(res.statusCode).toBe(404);
+	});
+
+	it("无效 status → 400 (schema 拦截或 handler 校验)", async () => {
+		const topic = makeTopic({ id: "patch-bad-status" });
+		await savePendingTopic(topic);
+		const res = await app.inject({
+			method: "PATCH",
+			url: "/api/v1/pending-topics/patch-bad-status",
+			payload: { status: "invalid_status_xyz" },
+		});
+		expect(res.statusCode).toBe(400);
+	});
+});
+
+// ================================================================
+// DELETE /api/v1/pending-topics/:id
+// ================================================================
+
+describe("DELETE /api/v1/pending-topics/:id", () => {
+	it("存在的 id → 200 ok:true", async () => {
+		const topic = makeTopic({ id: "delete-1" });
+		await savePendingTopic(topic);
+		const res = await app.inject({
+			method: "DELETE",
+			url: "/api/v1/pending-topics/delete-1",
+		});
+		expect(res.statusCode).toBe(200);
+		expect(res.json().ok).toBe(true);
+	});
+
+	it("不存在的 id → 404", async () => {
+		const res = await app.inject({
+			method: "DELETE",
+			url: "/api/v1/pending-topics/no-such-delete",
+		});
+		expect(res.statusCode).toBe(404);
+	});
+});
+
 // ---- JWT 401 守護 ----
 
 const PENDING_SECRET = randomBytes(48).toString("hex");
