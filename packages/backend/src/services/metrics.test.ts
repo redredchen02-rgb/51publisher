@@ -44,13 +44,13 @@ describe("metrics", () => {
 	});
 
 	it("计数器递增后反映在输出中", () => {
-		counters.draftsGenerated = 5;
-		counters.draftsFailed = 2;
-		counters.batchesCompleted = 3;
-		counters.scraperRuns.success = 7;
-		counters.scraperRuns.failed = 1;
-		counters.publishAttempts.success = 4;
-		counters.publishAttempts.failed = 6;
+		for (let i = 0; i < 5; i++) recordDraft(true);
+		for (let i = 0; i < 2; i++) recordDraft(false);
+		for (let i = 0; i < 3; i++) recordBatchCompleted();
+		for (let i = 0; i < 7; i++) recordScraperRun(true);
+		for (let i = 0; i < 1; i++) recordScraperRun(false);
+		for (let i = 0; i < 4; i++) recordPublishAttempt(true);
+		for (let i = 0; i < 6; i++) recordPublishAttempt(false);
 
 		const out = getMetrics();
 		expect(out).toContain('publisher_drafts_total{status="success"} 5');

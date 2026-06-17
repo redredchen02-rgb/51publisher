@@ -2,13 +2,21 @@
 
 ## Backend / Infrastructure
 
-- **Prometheus 指标 counters 生产环境从未递增** | **Priority:** P2
-  `services/metrics.ts` 的 `counters` 仅被 `getMetrics()` 读取;生产代码任何路径(draft 生成 / batch 完成 / scraper 运行 / publish 尝试)都不递增它 → `/api/v1/metrics` 在生产环境永远报全 0。
-  `metrics.test.ts` 直接改写 `counters` 再读回,测试通过却掩盖了这个 wiring 缺失(测试假阳性)。
-  建议:在各路径的成功/失败分支接上 `counters.*++`(或一个 `recordX()` 辅助),并加一条端到端测试断言真实调用会反映在 `/metrics` 输出。
-  发现于: test/unit-coverage-suite 对抗评审 (2026-06-15)
+- **metrics.test.ts 假阳性：直接改 counters 對象而非調用 record\* 函數** | **Priority:** P2
+  `metrics.test.ts` 第 46-67 行「计数器递增后反映在输出中」直接修改 `counters` 對象而非調用 `record*()`。
+  這代表如果未來 `record*` 調用被誤刪，該測試仍然通過。
+  修法：將該 case 改用 `record*()` 函數覆蓋所有 4 個指標類別。
+  發現於: test/unit-coverage-suite 对抗评审 (2026-06-15)
 
 ## Completed (Backend / Infrastructure)
+
+- **Prometheus 指标生产环境从未递增** | **Priority:** P2 | **已验证（已于 `main` 接好）:** 2026-06-17
+  原報告：`counters` 僅被 `getMetrics()` 讀取，生產代碼不遞增。
+  核實：`recordDraft` 已在 `app.ts` POST /drafts/generate 的三個分支接好；
+  `recordPublishAttempt`/`recordBatchCompleted` 已在 `batch-routes.ts` 接好；
+  `recordScraperRun` 已在 `scraper-routes.ts` 接好。
+  全部於 `origin/main` 即存在，非分支新增。僅餘上述測試假陽性需要修。
+  发现于: test/unit-coverage-suite 对抗评审 (2026-06-15); 关闭于: refactor/remove-gossip-pipeline (2026-06-17)
 
 - **Fix backend test dependencies in CI** | **Priority:** P0 | **Resolved (not reproducing):** 2026-06-15
   原报告:packages/backend/dist/ 下 8 个测试文件因缺失依赖（fastify、better-sqlite3、@51publisher/shared）而持续失败。
