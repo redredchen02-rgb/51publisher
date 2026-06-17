@@ -4,6 +4,7 @@ type: refactor
 status: active
 date: 2026-06-16
 deepened: 2026-06-16
+superseded_by: docs/plans/2026-06-17-002-feat-51guapi-comprehensive-upgrade-plan.md
 ---
 
 # refactor: 统一 @51publisher/* 命名 + 升级扩展依赖

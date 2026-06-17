@@ -3,6 +3,7 @@ title: "refactor: Remove gossip pipeline, focus on anime workflow"
 type: refactor
 status: active
 date: 2026-06-16
+superseded_by: docs/plans/2026-06-17-002-feat-51guapi-comprehensive-upgrade-plan.md
 ---
 
 # refactor: Remove gossip pipeline, focus on anime workflow
