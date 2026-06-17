@@ -107,3 +107,107 @@ describe("DraftPreview", () => {
 		);
 	});
 });
+
+describe("DraftPreview — readonlyFields", () => {
+	it("readonlyFields 含 title → title input 有 readOnly 属性", () => {
+		render(
+			<DraftPreview
+				draft={makeDraft()}
+				onChange={vi.fn()}
+				readonlyFields={new Set(["title", "body"])}
+			/>,
+		);
+		const titleInput = screen.getByDisplayValue("标题") as HTMLInputElement;
+		expect(titleInput.readOnly).toBe(true);
+	});
+
+	it("readonlyFields 含 body → body textarea 有 readOnly 属性", () => {
+		render(
+			<DraftPreview
+				draft={makeDraft()}
+				onChange={vi.fn()}
+				readonlyFields={new Set(["title", "body"])}
+			/>,
+		);
+		const bodyEl = screen.getByDisplayValue("<p>正文</p>") as HTMLTextAreaElement;
+		expect(bodyEl.readOnly).toBe(true);
+	});
+
+	it("readonlyFields 不含 subtitle → subtitle 可编辑", () => {
+		render(
+			<DraftPreview
+				draft={makeDraft()}
+				onChange={vi.fn()}
+				readonlyFields={new Set(["title", "body"])}
+			/>,
+		);
+		const subtitleInput = screen.getByDisplayValue("副标题") as HTMLInputElement;
+		expect(subtitleInput.readOnly).toBe(false);
+	});
+
+	it("readonlyFields 未传(默认) → 全部字段可编辑(向后兼容)", () => {
+		render(<DraftPreview draft={makeDraft()} onChange={vi.fn()} />);
+		const titleInput = screen.getByDisplayValue("标题") as HTMLInputElement;
+		expect(titleInput.readOnly).toBe(false);
+	});
+
+	it("title readOnly → 编辑不触发 onChange", () => {
+		const onChange = vi.fn();
+		render(
+			<DraftPreview
+				draft={makeDraft()}
+				onChange={onChange}
+				readonlyFields={new Set(["title"])}
+			/>,
+		);
+		const titleInput = screen.getByDisplayValue("标题") as HTMLInputElement;
+		fireEvent.change(titleInput, { target: { value: "尝试改标题" } });
+		expect(onChange).not.toHaveBeenCalled();
+	});
+});
+
+describe("DraftPreview — description 双态", () => {
+	it("facts.简介 存在 → description textarea readOnly", () => {
+		render(
+			<DraftPreview
+				draft={makeDraft({ description: "grounded 简介" })}
+				onChange={vi.fn()}
+				facts={{ 作品名: "A", 简介: "grounded 简介" }}
+			/>,
+		);
+		const desc = screen.getByDisplayValue("grounded 简介") as HTMLTextAreaElement;
+		expect(desc.readOnly).toBe(true);
+	});
+
+	it("facts.简介 不存在 → description textarea 可编辑", () => {
+		render(
+			<DraftPreview
+				draft={makeDraft({ description: "prose 描述" })}
+				onChange={vi.fn()}
+				facts={{ 作品名: "A" }}
+			/>,
+		);
+		const desc = screen.getByDisplayValue("prose 描述") as HTMLTextAreaElement;
+		expect(desc.readOnly).toBe(false);
+	});
+
+	it("facts.简介 空字符串 → description 可编辑(视为缺失)", () => {
+		render(
+			<DraftPreview
+				draft={makeDraft({ description: "prose" })}
+				onChange={vi.fn()}
+				facts={{ 简介: "" }}
+			/>,
+		);
+		const desc = screen.getByDisplayValue("prose") as HTMLTextAreaElement;
+		expect(desc.readOnly).toBe(false);
+	});
+
+	it("facts 未传 → description 可编辑", () => {
+		render(
+			<DraftPreview draft={makeDraft()} onChange={vi.fn()} />,
+		);
+		const desc = screen.getByDisplayValue("描述") as HTMLTextAreaElement;
+		expect(desc.readOnly).toBe(false);
+	});
+});
