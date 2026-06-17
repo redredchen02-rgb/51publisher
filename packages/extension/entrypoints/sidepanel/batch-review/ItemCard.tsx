@@ -3,9 +3,11 @@ import type {
 	FactsBlock,
 	RejectionReason,
 } from "@51publisher/shared";
+import { useState } from "react";
 import type { BatchItem } from "../../../lib/batch";
 import { DraftPreview } from "../DraftPreview";
 import { btn, REJECTION_REASON_LABELS, STATUS_LABEL } from "./constants";
+import { FactsEdit } from "./FactsEdit";
 import { emptyFactSlots, FactsOverlay } from "./FactsOverlay";
 import { FillStatusTable, GroundingStrip } from "./sub-blocks";
 
@@ -23,6 +25,10 @@ interface ItemCardProps {
 	onDiscardItem?: (itemId: string, rejectionReason?: RejectionReason) => void;
 	/** U6:操作者补全缺失事实后提交(itemId + 补的事实);驱动后台重组装。 */
 	onRefillFacts?: (itemId: string, facts: Partial<FactsBlock>) => void;
+	/** Phase 2 U3:透传给 GroundingStrip 做标签 allow-list 校验。 */
+	recommendedTags?: string[];
+	/** Phase 2 U6:操作者修改完整事实后提交 → LLM 重生成草稿(原子)。 */
+	onEditFactsAndRegen?: (itemId: string, newFacts: FactsBlock) => void;
 	/** U9:否决流程 — 当前正在选择拒绝原因的条目 id。 */
 	discardPickerId: string | null;
 	setDiscardPickerId: (id: string | null) => void;
@@ -43,11 +49,15 @@ export function ItemCard({
 	onSaveAsFewShot,
 	onDiscardItem,
 	onRefillFacts,
+	recommendedTags,
+	onEditFactsAndRegen,
 	discardPickerId,
 	setDiscardPickerId,
 	discardReason,
 	setDiscardReason,
 }: ItemCardProps) {
+	const [factsEditOpen, setFactsEditOpen] = useState(false);
+
 	return (
 		<li
 			style={{
@@ -336,6 +346,40 @@ export function ItemCard({
 							})()}
 						</div>
 					)}
+					{/* Phase 2: FactsEdit — gate-failed 或 awaiting-approval 均可打开 */}
+					{onEditFactsAndRegen &&
+						(it.status === "gate-failed" ||
+							it.status === "awaiting-approval") && (
+							<div style={{ marginBottom: 4 }}>
+								{factsEditOpen ? (
+									<FactsEdit
+										itemId={it.id}
+										initialFacts={it.facts ?? {}}
+										onSubmit={(id, newFacts) => {
+											setFactsEditOpen(false);
+											onEditFactsAndRegen(id, newFacts);
+										}}
+										onCancel={() => setFactsEditOpen(false)}
+									/>
+								) : (
+									<button
+										type="button"
+										style={{
+											...btn,
+											fontSize: 11,
+											padding: "2px 8px",
+											background: "var(--color-bg-subtle)",
+											border: "1px solid var(--color-border)",
+											color: "var(--color-text-secondary)",
+										}}
+										onClick={() => setFactsEditOpen(true)}
+										disabled={busy}
+									>
+										✏ 修改事实并重新生成
+									</button>
+								)}
+							</div>
+						)}
 					{it.status === "awaiting-approval" && it.draft && onDraftChange ? (
 						// 待审状态:显示可编辑字段(title/tags/category/description;body 唯读)。
 						<DraftPreview
@@ -404,6 +448,7 @@ export function ItemCard({
 						<GroundingStrip
 							draft={draftOverrides?.get(it.id) ?? it.draft}
 							facts={it.facts}
+							recommendedTags={recommendedTags}
 						/>
 					)}
 					<FillStatusTable results={it.fillResults} />

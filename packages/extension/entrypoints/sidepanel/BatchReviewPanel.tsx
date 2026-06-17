@@ -44,6 +44,13 @@ interface Props {
 	onResume: () => void;
 	onItemEdited?: (itemId: string) => void;
 	onSaveAsFewShot?: (itemId: string) => void;
+	/** Phase 2 U6:操作者修改完整事实 → LLM 重生成草稿。 */
+	onEditFactsAndRegen?: (
+		itemId: string,
+		newFacts: import("@51publisher/shared").FactsBlock,
+	) => void;
+	/** Phase 2 U3:标签白名单,传入 GroundingStrip 做 allow-list 校验。 */
+	recommendedTags?: string[];
 }
 
 export function BatchReviewPanel(props: Props) {
@@ -143,6 +150,8 @@ export function BatchReviewPanel(props: Props) {
 						onRetryItem={onRetryItem}
 						onItemEdited={props.onItemEdited}
 						onSaveAsFewShot={props.onSaveAsFewShot}
+						onEditFactsAndRegen={props.onEditFactsAndRegen}
+						recommendedTags={props.recommendedTags}
 						onDiscardItem={onDiscardItem}
 						discardPickerId={discardPickerId}
 						setDiscardPickerId={setDiscardPickerId}

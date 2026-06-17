@@ -14,9 +14,12 @@ import type { TrajectoryRecord } from "../../../lib/trajectory";
 export function GroundingStrip({
 	draft,
 	facts,
+	recommendedTags,
 }: {
 	draft: ContentDraft;
 	facts?: FactsBlock;
+	/** 允许集(来自 Settings.recommendedTags);不传则跳过标签校验(优雅降级)。 */
+	recommendedTags?: string[];
 }) {
 	const f = facts ?? {};
 	let links: { url: string; sourced: boolean }[] = [];
@@ -25,7 +28,7 @@ export function GroundingStrip({
 	} catch {
 		links = [];
 	}
-	const verdict = evaluateGrounding(draft, facts);
+	const verdict = evaluateGrounding(draft, facts, undefined, recommendedTags);
 
 	return (
 		<div style={{ marginTop: 4, fontSize: 11 }}>

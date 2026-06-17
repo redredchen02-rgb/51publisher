@@ -8,6 +8,7 @@ import {
 	approveBatch,
 	checkSelectors,
 	discardBatchItem,
+	editFactsAndRegen,
 	getBatchState,
 	killBatch,
 	markItemEdited,
@@ -24,6 +25,7 @@ import {
 	clearPendingQuarantineAlert,
 	getPendingQuarantineAlert,
 	getSafetyMode,
+	getSettings,
 	setSafetyMode as persistSafetyMode,
 	removeLastFewShotPair,
 } from "../../lib/storage";
@@ -36,6 +38,7 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 	const [batch, setBatch] = useState<Batch | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [safetyMode, setSafetyMode] = useState<SafetyMode>("off");
+	const [recommendedTags, setRecommendedTags] = useState<string[]>([]);
 	const [tabHealthy, setTabHealthy] = useState(true);
 	const [topics, setTopics] = useState("");
 	const [busy, setBusy] = useState(false);
@@ -56,11 +59,13 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 
 	const refresh = useCallback(async () => {
 		setLoading(true);
-		const [b, mode, alertCount] = await Promise.all([
+		const [b, mode, alertCount, settings] = await Promise.all([
 			getBatchState(),
 			getSafetyMode(),
 			getPendingQuarantineAlert(),
+			getSettings(),
 		]);
+		setRecommendedTags(settings.recommendedTags ?? []);
 		setSafetyMode(mode);
 		setBatch(b);
 		setQuarantineAlert(alertCount);
@@ -430,6 +435,13 @@ export function BatchView({ onBack }: { onBack: () => void }) {
 							})()
 						}
 						onSaveAsFewShot={(itemId) => void handleSaveAsFewShot(itemId)}
+						onEditFactsAndRegen={(itemId, newFacts) =>
+							void withBusy(async () => {
+								await editFactsAndRegen(itemId, newFacts);
+								await refresh();
+							})
+						}
+						recommendedTags={recommendedTags}
 					/>
 				</>
 			)}

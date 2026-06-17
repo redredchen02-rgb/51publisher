@@ -20,6 +20,7 @@ import {
 	approveBatch,
 	createSerialQueue,
 	discardBatchItem,
+	regenItemWithFacts,
 	retryItem,
 	runBatch,
 } from "../lib/batch-orchestrator";
@@ -668,6 +669,47 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 		}
 	}
 
+	/**
+	 * 操作者在 FactsEdit 修改完整事实后触发 LLM 重生成。
+	 * 原子性:generateDraft 成功后才写 facts+draft+snapshot;失败时 facts 不变。
+	 * 安全边界:提升至 awaiting-approval,真发仍须经 approve 路径 host 授权 + 闸门。
+	 */
+	async function handleEditFactsAndRegen(
+		itemId: string,
+		newFacts: FactsBlock,
+	): Promise<Batch | null> {
+		try {
+			const [settings, apiKey] = await Promise.all([
+				deps.getSettings(),
+				deps.getApiKey(),
+			]);
+			return await regenItemWithFacts(
+				{
+					getBatch: deps.getBatch,
+					save: deps.saveBatch,
+					generateDraft: (topic, itemFacts, enrichment) => {
+						const prompt = assemblePrompt(settings, topic, itemFacts);
+						return deps.generateDraftFn(prompt, {
+							settings,
+							apiKey,
+							facts: itemFacts,
+							enrichment,
+						});
+					},
+					evaluateGrounding: (draft, facts, qualityScore, recommendedTags) =>
+						evaluateGrounding(draft, facts, qualityScore, recommendedTags),
+				},
+				itemId,
+				newFacts,
+			);
+		} catch (err) {
+			logger.error("bg", "editFactsAndRegen 失败", {
+				err: err instanceof Error ? err.message : String(err),
+			});
+			return deps.getBatch();
+		}
+	}
+
 	async function handleDiscardBatchItem(
 		itemId: string,
 		rejectionReason?: import("@51publisher/shared").RejectionReason,
@@ -954,6 +996,7 @@ export function createHandlers(deps: BackgroundHandlerDeps) {
 		handleMarkItemEdited,
 		handleRetryBatchItem,
 		handleRefillItemFacts,
+		handleEditFactsAndRegen,
 		handleDiscardBatchItem,
 		evaluateGate,
 		handleArmFirstFlight,
@@ -1155,6 +1198,8 @@ export default defineBackground(() => {
 			return handlers.handleRetryBatchItem(message.itemId);
 		if (message?.type === "REFILL_ITEM_FACTS")
 			return handlers.handleRefillItemFacts(message.itemId, message.facts);
+		if (message?.type === "EDIT_FACTS_AND_REGEN")
+			return handlers.handleEditFactsAndRegen(message.itemId, message.newFacts);
 		if (message?.type === "DISCARD_BATCH_ITEM")
 			return handlers.handleDiscardBatchItem(
 				message.itemId,

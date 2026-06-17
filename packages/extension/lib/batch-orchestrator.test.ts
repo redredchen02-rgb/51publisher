@@ -3,10 +3,16 @@ import { describe, expect, it, vi } from "vitest";
 import type { Batch } from "./batch";
 import type {
 	ApproveBatchDeps,
+	RegenItemWithFactsDeps,
 	RetryItemDeps,
 	RunBatchDeps,
 } from "./batch-orchestrator";
-import { approveBatch, retryItem, runBatch } from "./batch-orchestrator";
+import {
+	approveBatch,
+	regenItemWithFacts,
+	retryItem,
+	runBatch,
+} from "./batch-orchestrator";
 
 // ---- helpers ----
 
@@ -1604,5 +1610,152 @@ describe("approveBatch first-flight 互锁", () => {
 		await approveBatch(deps);
 		expect(sendFill).toHaveBeenCalledOnce();
 		expect(sendGrant).toHaveBeenCalledOnce();
+	});
+});
+
+// ================================================================
+// regenItemWithFacts
+// ================================================================
+
+function makeRegenBatch(status: string): Batch {
+	return {
+		id: "batch_regen",
+		tabId: 1,
+		authorizedHost: HOST,
+		createdAt: "2026-06-04T00:00:00.000Z",
+		items: [
+			{
+				id: "item_0",
+				topic: TOPIC_A,
+				status: status as "gate-failed",
+				draft: { ...DRAFT, id: "item_0" },
+				facts: { 作品名: "旧名" },
+			},
+		],
+	};
+}
+
+function makeRegenDeps(
+	overrides: Partial<RegenItemWithFactsDeps> = {},
+): RegenItemWithFactsDeps {
+	return {
+		getBatch: vi.fn(async () => makeRegenBatch("gate-failed")),
+		save: vi.fn(async () => {}),
+		generateDraft: vi.fn(async () => ({
+			ok: true as const,
+			draft: { ...DRAFT, title: "新标题" },
+		})),
+		...overrides,
+	};
+}
+
+describe("regenItemWithFacts", () => {
+	it("batch 为 null → 返回 null", async () => {
+		const deps = makeRegenDeps({
+			getBatch: vi.fn(async () => null),
+		});
+		const result = await regenItemWithFacts(deps, "item_0", { 作品名: "新名" });
+		expect(result).toBeNull();
+		expect(deps.save).not.toHaveBeenCalled();
+	});
+
+	it("itemId 不存在 → 返回原 batch 不调用 save", async () => {
+		const deps = makeRegenDeps();
+		const result = await regenItemWithFacts(deps, "no-such-id", {
+			作品名: "新名",
+		});
+		expect(result!.items[0]!.status).toBe("gate-failed");
+		expect(deps.generateDraft).not.toHaveBeenCalled();
+	});
+
+	it("disallowed 状态(queued) → 原样返回,不调 generateDraft", async () => {
+		const deps = makeRegenDeps({
+			getBatch: vi.fn(async () => makeRegenBatch("queued")),
+		});
+		const result = await regenItemWithFacts(deps, "item_0", { 作品名: "新名" });
+		expect(result!.items[0]!.status).toBe("queued");
+		expect(deps.generateDraft).not.toHaveBeenCalled();
+	});
+
+	it("generateDraft 失败 → facts 不写入(原子性不变式)", async () => {
+		const deps = makeRegenDeps({
+			generateDraft: vi.fn(async () => ({
+				ok: false as const,
+				error: "LLM timeout",
+			})),
+		});
+		const result = await regenItemWithFacts(deps, "item_0", { 作品名: "新名" });
+		// item 转 error
+		expect(result!.items[0]!.status).toBe("error");
+		// 旧 facts 保留(新 facts 未写入)
+		expect(result!.items[0]!.facts).toEqual({ 作品名: "旧名" });
+		// save 调用两次:1=queued→generating, 2=error 落盘
+		expect(deps.save).toHaveBeenCalledTimes(2);
+	});
+
+	it("generateDraft 成功 → 原子写入 facts+draft+snapshot", async () => {
+		const newFacts = { 作品名: "新名", 集数: "6" };
+		const deps = makeRegenDeps({
+			generateDraft: vi.fn(async () => ({
+				ok: true as const,
+				draft: { ...DRAFT, title: "新标题" },
+			})),
+		});
+		const result = await regenItemWithFacts(deps, "item_0", newFacts);
+		// 新 facts 写入
+		expect(result!.items[0]!.facts).toEqual(newFacts);
+		// 草稿已更新
+		expect(result!.items[0]!.draft?.title).toBe("新标题");
+		// 进入 awaiting-approval
+		expect(result!.items[0]!.status).toBe("awaiting-approval");
+		// snapshot 已写(assembledDraftSnapshot)
+		expect(result!.items[0]!.assembledDraftSnapshot).toBeDefined();
+	});
+
+	it("允许从 awaiting-approval 出发重新生成", async () => {
+		const deps = makeRegenDeps({
+			getBatch: vi.fn(async () => makeRegenBatch("awaiting-approval")),
+		});
+		const result = await regenItemWithFacts(deps, "item_0", { 作品名: "新名" });
+		expect(result!.items[0]!.status).toBe("awaiting-approval");
+		expect(deps.generateDraft).toHaveBeenCalledOnce();
+	});
+
+	it("generateDraft 成功但 grounding 闸失败 → item gate-failed,facts 已写入", async () => {
+		const newFacts = { 作品名: "新名" };
+		const deps = makeRegenDeps({
+			evaluateGrounding: vi.fn(() => ({
+				ok: false,
+				reasons: ["description 含无来源 URL"],
+			})),
+		});
+		const result = await regenItemWithFacts(deps, "item_0", newFacts);
+		expect(result!.items[0]!.status).toBe("gate-failed");
+		// facts 已写入(闸失败后操作者可再次 FactsEdit 修正)
+		expect(result!.items[0]!.facts).toEqual(newFacts);
+	});
+
+	it("grounding 闸通过 → awaiting-approval", async () => {
+		const deps = makeRegenDeps({
+			evaluateGrounding: vi.fn(() => ({ ok: true, reasons: [] })),
+		});
+		const result = await regenItemWithFacts(deps, "item_0", { 作品名: "新名" });
+		expect(result!.items[0]!.status).toBe("awaiting-approval");
+		expect(deps.evaluateGrounding).toHaveBeenCalledOnce();
+	});
+
+	it("未注入 evaluateGrounding → 不调用闸,直接 awaiting-approval", async () => {
+		const deps = makeRegenDeps(); // 不含 evaluateGrounding
+		const result = await regenItemWithFacts(deps, "item_0", { 作品名: "新名" });
+		expect(result!.items[0]!.status).toBe("awaiting-approval");
+	});
+
+	it("允许从 filled 出发重新生成", async () => {
+		const deps = makeRegenDeps({
+			getBatch: vi.fn(async () => makeRegenBatch("filled")),
+		});
+		const result = await regenItemWithFacts(deps, "item_0", { 作品名: "新名" });
+		expect(result!.items[0]!.status).toBe("awaiting-approval");
+		expect(deps.generateDraft).toHaveBeenCalledOnce();
 	});
 });
