@@ -70,8 +70,8 @@ export function App() {
 		results,
 		confirmNext,
 		setTopic,
-		setDraft,
 		promptTemplateRef,
+		setInitialDraft,
 		updateDraft,
 		handleGenerate,
 		cancelGenerate,
@@ -82,26 +82,26 @@ export function App() {
 	} = useMainDraftFlow({
 		saveDraft,
 		handleError,
-		clearError,
 		logError,
 		recordOperation,
 		loadingState,
-		setToast,
+		onToast: (message, type) => setToast({ message, type }),
 	});
 
 	useEffect(() => {
 		void (async () => {
 			const [s, saved] = await Promise.all([getSettings(), getCurrentDraft()]);
-			promptTemplateRef.current = s.promptTemplate;
 			if (saved) {
-				setDraft(saved);
+				setInitialDraft(saved, s.promptTemplate);
+			} else {
+				promptTemplateRef.current = s.promptTemplate;
 			}
 			const authed = await isAuthenticated();
 			setAuthenticated(authed);
 			setView(authed ? "main" : "auth");
 			setAuthChecking(false);
 		})();
-	}, [promptTemplateRef, setDraft]);
+	}, [promptTemplateRef, setInitialDraft]);
 
 	// 首飞向导入口:解析后台 tab + 取当前批次首条 awaiting-approval 条目。
 	// host 仅用于展示/防误点;真实授权 host 仍由背景从 chrome.tabs.get 取。

@@ -20,7 +20,6 @@ interface LoadingState {
 interface UseMainDraftFlowDeps {
 	saveDraft: (draft: ContentDraft, explicit?: boolean) => void;
 	handleError: (msg: string) => void;
-	clearError: () => void;
 	logError: (error: Error, context?: Record<string, unknown>) => Promise<void>;
 	recordOperation: (op: {
 		type: "generate" | "fill" | "publish" | "error";
@@ -29,7 +28,7 @@ interface UseMainDraftFlowDeps {
 		details?: Record<string, unknown>;
 	}) => Promise<void>;
 	loadingState: LoadingState;
-	setToast: (toast: { message: string; type: "success" | "error" | "info" } | null) => void;
+	onToast: (message: string, type: "success" | "error" | "info") => void;
 }
 
 export interface MainDraftFlowReturn {
@@ -42,6 +41,7 @@ export interface MainDraftFlowReturn {
 	setMode: (mode: Mode) => void;
 	setDraft: (draft: ContentDraft | null) => void;
 	promptTemplateRef: React.MutableRefObject<string>;
+	setInitialDraft: (draft: ContentDraft, promptTemplate: string) => void;
 	updateDraft: (next: ContentDraft) => void;
 	handleGenerate: () => Promise<void>;
 	cancelGenerate: () => void;
@@ -52,15 +52,7 @@ export interface MainDraftFlowReturn {
 }
 
 export function useMainDraftFlow(deps: UseMainDraftFlowDeps): MainDraftFlowReturn {
-	const {
-		saveDraft,
-		handleError,
-		clearError,
-		logError,
-		recordOperation,
-		loadingState,
-		setToast,
-	} = deps;
+	const { saveDraft, handleError, logError, recordOperation, loadingState, onToast } = deps;
 
 	const [mode, setMode] = useState<Mode>("empty");
 	const [topic, setTopic] = useState("");
@@ -69,6 +61,12 @@ export function useMainDraftFlow(deps: UseMainDraftFlowDeps): MainDraftFlowRetur
 	const [confirmNext, setConfirmNext] = useState(false);
 	const promptTemplateRef = useRef("");
 	const genTokenRef = useRef(0);
+
+	function setInitialDraft(initialDraft: ContentDraft, promptTemplate: string) {
+		promptTemplateRef.current = promptTemplate;
+		setDraft(initialDraft);
+		setMode("draft");
+	}
 
 	function updateDraft(next: ContentDraft) {
 		setDraft(next);
@@ -80,7 +78,6 @@ export function useMainDraftFlow(deps: UseMainDraftFlowDeps): MainDraftFlowRetur
 			handleError("请先输入主题。");
 			return;
 		}
-		clearError();
 		setResults([]);
 		setMode("generating");
 		loadingState.startLoading("正在生成草稿...");
@@ -140,18 +137,17 @@ export function useMainDraftFlow(deps: UseMainDraftFlowDeps): MainDraftFlowRetur
 
 	async function handleFill() {
 		if (!draft) return;
-		clearError();
 		setMode("filling");
 		const res = await requestFill(draft);
 		if (res.ok) {
 			setResults(res.results);
 			const anyProblem = res.results.some((r) => r.status !== "filled");
 			setMode(anyProblem ? "partial" : "filled");
-			if (!anyProblem) setToast({ message: "填充成功", type: "success" });
+			if (!anyProblem) onToast("填充成功", "success");
 		} else {
 			handleError(res.error);
 			setMode("draft");
-			setToast({ message: res.error, type: "error" });
+			onToast(res.error, "error");
 			void logError(new Error(res.error), { action: "fill" });
 		}
 	}
@@ -166,7 +162,6 @@ export function useMainDraftFlow(deps: UseMainDraftFlowDeps): MainDraftFlowRetur
 		setDraft(null);
 		setResults([]);
 		setTopic("");
-		clearError();
 		setMode("empty");
 	}
 
@@ -188,6 +183,7 @@ export function useMainDraftFlow(deps: UseMainDraftFlowDeps): MainDraftFlowRetur
 		setMode,
 		setDraft,
 		promptTemplateRef,
+		setInitialDraft,
 		updateDraft,
 		handleGenerate,
 		cancelGenerate,
