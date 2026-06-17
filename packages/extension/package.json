@@ -1,8 +1,7 @@
 {
-	"name": "@51publisher/extension",
-	"description": "51publisher 发帖填充助手 — 只填充、绝不自动提交的 Chrome 扩展",
-	"private": true,
-	"version": "0.2.2",
+	"name": "@51guapi/extension",
+	"description": "51guapi 吃瓜小幫手 — AI 輔助吃瓜內容產出",
+	"version": "0.1.0",
 	"type": "module",
 	"scripts": {
 		"dev": "wxt",
@@ -18,7 +17,7 @@
 		"postinstall": "wxt prepare || true"
 	},
 	"dependencies": {
-		"@51publisher/shared": "workspace:*",
+		"@51guapi/shared": "workspace:*",
 		"dompurify": "^3.4.10",
 		"react": "^19.2.7",
 		"react-dom": "^19.2.7"

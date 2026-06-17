@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -e
 
-echo "=== 51publisher Full CI Simulation ==="
+echo "=== 51guapi Full CI Simulation ==="
 echo ""
 
 echo "=> [1/6] Installing dependencies..."
 pnpm install --frozen-lockfile
 
 echo "=> [2/6] Building shared package..."
-pnpm --filter @51publisher/shared build
+pnpm --filter @51guapi/shared build
 
 echo "=> [3/6] Type checking all packages..."
 pnpm compile

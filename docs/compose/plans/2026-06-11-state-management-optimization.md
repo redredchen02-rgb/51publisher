@@ -86,7 +86,7 @@ Expected: FAIL with "Cannot find module './AppContext'"
 ```typescript
 // packages/extension/entrypoints/sidepanel/context/AppContext.tsx
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import type { ContentDraft } from '@51publisher/shared';
+import type { ContentDraft } from '@51guapi/shared';
 
 interface AppState {
   topic: string;

@@ -38,10 +38,10 @@ interface CreateBatchBody {
 
 interface PatchItemBody {
 	status?: BatchItemStatus;
-	draft?: import("@51publisher/shared").ContentDraft;
+	draft?: import("@51guapi/shared").ContentDraft;
 	publishUrl?: string;
 	error?: string;
-	fillResults?: import("@51publisher/shared").FieldFillResult[];
+	fillResults?: import("@51guapi/shared").FieldFillResult[];
 }
 
 interface BatchIdParams {

@@ -95,11 +95,11 @@ superseded_by: docs/plans/2026-06-17-002-feat-51guapi-comprehensive-upgrade-plan
 - Modify: `packages/shared/src/index.ts`（移除两条 gossip export）
 
 **Approach:**
-- 删除文件后 `pnpm --filter @51publisher/shared build` 确认 shared 编译通过
+- 删除文件后 `pnpm --filter @51guapi/shared build` 确认 shared 编译通过
 - `index.ts` 中移除第 30-31 行的两条 gossip export
 
 **Test scenarios:**
-- Happy path: `pnpm --filter @51publisher/shared build` 无报错，dist 中无 GossipFactsBlock 类型
+- Happy path: `pnpm --filter @51guapi/shared build` 无报错，dist 中无 GossipFactsBlock 类型
 
 **Verification:**
 - `grep -r "GossipFactsBlock\|GOSSIP_FACTS_SCHEMA" packages/shared/src` 返回空
@@ -124,7 +124,7 @@ superseded_by: docs/plans/2026-06-17-002-feat-51guapi-comprehensive-upgrade-plan
 - 删除后检查 `packages/backend/src/scraper/index.ts` 有无 re-export gossip 模块，若有则移除
 
 **Test scenarios:**
-- Happy path: `pnpm --filter "@51publisher/backend" compile` 无 gossip 相关 import 错误
+- Happy path: `pnpm --filter "@51guapi/backend" compile` 无 gossip 相关 import 错误
 
 **Verification:**
 - `grep -r "gossip" packages/backend/src/scraper/` 返回空
@@ -149,7 +149,7 @@ superseded_by: docs/plans/2026-06-17-002-feat-51guapi-comprehensive-upgrade-plan
 - 找到 `registerGossipRoutes(app)` 调用行删除
 
 **Test scenarios:**
-- Happy path: `pnpm --filter "@51publisher/backend" compile` 通过
+- Happy path: `pnpm --filter "@51guapi/backend" compile` 通过
 - Integration: `GET /api/v1/gossip/...` 返回 404（路由不再存在）
 
 **Verification:**
@@ -183,7 +183,7 @@ superseded_by: docs/plans/2026-06-17-002-feat-51guapi-comprehensive-upgrade-plan
 
 **Verification:**
 - `grep -n "gossip" packages/backend/src/scraper/pending-store.ts` 返回空
-- `pnpm --filter "@51publisher/backend" test` 全绿
+- `pnpm --filter "@51guapi/backend" test` 全绿
 
 ---
 
@@ -205,7 +205,7 @@ superseded_by: docs/plans/2026-06-17-002-feat-51guapi-comprehensive-upgrade-plan
 - 检查 `__test-utils__/mock-fetch.ts` 中的 gossip 引用，清理
 
 **Test scenarios:**
-- Happy path: `pnpm --filter "@51publisher/extension" test` 全绿
+- Happy path: `pnpm --filter "@51guapi/extension" test` 全绿
 - Verify: gossip-client 相关 import 在扩展中不存在
 
 **Verification:**

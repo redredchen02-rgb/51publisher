@@ -1,4 +1,4 @@
-import type { ContentDraft, FactsBlock } from "@51publisher/shared";
+import type { ContentDraft, FactsBlock } from "@51guapi/shared";
 
 function Field({
 	label,

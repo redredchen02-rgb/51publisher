@@ -15,7 +15,7 @@ vi.mock("../../../lib/storage", () => ({
 	clearCurrentDraft: vi.fn().mockResolvedValue(undefined),
 }));
 
-import type { ContentDraft } from "@51publisher/shared";
+import type { ContentDraft } from "@51guapi/shared";
 import { requestFill, requestGenerate } from "../../../lib/messaging";
 import { useMainDraftFlow } from "./useMainDraftFlow";
 

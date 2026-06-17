@@ -22,8 +22,8 @@ function makeTopic(overrides: Partial<PendingTopic> = {}): PendingTopic {
 	const now = new Date().toISOString();
 	return {
 		id: `test_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-		sourceUrl: "https://51acgs.com/article/123",
-		siteName: "acgs51",
+		sourceUrl: "https://example.com/article/123",
+		siteName: "demo",
 		title: "测试作品 #1",
 		facts: { 作品名: "测试作品", 简介: "一段简介" },
 		confidence: 0.85,
@@ -49,7 +49,7 @@ describe("pending-store (SQLite)", () => {
 		const loaded = await loadPendingTopic(topic.id);
 		expect(loaded).not.toBeNull();
 		expect(loaded?.title).toBe(topic.title);
-		expect(loaded?.siteName).toBe("acgs51");
+		expect(loaded?.siteName).toBe("demo");
 		expect(loaded?.confidence).toBe(0.85);
 		expect(loaded?.status).toBe("pending");
 		expect(loaded?.coverImageUrl).toBe("https://cdn.example.com/cover.jpg");
@@ -91,13 +91,13 @@ describe("pending-store (SQLite)", () => {
 	it("listPendingTopics 无筛选 → 返回所有记录，按 created_at DESC", async () => {
 		const t1 = makeTopic({
 			id: "id-1",
-			sourceUrl: "https://51acgs.com/list/1",
+			sourceUrl: "https://example.com/list/1",
 			createdAt: "2026-01-01T00:00:00.000Z",
 			updatedAt: "2026-01-01T00:00:00.000Z",
 		});
 		const t2 = makeTopic({
 			id: "id-2",
-			sourceUrl: "https://51acgs.com/list/2",
+			sourceUrl: "https://example.com/list/2",
 			createdAt: "2026-01-02T00:00:00.000Z",
 			updatedAt: "2026-01-02T00:00:00.000Z",
 		});
@@ -111,12 +111,12 @@ describe("pending-store (SQLite)", () => {
 	it("listPendingTopics(status) → 只返回对应状态", async () => {
 		const pending = makeTopic({
 			id: "p1",
-			sourceUrl: "https://51acgs.com/status/p1",
+			sourceUrl: "https://example.com/status/p1",
 			status: "pending",
 		});
 		const approved = makeTopic({
 			id: "a1",
-			sourceUrl: "https://51acgs.com/status/a1",
+			sourceUrl: "https://example.com/status/a1",
 			status: "approved",
 		});
 		await savePendingTopic(pending);
@@ -129,7 +129,7 @@ describe("pending-store (SQLite)", () => {
 	it("listPendingTopics(limit) → 最多返回 limit 条", async () => {
 		for (let i = 0; i < 5; i++)
 			await savePendingTopic(
-				makeTopic({ sourceUrl: `https://51acgs.com/limit/${i}` }),
+				makeTopic({ sourceUrl: `https://example.com/limit/${i}` }),
 			);
 		const list = await listPendingTopics(3);
 		expect(list.length).toBe(3);
@@ -183,14 +183,14 @@ describe("pending-store (SQLite)", () => {
 	it("新 sourceUrl → inserted: true", async () => {
 		const topic = makeTopic({
 			id: "dedup-1",
-			sourceUrl: "https://51acgs.com/unique/A",
+			sourceUrl: "https://example.com/unique/A",
 		});
 		const result = await savePendingTopic(topic);
 		expect(result).toEqual({ inserted: true });
 	});
 
 	it("相同 sourceUrl 不同 id → inserted: false，DB 只有一条记录", async () => {
-		const urlA = "https://51acgs.com/unique/B";
+		const urlA = "https://example.com/unique/B";
 		const first = makeTopic({ id: "dedup-first", sourceUrl: urlA });
 		const duplicate = makeTopic({ id: "dedup-second", sourceUrl: urlA });
 		await savePendingTopic(first);
@@ -204,7 +204,7 @@ describe("pending-store (SQLite)", () => {
 	});
 
 	it("相同 sourceUrl 相同 id → upsert 成功，inserted: false，标题已更新", async () => {
-		const urlA = "https://51acgs.com/unique/C";
+		const urlA = "https://example.com/unique/C";
 		const topic = makeTopic({
 			id: "dedup-same",
 			sourceUrl: urlA,
@@ -221,11 +221,11 @@ describe("pending-store (SQLite)", () => {
 	it("两个不同 sourceUrl → 各自 inserted: true，DB 保留两条", async () => {
 		const t1 = makeTopic({
 			id: "dedup-a",
-			sourceUrl: "https://51acgs.com/unique/D1",
+			sourceUrl: "https://example.com/unique/D1",
 		});
 		const t2 = makeTopic({
 			id: "dedup-b",
-			sourceUrl: "https://51acgs.com/unique/D2",
+			sourceUrl: "https://example.com/unique/D2",
 		});
 		const r1 = await savePendingTopic(t1);
 		const r2 = await savePendingTopic(t2);
@@ -238,7 +238,7 @@ describe("pending-store (SQLite)", () => {
 	it("忽略返回值的调用方仍能正常工作（向后兼容）", async () => {
 		const topic = makeTopic({
 			id: "compat-1",
-			sourceUrl: "https://51acgs.com/unique/E",
+			sourceUrl: "https://example.com/unique/E",
 		});
 		// 模拟旧调用方：不使用返回值
 		await savePendingTopic(topic);
@@ -254,7 +254,7 @@ describe("pending-store (SQLite)", () => {
 			rawContent: {
 				title: "原始标题",
 				body: "<p>正文</p>",
-				url: "https://51acgs.com/detail",
+				url: "https://example.com/detail",
 				metadata: { 制作: "Studio X" },
 				coverImageUrl: "https://cdn.example.com/img.jpg",
 			},

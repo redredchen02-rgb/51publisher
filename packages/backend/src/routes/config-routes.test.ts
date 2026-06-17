@@ -1,4 +1,4 @@
-import { DEFAULT_FIELD_MAPPING } from "@51publisher/shared";
+import { DEFAULT_FIELD_MAPPING } from "@51guapi/shared";
 import Fastify from "fastify";
 import { beforeEach, describe, expect, it } from "vitest";
 import { initPendingDb } from "../scraper/pending-db.js";

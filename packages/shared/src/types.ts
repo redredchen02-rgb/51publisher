@@ -101,12 +101,10 @@ export interface Settings {
 	recommendedTags?: string[];
 	/** 字段映射(可在设置页编辑)。 */
 	fieldMapping: FieldMapping;
-	/** 51publisher 后端 URL（http://localhost:3001 等）;空=不启用后端双写。 */
+	/** 51guapi 后端 URL（http://localhost:3001 等）;空=不启用后端双写。 */
 	backendUrl?: string;
 	/** AI 评审标准 prompt（Phase 3）;空时使用内置四维默认标准。 */
 	reviewCriteriaPrompt?: string;
-	/** 每日批量自动发帖上限（Phase 5）;有效范围 [1, 20],默认 5。 */
-	dailyBatchSize?: number;
 	/** 是否启用 Web 搜索富化（默认 true）;启用后抓取时自动搜索补充资讯。 */
 	webSearchEnabled?: boolean;
 }

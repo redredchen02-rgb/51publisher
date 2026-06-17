@@ -2,7 +2,7 @@ import {
 	type Batch,
 	type BatchItemStatus,
 	recoverBatch,
-} from "@51publisher/shared";
+} from "@51guapi/shared";
 import { getDb, pendingWriteQueue } from "../scraper/pending-db.js";
 
 export type { Batch, BatchItemStatus };

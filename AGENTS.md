@@ -1,4 +1,4 @@
-# 51publisher
+# 51guapi
 
 Monorepo: `packages/backend/` (Fastify 5 + TS, port 3001) + `packages/extension/` (WXT + React 19 + MV3)
 
@@ -27,6 +27,6 @@ node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"
 node packages/backend/scripts/hash-password.mjs
 ```
 
-Build order matters: `@51publisher/shared` must build its `dist/` before
+Build order matters: `@51guapi/shared` must build its `dist/` before
 backend/extension type-check. `pnpm -r compile` handles this in topological
 order (shared has a `compile` script that emits dist).

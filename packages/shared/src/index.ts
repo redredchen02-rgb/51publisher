@@ -1,4 +1,4 @@
-// Shared types and utilities for 51publisher monorepo
+// Shared types and utilities for 51guapi monorepo
 
 export {
 	type Batch,

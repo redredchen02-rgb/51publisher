@@ -22,7 +22,6 @@ vi.mock("../../lib/storage", () => ({
 		fieldMapping: {},
 		backendUrl: "",
 		reviewCriteriaPrompt: "",
-		dailyBatchSize: 5,
 		fewShotPairs: [],
 	})),
 	saveApiKey: vi.fn(async () => {}),
@@ -30,16 +29,16 @@ vi.mock("../../lib/storage", () => ({
 	saveSettings: vi.fn(async () => {}),
 }));
 
-vi.mock("../../lib/prompt-client", () => ({
+vi.mock("../../lib/api/prompt-client", () => ({
 	fetchPrompts: vi.fn(async () => ({ ok: true, prompts: [] })),
 	createPrompt: vi.fn(async () => ({ ok: true })),
 }));
 
-vi.mock("../../lib/connection-test", () => ({
+vi.mock("../../lib/api/connection-test", () => ({
 	testConnection: vi.fn(async () => ({ status: "ok", message: "连接正常" })),
 }));
 
-import { testConnection } from "../../lib/connection-test";
+import { testConnection } from "../../lib/api/connection-test";
 import { getSettings, saveSettings } from "../../lib/storage";
 import { Settings } from "./Settings.js";
 

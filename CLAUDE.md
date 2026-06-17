@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-51publisher 发帖填充助手:AI 生成帖子草稿 → 人工预览/编辑 → 一键填入 51publisher 后台发帖表单。pnpm monorepo,三个包:
+51guapi 吃瓜小幫手:AI 生成吃瓜短文→ 人工预览/编辑 → 一键填入後台表單。pnpm monorepo,三个包:
 
 - `packages/extension/` — Chrome 扩展(WXT + React 19 + Manifest V3),仅支持 Chromium
 - `packages/backend/` — Fastify 5 + TypeScript,端口 3001(JWT 鉴权、批次同步、抓取/选题管线)
 - `packages/shared/` — 跨端共享类型与纯逻辑(field-mapping、post-assembler、vocab、facts)
 
-仓库 remote 是 **GitHub**(github.com/redredchen02-rgb/51publisher);活跃 CI 是 `.github/workflows/`(`ci.yml` push/PR 真闸、`release.yml` `v*` tag)。根目录无 `.gitlab-ci.yml`。`scripts/check-all.sh` 存在(lint:ci + 测试 + 双端 build + 产物校验)。
+仓库 remote 是 **GitHub**(github.com/redredchen02-rgb/51guapi);活跃 CI 是 `.github/workflows/`(`ci.yml` push/PR 真闸、`release.yml` `v*` tag)。根目录无 `.gitlab-ci.yml`。`scripts/check-all.sh` 存在(lint:ci + 测试 + 双端 build + 产物校验)。
 
 会话开始时读 `.ai-memory/*.md` 获取前序会话的项目状态与经验(见 AGENTS.md)。
 
@@ -28,7 +28,7 @@ pnpm lint                         # biome check --write;CI 用 pnpm lint:ci
 bash scripts/check-all.sh         # 测试 + 双端构建 + 产物校验
 ```
 
-扩展专属(在 `packages/extension/` 下或加 `--filter @51publisher/extension`):
+扩展专属(在 `packages/extension/` 下或加 `--filter @51guapi/extension`):
 
 ```bash
 pnpm test:e2e                     # e2e:本地 fixture + 真 Quill 2.0.2(独立 vitest.e2e.config.ts)
@@ -37,7 +37,7 @@ npx vitest run lib/fillers.test.ts            # 跑单个测试文件
 npx vitest run -t "测试名"                     # 按名称过滤
 ```
 
-**构建顺序**:`@51publisher/shared` 必须先 build 出 `dist/` 才能对 backend/extension 做类型检查。`pnpm -r compile` / `pnpm -r test` 已按拓扑序处理;单独操作某包前若报 shared 类型缺失,先 `pnpm --filter @51publisher/shared build`。
+**构建顺序**:`@51guapi/shared` 必须先 build 出 `dist/` 才能对 backend/extension 做类型检查。`pnpm -r compile` / `pnpm -r test` 已按拓扑序处理;单独操作某包前若报 shared 类型缺失,先 `pnpm --filter @51guapi/shared build`。
 
 后端环境:复制 `packages/backend/.env.example` → `.env`。后端 **fail-closed**:`CORS_ORIGIN` 缺失或为 `*`、`JWT_SECRET`/`JWT_ADMIN_PASSWORD_HASH` 弱值/占位值时拒绝启动。生成强值的命令见 AGENTS.md 或 `.env.example` 注释。
 
@@ -68,7 +68,7 @@ npx vitest run -t "测试名"                     # 按名称过滤
 
 - 路由按模块分文件 `src/routes/*-routes.ts`,在 `index.ts` 统一 `register*Routes(server)`;JWT 鉴权 preHandler,`PUBLIC_ROUTES` 白名单放行
 - 存储双轨:batch/prompt 用 JSON 文件存储,pending/config 用 SQLite(better-sqlite3)。均读 `PUBLISHER_DATA_DIR`;vitest 经 `src/test-setup.ts` 指向临时目录,测试不碰真实 `data/`
-- `src/scraper/` — 选题抓取管线:站点 adapter(`adapters/`)、SSRF 守卫(`ssrf-guard.ts`,allowlist fail-closed)、cron 调度器(需 `ACGS51_ENABLED=true` + LLM 配置齐全才启动)
+- `src/scraper/` — 选题抓取管线:站点 adapter(`adapters/`)、SSRF 守卫(`ssrf-guard.ts`,allowlist fail-closed)、cron 调度器(需 LLM 配置齐全才启动)
 - 扩展对后端的调用统一走 `authHeaders()` + 401 时 `clearToken()` 模式;批次双写用 `withBackendSync(localSave)` 包装
 
 ### 字段映射与后台漂移

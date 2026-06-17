@@ -1,6 +1,6 @@
 {
-	"name": "@51publisher/backend",
-	"version": "0.2.2",
+	"name": "@51guapi/backend",
+	"version": "0.1.0",
 	"private": true,
 	"type": "module",
 	"scripts": {
@@ -12,7 +12,7 @@
 		"coverage": "vitest run --coverage"
 	},
 	"dependencies": {
-		"@51publisher/shared": "workspace:*",
+		"@51guapi/shared": "workspace:*",
 		"@fastify/cors": "^10.0.2",
 		"@fastify/rate-limit": "^11.0.0",
 		"@fastify/swagger": "^9.7.0",

@@ -1,5 +1,5 @@
-import type { FewShotPair } from "@51publisher/shared";
-import type { PromptTemplate } from "../../../lib/prompt-client";
+import type { FewShotPair } from "@51guapi/shared";
+import type { PromptTemplate } from "../../../lib/api/prompt-client";
 import { DEFAULT_SETTINGS } from "../../../lib/storage";
 import { FewShotPairEditor } from "./FewShotPairEditor";
 

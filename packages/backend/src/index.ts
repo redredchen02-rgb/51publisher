@@ -1,9 +1,10 @@
 import dotenv from "dotenv";
-import { buildApp, registerDraftRoutes, startBackgroundJobs } from "./app.js";
+import { buildApp, startBackgroundJobs } from "./app.js";
 import { validateEnv } from "./config/env-check.js";
+import { registerDraftRoutes } from "./routes/draft-routes.js";
 
-// Prefer ~/.51publisher/.env (outside repo, safe from accidental overwrites) over the in-repo .env
-const safeEnvPath = `${process.env.HOME}/.51publisher/.env`;
+// Prefer ~/.51guapi/.env (outside repo, safe from accidental overwrites) over the in-repo .env
+const safeEnvPath = `${process.env.HOME}/.51guapi/.env`;
 dotenv.config({ path: safeEnvPath });
 dotenv.config(); // fallback: load in-repo .env for any vars not already set
 

@@ -1,7 +1,7 @@
-import type { ContentDraft } from "@51publisher/shared";
+import type { ContentDraft } from "@51guapi/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeBrowser } from "wxt/testing";
-import { checkSelectors, discardBatchItem, requestFill } from "./messaging";
+import { checkSelectors, requestFill } from "./messaging";
 
 const DRAFT: ContentDraft = {
 	id: "d1",
@@ -66,28 +66,5 @@ describe("checkSelectors", () => {
 		});
 		const result = await checkSelectors(5);
 		expect(result.ok).toBe(true);
-	});
-});
-
-describe("discardBatchItem branch coverage", () => {
-	beforeEach(() => {
-		fakeBrowser.reset();
-	});
-
-	it("without rejectionReason → sendMsg called without rejectionReason in payload", async () => {
-		const sendSpy = vi.fn().mockResolvedValue(null);
-		vi.spyOn(fakeBrowser.runtime, "sendMessage").mockImplementation(sendSpy);
-		await discardBatchItem("item_0");
-		const call = sendSpy.mock.calls[0]?.[0];
-		expect(call?.type).toBe("DISCARD_BATCH_ITEM");
-		expect(call?.rejectionReason).toBeUndefined();
-	});
-
-	it("with rejectionReason → payload includes rejectionReason", async () => {
-		const sendSpy = vi.fn().mockResolvedValue(null);
-		vi.spyOn(fakeBrowser.runtime, "sendMessage").mockImplementation(sendSpy);
-		await discardBatchItem("item_0", "quality");
-		const call = sendSpy.mock.calls[0]?.[0];
-		expect(call?.rejectionReason).toBe("quality");
 	});
 });

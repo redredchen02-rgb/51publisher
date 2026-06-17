@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { getStorage } from "../../../lib/chrome-storage-utils";
+import { getStorage } from "../../../lib/storage/chrome-storage-utils";
 
 interface OperationRecord {
 	id: string;

@@ -6,7 +6,7 @@ COPY . .
 
 RUN git init && npm install -g pnpm@9 && pnpm install --frozen-lockfile && pnpm rebuild better-sqlite3
 
-RUN pnpm --filter @51publisher/shared build
+RUN pnpm --filter @51guapi/shared build
 RUN pnpm --filter publisher-backend build
 
 FROM node:20-slim

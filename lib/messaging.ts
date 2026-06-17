@@ -26,8 +26,7 @@ export async function requestFill(
 	} catch {
 		return {
 			ok: false,
-			error:
-				"无法连接页面填充脚本——请确认当前停在 51publisher 发帖页并已打开「添加」表单。",
+			error: "无法连接页面填充脚本——请确认当前停在目標頁面。",
 		};
 	}
 }

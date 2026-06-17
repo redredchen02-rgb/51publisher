@@ -17,7 +17,7 @@ needs_build() {
 
 if needs_build; then
   echo "[start-backend] dist is stale or missing — building…"
-  (cd "$REPO_ROOT" && pnpm --filter "@51publisher/backend" build)
+  (cd "$REPO_ROOT" && pnpm --filter "@51guapi/backend" build)
 fi
 
 # Check if backend is already running.
@@ -26,11 +26,11 @@ if curl -sf "$HEALTHZ_URL" >/dev/null 2>&1; then
   exit 0
 fi
 
-# Locate .env: custom path > ~/.51publisher/.env > packages/backend/.env (new user default).
-if [[ -n "${PUBLISHER_ENV_PATH:-}" && -f "$PUBLISHER_ENV_PATH" ]]; then
-  ENV_FILE="$PUBLISHER_ENV_PATH"
-elif [[ -f "$HOME/.51publisher/.env" ]]; then
-  ENV_FILE="$HOME/.51publisher/.env"
+# Locate .env: custom path > ~/.51guapi/.env > packages/backend/.env (new user default).
+if [[ -n "${GUAPI_ENV_PATH:-}" && -f "$GUAPI_ENV_PATH" ]]; then
+  ENV_FILE="$GUAPI_ENV_PATH"
+elif [[ -f "$HOME/.51guapi/.env" ]]; then
+  ENV_FILE="$HOME/.51guapi/.env"
 elif [[ -f "$REPO_ROOT/packages/backend/.env" ]]; then
   ENV_FILE="$REPO_ROOT/packages/backend/.env"
 else
@@ -43,8 +43,8 @@ set -a
 source "$ENV_FILE"
 set +a
 
-LOG_FILE="/tmp/51publisher-backend.log"
-PID_FILE="/tmp/51publisher-backend.pid"
+LOG_FILE="/tmp/51guapi-backend.log"
+PID_FILE="/tmp/51guapi-backend.pid"
 
 echo "[start-backend] Starting backend (background, log: $LOG_FILE)…"
 nohup node "$DIST_JS" >> "$LOG_FILE" 2>&1 &

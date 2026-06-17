@@ -1,4 +1,4 @@
-import type { Settings } from "@51publisher/shared";
+import type { Settings } from "@51guapi/shared";
 import type { LlmDeps } from "./types.js";
 
 const DEFAULT_MAX_RETRIES = 2;

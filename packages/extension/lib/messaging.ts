@@ -1,36 +1,18 @@
 import type {
 	ContentDraft,
 	FillPageResponse,
-	FirstFlightRehearseResult,
-	FirstFlightRunResult,
-	FirstFlightStatusResult,
 	GenerateDraftResponse,
 	RuntimeMessage,
-} from "@51publisher/shared";
-import { applyPromptTemplate, type FactsBlock } from "@51publisher/shared";
+} from "@51guapi/shared";
+import { applyPromptTemplate, type FactsBlock } from "@51guapi/shared";
 import { browser } from "#imports";
-import type { Batch } from "./batch";
-import { DEFAULT_RECIPE } from "./recipe";
-import type { DriftReport } from "./selectors";
+import type { DriftReport } from "./content/selectors";
+import { DEFAULT_RECIPE } from "./core/recipe";
 
 // MV3 Service Worker 随时可能被回收。sendMessage 若 SW 死亡可能永久 pending。
 // sendMsg 包一层 race，超时则 reject → withBusy catch 显示"请重试"而非卡死。
 const SW_TIMEOUT: Partial<Record<RuntimeMessage["type"], number>> = {
-	RUN_BATCH: 300_000, // 多条 × LLM，最多 5 分钟
-	APPROVE_BATCH: 300_000,
-	APPROVE_SINGLE_ITEM: 300_000,
 	GENERATE_DRAFT: 30_000,
-	GET_BATCH: 10_000,
-	KILL_BATCH: 10_000,
-	RELEASE_QUARANTINE: 10_000,
-	RELEASE_QUARANTINE_BATCH: 10_000,
-	RETRY_BATCH_ITEM: 10_000,
-	REFILL_ITEM_FACTS: 10_000, // 纯重组装 + 重跑闸门,无 LLM
-	EDIT_FACTS_AND_REGEN: 60_000, // 含 LLM 重生成,参照 GENERATE_DRAFT 放宽
-	DISCARD_BATCH_ITEM: 10_000,
-	FIRST_FLIGHT_REHEARSE: 60_000, // dry-run 填充 + grounding(无 LLM,但要等 content fill)
-	FIRST_FLIGHT_RUN: 120_000, // 排演 + 武装 + 派发一条 + revert
-	FIRST_FLIGHT_STATUS: 10_000,
 };
 
 function sendMsg<T>(msg: RuntimeMessage): Promise<T> {
@@ -68,7 +50,6 @@ export async function requestGenerate(
 /**
  * 纯函数:从 tab 列表挑出后台发帖页 tab id。
  * 优先当前活动 tab(若它就是后台页);否则取任一 host 匹配的后台页 tab。
- * 解决「填充到当前页」对活动 tab 的脆依赖——发帖页不在最前面(切了别的分页)时也能填。
  */
 export function pickAdminTabId(
 	activeTab: { id?: number; url?: string } | undefined,
@@ -88,12 +69,11 @@ export async function resolveAdminTabId(): Promise<number | null> {
 		active: true,
 		currentWindow: true,
 	});
-	// host 权限已覆盖该域 → 无需 'tabs' 权限即可按 url 查询。
 	const matched = await browser.tabs.query({ url: `https://${host}/*` });
 	return pickAdminTabId(active, matched, host);
 }
 
-/** side panel → 后台发帖页 content script:填充。自动定位发帖页 tab,不依赖它是否在最前面。 */
+/** side panel → 后台发帖页 content script:填充。自动定位发帖页 tab。 */
 export async function requestFill(
 	draft: ContentDraft,
 ): Promise<FillPageResponse> {
@@ -101,7 +81,7 @@ export async function requestFill(
 	if (tabId == null) {
 		return {
 			ok: false,
-			error: "未找到 51publisher 发帖页标签——请先在浏览器打开后台发帖页。",
+			error: "未找到目標頁面標籤——請先在瀏覽器打開後台頁面。",
 		};
 	}
 	try {
@@ -115,169 +95,18 @@ export async function requestFill(
 	}
 }
 
-// ---- 批量编排(side panel → background)----
-
-export type BatchResponse = Batch | null;
-
-/** 启动批量:逐条生成+填充到钉住的 tab,完成后进入 awaiting-approval。 */
-export async function runBatch(
-	topics: string[],
-	tabId: number,
-	facts?: FactsBlock[],
-	coverImageUrls?: string[],
-	iterate?: boolean,
-	topicIds?: string[],
-	enrichments?: (string | undefined)[],
-): Promise<BatchResponse> {
-	return sendMsg<BatchResponse>({
-		type: "RUN_BATCH",
-		topics,
-		tabId,
-		facts,
-		iterate,
-		coverImageUrls,
-		topicIds,
-		enrichments,
-	});
-}
-
-/** 批准整批:逐条门控发布(钉住的 tab)。draftOverrides 为人工编辑的草稿覆盖(按 itemId)。 */
-export async function approveBatch(
-	tabId: number,
-	draftOverrides?: Record<string, import("@51publisher/shared").ContentDraft>,
-): Promise<BatchResponse> {
-	return sendMsg<BatchResponse>({
-		type: "APPROVE_BATCH",
-		tabId,
-		...(draftOverrides ? { draftOverrides } : {}),
-	});
-}
-
-/** 急停:未发布项打到 aborted。 */
-export async function killBatch(): Promise<BatchResponse> {
-	return sendMsg<BatchResponse>({ type: "KILL_BATCH" });
-}
-
-/** 人工退出某隔离项(needs-human-verification → aborted)。 */
-export async function releaseQuarantine(
-	itemId: string,
-): Promise<BatchResponse> {
-	return sendMsg<BatchResponse>({ type: "RELEASE_QUARANTINE", itemId });
-}
-
-/** 人工批量退出全部隔离项(原子单次保存;绝不自动重发)。 */
-export async function releaseQuarantineBatch(): Promise<BatchResponse> {
-	return sendMsg<BatchResponse>({ type: "RELEASE_QUARANTINE_BATCH" });
-}
-
-/** 标记该条草稿已被操作者手动修改(直发率度量置位)。 */
-export async function markItemEdited(itemId: string): Promise<void> {
-	return browser.runtime.sendMessage({ type: "MARK_ITEM_EDITED", itemId });
-}
-
-/** 运营商显式重试单条 error/aborted 条目。 */
-export async function retryBatchItemMsg(
-	itemId: string,
-): Promise<BatchResponse> {
-	return sendMsg<BatchResponse>({ type: "RETRY_BATCH_ITEM", itemId });
-}
-
-/**
- * 操作者在 FactsEdit 修改完整事实后提交:background 用新事实调 LLM 重生成草稿。
- * 原子性:generateDraft 成功后才写 facts+draft+snapshot;失败时 facts 不变(item → error)。
- * 仅 gate-failed / awaiting-approval 条目可用(其余 no-op 返回原 batch)。
- */
-export async function editFactsAndRegen(
-	itemId: string,
-	newFacts: FactsBlock,
-): Promise<BatchResponse> {
-	return sendMsg<BatchResponse>({
-		type: "EDIT_FACTS_AND_REGEN",
-		itemId,
-		newFacts,
-	});
-}
-
-/**
- * 操作者补齐缺失事实(作品名/集数/…)后提交:background 合并事实 → 重组装 → 重跑闸门。
- * 仅 gate-failed 且含 slots 的条目可用;通过则提升到 awaiting-approval,否则仍 gate-failed。
- * 这是特权通道(改 facts/draft/snapshot 并驱动提升),只应从 side panel 发起。
- */
-export async function refillItemFacts(
-	itemId: string,
-	facts: Partial<FactsBlock>,
-): Promise<BatchResponse> {
-	return sendMsg<BatchResponse>({ type: "REFILL_ITEM_FACTS", itemId, facts });
-}
-
-/** 操作者否决/丢弃单条 awaiting-approval 条目(→ aborted);rejectionReason 供后端统计用。 */
-export async function discardBatchItem(
-	itemId: string,
-	rejectionReason?: import("@51publisher/shared").RejectionReason,
-): Promise<void> {
-	await sendMsg<BatchResponse>({
-		type: "DISCARD_BATCH_ITEM",
-		itemId,
-		...(rejectionReason ? { rejectionReason } : {}),
-	});
-}
-
-/** 单条发布:对指定 itemId 执行 approve + fill + publish，不影响其他条目。 */
-export async function approveSingleItem(
-	tabId: number,
-	itemId: string,
-): Promise<BatchResponse> {
-	return sendMsg<BatchResponse>({ type: "APPROVE_SINGLE_ITEM", tabId, itemId });
-}
-
-/** 读当前批次(加载即崩溃恢复)。 */
-export async function getBatchState(): Promise<BatchResponse> {
-	return sendMsg<BatchResponse>({ type: "GET_BATCH" });
-}
-
-// ---- 首飞向导(first-flight wizard)----
-
-/** 首飞排演(只读):dry-run + grounding,不武装不派发。 */
-export async function firstFlightRehearse(
-	tabId: number,
-	itemId: string,
-): Promise<FirstFlightRehearseResult> {
-	return sendMsg<FirstFlightRehearseResult>({
-		type: "FIRST_FLIGHT_REHEARSE",
-		tabId,
-		itemId,
-	});
-}
-
-/** 首飞执行:排演→武装→最小窗口派发恰好一条→revert。host 由背景取,不接受携带。 */
-export async function firstFlightRun(
-	tabId: number,
-	itemId: string,
-): Promise<FirstFlightRunResult> {
-	return sendMsg<FirstFlightRunResult>({
-		type: "FIRST_FLIGHT_RUN",
-		tabId,
-		itemId,
-	});
-}
-
-/** 读首飞状态(mode/是否武装/坏值),供向导侦测背景强制 reset 再入。 */
-export async function firstFlightStatus(): Promise<FirstFlightStatusResult> {
-	return sendMsg<FirstFlightStatusResult>({ type: "FIRST_FLIGHT_STATUS" });
-}
-
-/** 轻量漂移自检:让钉住 tab 的 content 查关键选择器是否缺失。 */
+/** 輕量漂移自檢:讓釘住 tab 的 content 查關鍵選擇器是否缺失。 */
 export async function checkSelectors(tabId: number): Promise<DriftReport> {
 	try {
 		return await browser.tabs.sendMessage(tabId, { type: "CHECK_SELECTORS" });
 	} catch {
-		return { ok: false, missing: ["(无法连接页面——请确认停在 admin 发帖页)"] };
+		return { ok: false, missing: ["(無法連接頁面——請確認停在 admin 發帖頁)"] };
 	}
 }
 
 /**
- * 用 prompt 模板 + 主题 + (可选)事实 + (可选)few-shot 组装最终 prompt。
- * 委托 lib/facts 的纯函数;facts/fewShot 省略时行为等同旧两参版(向后兼容)。
+ * 用 prompt 模板 + 主題 + (可選)事實 + (可選)few-shot 組裝最終 prompt。
+ * 委託 lib/facts 的純函數;facts/fewShot 省略時行為等同舊兩參版(向後兼容)。
  */
 export function buildPrompt(
 	template: string,

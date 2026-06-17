@@ -1,4 +1,4 @@
-import type { ContentDraft } from "@51publisher/shared";
+import type { ContentDraft } from "@51guapi/shared";
 import { useCallback, useEffect, useRef } from "react";
 import { logger } from "../../../lib/logger";
 import { saveCurrentDraft } from "../../../lib/storage";

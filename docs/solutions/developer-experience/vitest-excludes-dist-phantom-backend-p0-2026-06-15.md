@@ -17,14 +17,14 @@ tags: [vitest, dist, monorepo, ci, phantom-bug, test-collection, backend]
 
 ## Context
 
-TODOS.md 长期挂着一条 P0:「`packages/backend/dist/` 下 8 个测试文件因缺依赖(fastify、better-sqlite3、@51publisher/shared)持续失败」。补强安全网时要据实确认它是否仍阻塞 CI。
+TODOS.md 长期挂着一条 P0:「`packages/backend/dist/` 下 8 个测试文件因缺依赖(fastify、better-sqlite3、@51guapi/shared)持续失败」。补强安全网时要据实确认它是否仍阻塞 CI。
 
 ## Guidance
 
 先**实跑确认**,再决定是修还是关:
 
 ```bash
-pnpm --filter publisher-backend test   # 注意包名是 publisher-backend,不是 @51publisher/backend
+pnpm --filter publisher-backend test   # 注意包名是 publisher-backend,不是 @51guapi/backend
 ```
 
 结果:275(后增至 299)passed,26 files,**无任何 dist 依赖失败**。根因在配置:

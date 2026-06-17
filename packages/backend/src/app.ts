@@ -1,7 +1,3 @@
-import { accessSync, constants } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import type { FactsBlock, Settings } from "@51publisher/shared";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import type { FastifyInstance } from "fastify";
@@ -10,33 +6,17 @@ import { PUBLIC_ROUTES, requireAuth } from "./middleware/auth-middleware.js";
 import { registerAuthRoutes } from "./routes/auth-routes.js";
 import { registerBatchRoutes } from "./routes/batch-routes.js";
 import { registerConfigRoutes } from "./routes/config-routes.js";
+import { registerHealthzRoutes } from "./routes/healthz-routes.js";
 import { registerPendingRoutes } from "./routes/pending-routes.js";
 import { registerPreflightRoutes } from "./routes/preflight-routes.js";
 import { registerPromptRoutes } from "./routes/prompt-routes.js";
 import { registerPublishedPostsRoutes } from "./routes/published-posts-routes.js";
 import { registerScraperRoutes } from "./routes/scraper-routes.js";
-import { acgs51Adapter } from "./scraper/adapters/acgs51-adapter.js";
 import { demoAdapter } from "./scraper/adapters/demo-adapter.js";
-import { getDb, initPendingDb } from "./scraper/pending-db.js";
-import { jobs, startScheduler } from "./scraper/scheduler.js";
+import { initPendingDb } from "./scraper/pending-db.js";
+import { startScheduler } from "./scraper/scheduler.js";
 import { scraperConfig } from "./scraper/scraper-config.js";
-import {
-	generateDraft,
-	listModels,
-	reviewDraftLlm,
-	rewriteDraftLlm,
-} from "./services/llm.js";
-import { getMetrics, recordDraft } from "./services/metrics.js";
 import { startRevisitJob } from "./services/revisit-job.js";
-import { err } from "./utils/error-response.js";
-import { getLlmConfig, validateLlmConfig } from "./utils/llm-config.js";
-import {
-	GenerateDraftBody as GenerateDraftBodySchema,
-	GenerateDraftResponse,
-	HealthzResponse,
-	ReviewDraftBody as ReviewDraftBodySchema,
-	RewriteDraftBody as RewriteDraftBodySchema,
-} from "./utils/schemas.js";
 
 export function buildApp(): FastifyInstance {
 	initPendingDb();
@@ -67,8 +47,8 @@ export function buildApp(): FastifyInstance {
 		openapi: {
 			openapi: "3.0.0",
 			info: {
-				title: "51publisher Backend API",
-				description: "51publisher 后端 API 文档",
+				title: "51guapi Backend API",
+				description: "51guapi 后端 API 文档",
 				version: "0.1.0",
 			},
 			servers: [
@@ -115,101 +95,8 @@ export function buildApp(): FastifyInstance {
 		return payload;
 	});
 
-	server.get<{
-		Reply: import("@sinclair/typebox").Static<typeof HealthzResponse>;
-	}>(
-		"/api/v1/healthz",
-		{ schema: { response: { 200: HealthzResponse } } },
-		async () => {
-			const schedulerRunning = jobs.size > 0;
-			const dbHealthy = (() => {
-				try {
-					getDb().prepare("SELECT 1").get();
-					return true;
-				} catch {
-					return false;
-				}
-			})();
-
-			// LLM 是否已配置
-			const llmConfigured = Boolean(process.env.LLM_ENDPOINT);
-
-			// 存储目录可写性检查
-			const storageWritable = (() => {
-				try {
-					const __dirname = dirname(fileURLToPath(import.meta.url));
-					const dataDir =
-						process.env.PUBLISHER_DATA_DIR ??
-						join(__dirname, "..", "..", "data");
-					accessSync(dataDir, constants.W_OK);
-					return true;
-				} catch {
-					return false;
-				}
-			})();
-
-			// 发布失败率告警:最近 10 批次终态条目，失败率 > 30% 时告警
-			let publishFailAlert = false;
-			try {
-				const rows = getDb()
-					.prepare(
-						"SELECT items FROM batches ORDER BY created_at DESC LIMIT 10",
-					)
-					.all() as { items: string }[];
-				const allItems = rows.flatMap(
-					(r) => JSON.parse(r.items) as Array<{ status: string }>,
-				);
-				const terminal = allItems.filter((i) =>
-					["publish-confirmed", "error", "aborted"].includes(i.status),
-				);
-				if (terminal.length >= 5) {
-					const failed = terminal.filter(
-						(i) => i.status !== "publish-confirmed",
-					).length;
-					publishFailAlert = failed / terminal.length > 0.3;
-				}
-			} catch {
-				// 失败率统计不可用不影响健康检查
-			}
-
-			// 质量统计
-			let quality = { avgScore: 0, passRate: 0, totalGenerations: 0 };
-			try {
-				const { getQualityStats } = await import(
-					"./services/quality-metrics.js"
-				);
-				quality = await getQualityStats();
-			} catch {
-				// 质量统计不可用不影响健康检查
-			}
-
-			return {
-				ok: true,
-				uptime: Math.round(process.uptime()),
-				scheduler: { running: schedulerRunning, jobCount: jobs.size },
-				database: { healthy: dbHealthy },
-				llm: { configured: llmConfigured },
-				storage: { writable: storageWritable },
-				memory: {
-					heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-				},
-				quality,
-				publishFailAlert,
-			} as import("@sinclair/typebox").Static<typeof HealthzResponse>;
-		},
-	);
-
-	server.get("/api/v1/metrics", async (_request, reply) => {
-		reply.header("Content-Type", "text/plain; version=0.0.4");
-		return getMetrics();
-	});
-
-	// Standard Prometheus scraping endpoint (without API prefix)
-	server.get("/metrics", async (_request, reply) => {
-		reply.header("Content-Type", "text/plain; version=0.0.4");
-		return getMetrics();
-	});
-
+	// ---- 路由注册 ----
+	registerHealthzRoutes(server);
 	registerAuthRoutes(server);
 	server.addHook("preHandler", async (request, reply) => {
 		const url = request.url.split("?")[0];
@@ -231,163 +118,8 @@ export function buildApp(): FastifyInstance {
 		url: "https://example.com",
 		enabled: false,
 	});
-	scraperConfig.registerAdapter(acgs51Adapter);
-	scraperConfig.addSiteConfig({
-		siteName: "acgs51",
-		adapterName: "acgs51",
-		url: process.env.ACGS51_START_URL ?? "",
-		listUrl: process.env.ACGS51_LIST_URL || undefined,
-		cron: process.env.ACGS51_CRON || "0 */6 * * *",
-		enabled: process.env.ACGS51_ENABLED === "true",
-	});
 
 	return server;
-}
-
-interface GenerateDraftBody {
-	prompt: string;
-	settings: Settings;
-	facts?: FactsBlock;
-	enrichment?: string;
-}
-
-export function registerDraftRoutes(app: FastifyInstance): void {
-	app.get("/api/v1/models", async (request, reply) => {
-		const config = getLlmConfig();
-		const validation = validateLlmConfig(config);
-		if (!validation.valid)
-			return err(reply, 500, validation.error ?? "Unknown error");
-		try {
-			return await listModels(config.endpoint, config.apiKey);
-		} catch (e) {
-			request.log.error(e, "Failed to fetch models list");
-			return err(reply, 500, "Failed to fetch models from the LLM service.");
-		}
-	});
-
-	app.post<{ Body: GenerateDraftBody }>(
-		"/api/v1/drafts/generate",
-		{
-			config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
-			schema: {
-				body: GenerateDraftBodySchema,
-				response: { 200: GenerateDraftResponse },
-			},
-		},
-		async (request, reply) => {
-			const { prompt, settings, facts, enrichment } = request.body;
-			const config = getLlmConfig(settings);
-			const validation = validateLlmConfig(config);
-			if (!validation.valid)
-				return err(reply, 500, validation.error ?? "Unknown error", "no-key");
-			const resolvedSettings = {
-				...settings,
-				endpoint: config.endpoint.trim(),
-				model: config.model,
-			};
-			try {
-				const result = await generateDraft(prompt, {
-					settings: resolvedSettings,
-					apiKey: config.apiKey,
-					facts,
-					enrichment,
-				});
-				if (!result.ok) {
-					recordDraft(false);
-					return err(reply, 422, result.error, result.kind);
-				}
-				recordDraft(true);
-				return result;
-			} catch (e) {
-				recordDraft(false);
-				request.log.error(e, "Failed to generate draft via LLM");
-				return err(
-					reply,
-					500,
-					"Internal server error during draft generation.",
-					"network",
-				);
-			}
-		},
-	);
-
-	app.post<{
-		Body: {
-			draft: import("@51publisher/shared").ContentDraft;
-			criteriaPrompt?: string;
-			settings: import("@51publisher/shared").Settings;
-		};
-	}>(
-		"/api/v1/drafts/review",
-		{
-			schema: {
-				body: ReviewDraftBodySchema,
-			},
-		},
-		async (request, reply) => {
-			const { draft, criteriaPrompt, settings } = request.body;
-			const config = getLlmConfig(settings);
-			const validation = validateLlmConfig(config);
-			if (!validation.valid)
-				return err(reply, 500, validation.error ?? "Unknown error");
-			const resolvedSettings = {
-				...settings,
-				endpoint: config.endpoint,
-				model: config.model,
-			};
-			try {
-				const result = await reviewDraftLlm(draft, criteriaPrompt, {
-					settings: resolvedSettings,
-					apiKey: config.apiKey,
-				});
-				if (!result.ok) return err(reply, 422, result.error);
-				return result;
-			} catch (e) {
-				const msg = e instanceof Error ? e.message : String(e);
-				return err(reply, 500, `Review failed: ${msg}`);
-			}
-		},
-	);
-
-	app.post<{
-		Body: {
-			draft: import("@51publisher/shared").ContentDraft;
-			failedDims: string[];
-			settings: import("@51publisher/shared").Settings;
-		};
-	}>(
-		"/api/v1/drafts/rewrite",
-		{
-			schema: {
-				body: RewriteDraftBodySchema,
-			},
-		},
-		async (request, reply) => {
-			const { draft, failedDims, settings } = request.body;
-			const config = getLlmConfig(settings);
-			const validation = validateLlmConfig(config);
-			if (!validation.valid)
-				return err(reply, 500, validation.error ?? "Unknown error");
-			if (failedDims.length === 0)
-				return err(reply, 400, "failedDims must be a non-empty array.");
-			const resolvedSettings = {
-				...settings,
-				endpoint: config.endpoint,
-				model: config.model,
-			};
-			try {
-				const result = await rewriteDraftLlm(draft, failedDims, {
-					settings: resolvedSettings,
-					apiKey: config.apiKey,
-				});
-				if (!result.ok) return err(reply, 422, result.error);
-				return result;
-			} catch (e) {
-				const msg = e instanceof Error ? e.message : String(e);
-				return err(reply, 500, `Rewrite failed: ${msg}`);
-			}
-		},
-	);
 }
 
 export function startBackgroundJobs(app: FastifyInstance): void {

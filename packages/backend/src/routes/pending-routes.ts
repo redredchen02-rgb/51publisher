@@ -1,4 +1,4 @@
-import type { RejectionReason } from "@51publisher/shared";
+import type { RejectionReason } from "@51guapi/shared";
 import { Type } from "@sinclair/typebox";
 import type { FastifyInstance } from "fastify";
 import {

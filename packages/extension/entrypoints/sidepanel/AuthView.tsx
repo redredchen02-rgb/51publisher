@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { login } from "../../lib/auth-client";
+import { login } from "../../lib/api/auth-client";
 
 export function AuthView({ onLogin }: { onLogin: () => void }) {
 	const [password, setPassword] = useState("");

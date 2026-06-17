@@ -1,4 +1,4 @@
-import type { FactsBlock, Settings } from "@51publisher/shared";
+import type { FactsBlock, Settings } from "@51guapi/shared";
 
 export interface LlmDeps {
 	settings: Settings;

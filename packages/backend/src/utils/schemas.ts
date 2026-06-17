@@ -52,63 +52,38 @@ export const DraftSlotsSchema = Type.Object({
 	outro: Type.Optional(Type.String()),
 });
 
+// 共享草稿 schema（消除 GenerateDraftResponse / ReviewDraftBody / RewriteDraftBody 三处重复）
+export const ContentDraftSchema = Type.Object({
+	id: Type.String(),
+	title: Type.String(),
+	subtitle: Type.String(),
+	category: Type.String(),
+	coverImageUrl: Type.String(),
+	body: Type.String(),
+	tags: Type.Array(Type.String()),
+	description: Type.String(),
+	postStatus: Type.String(),
+	publishedAt: Type.String(),
+	mediaId: Type.String(),
+	status: Type.String(),
+	createdAt: Type.String(),
+});
+
 export const GenerateDraftResponse = Type.Object({
 	ok: OkStatus,
 	// 可选:Fastify+TypeBox 会剥除 schema 之外的响应字段,故必须在此声明,否则 slots 被静默丢弃。
 	slots: Type.Optional(DraftSlotsSchema),
-	draft: Type.Object({
-		id: Type.String(),
-		title: Type.String(),
-		subtitle: Type.String(),
-		category: Type.String(),
-		coverImageUrl: Type.String(),
-		body: Type.String(),
-		tags: Type.Array(Type.String()),
-		description: Type.String(),
-		postStatus: Type.String(),
-		publishedAt: Type.String(),
-		mediaId: Type.String(),
-		status: Type.String(),
-		createdAt: Type.String(),
-	}),
+	draft: ContentDraftSchema,
 });
 
 export const ReviewDraftBody = Type.Object({
-	draft: Type.Object({
-		id: Type.String(),
-		title: Type.String(),
-		subtitle: Type.String(),
-		category: Type.String(),
-		coverImageUrl: Type.String(),
-		body: Type.String(),
-		tags: Type.Array(Type.String()),
-		description: Type.String(),
-		postStatus: Type.String(),
-		publishedAt: Type.String(),
-		mediaId: Type.String(),
-		status: Type.String(),
-		createdAt: Type.String(),
-	}),
+	draft: ContentDraftSchema,
 	criteriaPrompt: Type.Optional(Type.String()),
 	settings: SettingsSchema,
 });
 
 export const RewriteDraftBody = Type.Object({
-	draft: Type.Object({
-		id: Type.String(),
-		title: Type.String(),
-		subtitle: Type.String(),
-		category: Type.String(),
-		coverImageUrl: Type.String(),
-		body: Type.String(),
-		tags: Type.Array(Type.String()),
-		description: Type.String(),
-		postStatus: Type.String(),
-		publishedAt: Type.String(),
-		mediaId: Type.String(),
-		status: Type.String(),
-		createdAt: Type.String(),
-	}),
+	draft: ContentDraftSchema,
 	failedDims: Type.Array(Type.String()),
 	settings: SettingsSchema,
 });

@@ -4,7 +4,7 @@ import {
 	formatFactsForPrompt,
 	isEmptyFacts,
 	parseTopicLine,
-} from "@51publisher/shared";
+} from "@51guapi/shared";
 import { describe, expect, it } from "vitest";
 
 describe("parseTopicLine", () => {

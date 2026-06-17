@@ -1,4 +1,4 @@
-import type { Batch } from "@51publisher/shared";
+import type { Batch } from "@51guapi/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getDb, initPendingDb, resetPendingDb } from "../scraper/pending-db.js";
 import { listBatches, loadBatch, saveBatch } from "./batch-store.js";

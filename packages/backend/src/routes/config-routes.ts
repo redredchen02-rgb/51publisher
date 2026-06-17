@@ -1,8 +1,5 @@
-import type { FieldMapping } from "@51publisher/shared";
-import {
-	DEFAULT_FIELD_MAPPING,
-	isValidFieldMapping,
-} from "@51publisher/shared";
+import type { FieldMapping } from "@51guapi/shared";
+import { DEFAULT_FIELD_MAPPING, isValidFieldMapping } from "@51guapi/shared";
 import type { FastifyInstance } from "fastify";
 import { configGet, configSet } from "../services/config-store.js";
 import { err } from "../utils/error-response.js";

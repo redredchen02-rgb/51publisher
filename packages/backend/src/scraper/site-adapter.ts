@@ -1,5 +1,5 @@
 // 通用 SiteAdapter 接口：适配不同目标站点的内容抓取。
-import type { FactsBlock } from "@51publisher/shared";
+import type { FactsBlock } from "@51guapi/shared";
 
 /** 从目标站点抓取的原始内容。 */
 export interface RawContent {

@@ -2,8 +2,8 @@
 // 搜索结果喂入 LLM prompt，让文章更丰富有深度。
 // 搜索失败时静默降级，不影响主管线。
 
-import type { FactsBlock } from "@51publisher/shared";
-import { getDb } from "./pending-db.js";
+import type { FactsBlock } from "@51guapi/shared";
+import { getCacheKey, getFromCache, saveToCache } from "./enrichment-cache.js";
 
 const UA =
 	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
@@ -24,97 +24,8 @@ export interface EnrichedContext {
 	collectedAt: string;
 }
 
-// ---- 缓存（内存 + SQLite 双层）----
-const memoryCache = new Map<
-	string,
-	{ data: EnrichedContext; expiresAt: number; lastAccessedAt: number }
->();
-const MEMORY_CACHE_TTL = 60 * 60 * 1000; // 1 小时
-const MEMORY_CACHE_SIZE = 500; // 增大缓存容量，减少 LRU 淘汰频率
-const DB_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 小时
-
-function evictLruFromMemoryCache(): void {
-	let lruKey: string | undefined;
-	let lruTime = Infinity;
-	for (const [k, v] of memoryCache) {
-		if (v.lastAccessedAt < lruTime) {
-			lruTime = v.lastAccessedAt;
-			lruKey = k;
-		}
-	}
-	if (lruKey) memoryCache.delete(lruKey);
-}
-
 function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-let _enrichmentTableReady = false;
-
-/** 初始化富化缓存表（幂等，只执行一次）。 */
-function initEnrichmentCacheTable(): void {
-	if (_enrichmentTableReady) return;
-	_enrichmentTableReady = true;
-	try {
-		const db = getDb();
-		db.exec(`
-			CREATE TABLE IF NOT EXISTS enrichment_cache (
-				cache_key TEXT PRIMARY KEY,
-				data TEXT NOT NULL,
-				created_at TEXT NOT NULL
-			);
-			CREATE INDEX IF NOT EXISTS idx_enrichment_created ON enrichment_cache(created_at);
-		`);
-		// 清理过期缓存（24小时）
-		db.prepare(
-			"DELETE FROM enrichment_cache WHERE created_at < datetime('now', '-1 day')",
-		).run();
-	} catch {
-		// 初始化失败不影响主流程
-	}
-}
-
-/** 从 SQLite 加载缓存。 */
-function loadFromDbCache(key: string): EnrichedContext | null {
-	try {
-		initEnrichmentCacheTable();
-		const db = getDb();
-		const row = db
-			.prepare(
-				`SELECT data, created_at FROM enrichment_cache WHERE cache_key = ?`,
-			)
-			.get(key) as { data: string; created_at: string } | undefined;
-
-		if (!row) return null;
-
-		const age = Date.now() - new Date(row.created_at).getTime();
-		if (age > DB_CACHE_TTL) {
-			db.prepare("DELETE FROM enrichment_cache WHERE cache_key = ?").run(key);
-			return null;
-		}
-
-		return JSON.parse(row.data) as EnrichedContext;
-	} catch {
-		return null;
-	}
-}
-
-/** 保存到 SQLite 缓存。 */
-function saveToDbCache(key: string, data: EnrichedContext): void {
-	try {
-		initEnrichmentCacheTable();
-		const db = getDb();
-		db.prepare(
-			`INSERT OR REPLACE INTO enrichment_cache (cache_key, data, created_at)
-			 VALUES (?, ?, ?)`,
-		).run(key, JSON.stringify(data), new Date().toISOString());
-	} catch {
-		// 保存失败不影响主流程
-	}
-}
-
-function getCacheKey(facts: FactsBlock): string {
-	return `${facts.制作 || ""}|${facts.作品名 || ""}`;
 }
 
 /** 从 Jina 返回的 Markdown 中提取有用信息。 */
@@ -320,29 +231,11 @@ export async function enrichContext(
 
 	const cacheKey = getCacheKey(facts);
 
-	// 1. 检查内存缓存
-	const memoryCached = memoryCache.get(cacheKey);
-	if (memoryCached && memoryCached.expiresAt > Date.now()) {
-		memoryCached.lastAccessedAt = Date.now();
-		return memoryCached.data;
-	}
+	// 1. 查询缓存（内存 → SQLite，由 enrichment-cache 模块管理）
+	const cached = getFromCache(cacheKey);
+	if (cached) return cached;
 
-	// 2. 检查 SQLite 缓存
-	const dbCached = loadFromDbCache(cacheKey);
-	if (dbCached) {
-		// 回填内存缓存
-		if (memoryCache.size >= MEMORY_CACHE_SIZE) {
-			evictLruFromMemoryCache();
-		}
-		memoryCache.set(cacheKey, {
-			data: dbCached,
-			expiresAt: Date.now() + MEMORY_CACHE_TTL,
-			lastAccessedAt: Date.now(),
-		});
-		return dbCached;
-	}
-
-	// 3. 执行搜索
+	// 2. 执行搜索
 	const tasks = buildSearchTasks(facts, maxQueries);
 	if (tasks.length === 0) {
 		return { queryResults: [], collectedAt: new Date().toISOString() };
@@ -373,16 +266,8 @@ export async function enrichContext(
 		collectedAt: new Date().toISOString(),
 	};
 
-	// 4. 写入缓存
-	if (memoryCache.size >= MEMORY_CACHE_SIZE) {
-		evictLruFromMemoryCache();
-	}
-	memoryCache.set(cacheKey, {
-		data: result,
-		expiresAt: Date.now() + MEMORY_CACHE_TTL,
-		lastAccessedAt: Date.now(),
-	});
-	saveToDbCache(cacheKey, result);
+	// 3. 写入缓存
+	saveToCache(cacheKey, result);
 
 	return result;
 }

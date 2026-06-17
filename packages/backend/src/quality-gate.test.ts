@@ -1,5 +1,5 @@
-import type { ContentDraft, FactsBlock } from "@51publisher/shared";
-import { evaluateQuality } from "@51publisher/shared";
+import type { ContentDraft, FactsBlock } from "@51guapi/shared";
+import { evaluateQuality } from "@51guapi/shared";
 import { describe, expect, it } from "vitest";
 
 function makeDraft(overrides: Partial<ContentDraft> = {}): ContentDraft {

@@ -8,9 +8,9 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../lib/auth-client", () => ({ login: vi.fn() }));
+vi.mock("../../lib/api/auth-client", () => ({ login: vi.fn() }));
 
-import { login } from "../../lib/auth-client";
+import { login } from "../../lib/api/auth-client";
 import { AuthView } from "./AuthView.js";
 
 const mockLogin = vi.mocked(login);

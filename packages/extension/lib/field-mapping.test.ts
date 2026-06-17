@@ -2,7 +2,7 @@ import {
 	DEFAULT_FIELD_MAPPING,
 	isValidFieldMapping,
 	VALID_FIELD_TYPES,
-} from "@51publisher/shared";
+} from "@51guapi/shared";
 import { describe, expect, it } from "vitest";
 
 describe("isValidFieldMapping", () => {

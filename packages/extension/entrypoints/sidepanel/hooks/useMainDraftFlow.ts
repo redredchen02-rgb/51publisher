@@ -1,4 +1,4 @@
-import type { ContentDraft, FieldFillResult } from "@51publisher/shared";
+import type { ContentDraft, FieldFillResult } from "@51guapi/shared";
 import { useRef, useState } from "react";
 import {
 	buildPrompt,

@@ -20,8 +20,8 @@ function makeTopic(overrides: Partial<PendingTopic> = {}): PendingTopic {
 	const now = new Date().toISOString();
 	return {
 		id: `test_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-		sourceUrl: "https://51acgs.com/article/123",
-		siteName: "acgs51",
+		sourceUrl: "https://example.com/article/123",
+		siteName: "demo",
 		title: "测试选题",
 		facts: { 作品名: "测试作品" },
 		confidence: 0.8,
@@ -144,7 +144,7 @@ describe("GET /api/v1/pending-topics — sort_by + fold_threshold (U7)", () => {
 		await savePendingTopic(
 			makeTopic({
 				id: "oldest",
-				sourceUrl: "https://51acgs.com/s/1",
+				sourceUrl: "https://example.com/s/1",
 				createdAt: "2026-01-01T00:00:00.000Z",
 				updatedAt: now,
 			}),
@@ -152,7 +152,7 @@ describe("GET /api/v1/pending-topics — sort_by + fold_threshold (U7)", () => {
 		await savePendingTopic(
 			makeTopic({
 				id: "newest",
-				sourceUrl: "https://51acgs.com/s/2",
+				sourceUrl: "https://example.com/s/2",
 				createdAt: "2026-06-01T00:00:00.000Z",
 				updatedAt: now,
 			}),
@@ -173,12 +173,12 @@ describe("GET /api/v1/pending-topics — sort_by + fold_threshold (U7)", () => {
 		await savePendingTopic(
 			makeTopic({
 				id: "high",
-				sourceUrl: "https://51acgs.com/s/high",
+				sourceUrl: "https://example.com/s/high",
 				title: "高分选题",
 				rawContent: {
 					title: "高分选题",
 					body: "<p>正文</p>",
-					url: "https://51acgs.com/s/high",
+					url: "https://example.com/s/high",
 				},
 				coverImageUrl: "https://cdn.example.com/cover.jpg",
 				createdAt: now,
@@ -189,7 +189,7 @@ describe("GET /api/v1/pending-topics — sort_by + fold_threshold (U7)", () => {
 		await savePendingTopic(
 			makeTopic({
 				id: "low",
-				sourceUrl: "https://51acgs.com/s/low",
+				sourceUrl: "https://example.com/s/low",
 				createdAt: "2026-01-01T00:00:00.000Z",
 				updatedAt: "2026-01-01T00:00:00.000Z",
 			}),
@@ -210,12 +210,12 @@ describe("GET /api/v1/pending-topics — sort_by + fold_threshold (U7)", () => {
 		await savePendingTopic(
 			makeTopic({
 				id: "rich",
-				sourceUrl: "https://51acgs.com/s/rich",
+				sourceUrl: "https://example.com/s/rich",
 				title: "丰富选题",
 				rawContent: {
 					title: "丰富选题",
 					body: "<p>正文</p>",
-					url: "https://51acgs.com/s/rich",
+					url: "https://example.com/s/rich",
 				},
 				coverImageUrl: "https://cdn.example.com/c.jpg",
 				createdAt: now,
@@ -225,7 +225,7 @@ describe("GET /api/v1/pending-topics — sort_by + fold_threshold (U7)", () => {
 		await savePendingTopic(
 			makeTopic({
 				id: "sparse",
-				sourceUrl: "https://51acgs.com/s/sparse",
+				sourceUrl: "https://example.com/s/sparse",
 				createdAt: "2026-01-01T00:00:00.000Z",
 				updatedAt: "2026-01-01T00:00:00.000Z",
 			}),
@@ -253,7 +253,7 @@ describe("GET /api/v1/pending-topics — sort_by + fold_threshold (U7)", () => {
 
 	it("无 fold_threshold → 响应不含 folded 字段", async () => {
 		await savePendingTopic(
-			makeTopic({ id: "nofold", sourceUrl: "https://51acgs.com/s/nf" }),
+			makeTopic({ id: "nofold", sourceUrl: "https://example.com/s/nf" }),
 		);
 		const res = await app.inject({
 			method: "GET",

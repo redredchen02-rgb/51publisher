@@ -8,7 +8,7 @@
 // 说明:verifyLinks/evaluateGrounding 是纯函数(无 DOM 依赖,见 grounding-gate.ts 注释),
 // 此 dry-run 不触发授权档 grounding 硬闸,故无需 DOMParser/linkedom,无跳过项。
 
-import type { ContentDraft } from "@51publisher/shared";
+import type { ContentDraft } from "@51guapi/shared";
 import type { Batch } from "../../../packages/extension/lib/batch.ts";
 import {
 	type ApproveBatchDeps,

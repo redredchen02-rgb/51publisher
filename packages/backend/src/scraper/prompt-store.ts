@@ -1,5 +1,5 @@
 import { dirname, join } from "node:path";
-import type { FewShotPair } from "@51publisher/shared";
+import type { FewShotPair } from "@51guapi/shared";
 import { JsonFileStore } from "../utils/json-store.js";
 
 // ---- 类型定义 ----

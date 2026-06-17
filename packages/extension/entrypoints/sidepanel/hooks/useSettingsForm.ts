@@ -1,9 +1,9 @@
-import type { FewShotPair, FieldMapping } from "@51publisher/shared";
+import type { FewShotPair, FieldMapping } from "@51guapi/shared";
 import { useCallback, useRef, useState } from "react";
-import type { ConnectionTestResult } from "../../../lib/connection-test";
-import { testConnection as runTestConnection } from "../../../lib/connection-test";
-import type { PromptTemplate } from "../../../lib/prompt-client";
-import { createPrompt, fetchPrompts } from "../../../lib/prompt-client";
+import type { ConnectionTestResult } from "../../../lib/api/connection-test";
+import { testConnection as runTestConnection } from "../../../lib/api/connection-test";
+import type { PromptTemplate } from "../../../lib/api/prompt-client";
+import { createPrompt, fetchPrompts } from "../../../lib/api/prompt-client";
 import {
 	deriveFewShotExamples,
 	getSettings,
@@ -25,7 +25,6 @@ export interface SettingsFormValues {
 	fallbackModel: string;
 	backendUrl: string;
 	reviewCriteriaPrompt: string;
-	dailyBatchSize: string;
 }
 
 export interface UseSettingsFormReturn {
@@ -62,7 +61,6 @@ export function useSettingsForm(): UseSettingsFormReturn {
 		fallbackModel: "",
 		backendUrl: "",
 		reviewCriteriaPrompt: "",
-		dailyBatchSize: "5",
 	});
 
 	const [prompts, setPrompts] = useState<PromptTemplate[]>([]);
@@ -105,7 +103,6 @@ export function useSettingsForm(): UseSettingsFormReturn {
 			fallbackModel: s.fallbackModel ?? "",
 			backendUrl: s.backendUrl ?? "",
 			reviewCriteriaPrompt: s.reviewCriteriaPrompt ?? "",
-			dailyBatchSize: String(s.dailyBatchSize ?? 5),
 		});
 	}, []);
 
@@ -138,8 +135,6 @@ export function useSettingsForm(): UseSettingsFormReturn {
 			fallbackModel: formValues.fallbackModel || undefined,
 			backendUrl: formValues.backendUrl || undefined,
 			reviewCriteriaPrompt: formValues.reviewCriteriaPrompt || undefined,
-			dailyBatchSize:
-				Number.parseInt(formValues.dailyBatchSize, 10) || undefined,
 		});
 		await saveApiKey(apiKeyRef.current);
 		await saveBackendToken(backendTokenRef.current);

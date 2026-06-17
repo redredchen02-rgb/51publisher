@@ -1,4 +1,4 @@
-import type { FactsBlock } from "@51publisher/shared";
+import type { FactsBlock } from "@51guapi/shared";
 import type { FastifyBaseLogger } from "fastify";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 

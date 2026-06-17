@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 51publisher 0-to-1 setup script (cross-platform: macOS / Linux / Windows)
+ * 51guapi 0-to-1 setup script (cross-platform: macOS / Linux / Windows)
  * Usage: node scripts/setup.mjs
  *
  * Steps:
@@ -35,11 +35,11 @@ const ENV_FILE = join(ROOT, "packages", "backend", ".env");
 const ENV_EXAMPLE = join(ROOT, "packages", "backend", ".env.example");
 const HEALTHZ = "http://localhost:3001/api/v1/healthz";
 const LOG_FILE = IS_WIN
-	? join(process.env.TEMP ?? "C:\\Temp", "51publisher-backend.log")
-	: "/tmp/51publisher-backend.log";
+	? join(process.env.TEMP ?? "C:\\Temp", "51guapi-backend.log")
+	: "/tmp/51guapi-backend.log";
 const PID_FILE = IS_WIN
-	? join(process.env.TEMP ?? "C:\\Temp", "51publisher-backend.pid")
-	: "/tmp/51publisher-backend.pid";
+	? join(process.env.TEMP ?? "C:\\Temp", "51guapi-backend.pid")
+	: "/tmp/51guapi-backend.pid";
 
 // ── ANSI colours (disabled on Windows unless WT / modern terminal) ──────────
 const HAS_COLOUR =
@@ -245,7 +245,7 @@ function needsBuild() {
 
 if (needsBuild()) {
 	info("构建后端...");
-	run('pnpm --filter "@51publisher/backend" build');
+	run('pnpm --filter "@51guapi/backend" build');
 	ok("后端构建完成 ✓");
 } else {
 	ok("后端构建产物是最新的，跳过构建 ✓");

@@ -1,5 +1,5 @@
 import React from "react";
-import type { PendingTopic } from "../../../lib/pending-client";
+import type { PendingTopic } from "../../../lib/api/pending-client";
 
 const FACTS_KEYS = [
 	"作品名",

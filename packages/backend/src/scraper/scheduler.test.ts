@@ -202,8 +202,7 @@ function startListJob(
 	listUrls: string[],
 	budgetOverride?: string,
 ): () => Promise<void> {
-	if (budgetOverride !== undefined)
-		process.env.ACGS51_LIST_BUDGET = budgetOverride;
+	if (budgetOverride !== undefined) process.env.LIST_BUDGET = budgetOverride;
 	scraperConfig.registerAdapter(
 		makeFetchListAdapter(`list-adapter-${testId}`, listUrls),
 	);
@@ -223,7 +222,7 @@ function startListJob(
 
 describe("startScheduler — list-discovery mode (U4)", () => {
 	beforeEach(() => {
-		delete process.env.ACGS51_LIST_BUDGET;
+		delete process.env.LIST_BUDGET;
 		// clearAllMocks does not reset implementations; explicitly restore defaults here
 		vi.mocked(pendingTopicExistsBySourceUrl).mockResolvedValue(false);
 		vi.mocked(savePendingTopic).mockResolvedValue({ inserted: true });
@@ -256,7 +255,7 @@ describe("startScheduler — list-discovery mode (U4)", () => {
 		await job();
 
 		expect(vi.mocked(savePendingTopic).mock.calls).toHaveLength(3);
-		delete process.env.ACGS51_LIST_BUDGET;
+		delete process.env.LIST_BUDGET;
 	});
 
 	it("session set 去重：同一 URL 出现两次，fetchContent 只调用一次", async () => {

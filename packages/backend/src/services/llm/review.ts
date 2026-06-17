@@ -1,4 +1,4 @@
-import type { ContentDraft, ReviewResult } from "@51publisher/shared";
+import type { ContentDraft, ReviewResult } from "@51guapi/shared";
 import { callLlmForJson } from "./http.js";
 import type { LlmDeps } from "./types.js";
 

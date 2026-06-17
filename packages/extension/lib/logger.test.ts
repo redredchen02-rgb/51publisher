@@ -11,16 +11,14 @@ describe("logger", () => {
 	it("info logs with correct format", () => {
 		const spy = vi.spyOn(console, "info").mockImplementation(() => {});
 		logger.info("test", "hello", { id: 1 });
-		expect(spy).toHaveBeenCalledWith(
-			'[51publisher] [info] [test] hello {"id":1}',
-		);
+		expect(spy).toHaveBeenCalledWith('[51guapi] [info] [test] hello {"id":1}');
 	});
 
 	it("warn logs with correct format", () => {
 		const spy = vi.spyOn(console, "warn").mockImplementation(() => {});
 		logger.warn("test-module", "something went wrong");
 		expect(spy).toHaveBeenCalledWith(
-			"[51publisher] [warn] [test-module] something went wrong",
+			"[51guapi] [warn] [test-module] something went wrong",
 		);
 	});
 
@@ -28,7 +26,7 @@ describe("logger", () => {
 		const spy = vi.spyOn(console, "error").mockImplementation(() => {});
 		logger.error("db", "query failed", { query: "SELECT *" });
 		expect(spy).toHaveBeenCalledWith(
-			'[51publisher] [error] [db] query failed {"query":"SELECT *"}',
+			'[51guapi] [error] [db] query failed {"query":"SELECT *"}',
 		);
 	});
 
@@ -43,14 +41,12 @@ describe("logger", () => {
 		logger.__setDevForTest(true);
 		const spy = vi.spyOn(console, "debug").mockImplementation(() => {});
 		logger.debug("test", "debug detail");
-		expect(spy).toHaveBeenCalledWith(
-			"[51publisher] [debug] [test] debug detail",
-		);
+		expect(spy).toHaveBeenCalledWith("[51guapi] [debug] [test] debug detail");
 	});
 
 	it("logs without context (no trailing JSON)", () => {
 		const spy = vi.spyOn(console, "info").mockImplementation(() => {});
 		logger.info("test", "no context");
-		expect(spy).toHaveBeenCalledWith("[51publisher] [info] [test] no context");
+		expect(spy).toHaveBeenCalledWith("[51guapi] [info] [test] no context");
 	});
 });

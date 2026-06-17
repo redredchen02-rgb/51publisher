@@ -1,4 +1,4 @@
-import type { FewShotPair } from "@51publisher/shared";
+import type { FewShotPair } from "@51guapi/shared";
 
 const MAX_PAIRS = 8;
 

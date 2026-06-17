@@ -2,9 +2,6 @@
 // Refuses to start on weak/placeholder secrets so the running instance can
 // never authenticate with known defaults.
 
-import { URL } from "node:url";
-import { isHostAllowed, loadSSRFAllowlist } from "../scraper/ssrf-allowlist.js";
-
 const WEAK_SECRETS = new Set([
 	"",
 	"change-this-to-a-random-secret",
@@ -43,69 +40,6 @@ export function checkEnv(env: NodeJS.ProcessEnv = process.env): string[] {
 				"chrome-extension://<extension-id>. Comma-separate for dev+prod IDs. " +
 				"Wildcard '*' is rejected to prevent open cross-origin access.",
 		);
-	}
-
-	// 抓取防呆:仅当启用 acgs51 抓取时校验。adapter 是单条详情页解析器,
-	// START_URL 必须是具体详情页且 host 在 SSRF allowlist 内,不启用则零影响。
-	if (env.ACGS51_ENABLED === "true") {
-		const startUrl = (env.ACGS51_START_URL ?? "").trim();
-		if (!startUrl) {
-			errors.push(
-				"ACGS51_ENABLED=true but ACGS51_START_URL is missing or blank. " +
-					"Set it to a concrete content detail page URL (the adapter parses a single " +
-					"detail page, not a homepage). See .env.example for the expected form.",
-			);
-		} else {
-			let parsed: URL | null = null;
-			try {
-				parsed = new URL(startUrl);
-			} catch {
-				errors.push(
-					`ACGS51_START_URL is not a valid URL: "${startUrl}". ` +
-						"Set it to a concrete content detail page URL, e.g. " +
-						"https://51acgs.com/acg/12345.html (see .env.example).",
-				);
-			}
-			if (parsed && !isHostAllowed(parsed, loadSSRFAllowlist(env))) {
-				errors.push(
-					`ACGS51_START_URL host "${parsed.hostname}" is not covered by ALLOWED_HOSTS. ` +
-						"Add it to ALLOWED_HOSTS (comma-separated, see .env.example) or fix the URL. " +
-						"Empty ALLOWED_HOSTS denies all hosts (fail-closed).",
-				);
-			}
-		}
-
-		// ACGS51_LIST_URL: 可选；若填写则必须是合法 URL 且 host 在 allowlist 内
-		const listUrl = (env.ACGS51_LIST_URL ?? "").trim();
-		if (listUrl) {
-			let parsedList: URL | null = null;
-			try {
-				parsedList = new URL(listUrl);
-			} catch {
-				errors.push(
-					`ACGS51_LIST_URL is not a valid URL: "${listUrl}". ` +
-						"Set it to the list/index page of the acgs51 site (e.g. https://51acgs.com/acg/).",
-				);
-			}
-			if (parsedList && !isHostAllowed(parsedList, loadSSRFAllowlist(env))) {
-				errors.push(
-					`ACGS51_LIST_URL host "${parsedList.hostname}" is not covered by ALLOWED_HOSTS. ` +
-						"Add it to ALLOWED_HOSTS or fix the URL.",
-				);
-			}
-		}
-
-		// ACGS51_LIST_BUDGET: 可选；若填写必须是正整数
-		const budgetStr = (env.ACGS51_LIST_BUDGET ?? "").trim();
-		if (budgetStr) {
-			const n = Number(budgetStr);
-			if (!Number.isInteger(n) || n < 1) {
-				errors.push(
-					`ACGS51_LIST_BUDGET must be a positive integer (got "${budgetStr}"). ` +
-						"Default is 20 if unset.",
-				);
-			}
-		}
 	}
 
 	// Web search enrichment: ENRICHMENT_MAX_QUERIES must be 1-10 if set

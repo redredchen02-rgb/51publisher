@@ -1,5 +1,5 @@
-import type { FactsBlock } from "@51publisher/shared";
-import { CORE_FACT_KEYS, FACT_ORDER } from "@51publisher/shared";
+import type { FactsBlock } from "@51guapi/shared";
+import { CORE_FACT_KEYS, FACT_ORDER } from "@51guapi/shared";
 import { chatCompletionsUrl } from "../services/llm.js";
 import type { ExtractedFacts, RawContent } from "./site-adapter.js";
 

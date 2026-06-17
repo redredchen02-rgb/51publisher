@@ -27,12 +27,12 @@ vi.mock("../../../lib/storage", async (importOriginal) => {
 	};
 });
 
-vi.mock("../../../lib/prompt-client", () => ({
+vi.mock("../../../lib/api/prompt-client", () => ({
 	fetchPrompts: mocks.fetchPrompts,
 	createPrompt: mocks.createPrompt,
 }));
 
-vi.mock("../../../lib/connection-test", () => ({
+vi.mock("../../../lib/api/connection-test", () => ({
 	testConnection: mocks.testConnection,
 }));
 
@@ -51,7 +51,6 @@ const DEFAULT_SETTINGS_MOCK = {
 	fallbackModel: undefined,
 	backendUrl: "http://localhost:3001",
 	reviewCriteriaPrompt: "",
-	dailyBatchSize: 5,
 };
 
 describe("useSettingsForm — Unit 2: load / save", () => {

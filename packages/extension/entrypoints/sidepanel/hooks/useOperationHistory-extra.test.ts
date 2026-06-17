@@ -3,9 +3,11 @@ import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useOperationHistory } from "./useOperationHistory";
 
-vi.mock("../../../lib/chrome-storage-utils", async (importOriginal) => {
+vi.mock("../../../lib/storage/chrome-storage-utils", async (importOriginal) => {
 	const actual =
-		await importOriginal<typeof import("../../../lib/chrome-storage-utils")>();
+		await importOriginal<
+			typeof import("../../../lib/storage/chrome-storage-utils")
+		>();
 	return { ...actual };
 });
 
@@ -32,7 +34,7 @@ describe("useOperationHistory — storage path coverage", () => {
 			set: vi.fn(),
 			remove: vi.fn(),
 		};
-		const mod = await import("../../../lib/chrome-storage-utils");
+		const mod = await import("../../../lib/storage/chrome-storage-utils");
 		vi.spyOn(mod, "getStorage").mockReturnValue(
 			mockStorage as unknown as ReturnType<typeof mod.getStorage>,
 		);
@@ -50,7 +52,7 @@ describe("useOperationHistory — storage path coverage", () => {
 			set: vi.fn(),
 			remove: vi.fn(),
 		};
-		const mod = await import("../../../lib/chrome-storage-utils");
+		const mod = await import("../../../lib/storage/chrome-storage-utils");
 		vi.spyOn(mod, "getStorage").mockReturnValue(
 			mockStorage as unknown as ReturnType<typeof mod.getStorage>,
 		);
@@ -68,7 +70,7 @@ describe("useOperationHistory — storage path coverage", () => {
 			set: vi.fn(),
 			remove: removeFn,
 		};
-		const mod = await import("../../../lib/chrome-storage-utils");
+		const mod = await import("../../../lib/storage/chrome-storage-utils");
 		vi.spyOn(mod, "getStorage").mockReturnValue(
 			mockStorage as unknown as ReturnType<typeof mod.getStorage>,
 		);
@@ -85,7 +87,7 @@ describe("useOperationHistory — storage path coverage", () => {
 			set: vi.fn(),
 			remove: vi.fn(),
 		};
-		const mod = await import("../../../lib/chrome-storage-utils");
+		const mod = await import("../../../lib/storage/chrome-storage-utils");
 		vi.spyOn(mod, "getStorage").mockReturnValue(
 			mockStorage as unknown as ReturnType<typeof mod.getStorage>,
 		);

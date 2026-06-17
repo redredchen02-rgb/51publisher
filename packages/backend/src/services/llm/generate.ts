@@ -2,13 +2,13 @@ import type {
 	FactsBlock,
 	GenerateDraftResponse,
 	Settings,
-} from "@51publisher/shared";
+} from "@51guapi/shared";
 import {
 	assembleDraft,
 	type DraftSlots,
 	normalizeCategory,
 	toDraft,
-} from "@51publisher/shared";
+} from "@51guapi/shared";
 import {
 	buildRequest,
 	extractContent,
@@ -189,7 +189,7 @@ export async function generateDraft(
 	const category = normalizeCategory(str(parsed.category));
 	const draft = toDraft(assembled, category, tags, id, now);
 
-	const { evaluateQuality } = await import("@51publisher/shared");
+	const { evaluateQuality } = await import("@51guapi/shared");
 	const quality = evaluateQuality(draft, facts as FactsBlock);
 	const qualityWarnings = quality.checks
 		.filter((c) => !c.pass)

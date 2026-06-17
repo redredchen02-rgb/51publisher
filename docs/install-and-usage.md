@@ -1,6 +1,6 @@
 # 安装与使用指南
 
-51publisher 由两部分组成:一个 **Chrome 扩展**（生成草稿 + 填充表单）和一个**本地后端服务**（持久化批次、抓取选题、健康监控）。
+51guapi 由两部分组成:一个 **Chrome 扩展**（生成吃瓜短文 + 填入表單）和一个**本地后端服务**（持久化批次、抓取选题、健康监控）。
 
 > 🛡️ **防幻觉核心**:模型**只负责写口吻散文**;作品名、集数、连结等事实由**系统从你提供的事实里原样填入正文,模型碰不到**——从流程上让它没机会编造连结或作品事实。
 
@@ -21,7 +21,7 @@
 
 ```bash
 git clone <仓库地址>
-cd 51publisher
+cd 51guapi
 
 # 首次克隆后启用脱敏 pre-commit hook（只需一次）
 git config core.hooksPath scripts/git-hooks
@@ -59,7 +59,7 @@ node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"
 node packages/backend/scripts/hash-password.mjs
 ```
 
-> **`CORS_ORIGIN` 怎么找？** 先跳到第四步构建并加载扩展，然后打开 `chrome://extensions`，找到 51publisher 扩展，复制 ID（格式如 `abcdef123456`），填入 `chrome-extension://abcdef123456`。多个 ID 用逗号分隔。
+> **`CORS_ORIGIN` 怎么找？** 先跳到第四步构建并加载扩展，然后打开 `chrome://extensions`，找到 51guapi 扩展，复制 ID（格式如 `abcdef123456`），填入 `chrome-extension://abcdef123456`。多个 ID 用逗号分隔。
 
 ### 3-2 启动
 
@@ -84,9 +84,9 @@ Server listening at http://127.0.0.1:3001
 
 ```bash
 # 先把 .env 放到专用安全目录（权限收紧）
-mkdir -p ~/.51publisher
-cp packages/backend/.env ~/.51publisher/.env
-chmod 600 ~/.51publisher/.env
+mkdir -p ~/.51guapi
+cp packages/backend/.env ~/.51guapi/.env
+chmod 600 ~/.51guapi/.env
 
 # 注册 launchd daemon（开机自启）
 bash scripts/launchd/install.sh
@@ -95,7 +95,7 @@ bash scripts/launchd/install.sh
 bash scripts/launchd/uninstall.sh
 ```
 
-日志写入 `/tmp/51publisher-backend.log`。
+日志写入 `/tmp/51guapi-backend.log`。
 
 ---
 
@@ -138,7 +138,7 @@ pnpm build:extension
 
 ### 单条流程
 
-1. 在 51publisher 后台打开「添加帖子」表单。
+1. 在後台打開「添加帖子」表单。
 2. 侧边栏输入主题 →「**生成草稿**」。
 3. 预览区核对/修改草稿内容。
 4. 「**填充到当前页**」→ 看「填充结果」面板：绿=已填 / 黄=跳过 / 红=需手动。
@@ -192,10 +192,9 @@ pnpm build:extension
 在 `packages/backend/.env` 里开启：
 
 ```bash
-ACGS51_ENABLED=true
-ACGS51_LIST_URL=https://51acgs.com/acg/
-ACGS51_CRON=0 */6 * * *    # 每 6 小时抓一次
-ALLOWED_HOSTS=https://51acgs.com
+SCRAPE_ENABLED=true
+SCRAPE_CRON=0 */6 * * *    # 每 6 小时抓一次
+ALLOWED_HOSTS=https://example.com
 ```
 
 开启后，侧边栏批量视图会出现「**今日一键备稿**」按钮，自动取质量分最高的 top-3 选题生成批次。

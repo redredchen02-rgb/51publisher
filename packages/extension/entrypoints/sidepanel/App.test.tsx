@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { ContentDraft } from "@51publisher/shared";
+import type { ContentDraft } from "@51guapi/shared";
 import {
 	cleanup,
 	fireEvent,
@@ -32,7 +32,7 @@ const saveCurrentDraftMock = vi.hoisted(() =>
 	vi.fn().mockResolvedValue(undefined),
 );
 
-vi.mock("../../lib/auth-client", () => ({
+vi.mock("../../lib/api/auth-client", () => ({
 	isAuthenticated: vi.fn(async () => true),
 	login: vi.fn(),
 	getToken: vi.fn(),
@@ -61,7 +61,7 @@ vi.mock("../../lib/storage", () => ({
 import { App } from "./App";
 
 async function waitForAppReady() {
-	await screen.findByText("51publisher 填充助手");
+	await screen.findByText("51guapi 吃瓜小幫手");
 }
 
 describe("App", () => {
@@ -71,12 +71,6 @@ describe("App", () => {
 		saveCurrentDraftMock.mockReset();
 	});
 	afterEach(() => cleanup());
-
-	it("常驻显示「不会自动发布」提示", async () => {
-		render(<App />);
-		await waitForAppReady();
-		expect(screen.getByText(/不会自动发布/)).toBeTruthy();
-	});
 
 	it("空主题点生成 → 提示输入主题", async () => {
 		render(<App />);
@@ -112,28 +106,6 @@ describe("App", () => {
 		});
 		fireEvent.click(screen.getByText("生成草稿"));
 		expect(await screen.findByText(/点右上角设置/)).toBeTruthy();
-	});
-
-	it("填充 → 显示结果面板;有问题字段进入 partial", async () => {
-		requestGenerate.mockResolvedValue({ ok: true, draft });
-		requestFill.mockResolvedValue({
-			ok: true,
-			results: [
-				{ field: "title", status: "filled" },
-				{ field: "body", status: "degraded", note: "需手动" },
-			],
-		});
-		render(<App />);
-		await waitForAppReady();
-		fireEvent.change(screen.getByPlaceholderText(/输入选题/), {
-			target: { value: "某新番" },
-		});
-		fireEvent.click(screen.getByText("生成草稿"));
-		await screen.findByDisplayValue("AI 标题");
-		fireEvent.click(screen.getByText("填充到当前页"));
-		await waitFor(() => expect(screen.getByText("填充结果")).toBeTruthy());
-		expect(screen.getByText(/未完整填入/)).toBeTruthy();
-		expect(screen.getByText("复制正文")).toBeTruthy();
 	});
 
 	it("生成中显示进度条", async () => {
@@ -172,45 +144,6 @@ describe("App", () => {
 		});
 		fireEvent.click(screen.getByText("生成草稿"));
 		expect(await screen.findByText("网络超时，请重试")).toBeTruthy();
-	});
-
-	it("填充成功 → 显示成功 toast", async () => {
-		requestGenerate.mockResolvedValue({ ok: true, draft });
-		requestFill.mockResolvedValue({
-			ok: true,
-			results: [{ field: "title", status: "filled" }],
-		});
-		render(<App />);
-		await waitForAppReady();
-		fireEvent.change(screen.getByPlaceholderText(/输入选题/), {
-			target: { value: "某新番" },
-		});
-		fireEvent.click(screen.getByText("生成草稿"));
-		await screen.findByDisplayValue("AI 标题");
-		fireEvent.click(screen.getByText("填充到当前页"));
-		await waitFor(() => {
-			expect(screen.getByText("填充成功")).toBeTruthy();
-		});
-	});
-
-	it("填充失败 → 显示错误 toast", async () => {
-		requestGenerate.mockResolvedValue({ ok: true, draft });
-		requestFill.mockResolvedValue({
-			ok: false,
-			error: "填充出错",
-		});
-		render(<App />);
-		await waitForAppReady();
-		fireEvent.change(screen.getByPlaceholderText(/输入选题/), {
-			target: { value: "某新番" },
-		});
-		fireEvent.click(screen.getByText("生成草稿"));
-		await screen.findByDisplayValue("AI 标题");
-		fireEvent.click(screen.getByText("填充到当前页"));
-		await waitFor(() => {
-			const matches = screen.getAllByText("填充出错");
-			expect(matches.length).toBeGreaterThanOrEqual(1);
-		});
 	});
 });
 

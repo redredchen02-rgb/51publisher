@@ -1,4 +1,4 @@
-import type { PendingTopic } from "../../../lib/pending-client";
+import type { PendingTopic } from "../../../lib/api/pending-client";
 
 interface Props {
 	topics: PendingTopic[];

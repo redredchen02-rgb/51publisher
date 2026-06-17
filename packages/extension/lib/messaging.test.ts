@@ -1,11 +1,6 @@
-import type { ContentDraft } from "@51publisher/shared";
+import type { ContentDraft } from "@51guapi/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-	checkSelectors,
-	discardBatchItem,
-	pickAdminTabId,
-	requestFill,
-} from "./messaging";
+import { checkSelectors, pickAdminTabId, requestFill } from "./messaging";
 
 // Mock browser tabs API and recipe host
 const mockSendMessage = vi.fn();

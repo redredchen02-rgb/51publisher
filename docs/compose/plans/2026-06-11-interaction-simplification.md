@@ -225,7 +225,7 @@ Expected: FAIL with "Cannot find module './useAutoSave'"
 // packages/extension/entrypoints/sidepanel/hooks/useAutoSave.ts
 import { useCallback, useRef } from 'react';
 import { saveCurrentDraft } from '../../lib/storage';
-import type { ContentDraft } from '@51publisher/shared';
+import type { ContentDraft } from '@51guapi/shared';
 
 interface UseAutoSaveReturn {
   saveDraft: (draft: ContentDraft, immediate?: boolean) => void;

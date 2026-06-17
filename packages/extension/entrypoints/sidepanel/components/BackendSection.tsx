@@ -1,22 +1,18 @@
 import { useState } from "react";
-import type { ConnectionTestResult } from "../../../lib/connection-test";
+import type { ConnectionTestResult } from "../../../lib/api/connection-test";
 
 interface BackendSectionProps {
 	backendUrl: string;
-	dailyBatchSize: string;
 	getBackendToken: () => string;
 	setBackendUrl: (v: string) => void;
-	setDailyBatchSize: (v: string) => void;
 	setBackendToken: (v: string) => void;
 	onTestConnection: () => Promise<ConnectionTestResult>;
 }
 
 export function BackendSection({
 	backendUrl,
-	dailyBatchSize,
 	getBackendToken,
 	setBackendUrl,
-	setDailyBatchSize,
 	setBackendToken,
 	onTestConnection,
 }: BackendSectionProps) {
@@ -82,20 +78,6 @@ export function BackendSection({
 							: "✗ 連線失敗，請確認 URL 和 Token"}
 					</p>
 				)}
-			</div>
-			<div className="field-group">
-				<label htmlFor="daily-batch-size" className="field-label">
-					每日批量上限（1-20，默认 5）
-				</label>
-				<input
-					id="daily-batch-size"
-					className="field-input"
-					type="number"
-					min={1}
-					max={20}
-					value={dailyBatchSize}
-					onChange={(e) => setDailyBatchSize(e.target.value)}
-				/>
 			</div>
 		</div>
 	);

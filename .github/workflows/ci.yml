@@ -35,7 +35,7 @@ jobs:
         run: pnpm audit --audit-level=high || echo "::warning::dev 依赖存在高/严重漏洞，请关注"
 
       - name: Build shared
-        run: pnpm --filter @51publisher/shared build
+        run: pnpm --filter @51guapi/shared build
 
       - name: Type check
         run: pnpm -r compile
@@ -56,7 +56,7 @@ jobs:
       - name: E2E (skips visible)
         run: |
           set -o pipefail
-          pnpm --filter "@51publisher/extension" test:e2e 2>&1 | tee e2e.log
+          pnpm --filter "@51guapi/extension" test:e2e 2>&1 | tee e2e.log
           echo "### E2E test summary" >> "$GITHUB_STEP_SUMMARY"
           grep -E "Tests +[0-9]" e2e.log | tail -1 >> "$GITHUB_STEP_SUMMARY" \
             || echo "(no vitest summary line found — investigate)" >> "$GITHUB_STEP_SUMMARY"
@@ -65,8 +65,8 @@ jobs:
       # 复用 scripts/check-all.sh 的产物校验尾段思路(不整段调它以免重复 lint/test)。
       - name: Build and verify artifacts
         run: |
-          pnpm --filter "@51publisher/backend" build
-          pnpm --filter "@51publisher/extension" build
+          pnpm --filter "@51guapi/backend" build
+          pnpm --filter "@51guapi/extension" build
           # 断言关键产物文件存在(非仅目录),避免空/坏 build 通过 test -d。
           test -f packages/extension/.output/chrome-mv3/manifest.json \
             || { echo "✗ 扩展产物缺 chrome-mv3/manifest.json(build 可能空/坏)"; exit 1; }

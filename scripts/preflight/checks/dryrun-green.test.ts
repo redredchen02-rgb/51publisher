@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { ContentDraft } from "@51publisher/shared";
+import type { ContentDraft } from "@51guapi/shared";
 import { describe, expect, it } from "vitest";
 import type { Batch } from "../../../packages/extension/lib/batch.ts";
 import {

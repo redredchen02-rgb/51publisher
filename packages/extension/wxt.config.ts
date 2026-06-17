@@ -29,15 +29,14 @@ const EXTENSION_KEY =
 export default defineConfig({
 	modules: ["@wxt-dev/module-react"],
 	manifest: {
-		name: "51publisher 发帖填充助手",
-		description:
-			"AI 生成草稿并填入后台发帖表单。授权站点可批量自动发布,非授权站点仅填充。",
+		name: "51guapi 吃瓜小幫手",
+		description: "AI 生成吃瓜短文草稿，一键填入後台表單。支援批量生成與審核。",
 		key: EXTENSION_KEY,
 		// alarms:background 用 chrome.alarms 做 SW keep-alive;缺此权限会让
 		// chrome.alarms 为 undefined,background main() 启动即抛异常 → SW 整个失效。
 		permissions: ["storage", "sidePanel", "alarms"],
 		host_permissions: parseHosts(),
-		action: { default_title: "51publisher 填充助手" },
+		action: { default_title: "51guapi 吃瓜小幫手" },
 		side_panel: { default_path: "sidepanel.html" },
 	},
 });

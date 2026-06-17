@@ -160,10 +160,7 @@ async function runListDiscovery(
 		);
 		return;
 	}
-	const budget = Math.max(
-		1,
-		Number(process.env.ACGS51_LIST_BUDGET ?? "20") || 20,
-	);
+	const budget = Math.max(1, Number(process.env.LIST_BUDGET ?? "20") || 20);
 	deps.logger?.info(
 		`[scheduler] List-discovery start: ${site.siteName} listUrl=${site.listUrl}`,
 	);

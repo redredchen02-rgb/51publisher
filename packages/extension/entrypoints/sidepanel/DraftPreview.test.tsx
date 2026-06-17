@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { ContentDraft } from "@51publisher/shared";
+import type { ContentDraft } from "@51guapi/shared";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DraftPreview } from "./DraftPreview.js";

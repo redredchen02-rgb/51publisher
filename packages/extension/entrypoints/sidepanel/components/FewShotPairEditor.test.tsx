@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { FewShotPair } from "@51publisher/shared";
+import type { FewShotPair } from "@51guapi/shared";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FewShotPairEditor } from "./FewShotPairEditor";

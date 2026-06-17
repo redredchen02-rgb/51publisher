@@ -3,7 +3,7 @@
  * 统一管理 web enricher 的调用逻辑
  */
 
-import type { FactsBlock } from "@51publisher/shared";
+import type { FactsBlock } from "@51guapi/shared";
 import type { FastifyBaseLogger } from "fastify";
 import { type EnrichedContext, enrichContext } from "./web-enricher.js";
 

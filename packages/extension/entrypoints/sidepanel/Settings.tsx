@@ -1,4 +1,4 @@
-import { isValidFieldMapping, VALID_FIELD_TYPES } from "@51publisher/shared";
+import { isValidFieldMapping, VALID_FIELD_TYPES } from "@51guapi/shared";
 import { useEffect, useState } from "react";
 import { logger } from "../../lib/logger";
 import { DEFAULT_SETTINGS } from "../../lib/storage";
@@ -135,10 +135,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
 			<BackendSection
 				backendUrl={formValues.backendUrl}
-				dailyBatchSize={formValues.dailyBatchSize}
 				getBackendToken={getBackendToken}
 				setBackendUrl={(v) => setFormValue("backendUrl", v)}
-				setDailyBatchSize={(v) => setFormValue("dailyBatchSize", v)}
 				setBackendToken={setBackendToken}
 				onTestConnection={hook.testConnectionFn}
 			/>

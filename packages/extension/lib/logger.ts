@@ -13,7 +13,7 @@ function formatLog(
 	msg: string,
 	ctx?: LogContext,
 ): string {
-	const prefix = `[51publisher] [${level}] [${module}] ${msg}`;
+	const prefix = `[51guapi] [${level}] [${module}] ${msg}`;
 	if (ctx && Object.keys(ctx).length > 0) {
 		return `${prefix} ${JSON.stringify(ctx)}`;
 	}

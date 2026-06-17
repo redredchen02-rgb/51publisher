@@ -1,4 +1,4 @@
-import { CATEGORY_VOCAB, normalizeCategory } from "@51publisher/shared";
+import { CATEGORY_VOCAB, normalizeCategory } from "@51guapi/shared";
 import { describe, expect, it } from "vitest";
 
 describe("normalizeCategory", () => {

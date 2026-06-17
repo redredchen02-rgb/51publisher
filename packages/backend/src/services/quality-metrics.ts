@@ -1,7 +1,7 @@
 // 质量指标跟踪：记录每次生成的质量分，计算统计指标。
 // 存入 SQLite，供监控和分析使用。
 
-import type { QualityCheck } from "@51publisher/shared";
+import type { QualityCheck } from "@51guapi/shared";
 import { type BetterSqlite3DB, getDb } from "../scraper/pending-db.js";
 
 export interface QualityMetric {

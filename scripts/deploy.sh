@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-echo "=== 51publisher Deploy ==="
+echo "=== 51guapi Deploy ==="
 
 # Detect environment
 if [ -f /app/package.json ]; then
@@ -15,8 +15,8 @@ echo "=> Detected local environment"
 # Build if needed
 if [ ! -d "packages/backend/dist" ]; then
   echo "=> Building..."
-  pnpm --filter @51publisher/shared build
-  pnpm --filter "@51publisher/backend" build
+  pnpm --filter @51guapi/shared build
+  pnpm --filter "@51guapi/backend" build
 fi
 
 # Verify health

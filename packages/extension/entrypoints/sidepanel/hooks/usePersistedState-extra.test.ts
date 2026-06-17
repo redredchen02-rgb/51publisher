@@ -2,9 +2,11 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../../lib/chrome-storage-utils", async (importOriginal) => {
+vi.mock("../../../lib/storage/chrome-storage-utils", async (importOriginal) => {
 	const actual =
-		await importOriginal<typeof import("../../../lib/chrome-storage-utils")>();
+		await importOriginal<
+			typeof import("../../../lib/storage/chrome-storage-utils")
+		>();
 	return { ...actual };
 });
 
@@ -17,7 +19,7 @@ describe("usePersistedState — storage null branch coverage", () => {
 	});
 
 	it("getStorage() returns null on mount → no setState, value stays default", async () => {
-		const mod = await import("../../../lib/chrome-storage-utils");
+		const mod = await import("../../../lib/storage/chrome-storage-utils");
 		vi.spyOn(mod, "getStorage").mockReturnValue(null);
 
 		const { result } = renderHook(() =>
@@ -34,7 +36,7 @@ describe("usePersistedState — storage null branch coverage", () => {
 	});
 
 	it("getStorage() returns null in setValue → value updated in state but not persisted", async () => {
-		const mod = await import("../../../lib/chrome-storage-utils");
+		const mod = await import("../../../lib/storage/chrome-storage-utils");
 		vi.spyOn(mod, "getStorage").mockReturnValue(null);
 
 		const { result } = renderHook(() =>

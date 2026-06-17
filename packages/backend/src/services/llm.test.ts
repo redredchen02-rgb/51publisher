@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import type { FactsBlock, Settings } from "@51publisher/shared";
-import { assembleDraft, toDraft } from "@51publisher/shared";
+import type { FactsBlock, Settings } from "@51guapi/shared";
+import { assembleDraft, toDraft } from "@51guapi/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
 	buildRequest,
