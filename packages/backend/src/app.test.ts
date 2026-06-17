@@ -113,9 +113,10 @@ describe("buildApp", () => {
 		expect(typeof body.publishFailAlert).toBe("boolean");
 	});
 
-	it("GET /api/v1/metrics 无 token → 401（preHandler 全局生效，metrics 不在白名单）", async () => {
+	it("GET /api/v1/metrics 无 token → 200（Prometheus 抓取不需鉴权）", async () => {
 		const res = await app.inject({ method: "GET", url: "/api/v1/metrics" });
-		expect(res.statusCode).toBe(401);
+		expect(res.statusCode).toBe(200);
+		expect(res.headers["content-type"]).toContain("text/plain");
 	});
 
 	it("GET /api/v1/metrics 带合法 token → 200，Prometheus 文本", async () => {
