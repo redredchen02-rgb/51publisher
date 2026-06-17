@@ -6,7 +6,7 @@ import {
 	pendingTopicExistsBySourceUrl,
 	savePendingTopic,
 } from "./pending-store.js";
-import { startScheduler } from "./scheduler.js";
+import { isSchedulerRunning, startScheduler } from "./scheduler.js";
 import { scraperConfig } from "./scraper-config.js";
 import type { RawContent, SiteAdapter } from "./site-adapter.js";
 
@@ -312,5 +312,42 @@ describe("startScheduler — list-discovery mode (U4)", () => {
 		expect(vi.mocked(savePendingTopic).mock.calls[0][0].sourceUrl).toBe(
 			currentUrl,
 		);
+	});
+});
+
+describe("startScheduler — 错误路径", () => {
+	it("无效 cron 表达式 → isSchedulerRunning 返回 false（站点未进 jobs Map）", () => {
+		// 先把所有历史待调度站点排空，再测无效路径
+		startAndGetJob();
+		vi.clearAllMocks();
+
+		const invalidSite = `invalid-cron-site-${testId}-b`;
+		// 只对 "invalid-cron" 返回 false，其他 expression 正常返回 true
+		vi.mocked(cron.validate).mockImplementation((expr) => expr !== "invalid-cron");
+		scraperConfig.registerAdapter(makeMockAdapter(`err-adapter-${testId}-b`));
+		scraperConfig.addSiteConfig({
+			siteName: invalidSite,
+			adapterName: `err-adapter-${testId}-b`,
+			url: currentUrl,
+			cron: "invalid-cron",
+			enabled: true,
+		});
+		startScheduler(DEPS);
+		// 无效 cron 站点不应进入 jobs Map
+		expect(isSchedulerRunning(invalidSite)).toBe(false);
+	});
+
+	it("isSchedulerRunning: 已注册站点返回 true，未注册返回 false", () => {
+		scraperConfig.registerAdapter(makeMockAdapter(`running-adapter-${testId}`));
+		scraperConfig.addSiteConfig({
+			siteName: currentSite,
+			adapterName: `running-adapter-${testId}`,
+			url: currentUrl,
+			cron: "0 * * * *",
+			enabled: true,
+		});
+		startScheduler(DEPS);
+		expect(isSchedulerRunning(currentSite)).toBe(true);
+		expect(isSchedulerRunning("non-existent-site-xyz")).toBe(false);
 	});
 });
