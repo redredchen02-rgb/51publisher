@@ -18,9 +18,24 @@ All notable changes to this project will be documented in this file.
 - **FactsEdit 在 facts 为空时无法弹出**：`it.facts` 为 `undefined` 时点击「修改事实并重新生成」按钮无反应；改为以 `{}` 作为初始值允许从零填写
 - **extractRawUrls 尾部标点误判**：原正则将 URL 后紧跟的句号、括号等标点纳入 URL，导致已登记来源的 URL 被误判为编造链接；修复后自动剥离尾部标点再做来源比对
 
-### Changed
+### Fixed (后续补充)
+
+- **Prometheus 抓取端点免鉴权**：`/api/v1/metrics` 与 `/metrics` 加入 PUBLIC_ROUTES，Prometheus scraper 无需 Bearer token 即可抓取指标（修复前持续 401）
+
+### Changed (后续补充)
 
 - **VALID_CATEGORIES 提升模块作用域**：从每次调用 `evaluateGrounding()` 内部 `new Set(...)` 改为模块级常量，避免重复分配
+- **BatchReviewPanel 渲染优化**：4 次独立 `batch.items` 遍历（filter × 3 + aggregateDegradeStats）合并为单个 `useMemo([batch.items])`，避免每次 render 重复计算
+- **死代码清理**：删除 `lib/batch/orchestrate-approve.ts`、`lib/batch/first-flight-guard.ts`、`lib/batch/serial-queue.ts` 三个零 importer 文件（逻辑已统一在 `lib/batch-orchestrator.ts`）
+
+### Added (Tests — 后续补充)
+
+- **WriteQueue 非 Error 抛出分支**：覆盖 `pending-queue.ts:36` `e instanceof Error` false 分支及并发串行化保证
+- **batch-routes metrics recording**：覆盖 `recordPublishAttempt(true/false)` 与 `recordBatchCompleted()` 实际路径；补充缺失字段 → 400 测试
+- **useErrorLogger / useOperationHistory storage-null 分支**：覆盖 `getStorage()` 返回 null 时静默跳过路径
+- **TagsSection onChange 测试**：覆盖两个 onChange handler，TagsSection Functions 100%
+- **audit-log 默认路径回退**：覆盖 PUBLISHER_DATA_DIR 未设置时的 `logs/` 默认路径
+- **json-store EISDIR 错误传播**：覆盖 delete 遭遇非 ENOENT 错误时重新抛出分支
 
 ## [0.2.1.0] - 2026-06-16
 
