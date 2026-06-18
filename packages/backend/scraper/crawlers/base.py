@@ -1,5 +1,5 @@
 import re
-from bs4 import BeautifulSoup, Tag
+from bs4 import Tag
 
 from ..config import BASE_URL
 
@@ -57,9 +57,3 @@ def extract_id(url: str) -> str | None:
     if m:
         return m.group(1)
     return None
-
-
-def full_url(path: str) -> str:
-    if path.startswith("http"):
-        return path
-    return BASE_URL + path

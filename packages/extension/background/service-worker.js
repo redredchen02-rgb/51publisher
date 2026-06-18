@@ -274,8 +274,6 @@ async function crawlDetails(limit = 100) {
 async function crawlChapters(limit = 100) {
   const t0 = Date.now();
   const comics = await DB.getAll('comics');
-  const existing = await DB.getAll('chapters');
-  const existIds = new Set(existing.map(c => c.comic_source_id));
   const need = comics.filter(c => c.detail_url).slice(0, limit);
   let count = 0;
   let skipped = 0;

@@ -2,7 +2,7 @@ import asyncio
 import time
 import httpx
 
-from .config import HEADERS, REQUEST_DELAY, MAX_RETRIES, RETRY_BACKOFF, CONCURRENCY
+from .config import HEADERS, MAX_RETRIES, RETRY_BACKOFF
 
 _client: httpx.Client | None = None
 
