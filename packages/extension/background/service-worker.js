@@ -21,7 +21,9 @@ async function fetchPage(url) {
       const resp = await fetch(url, { headers: { 'Referer': 'https://51acgs.com/' } });
       if (resp.ok) return await resp.text();
       if ([429, 403, 503].includes(resp.status)) {
-        await sleep(Math.pow(RETRY_BACKOFF, attempt + 1) * 1000);
+        const wait = Math.pow(RETRY_BACKOFF, attempt + 1) * 1000;
+        logError('fetchPage', `${resp.status} ${url}, retry in ${(wait/1000).toFixed(1)}s`);
+        await sleep(wait);
         continue;
       }
       return null;
@@ -77,9 +79,9 @@ function parseDetail(doc) {
         if (d.datePublished) r.publish_date = d.datePublished.slice(0, 10);
         if (d.genre) r.categories = (Array.isArray(d.genre) ? d.genre : [d.genre]).join(',');
         if (d.keywords) r.tags = (Array.isArray(d.keywords) ? d.keywords : [d.keywords]).join(',');
-        for (const st of (d.interactionStatistic || [])) {
-          const t = typeof st.interactionType === 'object' ? st.interactionType['@type'] : '';
-          if (t.includes('Bookmark')) r.bookmark_count = st.userInteractionCount;
+        for (const stat of (d.interactionStatistic || [])) {
+          const itype = typeof stat.interactionType === 'object' ? stat.interactionType['@type'] : '';
+          if (itype.includes('Bookmark')) r.bookmark_count = stat.userInteractionCount;
         }
       }
       if (d['@type'] === 'ItemList' && d.name && d.name.includes('章节目录')) {
@@ -356,6 +358,7 @@ async function fullCrawl(resumeFrom = null) {
   } catch (e) {
     logError('fullCrawl', getErrorMessage(e));
     notify({ type: 'error', msg: getErrorMessage(e) });
+    await DB.clearCrawlState().catch(() => {});
   }
   crawling = false;
 }
@@ -396,26 +399,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === 'crawlPages') { crawlPages(msg.limit || 100).then(c => sendResponse({ ok: true, count: c })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) })); return true; }
   if (msg.action === 'getStats') { DB.getStats().then(s => sendResponse(s)).catch(e => sendResponse({ error: getErrorMessage(e) })); return true; }
   if (msg.action === 'getCrawlState') { DB.getCrawlState().then(s => sendResponse(s || null)).catch(() => sendResponse(null)); return true; }
+  if (msg.action === 'clearCrawlState') { DB.clearCrawlState().then(() => sendResponse({ ok: true })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) })); return true; }
   if (msg.action === 'getData') { DB.getAll(msg.store).then(d => sendResponse(d)).catch(e => sendResponse({ error: getErrorMessage(e) })); return true; }
   if (msg.action === 'generateArticle') { generateArticleForComic(msg.comic).then(r => sendResponse(r)).catch(e => sendResponse({ success: false, error: getErrorMessage(e) })); return true; }
   if (msg.action === 'batchGenerate') { batchGenerate(msg.limit || 10).then(c => sendResponse({ ok: true, count: c })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) })); return true; }
   if (msg.action === 'testLLM') { LLM.testConnection().then(() => sendResponse({ ok: true })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) })); return true; }
   if (msg.action === 'clearErrors') {
-    DB.getAll('errors').then(errors => {
-      const dbPromise = new Promise((resolve, reject) => {
-        const req = indexedDB.open('acgs_scraper', 1);
-        req.onsuccess = () => {
-          const db = req.result;
-          const tx = db.transaction('errors', 'readwrite');
-          const store = tx.objectStore('errors');
-          store.clear();
-          tx.oncomplete = () => resolve();
-          tx.onerror = () => reject(tx.error);
-        };
-        req.onerror = () => reject(req.error);
-      });
-      dbPromise.then(() => sendResponse({ ok: true })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) }));
-    }).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) }));
+    DB.clearErrors().then(() => sendResponse({ ok: true })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) }));
     return true;
   }
 });

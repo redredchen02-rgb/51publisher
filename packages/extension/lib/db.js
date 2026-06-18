@@ -71,26 +71,14 @@ async function idbPut(storeName, item) {
 }
 
 async function idbAppend(storeName, items) {
-  const existing = await idbGetAll(storeName);
-  const keyField = storeName === 'chapters' ? 'chapter_id'
-    : storeName === 'pages' ? null
-    : 'source_id';
-  let existingKeys;
-  if (keyField) {
-    existingKeys = new Set(existing.map(i => i[keyField]));
-  } else {
-    existingKeys = new Set(existing.map(i => `${i.chapter_id}_${i.page_number}`));
-  }
-  const newItems = items.filter(i => {
-    if (keyField) return !existingKeys.has(i[keyField]);
-    return !existingKeys.has(`${i.chapter_id}_${i.page_number}`);
-  });
-  if (!newItems.length) return 0;
+  if (!items.length) return 0;
   const store = await idbTx(storeName, 'readwrite');
-  for (const item of newItems) {
+  let added = 0;
+  for (const item of items) {
     await idbRequest(store, 'put', item);
+    added++;
   }
-  return newItems.length;
+  return added;
 }
 
 async function idbUpsert(storeName, item, key = 'source_id') {
@@ -118,6 +106,7 @@ const DB = {
   getCrawlState: () => idbGet('crawl_state', 'current'),
   saveCrawlState: (state) => idbPut('crawl_state', { id: 'current', ...state, updatedAt: new Date().toISOString() }),
   clearCrawlState: () => idbTx('crawl_state', 'readwrite').then(store => idbRequest(store, 'clear')),
+  clearErrors: () => idbTx('errors', 'readwrite').then(store => idbRequest(store, 'clear')),
 };
 
 // Service Worker 使用 self，普通页面使用 window

@@ -225,6 +225,10 @@ const STAGE_LABELS = { home: '首页', topics: '专题', details: '详情', chap
 async function checkPendingCrawl() {
   const state = await sendMsg({ action: 'getCrawlState' });
   if (!state || !state.stage) return;
+  if (state.updatedAt && (Date.now() - new Date(state.updatedAt).getTime()) > 3600000) {
+    await sendMsg({ action: 'clearCrawlState' });
+    return;
+  }
   const bar = document.getElementById('resume-bar');
   const msg = document.getElementById('resume-msg');
   if (!bar || !msg) return;
