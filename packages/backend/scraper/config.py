@@ -1,6 +1,7 @@
 import os
 
-BASE_URL = "https://51acgs.com"
+# Target site. Override with SCRAPER_BASE_URL env var; empty/unset falls back.
+BASE_URL = os.environ.get("SCRAPER_BASE_URL") or "https://51acgs.com"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",

@@ -1,7 +1,7 @@
 ---
 title: "refactor: 将 51publisher 收口为可独立打包的单一专案"
 type: refactor
-status: active
+status: completed
 date: 2026-06-18
 ---
 
@@ -260,7 +260,7 @@ graph TB
 
 ---
 
-- [ ] **Unit 4(可选): 外部服务参数化硬化**
+- [x] **Unit 4(可选): 外部服务参数化硬化** — 完成(test-first;config.py BASE_URL=env 带默认回落;.env.example;test_config.py 3 用例;全套 51 passed 零回归;运行时 env 覆盖已 smoke 验证)
 
 **Goal:** 把两类有意为之的外部服务从「隐式写死」改为「显式可配」,提升异地独立操作性(R6)。仅在用户确认需要时做。
 
