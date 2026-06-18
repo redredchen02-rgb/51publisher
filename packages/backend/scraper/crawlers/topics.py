@@ -20,6 +20,8 @@ def parse_topic_list(html: str) -> list[dict]:
         source_id = _extract_topic_id(href)
         if not source_id:
             continue
+        if not parsed.get("title"):
+            continue
 
         desc_el = figure.select_one("p")
         summary = desc_el.get_text(strip=True) if desc_el else ""

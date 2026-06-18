@@ -47,8 +47,9 @@ async def fetch_page_async(client: httpx.AsyncClient, url: str, sem: asyncio.Sem
                     await asyncio.sleep(wait)
                     continue
                 return None
-            except Exception:
+            except Exception as e:
                 wait = RETRY_BACKOFF ** (attempt + 1)
+                print(f"  [HTTP] Error: {e}, retrying in {wait:.1f}s...")
                 await asyncio.sleep(wait)
     return None
 

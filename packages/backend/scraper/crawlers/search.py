@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 from .base import parse_figure, extract_id
 
 
-def parse_search_results(html: str, keyword: str = "") -> list[dict]:
+def parse_search_results(html: str) -> list[dict]:
     soup = BeautifulSoup(html, "lxml")
     results = []
 

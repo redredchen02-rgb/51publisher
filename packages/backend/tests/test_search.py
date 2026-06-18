@@ -15,7 +15,7 @@ class TestParseSearchResults:
         </figure>
         </body></html>
         """
-        results = parse_search_results(html, "test")
+        results = parse_search_results(html)
         assert len(results) == 1
         assert results[0]["source_id"] == "12345"
         assert results[0]["title"] == "搜索结果漫画"
@@ -33,7 +33,7 @@ class TestParseSearchResults:
         </figure>
         </body></html>
         """
-        results = parse_search_results(html, "test")
+        results = parse_search_results(html)
         assert len(results) == 1
         assert results[0]["source"] == "search_topic"
 
@@ -49,9 +49,9 @@ class TestParseSearchResults:
         </figure>
         </body></html>
         """
-        results = parse_search_results(html, "test")
+        results = parse_search_results(html)
         assert results[0]["description"] == "这是详细描述内容"
 
     def test_empty_html(self):
-        results = parse_search_results("<html><body></body></html>", "test")
+        results = parse_search_results("<html><body></body></html>")
         assert results == []

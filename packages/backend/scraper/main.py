@@ -153,7 +153,7 @@ def cmd_scrape_search(conn, keyword, pages=1):
         if not html:
             break
 
-        items = parse_search_results(html, keyword)
+        items = parse_search_results(html)
         if not items:
             print(f"  Page {page}: no results, stopping")
             break

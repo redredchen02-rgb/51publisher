@@ -16,6 +16,8 @@ def parse_home_page(html: str) -> list[dict]:
         source_id = extract_id(parsed["detail_url"])
         if not source_id or source_id in seen_ids:
             continue
+        if not parsed.get("title"):
+            continue
         seen_ids.add(source_id)
 
         status_el = figure.select_one(".comic-item-tag")
