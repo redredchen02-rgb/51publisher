@@ -1,0 +1,12 @@
+{
+  "name": "51acgs-scraper-extension",
+  "version": "3.0.0",
+  "private": true,
+  "description": "51acgs.com scraper + AI article generator (Chrome MV3 extension)",
+  "scripts": {
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0"
+  }
+}

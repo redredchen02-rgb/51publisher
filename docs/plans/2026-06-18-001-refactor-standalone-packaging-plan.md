@@ -227,7 +227,7 @@ graph TB
 
 ---
 
-- [ ] **Unit 3: 子包独立可操作配置**
+- [x] **Unit 3: 子包独立可操作配置** — 完成(backend pyproject.toml 显式 pytest 配置,根目录 48 passed;extension package.json+eslint devDep+.gitignore)。诚实修正:C6 比计划设想轻,pytest 本就能从根解析(tests/__init__.py 触发 sys.path 插入),pyproject 是把隐式行为固化为显式意图。扩展 lint 为标准 `npm install && npm run lint`,未在此环境网络安装。
 
 **Goal:** 让两个子包在新环境从**根目录**即可独立操作(测试可跑、依赖可装、lint 可跑),消除隐式 CWD/PYTHONPATH 依赖。
 

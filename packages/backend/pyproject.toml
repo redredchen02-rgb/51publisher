@@ -1,0 +1,9 @@
+# Backend project config.
+# Runtime dependencies live in requirements.txt (single source of truth).
+# This file only pins test discovery so `pytest` resolves the `scraper`
+# package whether run from the repo root or from packages/backend, instead of
+# relying on pytest's implicit sys.path insertion.
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
