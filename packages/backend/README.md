@@ -21,8 +21,8 @@
 # 查看状态
 ./run.sh stats
 
-# 可选：覆盖爬取目标站（默认 51acgs.com，变量见 .env.example）
-export SCRAPER_BASE_URL=https://51acgs.com
+# 可选：覆盖爬取目标站（默认 51acgs.com）。run.sh 会自动加载 .env：
+cp .env.example .env   # 然后编辑 .env 改 SCRAPER_BASE_URL
 ```
 
 ## 命令参考

@@ -34,7 +34,7 @@ cd packages/backend
 ./run.sh scrape --all      # 全量爬取
 ```
 
-> 可选：`export SCRAPER_BASE_URL=<url>` 覆盖爬取目标站（默认 `51acgs.com`，变量见 `.env.example`）。
+> 可选：覆盖爬取目标站（默认 `51acgs.com`）——`cp .env.example .env` 后改值（`run.sh` 自动加载），或直接 `export SCRAPER_BASE_URL=<url>`。
 
 ## 功能
 
