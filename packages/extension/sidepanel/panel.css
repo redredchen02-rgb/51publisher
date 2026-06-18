@@ -59,3 +59,4 @@ h1 { font-size: 16px; margin-bottom: 8px; }
 .error-msg { font-size: 12px; color: #dc3545; line-height: 1.5; word-break: break-all; }
 .btn-danger { background: #dc3545; color: #fff; border-color: #dc3545; }
 .btn-danger:hover { background: #c82333; }
+.resume-bar { padding: 8px 16px; background: #fff3cd; border-bottom: 1px solid #ffc107; display: flex; align-items: center; gap: 8px; font-size: 12px; color: #856404; }

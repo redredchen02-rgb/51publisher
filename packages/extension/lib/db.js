@@ -1,6 +1,6 @@
 const DB_NAME = 'acgs_scraper';
-const DB_VERSION = 1;
-const STORES = ['comics', 'articles', 'chapters', 'pages', 'errors'];
+const DB_VERSION = 2;
+const STORES = ['comics', 'articles', 'chapters', 'pages', 'errors', 'crawl_state'];
 
 let _dbCache = null;
 
@@ -18,6 +18,7 @@ function openDB() {
         { name: 'chapters', keyPath: 'chapter_id' },
         { name: 'pages', keyPath: ['chapter_id', 'page_number'] },
         { name: 'errors', keyPath: 'source_id' },
+        { name: 'crawl_state', keyPath: 'id' },
       ];
       for (const s of stores) {
         if (!db.objectStoreNames.contains(s.name)) {
@@ -114,6 +115,9 @@ const DB = {
   append: idbAppend,
   upsert: idbUpsert,
   getStats: idbGetStats,
+  getCrawlState: () => idbGet('crawl_state', 'current'),
+  saveCrawlState: (state) => idbPut('crawl_state', { id: 'current', ...state, updatedAt: new Date().toISOString() }),
+  clearCrawlState: () => idbTx('crawl_state', 'readwrite').then(store => idbRequest(store, 'clear')),
 };
 
 // Service Worker 使用 self，普通页面使用 window

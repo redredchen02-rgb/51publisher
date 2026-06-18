@@ -329,19 +329,34 @@ async function crawlPages(limit = 100) {
   return count;
 }
 
-async function fullCrawl() {
+const CRAWL_STAGES = ['home', 'topics', 'details', 'chapters', 'pages'];
+
+async function fullCrawl(resumeFrom = null) {
   if (crawling) return;
   crawling = true;
   notify({ type: 'status', msg: '爬取中...' });
+
+  const startIdx = resumeFrom ? CRAWL_STAGES.indexOf(resumeFrom) : 0;
+  const stages = CRAWL_STAGES.slice(startIdx);
+
   try {
-    await crawlHome();
-    await crawlTopics();
-    await crawlDetails(300);
-    await crawlChapters(300);
-    await crawlPages(300);
+    for (const stage of stages) {
+      await DB.saveCrawlState({ stage, status: 'running' });
+      switch (stage) {
+        case 'home': await crawlHome(); break;
+        case 'topics': await crawlTopics(); break;
+        case 'details': await crawlDetails(300); break;
+        case 'chapters': await crawlChapters(300); break;
+        case 'pages': await crawlPages(300); break;
+      }
+    }
+    await DB.clearCrawlState();
     const stats = await DB.getStats();
     notify({ type: 'done', msg: `完成! 漫画${stats.comics} 文章${stats.articles} 章节${stats.chapters} 图片${stats.pages}` });
-  } catch (e) { notify({ type: 'error', msg: getErrorMessage(e) }); }
+  } catch (e) {
+    logError('fullCrawl', getErrorMessage(e));
+    notify({ type: 'error', msg: getErrorMessage(e) });
+  }
   crawling = false;
 }
 
@@ -373,13 +388,14 @@ async function batchGenerate(limit = 10) {
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg.action === 'fullCrawl') { fullCrawl().then(() => sendResponse({ ok: true })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) })); return true; }
+  if (msg.action === 'fullCrawl') { fullCrawl(msg.resumeFrom || null).then(() => sendResponse({ ok: true })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) })); return true; }
   if (msg.action === 'crawlHome') { crawlHome().then(c => sendResponse({ ok: true, count: c })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) })); return true; }
   if (msg.action === 'crawlTopics') { crawlTopics().then(c => sendResponse({ ok: true, count: c })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) })); return true; }
   if (msg.action === 'crawlDetails') { crawlDetails(msg.limit || 100).then(c => sendResponse({ ok: true, count: c })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) })); return true; }
   if (msg.action === 'crawlChapters') { crawlChapters(msg.limit || 100).then(c => sendResponse({ ok: true, count: c })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) })); return true; }
   if (msg.action === 'crawlPages') { crawlPages(msg.limit || 100).then(c => sendResponse({ ok: true, count: c })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) })); return true; }
   if (msg.action === 'getStats') { DB.getStats().then(s => sendResponse(s)).catch(e => sendResponse({ error: getErrorMessage(e) })); return true; }
+  if (msg.action === 'getCrawlState') { DB.getCrawlState().then(s => sendResponse(s || null)).catch(() => sendResponse(null)); return true; }
   if (msg.action === 'getData') { DB.getAll(msg.store).then(d => sendResponse(d)).catch(e => sendResponse({ error: getErrorMessage(e) })); return true; }
   if (msg.action === 'generateArticle') { generateArticleForComic(msg.comic).then(r => sendResponse(r)).catch(e => sendResponse({ success: false, error: getErrorMessage(e) })); return true; }
   if (msg.action === 'batchGenerate') { batchGenerate(msg.limit || 10).then(c => sendResponse({ ok: true, count: c })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) })); return true; }

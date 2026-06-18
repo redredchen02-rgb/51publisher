@@ -38,6 +38,12 @@
 
     <div id="status" class="status">就绪</div>
 
+    <div id="resume-bar" class="resume-bar" style="display:none">
+      <span id="resume-msg">上次爬取未完成</span>
+      <button id="btn-resume" class="btn btn-primary btn-small">继续爬取</button>
+      <button id="btn-dismiss" class="btn btn-small">忽略</button>
+    </div>
+
     <div id="filter-bar" class="filter-bar" style="display:none">
       <input type="text" id="filter-input" placeholder="多关键词搜索（空格分隔 AND）..." autocomplete="off">
       <div class="filter-tags" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">

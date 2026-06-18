@@ -209,4 +209,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   refreshStats();
   loadData();
+  checkPendingCrawl();
 });
+
+const STAGE_LABELS = { home: '首页', topics: '专题', details: '详情', chapters: '章节', pages: '图片URL' };
+
+async function checkPendingCrawl() {
+  const state = await sendMsg({ action: 'getCrawlState' });
+  if (!state || !state.stage) return;
+  const bar = document.getElementById('resume-bar');
+  const msg = document.getElementById('resume-msg');
+  if (!bar || !msg) return;
+  msg.textContent = `上次爬取在「${STAGE_LABELS[state.stage] || state.stage}」阶段中断`;
+  bar.style.display = '';
+  document.getElementById('btn-resume').onclick = () => {
+    bar.style.display = 'none';
+    setStatus('继续爬取中...', 'running');
+    sendMsg({ action: 'fullCrawl', resumeFrom: state.stage });
+  };
+  document.getElementById('btn-dismiss').onclick = () => { bar.style.display = 'none'; };
+}
