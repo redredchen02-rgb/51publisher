@@ -20,6 +20,9 @@
 
 # 查看状态
 ./run.sh stats
+
+# 可选：覆盖爬取目标站（默认 51acgs.com，变量见 .env.example）
+export SCRAPER_BASE_URL=https://51acgs.com
 ```
 
 ## 命令参考
@@ -64,8 +67,11 @@ backend/
 │   ├── scraper.db         # SQLite 数据库
 │   └── images/            # 下载的图片
 │       └── {comic_id}/{chapter_id}/*.jpeg
+├── tests/                 # 51 个单元测试
 ├── exports/               # 导出文件
+├── pyproject.toml         # 测试配置（pytest 路径）
 ├── requirements.txt
+├── .env.example           # 配置模板（SCRAPER_BASE_URL）
 ├── setup.sh               # 安装脚本
 ├── run.sh                 # 启动脚本
 ├── README.md

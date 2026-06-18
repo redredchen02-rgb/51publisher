@@ -29,10 +29,12 @@
 
 ```bash
 cd packages/backend
-./setup.sh        # 安装依赖 + 初始化数据库
-./run.sh stats    # 查看状态
-./run.sh --all    # 全量爬取
+./setup.sh                 # 安装依赖 + 初始化数据库
+./run.sh stats             # 查看状态
+./run.sh scrape --all      # 全量爬取
 ```
+
+> 可选：`export SCRAPER_BASE_URL=<url>` 覆盖爬取目标站（默认 `51acgs.com`，变量见 `.env.example`）。
 
 ## 功能
 
@@ -133,8 +135,10 @@ npm run test:backend     # 运行后端测试
 │       │       ├── comics.py       # 漫画详情（JSON-LD）
 │       │       ├── chapters.py     # 章节列表 + 图片 URL
 │       │       └── search.py       # 搜索结果
-│       ├── tests/                  # 48 个单元测试
+│       ├── tests/                  # 51 个单元测试
+│       ├── pyproject.toml          # 测试配置（pytest 路径）
 │       ├── requirements.txt
+│       ├── .env.example            # 配置模板（SCRAPER_BASE_URL）
 │       ├── setup.sh                # 安装脚本
 │       └── run.sh                  # 启动脚本
 └── docs/
@@ -181,7 +185,7 @@ npm run test:backend     # 运行后端测试
 
 ```bash
 cd packages/backend
-python3 -m pytest -v          # 运行全部 48 个测试
+python3 -m pytest -v          # 运行全部 51 个测试
 python3 -m pytest -v tests/test_comics.py  # 运行指定测试文件
 ```
 
