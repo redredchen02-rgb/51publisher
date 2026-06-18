@@ -32,7 +32,7 @@ def parse_home_page(html: str) -> list[dict]:
             "title": parsed["title"],
             "cover_url": parsed["cover_url"],
             "detail_url": parsed["detail_url"],
-            "description": status,
+            "status": status,
             "categories": ",".join(parsed["categories"] + extra_cats),
             "tags": ",".join(parsed["tags"]),
             "chapter_count": None,

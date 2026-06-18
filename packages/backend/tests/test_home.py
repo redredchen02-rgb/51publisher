@@ -66,7 +66,7 @@ class TestParseHomePage:
 
     def test_extracts_status(self):
         results = parse_home_page(SAMPLE_HOME_HTML)
-        assert results[0]["description"] == "连载中"
+        assert results[0]["status"] == "连载中"
 
     def test_skips_non_comic_figures(self):
         results = parse_home_page(SAMPLE_HOME_HTML)

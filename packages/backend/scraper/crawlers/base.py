@@ -50,7 +50,10 @@ def extract_id(url: str) -> str | None:
     m = re.search(r"/(\d+)(?:\?|$|#)", url)
     if m:
         return m.group(1)
-    m = re.search(r"/([a-z_]+/\d+)", url)
+    m = re.search(r"/([\w-]+/\d+)", url)
+    if m:
+        return m.group(1)
+    m = re.search(r"/(\d+)", url)
     if m:
         return m.group(1)
     return None

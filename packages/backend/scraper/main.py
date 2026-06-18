@@ -142,7 +142,7 @@ def cmd_scrape_comic_details(conn, limit=500, incremental=False):
 
 
 def cmd_scrape_search(conn, keyword, pages=1):
-    print(f"[4/5] Searching for '{keyword}' ({pages} pages)...")
+    print(f"Searching for '{keyword}' ({pages} pages)...")
     total = 0
 
     for page in range(1, pages + 1):

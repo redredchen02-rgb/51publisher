@@ -87,14 +87,19 @@ async function idbUpsert(storeName, item, key = 'source_id') {
   return idbPut(storeName, merged);
 }
 
+async function idbCount(storeName) {
+  const store = await idbTx(storeName);
+  return idbRequest(store, 'count');
+}
+
 async function idbGetStats() {
   const [comics, articles, chapters, pages] = await Promise.all([
-    idbGetAll('comics'),
-    idbGetAll('articles'),
-    idbGetAll('chapters'),
-    idbGetAll('pages'),
+    idbCount('comics'),
+    idbCount('articles'),
+    idbCount('chapters'),
+    idbCount('pages'),
   ]);
-  return { comics: comics.length, articles: articles.length, chapters: chapters.length, pages: pages.length };
+  return { comics, articles, chapters, pages };
 }
 
 const DB = {
