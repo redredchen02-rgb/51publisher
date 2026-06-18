@@ -1,0 +1,34 @@
+# === OS ===
+.DS_Store
+
+# === Local tooling state (gstack QA logs etc.) ===
+.gstack/
+
+# === Python ===
+__pycache__/
+*.pyc
+.pytest_cache/
+.benchmarks/
+
+# === Backend runtime data & logs (regenerated at runtime) ===
+packages/backend/data/
+packages/backend/exports/
+*.db
+*.db-shm
+*.db-wal
+
+# === Env ===
+.env
+venv/
+.venv/
+
+# === Node ===
+node_modules/
+
+# === Build outputs (produced by build scripts into dist/) ===
+dist/
+*.crx
+*.zip
+
+# === Git history archives (kept out of the repo) ===
+*.bundle

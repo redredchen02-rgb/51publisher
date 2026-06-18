@@ -1,0 +1,124 @@
+const DB_NAME = 'acgs_scraper';
+const DB_VERSION = 1;
+const STORES = ['comics', 'articles', 'chapters', 'pages', 'errors'];
+
+let _dbCache = null;
+
+function openDB() {
+  if (_dbCache && !_dbCache.closed) {
+    return Promise.resolve(_dbCache);
+  }
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      const stores = [
+        { name: 'comics', keyPath: 'source_id' },
+        { name: 'articles', keyPath: 'source_id' },
+        { name: 'chapters', keyPath: 'chapter_id' },
+        { name: 'pages', keyPath: ['chapter_id', 'page_number'] },
+        { name: 'errors', keyPath: 'source_id' },
+      ];
+      for (const s of stores) {
+        if (!db.objectStoreNames.contains(s.name)) {
+          const store = db.createObjectStore(s.name, { keyPath: s.keyPath });
+          if (s.name === 'chapters') {
+            store.createIndex('by_comic', 'comic_source_id', { unique: false });
+          }
+          if (s.name === 'pages') {
+            store.createIndex('by_chapter', 'chapter_id', { unique: false });
+          }
+        }
+      }
+    };
+    req.onsuccess = () => {
+      _dbCache = req.result;
+      _dbCache.onclose = () => { _dbCache = null; };
+      resolve(req.result);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function idbTx(storeName, mode = 'readonly') {
+  return openDB().then(db => {
+    const tx = db.transaction(storeName, mode);
+    return tx.objectStore(storeName);
+  });
+}
+
+function idbRequest(store, method, ...args) {
+  return new Promise((resolve, reject) => {
+    const req = store[method](...args);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function idbGetAll(storeName) {
+  return idbTx(storeName).then(store => idbRequest(store, 'getAll'));
+}
+
+async function idbGet(storeName, key) {
+  const store = await idbTx(storeName);
+  return idbRequest(store, 'get', key);
+}
+
+async function idbPut(storeName, item) {
+  const store = await idbTx(storeName, 'readwrite');
+  return idbRequest(store, 'put', item);
+}
+
+async function idbAppend(storeName, items) {
+  const existing = await idbGetAll(storeName);
+  const keyField = storeName === 'chapters' ? 'chapter_id'
+    : storeName === 'pages' ? null
+    : 'source_id';
+  let existingKeys;
+  if (keyField) {
+    existingKeys = new Set(existing.map(i => i[keyField]));
+  } else {
+    existingKeys = new Set(existing.map(i => `${i.chapter_id}_${i.page_number}`));
+  }
+  const newItems = items.filter(i => {
+    if (keyField) return !existingKeys.has(i[keyField]);
+    return !existingKeys.has(`${i.chapter_id}_${i.page_number}`);
+  });
+  if (!newItems.length) return 0;
+  const store = await idbTx(storeName, 'readwrite');
+  for (const item of newItems) {
+    idbRequest(store, 'put', item);
+  }
+  return newItems.length;
+}
+
+async function idbUpsert(storeName, item, key = 'source_id') {
+  const existing = await idbGet(storeName, item[key]);
+  const merged = existing ? { ...existing, ...item } : item;
+  return idbPut(storeName, merged);
+}
+
+async function idbGetStats() {
+  const [comics, articles, chapters, pages] = await Promise.all([
+    idbGetAll('comics'),
+    idbGetAll('articles'),
+    idbGetAll('chapters'),
+    idbGetAll('pages'),
+  ]);
+  return { comics: comics.length, articles: articles.length, chapters: chapters.length, pages: pages.length };
+}
+
+const DB = {
+  get: idbGet,
+  getAll: idbGetAll,
+  append: idbAppend,
+  upsert: idbUpsert,
+  getStats: idbGetStats,
+};
+
+// Service Worker 使用 self，普通页面使用 window
+if (typeof window !== 'undefined') {
+  window.DB = DB;
+} else if (typeof self !== 'undefined') {
+  self.DB = DB;
+}

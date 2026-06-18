@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, sans-serif; padding: 24px; max-width: 480px; }
+    h1 { font-size: 18px; margin-bottom: 20px; }
+    .field { margin-bottom: 16px; }
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #333; }
+    input { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
+    input:focus { outline: none; border-color: #4a90d9; }
+    .hint { font-size: 11px; color: #888; margin-top: 2px; }
+    .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; margin-right: 8px; }
+    .btn-primary { background: #4a90d9; color: #fff; }
+    .btn-primary:hover { background: #357abd; }
+    .btn-test { background: #28a745; color: #fff; }
+    .btn-test:hover { background: #218838; }
+    #status { margin-top: 12px; padding: 8px; border-radius: 6px; font-size: 12px; display: none; }
+    #status.ok { display: block; background: #d4edda; color: #155724; }
+    #status.err { display: block; background: #f8d7da; color: #721c24; }
+  </style>
+</head>
+<body>
+  <h1>LLM API 设置</h1>
+  <div class="field">
+    <label>API URL</label>
+    <input id="apiUrl" placeholder="https://api.openai.com/v1/chat/completions">
+    <div class="hint">OpenAI 兼容接口地址</div>
+  </div>
+  <div class="field">
+    <label>API Key</label>
+    <input id="apiKey" type="password" placeholder="sk-...">
+    <div class="hint" style="color:#e67e22">密钥存储在浏览器扩展中，请勿在共享设备上使用</div>
+  </div>
+  <div class="field">
+    <label>Model</label>
+    <input id="model" placeholder="gpt-4o-mini">
+    <div class="hint">默认 gpt-4o-mini，也可填本地模型名</div>
+  </div>
+  <div>
+    <button class="btn btn-test" id="btn-test">测试连接</button>
+    <button class="btn btn-primary" id="btn-save">保存</button>
+  </div>
+  <div id="status"></div>
+  <script src="settings.js"></script>
+</body>
+</html>

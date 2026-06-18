@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <div class="panel">
+    <header>
+      <h1>51acgs Scraper</h1>
+      <div class="tabs">
+        <button class="tab active" data-tab="comics">漫画</button>
+        <button class="tab" data-tab="articles">文章</button>
+        <button class="tab" data-tab="chapters">章节</button>
+      </div>
+    </header>
+
+    <div class="toolbar">
+      <div class="stats" id="stats">漫画 0 | 文章 0 | 章节 0 | 图片 0</div>
+      <div class="actions">
+        <button id="btn-settings" class="btn btn-small">API 设置</button>
+        <button id="btn-crawl" class="btn btn-primary">全量爬取</button>
+        <button id="btn-copy-all" class="btn btn-success">复制全部</button>
+        <button id="btn-export" class="btn">导出 JSON</button>
+      </div>
+    </div>
+
+    <div class="quick-actions">
+      <button class="btn btn-small" data-action="crawlHome">爬首页</button>
+      <button class="btn btn-small" data-action="crawlTopics">爬专题</button>
+      <button class="btn btn-small" data-action="crawlDetails">爬详情</button>
+      <button class="btn btn-small" data-action="crawlChapters">爬章节</button>
+      <button class="btn btn-small" data-action="crawlPages">爬图片URL</button>
+      <button class="btn btn-small btn-ai" id="btn-batch-ai">AI 批量生成</button>
+    </div>
+
+    <div id="status" class="status">就绪</div>
+
+    <div id="filter-bar" class="filter-bar" style="display:none">
+      <input type="text" id="filter-input" placeholder="多关键词搜索（空格分隔 AND）..." autocomplete="off">
+      <div class="filter-tags" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <div id="filter-tags-inner" style="display:flex;flex-wrap:wrap;gap:4px"></div>
+        <label class="filter-ai-label"><input type="checkbox" id="filter-ai"> 仅看有AI文章</label>
+      </div>
+    </div>
+
+    <div id="content" class="content"></div>
+  </div>
+  <script src="panel.js"></script>
+</body>
+</html>

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>51acgs Scraper - Background Sync Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, sans-serif; padding: 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 20px; }
+    .section { background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 16px; border: 1px solid #e0e0e0; }
+    .section h2 { font-size: 14px; margin-bottom: 12px; color: #333; }
+    .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; margin-right: 8px; }
+    .btn-primary { background: #4a90d9; color: #fff; }
+    .btn-success { background: #28a745; color: #fff; }
+    .btn-danger { background: #dc3545; color: #fff; }
+    .btn:hover { opacity: 0.9; }
+    .btn:disabled { background: #ccc; cursor: not-allowed; }
+    #status { padding: 12px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; }
+    #status.info { background: #d1ecf1; color: #0c5460; }
+    #status.success { background: #d4edda; color: #155724; }
+    #status.error { background: #f8d7da; color: #721c24; }
+    #status.running { background: #fff3cd; color: #856404; }
+    #log { background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 12px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; }
+    .test-item { padding: 8px 12px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+    .test-item:last-child { border-bottom: none; }
+    .test-item.pass { background: #d4edda; }
+    .test-item.fail { background: #f8d7da; }
+    .test-item.running { background: #fff3cd; }
+  </style>
+</head>
+<body>
+  <h1>51acgs Scraper - Background Sync Test</h1>
+  
+  <div id="status" class="info">就绪 - 点击按钮开始测试</div>
+  
+  <div class="section">
+    <h2>1. IndexedDB 测试</h2>
+    <button class="btn btn-primary" onclick="testIndexedDB()">测试 IndexedDB</button>
+    <button class="btn btn-success" onclick="testDBOperations()">测试 DB 操作</button>
+    <button class="btn btn-danger" onclick="clearAllData()">清空数据</button>
+  </div>
+
+  <div class="section">
+    <h2>2. 爬取功能测试</h2>
+    <button class="btn btn-primary" onclick="testFetchPage()">测试 fetchPage</button>
+    <button class="btn btn-primary" onclick="testParseHome()">测试 parseHome</button>
+    <button class="btn btn-primary" onclick="testCrawlHome()">测试 crawlHome</button>
+    <button class="btn btn-success" onclick="testFullCrawl()">测试 fullCrawl</button>
+  </div>
+
+  <div class="section">
+    <h2>3. LLM 测试</h2>
+    <button class="btn btn-primary" onclick="testLLMConnection()">测试 LLM 连接</button>
+    <button class="btn btn-primary" onclick="testGenerateArticle()">测试生成文章</button>
+  </div>
+
+  <div class="section">
+    <h2>4. 数据统计</h2>
+    <div id="stats">加载中...</div>
+    <button class="btn btn-primary" onclick="refreshStats()">刷新统计</button>
+  </div>
+
+  <div class="section">
+    <h2>测试日志</h2>
+    <div id="log"></div>
+  </div>
+
+  <script src="../lib/db.js"></script>
+  <script src="../lib/llm.js"></script>
+  <script>
+    // 模拟 Chrome API（用于独立测试）
+    if (typeof chrome === 'undefined') {
+      window.chrome = {
+        storage: {
+          local: {
+            _data: {},
+            get: function(keys, cb) {
+              const result = {};
+              if (Array.isArray(keys)) {
+                keys.forEach(k => { if (this._data[k]) result[k] = this._data[k]; });
+              } else if (typeof keys === 'string') {
+                if (this._data[keys]) result[keys] = this._data[keys];
+              } else {
+                Object.assign(result, this._data);
+              }
+              cb(result);
+            },
+            set: function(data, cb) {
+              Object.assign(this._data, data);
+              if (cb) cb();
+            }
+          }
+        },
+        runtime: {
+          sendMessage: function(msg, cb) {
+            log('sendMessage: ' + JSON.stringify(msg));
+            if (cb) cb({ ok: true });
+          }
+        }
+      };
+    }
+
+    function log(msg, type = 'info') {
+      const el = document.getElementById('log');
+      const time = new Date().toLocaleTimeString();
+      el.innerHTML += `[${time}] ${msg}\n`;
+      el.scrollTop = el.scrollHeight;
+      console.log(msg);
+    }
+
+    function setStatus(msg, type = 'info') {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.className = type;
+    }
+
+    // IndexedDB 测试
+    async function testIndexedDB() {
+      setStatus('测试 IndexedDB...', 'running');
+      log('=== IndexedDB 测试 ===');
+      try {
+        const db = await openDB();
+        log('✅ IndexedDB 打开成功');
+        db.close();
+        setStatus('IndexedDB 测试通过', 'success');
+      } catch (e) {
+        log('❌ IndexedDB 测试失败: ' + e.message);
+        setStatus('IndexedDB 测试失败', 'error');
+      }
+    }
+
+    // DB 操作测试
+    async function testDBOperations() {
+      setStatus('测试 DB 操作...', 'running');
+      log('=== DB 操作测试 ===');
+      try {
+        // 测试 append
+        const testComic = {
+          source_id: 'test_001',
+          title: '测试漫画',
+          cover_url: 'https://example.com/cover.jpg',
+          detail_url: 'https://example.com/comic/001',
+          tags: '测试,漫画',
+          categories: '少年'
+        };
+        await DB.append('comics', [testComic]);
+        log('✅ append 操作成功');
+
+        // 测试 getAll
+        const comics = await DB.getAll('comics');
+        log('✅ getAll 返回 ' + comics.length + ' 条数据');
+
+        // 测试 upsert
+        await DB.upsert('comics', { ...testComic, author: '测试作者' }, 'source_id');
+        log('✅ upsert 操作成功');
+
+        // 测试 getStats
+        const stats = await DB.getStats();
+        log('✅ getStats: ' + JSON.stringify(stats));
+
+        setStatus('DB 操作测试通过', 'success');
+      } catch (e) {
+        log('❌ DB 操作测试失败: ' + e.message);
+        setStatus('DB 操作测试失败', 'error');
+      }
+    }
+
+    // 清空数据
+    async function clearAllData() {
+      if (!confirm('确定要清空所有数据吗？')) return;
+      setStatus('清空数据中...', 'running');
+      log('=== 清空数据 ===');
+      try {
+        const stores = ['comics', 'articles', 'chapters', 'pages', 'errors'];
+        for (const store of stores) {
+          const items = await DB.getAll(store);
+          for (const item of items) {
+            const key = store === 'chapters' ? item.chapter_id 
+              : store === 'pages' ? `${item.chapter_id}_${item.page_number}`
+              : item.source_id;
+            // IndexedDB 没有直接的 deleteAll，需要重新打开
+          }
+        }
+        // 简单方案：删除并重建数据库
+        indexedDB.deleteDatabase('acgs_scraper');
+        log('✅ 数据库已删除');
+        refreshStats();
+        setStatus('数据已清空', 'success');
+      } catch (e) {
+        log('❌ 清空失败: ' + e.message);
+        setStatus('清空失败', 'error');
+      }
+    }
+
+    // fetchPage 测试
+    async function testFetchPage() {
+      setStatus('测试 fetchPage...', 'running');
+      log('=== fetchPage 测试 ===');
+      try {
+        const html = await fetchPage('https://51acgs.com/');
+        if (html) {
+          log('✅ fetchPage 成功，返回 ' + html.length + ' 字符');
+          setStatus('fetchPage 测试通过', 'success');
+        } else {
+          log('❌ fetchPage 返回空');
+          setStatus('fetchPage 测试失败', 'error');
+        }
+      } catch (e) {
+        log('❌ fetchPage 失败: ' + e.message);
+        setStatus('fetchPage 测试失败', 'error');
+      }
+    }
+
+    // parseHome 测试
+    async function testParseHome() {
+      setStatus('测试 parseHome...', 'running');
+      log('=== parseHome 测试 ===');
+      try {
+        const html = await fetchPage('https://51acgs.com/');
+        if (!html) throw new Error('fetchPage 返回空');
+        const doc = parseHTML(html);
+        const items = parseHome(doc);
+        log('✅ parseHome 解析出 ' + items.length + ' 条漫画');
+        if (items.length > 0) {
+          log('   第一条: ' + JSON.stringify(items[0], null, 2).slice(0, 200));
+        }
+        setStatus('parseHome 测试通过', 'success');
+      } catch (e) {
+        log('❌ parseHome 失败: ' + e.message);
+        setStatus('parseHome 测试失败', 'error');
+      }
+    }
+
+    // crawlHome 测试
+    async function testCrawlHome() {
+      setStatus('测试 crawlHome...', 'running');
+      log('=== crawlHome 测试 ===');
+      try {
+        const count = await crawlHome();
+        log('✅ crawlHome 完成，爬取 ' + count + ' 条');
+        refreshStats();
+        setStatus('crawlHome 测试通过', 'success');
+      } catch (e) {
+        log('❌ crawlHome 失败: ' + e.message);
+        setStatus('crawlHome 测试失败', 'error');
+      }
+    }
+
+    // fullCrawl 测试
+    async function testFullCrawl() {
+      if (!confirm('fullCrawl 会爬取大量数据，确定继续吗？')) return;
+      setStatus('fullCrawl 运行中...', 'running');
+      log('=== fullCrawl 测试 ===');
+      try {
+        // 模拟 fullCrawl 的部分步骤
+        log('开始爬取首页...');
+        await crawlHome();
+        log('首页爬取完成');
+        
+        log('开始爬取专题...');
+        await crawlTopics();
+        log('专题爬取完成');
+        
+        refreshStats();
+        log('✅ fullCrawl 核心步骤完成');
+        setStatus('fullCrawl 测试通过', 'success');
+      } catch (e) {
+        log('❌ fullCrawl 失败: ' + e.message);
+        setStatus('fullCrawl 测试失败', 'error');
+      }
+    }
+
+    // LLM 连接测试
+    async function testLLMConnection() {
+      setStatus('测试 LLM 连接...', 'running');
+      log('=== LLM 连接测试 ===');
+      try {
+        await LLM.testConnection();
+        log('✅ LLM 连接成功');
+        setStatus('LLM 连接测试通过', 'success');
+      } catch (e) {
+        log('❌ LLM 连接失败: ' + e.message);
+        setStatus('LLM 连接测试失败 - 请先在设置中配置 API', 'error');
+      }
+    }
+
+    // 生成文章测试
+    async function testGenerateArticle() {
+      setStatus('测试生成文章...', 'running');
+      log('=== 生成文章测试 ===');
+      try {
+        const testComic = {
+          source_id: 'test_gen_001',
+          title: '测试漫画',
+          author: '测试作者',
+          tags: '测试,漫画',
+          categories: '少年',
+          status: '连载中',
+          bookmark_count: 100,
+          view_count: 500
+        };
+        const result = await LLM.generateArticle(testComic);
+        log('✅ 文章生成成功');
+        log('   标题: ' + result.title);
+        log('   摘要: ' + result.summary?.slice(0, 50) + '...');
+        setStatus('生成文章测试通过', 'success');
+      } catch (e) {
+        log('❌ 生成文章失败: ' + e.message);
+        setStatus('生成文章测试失败', 'error');
+      }
+    }
+
+    // 刷新统计
+    async function refreshStats() {
+      try {
+        const stats = await DB.getStats();
+        document.getElementById('stats').innerHTML = `
+          <div style="display: flex; gap: 20px;">
+            <div><strong>漫画:</strong> ${stats.comics}</div>
+            <div><strong>文章:</strong> ${stats.articles}</div>
+            <div><strong>章节:</strong> ${stats.chapters}</div>
+            <div><strong>图片:</strong> ${stats.pages}</div>
+          </div>
+        `;
+      } catch (e) {
+        document.getElementById('stats').textContent = '获取统计失败: ' + e.message;
+      }
+    }
+
+    // 初始化
+    document.addEventListener('DOMContentLoaded', () => {
+      refreshStats();
+      log('测试页面已加载');
+      log('注意: 部分功能需要在扩展环境中测试（如 chrome.runtime.sendMessage）');
+    });
+  </script>
+</body>
+</html>
