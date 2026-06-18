@@ -1,0 +1,13 @@
+{
+  "name": "51publisher",
+  "version": "0.1.0",
+  "private": true,
+  "description": "51acgs.com 漫画爬取 + AI 文章生成 — standalone project (extension + backend)",
+  "scripts": {
+    "build:extension": "bash scripts/build-extension.sh",
+    "build:backend": "bash scripts/build-backend.sh",
+    "build": "npm run build:extension && npm run build:backend",
+    "clean": "rm -rf dist",
+    "test:backend": "cd packages/backend && python3 -m pytest -q"
+  }
+}

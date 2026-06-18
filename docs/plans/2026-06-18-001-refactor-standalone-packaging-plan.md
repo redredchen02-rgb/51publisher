@@ -160,7 +160,7 @@ graph TB
 
 ## Implementation Units
 
-- [ ] **Unit 1: 收口为单一根 git 仓库(不可逆地基)**
+- [x] **Unit 1: 收口为单一根 git 仓库(不可逆地基)** — 完成(commit 112e215;历史归档 ../51publisher-git-archive/*.bundle 已 verify)
 
 **Goal:** 安全地把两个嵌套孤立仓库收口成 `51publisher/` 根的单一 git 仓库,过程中零丢失。
 
@@ -192,7 +192,7 @@ graph TB
 
 ---
 
-- [ ] **Unit 2: 根项目身份 + 统一构建/打包脚本**
+- [x] **Unit 2: 根项目身份 + 统一构建/打包脚本** — 完成(root package.json + scripts/build-{extension,backend}.sh;npm run build 产出 dist/extension-3.0.0.zip + dist/backend-1.0.0.tar.gz 并验证内容;散落 .crx/.zip 已删)
 
 **Goal:** 给专案一个根身份与一键打包能力,产物输出到 gitignored `dist/`,源码树不再散落 `.crx/.zip`。
 
