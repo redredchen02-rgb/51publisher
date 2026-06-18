@@ -1,3 +1,30 @@
+const DataStore = {
+  _comics: {},
+  _articles: {},
+  _chapters: {},
+  _errors: {},
+  
+  setComics(data) {
+    this._comics = Object.fromEntries(data.map(c => [c.source_id, c]));
+  },
+  getComic(id) { return this._comics[id]; },
+  
+  setArticles(data) {
+    this._articles = Object.fromEntries(data.map(a => [a.source_id, a]));
+  },
+  getArticle(id) { return this._articles[id]; },
+  
+  setChapters(data) {
+    this._chapters = Object.fromEntries(data.map(ch => [ch.chapter_id, ch]));
+  },
+  getChapter(id) { return this._chapters[id]; },
+  
+  setErrors(data) {
+    this._errors = Object.fromEntries(data.map(e => [e.source_id, e]));
+  },
+  getError(id) { return this._errors[id]; },
+};
+
 let currentTab = 'comics';
 let activeFilter = null;
 let allComicsData = [];
@@ -74,8 +101,7 @@ function renderComics(data) {
   const el = document.getElementById('content');
   if (!el) return;
   if (!data.length) { el.innerHTML = '<div class="empty">暂无数据</div>'; return; }
-  window._cd = {};
-  data.forEach(c => { window._cd[c.source_id] = c; });
+  DataStore.setComics(data);
   el.innerHTML = data.map(c => {
     const ai = c.ai_title, id = c.source_id;
     return `<div class="card${ai?' card-ai':''}">
@@ -99,8 +125,7 @@ function renderArticles(data) {
   const el = document.getElementById('content');
   if (!el) return;
   if (!data.length) { el.innerHTML = '<div class="empty">暂无数据</div>'; return; }
-  window._ad = {};
-  data.forEach(a => { window._ad[a.source_id] = a; });
+  DataStore.setArticles(data);
   el.innerHTML = data.map(a => `<div class="card">
     <div class="card-header"><div class="card-title">${esc(a.title)}</div>
       <div class="btn-group"><button class="btn-copy" data-copy-afields="${a.source_id}">复制文本</button><button class="btn-copy" data-copy-ajson="${a.source_id}">复制JSON</button></div>
@@ -115,8 +140,7 @@ function renderChapters(data) {
   const el = document.getElementById('content');
   if (!el) return;
   if (!data.length) { el.innerHTML = '<div class="empty">暂无数据</div>'; return; }
-  window._chd = {};
-  data.forEach(ch => { window._chd[ch.chapter_id] = ch; });
+  DataStore.setChapters(data);
   el.innerHTML = data.map(ch => `<div class="card">
     <div class="card-header"><div class="card-title">${esc(ch.chapter_name)} (${ch.page_count||'?'}页)</div>
       <button class="btn-copy" data-copy-chjson="${ch.chapter_id}">复制JSON</button>
@@ -152,13 +176,13 @@ function loadData() {
 }
 
 function initDelegation() {
-  document.querySelectorAll('[data-copy-fields]').forEach(b => { b.onclick = () => { const c = window._cd?.[b.dataset.copyFields]; if (c) copyToClipboard(fmtFields(c), b); }; });
-  document.querySelectorAll('[data-copy-json]').forEach(b => { b.onclick = () => { const c = window._cd?.[b.dataset.copyJson]; if (c) copyToClipboard(fmt(c), b); }; });
-  document.querySelectorAll('[data-copy-ai]').forEach(b => { b.onclick = () => { const s = b.dataset.copyAi; const idx = s.lastIndexOf('_'); const field = s.slice(0, idx); const id = s.slice(idx + 1); const c = window._cd?.[id]; if (c) copyToClipboard(c['ai_'+field]||'', b); }; });
-  document.querySelectorAll('[data-copy-afields]').forEach(b => { b.onclick = () => { const a = window._ad?.[b.dataset.copyAfields]; if (a) copyToClipboard(`标题: ${a.title||''}\n摘要: ${a.summary||''}\n类型: ${a.article_type||''}\n标签: ${a.tags||''}`, b); }; });
-  document.querySelectorAll('[data-copy-ajson]').forEach(b => { b.onclick = () => { const a = window._ad?.[b.dataset.copyAjson]; if (a) copyToClipboard(JSON.stringify({title:a.title,summary:a.summary,article_type:a.article_type,tags:a.tags},null,2), b); }; });
-  document.querySelectorAll('[data-copy-chjson]').forEach(b => { b.onclick = () => { const ch = window._chd?.[b.dataset.copyChjson]; if (ch) copyToClipboard(JSON.stringify({chapter_name:ch.chapter_name,page_count:ch.page_count,chapter_url:ch.chapter_url},null,2), b); }; });
-  document.querySelectorAll('[data-gen]').forEach(b => { b.onclick = () => { const c = window._cd?.[b.dataset.gen]; if (c) { b.disabled=true; b.textContent='生成中...'; sendMsg({action:'generateArticle',comic:c}).then(r=>{ if(r.success){sendMsg({action:'getData',store:'comics'}).then(d=>{renderComics(d||[]); initDelegation();});} else{b.textContent='失败';setTimeout(()=>{b.disabled=false;b.textContent='生成文章';},2000);} }); } }; });
+  document.querySelectorAll('[data-copy-fields]').forEach(b => { b.onclick = () => { const c = DataStore.getComic(b.dataset.copyFields); if (c) copyToClipboard(fmtFields(c), b); }; });
+  document.querySelectorAll('[data-copy-json]').forEach(b => { b.onclick = () => { const c = DataStore.getComic(b.dataset.copyJson); if (c) copyToClipboard(fmt(c), b); }; });
+  document.querySelectorAll('[data-copy-ai]').forEach(b => { b.onclick = () => { const s = b.dataset.copyAi; const idx = s.lastIndexOf('_'); const field = s.slice(0, idx); const id = s.slice(idx + 1); const c = DataStore.getComic(id); if (c) copyToClipboard(c['ai_'+field]||'', b); }; });
+  document.querySelectorAll('[data-copy-afields]').forEach(b => { b.onclick = () => { const a = DataStore.getArticle(b.dataset.copyAfields); if (a) copyToClipboard(`标题: ${a.title||''}\n摘要: ${a.summary||''}\n类型: ${a.article_type||''}\n标签: ${a.tags||''}`, b); }; });
+  document.querySelectorAll('[data-copy-ajson]').forEach(b => { b.onclick = () => { const a = DataStore.getArticle(b.dataset.copyAjson); if (a) copyToClipboard(JSON.stringify({title:a.title,summary:a.summary,article_type:a.article_type,tags:a.tags},null,2), b); }; });
+  document.querySelectorAll('[data-copy-chjson]').forEach(b => { b.onclick = () => { const ch = DataStore.getChapter(b.dataset.copyChjson); if (ch) copyToClipboard(JSON.stringify({chapter_name:ch.chapter_name,page_count:ch.page_count,chapter_url:ch.chapter_url},null,2), b); }; });
+  document.querySelectorAll('[data-gen]').forEach(b => { b.onclick = () => { const c = DataStore.getComic(b.dataset.gen); if (c) { b.disabled=true; b.textContent='生成中...'; sendMsg({action:'generateArticle',comic:c}).then(r=>{ if(r.success){sendMsg({action:'getData',store:'comics'}).then(d=>{renderComics(d||[]); initDelegation();});} else{b.textContent='失败';setTimeout(()=>{b.disabled=false;b.textContent='生成文章';},2000);} }); } }; });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -220,7 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
   checkPendingCrawl();
 });
 
-const STAGE_LABELS = { home: '首页', topics: '专题', details: '详情', chapters: '章节', pages: '图片URL' };
+const STAGE_LABELS = { home: '首页', topics: '专题', details_chapters: '详情+章节', pages: '图片URL' };
 
 async function checkPendingCrawl() {
   const state = await sendMsg({ action: 'getCrawlState' });

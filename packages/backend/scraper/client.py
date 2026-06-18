@@ -1,8 +1,11 @@
 import asyncio
+import logging
 import time
 import httpx
 
 from .config import HEADERS, MAX_RETRIES, RETRY_BACKOFF
+
+logger = logging.getLogger("scraper")
 
 _client: httpx.Client | None = None
 
@@ -23,14 +26,14 @@ def fetch_page(url: str) -> str | None:
                 return resp.text
             if resp.status_code in (429, 403, 503):
                 wait = RETRY_BACKOFF ** (attempt + 1)
-                print(f"  [HTTP] {resp.status_code}, waiting {wait:.1f}s...")
+                logger.info(f"[HTTP] {resp.status_code}, waiting {wait:.1f}s...")
                 time.sleep(wait)
                 continue
-            print(f"  [HTTP] {resp.status_code} for {url}")
+            logger.info(f"[HTTP] {resp.status_code} for {url}")
             return None
         except Exception as e:
             wait = RETRY_BACKOFF ** (attempt + 1)
-            print(f"  [HTTP] Error: {e}, retrying in {wait:.1f}s...")
+            logger.info(f"[HTTP] Error: {e}, retrying in {wait:.1f}s...")
             time.sleep(wait)
     return None
 
@@ -49,7 +52,7 @@ async def fetch_page_async(client: httpx.AsyncClient, url: str, sem: asyncio.Sem
                 return None
             except Exception as e:
                 wait = RETRY_BACKOFF ** (attempt + 1)
-                print(f"  [HTTP] Error: {e}, retrying in {wait:.1f}s...")
+                logger.info(f"[HTTP] Error: {e}, retrying in {wait:.1f}s...")
                 await asyncio.sleep(wait)
     return None
 

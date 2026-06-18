@@ -39,7 +39,7 @@ function parseHTML(html) {
   try {
     return new DOMParser().parseFromString(html, 'text/html');
   } catch (e) {
-    console.error('parseHTML error:', e);
+    logError('parseHTML', getErrorMessage(e));
     return null;
   }
 }
@@ -68,27 +68,43 @@ function parseHome(doc) {
   return results;
 }
 
-function parseDetail(doc) {
-  if (!doc) return { author: null, status: null, tags: null, categories: null, publish_date: null, update_date: null, bookmark_count: null, view_count: null, chapter_count: null };
-  const r = { author: null, status: null, tags: null, categories: null, publish_date: null, update_date: null, bookmark_count: null, view_count: null, chapter_count: null };
+function parseLDJson(doc) {
+  const book = {}, itemLists = [];
   doc.querySelectorAll('script[type="application/ld+json"]').forEach(s => {
     try {
       const d = JSON.parse(s.textContent);
-      if (d['@type'] === 'Book') {
-        r.author = d.author ? (typeof d.author === 'object' ? d.author.name : d.author) : null;
-        if (d.datePublished) r.publish_date = d.datePublished.slice(0, 10);
-        if (d.genre) r.categories = (Array.isArray(d.genre) ? d.genre : [d.genre]).join(',');
-        if (d.keywords) r.tags = (Array.isArray(d.keywords) ? d.keywords : [d.keywords]).join(',');
-        for (const stat of (d.interactionStatistic || [])) {
-          const itype = typeof stat.interactionType === 'object' ? stat.interactionType['@type'] : '';
-          if (itype.includes('Bookmark')) r.bookmark_count = stat.userInteractionCount;
-        }
-      }
-      if (d['@type'] === 'ItemList' && d.name && d.name.includes('章节目录')) {
-        r.chapter_count = d.numberOfItems || d.itemListElement?.length || 0;
-      }
-    } catch {}
+      if (d['@type'] === 'Book') Object.assign(book, d);
+      if (d['@type'] === 'ItemList') itemLists.push(d);
+    } catch (e) { logError('parseLDJson', getErrorMessage(e)); }
   });
+  return { book, itemLists };
+}
+
+function parseDetail(doc) {
+  if (!doc) return { author: null, status: null, tags: null, categories: null, publish_date: null, update_date: null, bookmark_count: null, view_count: null, chapter_count: null };
+  const r = { author: null, status: null, tags: null, categories: null, publish_date: null, update_date: null, bookmark_count: null, view_count: null, chapter_count: null };
+  
+  const { book, itemLists } = parseLDJson(doc);
+  
+  if (book.author) {
+    r.author = typeof book.author === 'object' ? book.author.name : book.author;
+  }
+  if (book.datePublished) r.publish_date = book.datePublished.slice(0, 10);
+  if (book.genre) r.categories = (Array.isArray(book.genre) ? book.genre : [book.genre]).join(',');
+  if (book.keywords) r.tags = (Array.isArray(book.keywords) ? book.keywords : [book.keywords]).join(',');
+  
+  for (const stat of (book.interactionStatistic || [])) {
+    const itype = typeof stat.interactionType === 'object' ? stat.interactionType['@type'] : '';
+    if (itype.includes('Bookmark')) r.bookmark_count = stat.userInteractionCount;
+  }
+  
+  for (const il of itemLists) {
+    if (il.name && il.name.includes('章节目录')) {
+      r.chapter_count = il.numberOfItems || il.itemListElement?.length || 0;
+      break;
+    }
+  }
+  
   if (!r.author) {
     const authorEl = doc.querySelector('.comic-author-link span, .comic-author-link');
     if (authorEl) r.author = authorEl.textContent.trim();
@@ -110,24 +126,26 @@ function parseDetail(doc) {
 function parseChapters(doc, comicId) {
   if (!doc) return [];
   const results = [], seen = new Set();
-  doc.querySelectorAll('script[type="application/ld+json"]').forEach(s => {
-    try {
-      const d = JSON.parse(s.textContent);
-      if (d['@type'] === 'ItemList' && d.name && d.name.includes('章节目录')) {
-        for (const item of (d.itemListElement || [])) {
-          const m = item.url?.match(/\/chapter\/(\d+)/);
-          if (!m || seen.has(m[1])) continue;
-          seen.add(m[1]);
-          results.push({
-            comic_source_id: comicId,
-            chapter_id: m[1],
-            chapter_name: item.name || `Ch ${m[1]}`,
-            chapter_url: item.url.startsWith('http') ? item.url : 'https://51acgs.com' + item.url,
-          });
-        }
+  
+  const { itemLists } = parseLDJson(doc);
+  
+  for (const d of itemLists) {
+    if (d.name && d.name.includes('章节目录')) {
+      for (const item of (d.itemListElement || [])) {
+        const m = item.url?.match(/\/chapter\/(\d+)/);
+        if (!m || seen.has(m[1])) continue;
+        seen.add(m[1]);
+        results.push({
+          comic_source_id: comicId,
+          chapter_id: m[1],
+          chapter_name: item.name || `Ch ${m[1]}`,
+          chapter_url: item.url.startsWith('http') ? item.url : 'https://51acgs.com' + item.url,
+        });
       }
-    } catch {}
-  });
+      break;
+    }
+  }
+  
   if (results.length === 0) {
     doc.querySelectorAll('a[href*="/chapter/"]').forEach(a => {
       const href = a.getAttribute('href');
@@ -246,32 +264,51 @@ function chunk(arr, size) {
   return chunks;
 }
 
-async function crawlDetails(limit = 100) {
+async function crawlDetailsAndChapters(limit = 300) {
   const t0 = Date.now();
   const comics = await DB.getAll('comics');
   const need = comics.filter(c => !c.author && c.detail_url).slice(0, limit);
-  let count = 0;
+  let detailCount = 0;
+  let chapterCount = 0;
+  
   for (const batch of chunk(need, CONCURRENCY)) {
     await Promise.all(batch.map(async (c) => {
       try {
         await sleep(REQUEST_DELAY);
         const html = await fetchPage(c.detail_url);
-        if (!html) { logError('crawlDetail', c.source_id); return; }
+        if (!html) { logError('crawlDetailAndChapters', c.source_id); return; }
         const doc = parseHTML(html);
-        if (!doc) { logError('crawlDetail', `parseHTML ${c.source_id} failed`); return; }
+        if (!doc) { logError('crawlDetailAndChapters', `parseHTML ${c.source_id} failed`); return; }
+        
+        // 合并详情和章节解析，一次fetch提取所有数据
         Object.assign(c, parseDetail(doc));
         await DB.upsert('comics', c, 'source_id');
-        count++;
-        if (count % 10 === 0) notify({ type: 'progress', stage: '详情', current: count, total: need.length });
-      } catch (e) { logError('crawlDetail', `${c.source_id}: ${getErrorMessage(e)}`); }
+        detailCount++;
+        
+        const chs = parseChapters(doc, c.source_id);
+        if (chs.length > 0) {
+          await DB.append('chapters', chs);
+          chapterCount++;
+        }
+        
+        if (detailCount % 10 === 0) notify({ type: 'progress', stage: '详情+章节', current: detailCount, total: need.length });
+      } catch (e) { logError('crawlDetailAndChapters', `${c.source_id}: ${getErrorMessage(e)}`); }
     }));
   }
+  
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-  notify({ type: 'progress', stage: '详情', current: count, total: need.length, elapsed, msg: `${count} 条` });
-  return count;
+  notify({ type: 'done', msg: `详情: ${detailCount} 条, 章节: ${chapterCount} 条 (${elapsed}s)` });
+  return { details: detailCount, chapters: chapterCount };
+}
+
+// 保留单独函数以兼容直接调用
+async function crawlDetails(limit = 100) {
+  const result = await crawlDetailsAndChapters(limit);
+  return result.details;
 }
 
 async function crawlChapters(limit = 100) {
+  // 单独爬取章节时，需要重新解析详情页
   const t0 = Date.now();
   const comics = await DB.getAll('comics');
   const need = comics.filter(c => c.detail_url).slice(0, limit);
@@ -329,7 +366,7 @@ async function crawlPages(limit = 100) {
   return count;
 }
 
-const CRAWL_STAGES = ['home', 'topics', 'details', 'chapters', 'pages'];
+const CRAWL_STAGES = ['home', 'topics', 'details_chapters', 'pages'];
 
 async function fullCrawl(resumeFrom = null) {
   if (crawling) return;
@@ -345,8 +382,7 @@ async function fullCrawl(resumeFrom = null) {
       switch (stage) {
         case 'home': await crawlHome(); break;
         case 'topics': await crawlTopics(); break;
-        case 'details': await crawlDetails(300); break;
-        case 'chapters': await crawlChapters(300); break;
+        case 'details_chapters': await crawlDetailsAndChapters(300); break;
         case 'pages': await crawlPages(300); break;
       }
     }
@@ -388,22 +424,28 @@ async function batchGenerate(limit = 10) {
   return count;
 }
 
+const handlers = {
+  fullCrawl: (msg) => fullCrawl(msg.resumeFrom || null).then(() => ({ ok: true })),
+  crawlHome: () => crawlHome().then(c => ({ ok: true, count: c })),
+  crawlTopics: () => crawlTopics().then(c => ({ ok: true, count: c })),
+  crawlDetails: (msg) => crawlDetails(msg.limit || 100).then(c => ({ ok: true, count: c })),
+  crawlChapters: (msg) => crawlChapters(msg.limit || 100).then(c => ({ ok: true, count: c })),
+  crawlDetailsAndChapters: (msg) => crawlDetailsAndChapters(msg.limit || 300).then(r => ({ ok: true, ...r })),
+  crawlPages: (msg) => crawlPages(msg.limit || 100).then(c => ({ ok: true, count: c })),
+  getStats: () => DB.getStats(),
+  getCrawlState: () => DB.getCrawlState().then(s => s || null),
+  clearCrawlState: () => DB.clearCrawlState().then(() => ({ ok: true })),
+  getData: (msg) => DB.getAll(msg.store),
+  generateArticle: (msg) => generateArticleForComic(msg.comic),
+  batchGenerate: (msg) => batchGenerate(msg.limit || 10).then(c => ({ ok: true, count: c })),
+  testLLM: () => LLM.testConnection().then(() => ({ ok: true })),
+  clearErrors: () => DB.clearErrors().then(() => ({ ok: true })),
+};
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg.action === 'fullCrawl') { fullCrawl(msg.resumeFrom || null).then(() => sendResponse({ ok: true })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) })); return true; }
-  if (msg.action === 'crawlHome') { crawlHome().then(c => sendResponse({ ok: true, count: c })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) })); return true; }
-  if (msg.action === 'crawlTopics') { crawlTopics().then(c => sendResponse({ ok: true, count: c })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) })); return true; }
-  if (msg.action === 'crawlDetails') { crawlDetails(msg.limit || 100).then(c => sendResponse({ ok: true, count: c })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) })); return true; }
-  if (msg.action === 'crawlChapters') { crawlChapters(msg.limit || 100).then(c => sendResponse({ ok: true, count: c })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) })); return true; }
-  if (msg.action === 'crawlPages') { crawlPages(msg.limit || 100).then(c => sendResponse({ ok: true, count: c })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) })); return true; }
-  if (msg.action === 'getStats') { DB.getStats().then(s => sendResponse(s)).catch(e => sendResponse({ error: getErrorMessage(e) })); return true; }
-  if (msg.action === 'getCrawlState') { DB.getCrawlState().then(s => sendResponse(s || null)).catch(() => sendResponse(null)); return true; }
-  if (msg.action === 'clearCrawlState') { DB.clearCrawlState().then(() => sendResponse({ ok: true })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) })); return true; }
-  if (msg.action === 'getData') { DB.getAll(msg.store).then(d => sendResponse(d)).catch(e => sendResponse({ error: getErrorMessage(e) })); return true; }
-  if (msg.action === 'generateArticle') { generateArticleForComic(msg.comic).then(r => sendResponse(r)).catch(e => sendResponse({ success: false, error: getErrorMessage(e) })); return true; }
-  if (msg.action === 'batchGenerate') { batchGenerate(msg.limit || 10).then(c => sendResponse({ ok: true, count: c })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) })); return true; }
-  if (msg.action === 'testLLM') { LLM.testConnection().then(() => sendResponse({ ok: true })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) })); return true; }
-  if (msg.action === 'clearErrors') {
-    DB.clearErrors().then(() => sendResponse({ ok: true })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) }));
+  const handler = handlers[msg.action];
+  if (handler) {
+    handler(msg).then(r => sendResponse(r)).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) }));
     return true;
   }
 });

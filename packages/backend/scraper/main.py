@@ -3,33 +3,43 @@
 
 import argparse
 import asyncio
+import logging
 import os
+import signal
+import sys
 from datetime import datetime
 from urllib.parse import urlparse, quote
 
 import httpx
 
+from .client import fetch_page, fetch_page_async, close_client
 from .config import BASE_URL, EXPORTS_DIR, CONCURRENCY, DATA_DIR
+from .crawlers.chapters import parse_chapter_list, parse_chapter_images
+from .crawlers.comics import parse_comic_detail
+from .crawlers.home import parse_home_page
+from .crawlers.search import parse_search_results
+from .crawlers.topics import parse_topic_list, parse_topic_detail
+from .exporters import export_csv
 from .models import (
     init_db, get_db, upsert_comic, upsert_article, upsert_topic_detail,
     update_comic_detail, query_comics, query_comics_needing_detail,
     query_articles, get_stats, upsert_chapter, upsert_page,
-    query_comics_without_chapters, query_chapters_for_download,
+    query_comics_without_chapters,
 )
-from .client import fetch_page, fetch_page_async, close_client
-from .crawlers.home import parse_home_page
-from .crawlers.topics import parse_topic_list, parse_topic_detail
-from .crawlers.comics import parse_comic_detail
-from .crawlers.search import parse_search_results
-from .crawlers.chapters import parse_chapter_list, parse_chapter_images
-from .exporters import export_json, export_csv
+
+logging.basicConfig(
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    level=logging.INFO,
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+logger = logging.getLogger("scraper")
 
 
 def cmd_scrape_home(conn):
-    print("[1/5] Scraping homepage latest comics...")
+    logger.info("[1/5] Scraping homepage latest comics...")
     html = fetch_page(BASE_URL)
     if not html:
-        print("  Failed to fetch homepage")
+        logger.error("Failed to fetch homepage")
         return 0
 
     items = parse_home_page(html)
@@ -38,13 +48,48 @@ def cmd_scrape_home(conn):
         if upsert_comic(conn, item):
             count += 1
     conn.commit()
-    print(f"  Found {len(items)} comics, {count} saved")
+    logger.info(f"Found {len(items)} comics, {count} saved")
     return len(items)
 
 
+async def cmd_scrape_topic_details_async(conn, items, sem):
+    if not items:
+        return 0
+
+    count = 0
+    total = len(items)
+
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        async def fetch_one(item):
+            nonlocal count
+            detail_url = item.get("detail_url", "")
+            if not detail_url:
+                return
+            detail_html = await fetch_page_async(client, detail_url, sem)
+            if not detail_html:
+                return
+            detail = parse_topic_detail(detail_html)
+            detail["topic_id"] = item["source_id"]
+            upsert_topic_detail(conn, detail)
+            count += 1
+            if count % 10 == 0:
+                logger.info(f"[Topic Details] {count}/{total}...")
+
+        await asyncio.gather(*[fetch_one(item) for item in items])
+
+    conn.commit()
+    logger.info(f"Scraped {count} topic details")
+    return count
+
+
+def cmd_scrape_topic_details(conn, items):
+    return asyncio.run(cmd_scrape_topic_details_async(conn, items, asyncio.Semaphore(CONCURRENCY)))
+
+
 def cmd_scrape_topics(conn, scrape_details=False, pages=1):
-    print("[2/5] Scraping topic articles...")
+    logger.info("[2/5] Scraping topic articles...")
     total = 0
+    all_items = []
 
     topic_urls = [
         (f"{BASE_URL}/topic", "all"),
@@ -59,14 +104,14 @@ def cmd_scrape_topics(conn, scrape_details=False, pages=1):
         page_count = 0
         for page in range(1, pages + 1):
             url = base_url if page == 1 else f"{base_url}?page={page}"
-            print(f"  Fetching {label} page {page}...")
+            logger.info(f"Fetching {label} page {page}...")
             html = fetch_page(url)
             if not html:
                 break
 
             items = parse_topic_list(html)
             if not items:
-                print(f"    {label} page {page}: no more items, stopping")
+                logger.info(f"{label} page {page}: no more items, stopping")
                 break
 
             new_count = 0
@@ -75,66 +120,73 @@ def cmd_scrape_topics(conn, scrape_details=False, pages=1):
                     new_count += 1
             conn.commit()
             page_count += len(items)
-            print(f"    {label} page {page}: {len(items)} articles ({new_count} new)")
-
-            if scrape_details:
-                for item in items:
-                    detail_url = item.get("detail_url", "")
-                    if not detail_url:
-                        continue
-                    detail_html = fetch_page(detail_url)
-                    if not detail_html:
-                        continue
-                    detail = parse_topic_detail(detail_html)
-                    detail["topic_id"] = item["source_id"]
-                    upsert_topic_detail(conn, detail)
-                conn.commit()
+            all_items.extend(items)
+            logger.info(f"{label} page {page}: {len(items)} articles ({new_count} new)")
 
         total += page_count
 
-    print(f"  Total: {total} articles saved")
+    if scrape_details and all_items:
+        logger.info(f"Scraping {len(all_items)} topic details (async)...")
+        cmd_scrape_topic_details(conn, all_items)
+
+    logger.info(f"Total: {total} articles saved")
     return total
 
 
+async def _batch_scrape(conn, items, process_fn, label, sem=None):
+    if not items:
+        return 0
+
+    sem = sem or asyncio.Semaphore(CONCURRENCY)
+    count = 0
+    total = len(items)
+
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        async def process_one(item):
+            nonlocal count
+            result = await process_fn(client, item, sem)
+            if result:
+                count += 1
+                if count % 10 == 0:
+                    logger.info(f"[{count}/{total}]...")
+
+        await asyncio.gather(*[process_one(item) for item in items])
+
+    conn.commit()
+    logger.info(f"{label}: {count}/{total}")
+    return count
+
+
 async def cmd_scrape_comic_details_async(conn, limit=500, incremental=False):
-    print("[3/5] Scraping comic details (async)...")
+    logger.info("[3/5] Scraping comic details (async)...")
     if incremental:
         comics = query_comics_needing_detail(conn, limit=limit)
-        print(f"  Incremental mode: {len(comics)} comics need details")
+        logger.info(f"Incremental mode: {len(comics)} comics need details")
     else:
         comics = query_comics(conn, limit=limit)
 
     if not comics:
-        print("  No comics to scrape")
+        logger.info("No comics to scrape")
         return 0
 
-    sem = asyncio.Semaphore(CONCURRENCY)
-    count = 0
-    total = len(comics)
+    async def process_comic(client, comic, sem):
+        url = comic.get("detail_url", "")
+        if not url:
+            return False
+        html = await fetch_page_async(client, url, sem)
+        if not html:
+            return False
+        detail = parse_comic_detail(html)
+        update_data = {k: v for k, v in detail.items() if v is not None and v != ""}
+        if update_data:
+            update_comic_detail(conn, comic["source_id"], update_data)
+            title = comic["title"][:35]
+            author = detail.get("author", "") or ""
+            logger.info(f"{title}... ({author})")
+            return True
+        return False
 
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        async def process_one(comic):
-            nonlocal count
-            url = comic.get("detail_url", "")
-            if not url:
-                return
-            html = await fetch_page_async(client, url, sem)
-            if not html:
-                return
-            detail = parse_comic_detail(html)
-            update_data = {k: v for k, v in detail.items() if v is not None and v != ""}
-            if update_data:
-                update_comic_detail(conn, comic["source_id"], update_data)
-                count += 1
-                title = comic["title"][:35]
-                author = detail.get("author", "") or ""
-                print(f"  [{count}/{total}] {title}... ({author})")
-
-        await asyncio.gather(*[process_one(c) for c in comics])
-
-    conn.commit()
-    print(f"  Updated {count} comic details")
-    return count
+    return await _batch_scrape(conn, comics, process_comic, "Comic details")
 
 
 def cmd_scrape_comic_details(conn, limit=500, incremental=False):
@@ -142,7 +194,7 @@ def cmd_scrape_comic_details(conn, limit=500, incremental=False):
 
 
 def cmd_scrape_search(conn, keyword, pages=1):
-    print(f"Searching for '{keyword}' ({pages} pages)...")
+    logger.info(f"Searching for '{keyword}' ({pages} pages)...")
     total = 0
 
     for page in range(1, pages + 1):
@@ -155,7 +207,7 @@ def cmd_scrape_search(conn, keyword, pages=1):
 
         items = parse_search_results(html)
         if not items:
-            print(f"  Page {page}: no results, stopping")
+            logger.info(f"Page {page}: no results, stopping")
             break
 
         count = 0
@@ -176,81 +228,118 @@ def cmd_scrape_search(conn, keyword, pages=1):
                     count += 1
         conn.commit()
         total += len(items)
-        print(f"  Page {page}: {len(items)} results ({count} new)")
+        logger.info(f"Page {page}: {len(items)} results ({count} new)")
 
-    print(f"  Total: {total} results saved")
+    logger.info(f"Total: {total} results saved")
     return total
 
 
 def cmd_scrape_all(conn, scrape_details=True, incremental=False, pages=1):
-    print("=" * 50)
-    print("51acgs.com Full Scrape")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("51acgs.com Full Scrape")
+    logger.info("=" * 50)
 
-    cmd_scrape_home(conn)
-    cmd_scrape_topics(conn, scrape_details=scrape_details, pages=pages)
+    try:
+        cmd_scrape_home(conn)
+    except Exception as e:
+        logger.warning(f"Home scrape failed: {e}")
+
+    try:
+        cmd_scrape_topics(conn, scrape_details=scrape_details, pages=pages)
+    except Exception as e:
+        logger.warning(f"Topics scrape failed: {e}")
 
     if scrape_details:
-        cmd_scrape_comic_details(conn, limit=500, incremental=incremental)
+        try:
+            cmd_scrape_comic_details(conn, limit=500, incremental=incremental)
+        except Exception as e:
+            logger.warning(f"Comic details scrape failed: {e}")
 
-    cmd_scrape_chapters(conn, limit=300)
-    cmd_scrape_pages(conn, limit=300)
+    try:
+        cmd_scrape_chapters(conn, limit=300)
+    except Exception as e:
+        logger.warning(f"Chapters scrape failed: {e}")
+
+    try:
+        cmd_scrape_pages(conn, limit=300)
+    except Exception as e:
+        logger.warning(f"Pages scrape failed: {e}")
 
     stats = get_stats(conn)
 
-    print()
-    print("=" * 50)
-    print("Scrape Complete")
-    print(f"  Comics:     {stats['comics']} ({stats['comics_detailed']} detailed)")
-    print(f"  Articles:   {stats['articles']}")
-    print(f"  Details:    {stats['topic_details']}")
-    print(f"  Chapters:   {stats['chapters']}")
-    print(f"  Pages:      {stats['pages']}")
-    print("=" * 50)
+    logger.info("")
+    logger.info("=" * 50)
+    logger.info("Scrape Complete")
+    logger.info(f"  Comics:     {stats['comics']} ({stats['comics_detailed']} detailed)")
+    logger.info(f"  Articles:   {stats['articles']}")
+    logger.info(f"  Details:    {stats['topic_details']}")
+    logger.info(f"  Chapters:   {stats['chapters']}")
+    logger.info(f"  Pages:      {stats['pages']}")
+    logger.info("=" * 50)
+
+
+def export_json_streaming(conn, query, filepath, label="records"):
+    import json
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write("[\n")
+        rows = conn.execute(query)
+        first = True
+        count = 0
+        for row in rows:
+            if not first:
+                f.write(",\n")
+            json.dump(dict(row), f, ensure_ascii=False)
+            first = False
+            count += 1
+        f.write("\n]")
+    logger.info(f"[Export] JSON -> {filepath} ({count} {label})")
+    return count
 
 
 def cmd_export(conn, fmt, output_dir, combined=False):
-    print(f"Exporting data as {fmt.upper()}...")
-    comics = query_comics(conn, limit=5000)
-    articles = query_articles(conn, limit=5000)
-
-    valid_comics = [c for c in comics if c.get("title")]
-    valid_articles = [a for a in articles if a.get("title")]
-    skipped = len(comics) - len(valid_comics) + len(articles) - len(valid_articles)
-    if skipped:
-        print(f"  Skipped {skipped} records with empty title")
+    logger.info(f"Exporting data as {fmt.upper()}...")
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     if combined:
-        data = {
-            "comics": valid_comics,
-            "articles": valid_articles,
-            "stats": {
-                "comics_count": len(valid_comics),
-                "articles_count": len(valid_articles),
-                "comics_with_author": sum(1 for c in valid_comics if c.get("author")),
-            }
+        comics_file = os.path.join(output_dir, f"comics_{ts}.json")
+        articles_file = os.path.join(output_dir, f"articles_{ts}.json")
+
+        comics_count = export_json_streaming(conn, "SELECT * FROM comics WHERE title IS NOT NULL", comics_file, "comics")
+        articles_count = export_json_streaming(conn, "SELECT * FROM articles WHERE title IS NOT NULL", articles_file, "articles")
+
+        import json
+        stats = {
+            "comics_count": comics_count,
+            "articles_count": articles_count,
         }
-        filepath = os.path.join(output_dir, f"51acgs_all_{ts}.json")
-        export_json(data, filepath)
+        stats_file = os.path.join(output_dir, f"stats_{ts}.json")
+        with open(stats_file, "w", encoding="utf-8") as f:
+            json.dump(stats, f, ensure_ascii=False, indent=2)
+
         latest = os.path.join(output_dir, "latest.json")
-        export_json(data, latest)
+        export_json_streaming(conn, "SELECT * FROM comics WHERE title IS NOT NULL", latest, "comics")
     else:
         if fmt == "json":
-            export_json(valid_comics, os.path.join(output_dir, f"comics_{ts}.json"))
-            export_json(valid_articles, os.path.join(output_dir, f"articles_{ts}.json"))
+            export_json_streaming(conn, "SELECT * FROM comics WHERE title IS NOT NULL", os.path.join(output_dir, f"comics_{ts}.json"), "comics")
+            export_json_streaming(conn, "SELECT * FROM articles WHERE title IS NOT NULL", os.path.join(output_dir, f"articles_{ts}.json"), "articles")
         else:
+            # CSV导出需要先加载到内存
+            comics = query_comics(conn, limit=5000)
+            articles = query_articles(conn, limit=5000)
+            valid_comics = [c for c in comics if c.get("title")]
+            valid_articles = [a for a in articles if a.get("title")]
             export_csv(valid_comics, os.path.join(output_dir, f"comics_{ts}.csv"))
             export_csv(valid_articles, os.path.join(output_dir, f"articles_{ts}.csv"))
 
-    print(f"  Exported to {output_dir}")
+    logger.info(f"Exported to {output_dir}")
 
 
 def cmd_list(conn, source, limit):
     if source == "comics":
         items = query_comics(conn, limit=limit)
-        print(f"Comics ({len(items)}):")
+        logger.info(f"Comics ({len(items)}):")
         for item in items:
             author = item.get("author", "") or ""
             status = item.get("status", "") or ""
@@ -258,15 +347,15 @@ def cmd_list(conn, source, limit):
             detail = f" [{author}]" if author else ""
             detail += f" ({status})" if status else ""
             detail += f" bm={bm}" if bm else ""
-            print(f"  [{item['source_id']}] {item['title'][:50]}{detail}")
+            logger.info(f"  [{item['source_id']}] {item['title'][:50]}{detail}")
     elif source == "articles":
         items = query_articles(conn, limit=limit)
-        print(f"Articles ({len(items)}):")
+        logger.info(f"Articles ({len(items)}):")
         for item in items:
-            print(f"  [{item['source_id']}] {item['title'][:50]} ({item['article_type']})")
+            logger.info(f"  [{item['source_id']}] {item['title'][:50]} ({item['article_type']})")
     else:
         stats = get_stats(conn)
-        print(f"Database stats: {stats}")
+        logger.info(f"Database stats: {stats}")
 
 
 def cmd_stats(conn):
@@ -274,44 +363,34 @@ def cmd_stats(conn):
     total = stats['comics'] or 1
     detailed = stats['comics_detailed']
     pct = detailed * 100 // total
-    print("Database Statistics:")
-    print(f"  Comics:       {stats['comics']}")
-    print(f"  Detailed:     {detailed} ({pct}%)")
-    print(f"  Articles:     {stats['articles']}")
-    print(f"  Topic Details:{stats['topic_details']}")
-    print(f"  Chapters:     {stats['chapters']}")
-    print(f"  Pages:        {stats['pages']}")
-    print(f"  Downloaded:   {stats['downloaded']}")
+    logger.info("Database Statistics:")
+    logger.info(f"  Comics:       {stats['comics']}")
+    logger.info(f"  Detailed:     {detailed} ({pct}%)")
+    logger.info(f"  Articles:     {stats['articles']}")
+    logger.info(f"  Topic Details:{stats['topic_details']}")
+    logger.info(f"  Chapters:     {stats['chapters']}")
+    logger.info(f"  Pages:        {stats['pages']}")
+    logger.info(f"  Downloaded:   {stats['downloaded']}")
 
 
 async def cmd_scrape_chapters_async(conn, limit=50):
-    print("[4/5] Scraping chapter lists (async)...")
+    logger.info("[4/5] Scraping chapter lists (async)...")
     comics = query_comics_without_chapters(conn, limit=limit)
     if not comics:
-        print("  No comics need chapter lists")
+        logger.info("No comics need chapter lists")
         return 0
 
-    sem = asyncio.Semaphore(CONCURRENCY)
-    count = 0
-    total = len(comics)
+    async def process_comic(client, comic, sem):
+        html = await fetch_page_async(client, comic["detail_url"], sem)
+        if not html:
+            return False
+        chapters = parse_chapter_list(html, comic["source_id"])
+        for ch in chapters:
+            upsert_chapter(conn, ch)
+        logger.info(f"{comic['title'][:35]}... ({len(chapters)} chapters)")
+        return True
 
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        async def process_one(comic):
-            nonlocal count
-            html = await fetch_page_async(client, comic["detail_url"], sem)
-            if not html:
-                return
-            chapters = parse_chapter_list(html, comic["source_id"])
-            for ch in chapters:
-                upsert_chapter(conn, ch)
-            count += 1
-            print(f"  [{count}/{total}] {comic['title'][:35]}... ({len(chapters)} chapters)")
-
-        await asyncio.gather(*[process_one(c) for c in comics])
-
-    conn.commit()
-    print(f"  Scraped {count} comic chapter lists")
-    return count
+    return await _batch_scrape(conn, comics, process_comic, "Chapter lists")
 
 
 def cmd_scrape_chapters(conn, limit=50):
@@ -319,7 +398,7 @@ def cmd_scrape_chapters(conn, limit=50):
 
 
 async def cmd_scrape_pages_async(conn, limit=100):
-    print("[5/5] Scraping chapter pages (async)...")
+    logger.info("[5/5] Scraping chapter pages (async)...")
     chapters = conn.execute("""
         SELECT ch.*, c.title as comic_title
         FROM chapters ch
@@ -330,38 +409,28 @@ async def cmd_scrape_pages_async(conn, limit=100):
     chapters = [dict(r) for r in chapters]
 
     if not chapters:
-        print("  No chapters need page scraping")
+        logger.info("No chapters need page scraping")
         return 0
 
-    sem = asyncio.Semaphore(CONCURRENCY)
-    count = 0
-    total = len(chapters)
+    async def process_chapter(client, ch, sem):
+        html = await fetch_page_async(client, ch["chapter_url"], sem)
+        if not html:
+            return False
+        urls = parse_chapter_images(html)
+        for i, url in enumerate(urls):
+            upsert_page(conn, {
+                "chapter_id": ch["chapter_id"],
+                "page_number": i + 1,
+                "image_url": url,
+                "local_path": None,
+                "file_size": None,
+            })
+        conn.execute("UPDATE chapters SET page_count=? WHERE chapter_id=?", (len(urls), ch["chapter_id"]))
+        title = ch.get("comic_title", "")[:25]
+        logger.info(f"{title} {ch['chapter_name']}... ({len(urls)} pages)")
+        return True
 
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        async def process_one(ch):
-            nonlocal count
-            html = await fetch_page_async(client, ch["chapter_url"], sem)
-            if not html:
-                return
-            urls = parse_chapter_images(html)
-            for i, url in enumerate(urls):
-                upsert_page(conn, {
-                    "chapter_id": ch["chapter_id"],
-                    "page_number": i + 1,
-                    "image_url": url,
-                    "local_path": None,
-                    "file_size": None,
-                })
-            conn.execute("UPDATE chapters SET page_count=? WHERE chapter_id=?", (len(urls), ch["chapter_id"]))
-            count += 1
-            title = ch.get("comic_title", "")[:25]
-            print(f"  [{count}/{total}] {title} {ch['chapter_name']}... ({len(urls)} pages)")
-
-        await asyncio.gather(*[process_one(ch) for ch in chapters])
-
-    conn.commit()
-    print(f"  Scraped {count} chapter pages")
-    return count
+    return await _batch_scrape(conn, chapters, process_chapter, "Chapter pages")
 
 
 def cmd_scrape_pages(conn, limit=100):
@@ -369,7 +438,7 @@ def cmd_scrape_pages(conn, limit=100):
 
 
 async def cmd_download_images_async(conn, limit=100):
-    print("[Download] Downloading images...")
+    logger.info("[Download] Downloading images...")
     pages = conn.execute("""
         SELECT p.*, ch.chapter_name, c.title as comic_title, c.source_id
         FROM pages p
@@ -381,7 +450,7 @@ async def cmd_download_images_async(conn, limit=100):
     pages = [dict(r) for r in pages]
 
     if not pages:
-        print("  No images to download")
+        logger.info("No images to download")
         return 0
 
     download_dir = os.path.join(DATA_DIR, "images")
@@ -423,14 +492,14 @@ async def cmd_download_images_async(conn, limit=100):
                         )
                         count += 1
                         if count % 10 == 0:
-                            print(f"  [{count}/{total}] downloaded...")
+                            logger.info(f"[{count}/{total}] downloaded...")
             except Exception as e:
-                print(f"  [DL] Failed: {chapter_id}/{page_num} - {e}")
+                logger.error(f"[DL] Failed: {chapter_id}/{page_num} - {e}")
 
         await asyncio.gather(*[process_one(p) for p in pages])
 
     conn.commit()
-    print(f"  Downloaded {count}/{total} images to {download_dir}")
+    logger.info(f"Downloaded {count}/{total} images to {download_dir}")
     return count
 
 
@@ -474,6 +543,15 @@ def main():
     init_db()
     conn = None
 
+    def cleanup(sig=None, frame=None):
+        if conn:
+            conn.close()
+        close_client()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, cleanup)
+    signal.signal(signal.SIGTERM, cleanup)
+
     try:
         conn = get_db()
 
@@ -494,7 +572,7 @@ def main():
             elif args.search:
                 cmd_scrape_search(conn, args.search, pages=args.pages)
             else:
-                print("Use --all, --source, or --search")
+                logger.info("Use --all, --source, or --search")
         elif args.command == "download":
             cmd_download_images(conn, limit=args.limit)
         elif args.command == "export":
@@ -504,7 +582,7 @@ def main():
         elif args.command == "stats":
             cmd_stats(conn)
         elif args.command == "init":
-            print("Database initialized.")
+            logger.info("Database initialized.")
     finally:
         close_client()
         if conn:

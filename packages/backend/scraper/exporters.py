@@ -1,6 +1,9 @@
 import csv
 import json
+import logging
 import os
+
+logger = logging.getLogger("scraper")
 
 
 def export_json(data, filepath: str):
@@ -8,15 +11,15 @@ def export_json(data, filepath: str):
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     if isinstance(data, list):
-        print(f"  [Export] JSON -> {filepath} ({len(data)} records)")
+        logger.info(f"[Export] JSON -> {filepath} ({len(data)} records)")
     elif isinstance(data, dict):
         total = sum(len(v) for v in data.values() if isinstance(v, list))
-        print(f"  [Export] JSON -> {filepath} ({total} records)")
+        logger.info(f"[Export] JSON -> {filepath} ({total} records)")
 
 
 def export_csv(data: list[dict], filepath: str):
     if not data:
-        print("  [Export] No data to export")
+        logger.info("[Export] No data to export")
         return
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     all_keys = set()
@@ -27,4 +30,4 @@ def export_csv(data: list[dict], filepath: str):
         writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(data)
-    print(f"  [Export] CSV -> {filepath} ({len(data)} records)")
+    logger.info(f"[Export] CSV -> {filepath} ({len(data)} records)")

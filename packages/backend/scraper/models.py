@@ -1,8 +1,11 @@
+import logging
 import sqlite3
 import os
 from datetime import datetime, timezone
 
 from .config import DB_PATH, DATA_DIR
+
+logger = logging.getLogger("scraper")
 
 SCHEMA_VERSION = 3
 
@@ -166,7 +169,7 @@ def upsert_comic(conn: sqlite3.Connection, data: dict) -> bool:
         """, full)
         return True
     except Exception as e:
-        print(f"  [DB] upsert_comic failed: {e}")
+        logger.error(f"[DB] upsert_comic failed: {e}")
         return False
 
 
@@ -186,7 +189,7 @@ def upsert_article(conn: sqlite3.Connection, data: dict) -> bool:
         """, {**data, "scraped_at": now})
         return True
     except Exception as e:
-        print(f"  [DB] upsert_article failed: {e}")
+        logger.error(f"[DB] upsert_article failed: {e}")
         return False
 
 
@@ -202,7 +205,7 @@ def upsert_topic_detail(conn: sqlite3.Connection, data: dict) -> bool:
         """, {**data, "scraped_at": now})
         return True
     except Exception as e:
-        print(f"  [DB] upsert_topic_detail failed: {e}")
+        logger.error(f"[DB] upsert_topic_detail failed: {e}")
         return False
 
 
@@ -262,22 +265,17 @@ def query_articles(conn: sqlite3.Connection, article_type: str = None, limit: in
 
 
 def get_stats(conn: sqlite3.Connection) -> dict:
-    comics_count = conn.execute("SELECT COUNT(*) FROM comics").fetchone()[0]
-    detailed_count = conn.execute("SELECT COUNT(*) FROM comics WHERE chapter_count IS NOT NULL").fetchone()[0]
-    articles_count = conn.execute("SELECT COUNT(*) FROM articles").fetchone()[0]
-    details_count = conn.execute("SELECT COUNT(*) FROM topic_details").fetchone()[0]
-    chapters_count = conn.execute("SELECT COUNT(*) FROM chapters").fetchone()[0]
-    pages_count = conn.execute("SELECT COUNT(*) FROM pages").fetchone()[0]
-    downloaded_count = conn.execute("SELECT COUNT(*) FROM pages WHERE local_path IS NOT NULL").fetchone()[0]
-    return {
-        "comics": comics_count,
-        "comics_detailed": detailed_count,
-        "articles": articles_count,
-        "topic_details": details_count,
-        "chapters": chapters_count,
-        "pages": pages_count,
-        "downloaded": downloaded_count,
-    }
+    row = conn.execute("""
+        SELECT
+            (SELECT COUNT(*) FROM comics) as comics,
+            (SELECT COUNT(*) FROM comics WHERE chapter_count IS NOT NULL) as comics_detailed,
+            (SELECT COUNT(*) FROM articles) as articles,
+            (SELECT COUNT(*) FROM topic_details) as topic_details,
+            (SELECT COUNT(*) FROM chapters) as chapters,
+            (SELECT COUNT(*) FROM pages) as pages,
+            (SELECT COUNT(*) FROM pages WHERE local_path IS NOT NULL) as downloaded
+    """).fetchone()
+    return dict(row)
 
 
 def upsert_chapter(conn: sqlite3.Connection, data: dict) -> bool:
@@ -292,7 +290,7 @@ def upsert_chapter(conn: sqlite3.Connection, data: dict) -> bool:
         """, {**data, "scraped_at": now})
         return True
     except Exception as e:
-        print(f"  [DB] upsert_chapter failed: {e}")
+        logger.error(f"[DB] upsert_chapter failed: {e}")
         return False
 
 
@@ -308,7 +306,7 @@ def upsert_page(conn: sqlite3.Connection, data: dict) -> bool:
         """, {**data, "scraped_at": now})
         return True
     except Exception as e:
-        print(f"  [DB] upsert_page failed: {e}")
+        logger.error(f"[DB] upsert_page failed: {e}")
         return False
 
 

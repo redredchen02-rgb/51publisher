@@ -72,13 +72,14 @@ async function idbPut(storeName, item) {
 
 async function idbAppend(storeName, items) {
   if (!items.length) return 0;
-  const store = await idbTx(storeName, 'readwrite');
-  let added = 0;
-  for (const item of items) {
-    await idbRequest(store, 'put', item);
-    added++;
-  }
-  return added;
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
+    items.forEach(item => store.put(item));
+    tx.oncomplete = () => resolve(items.length);
+    tx.onerror = () => reject(tx.error);
+  });
 }
 
 async function idbUpsert(storeName, item, key = 'source_id') {

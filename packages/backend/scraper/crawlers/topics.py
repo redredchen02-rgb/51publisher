@@ -1,7 +1,7 @@
 import re
 from bs4 import BeautifulSoup
 
-from .base import parse_figure, extract_id
+from .base import parse_figure
 
 
 def parse_topic_list(html: str) -> list[dict]:

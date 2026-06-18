@@ -2,7 +2,6 @@ import json
 import re
 from bs4 import BeautifulSoup
 
-from ..config import BASE_URL
 
 
 def parse_comic_detail(html: str) -> dict:
