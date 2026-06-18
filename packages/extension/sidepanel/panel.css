@@ -54,3 +54,8 @@ h1 { font-size: 16px; margin-bottom: 8px; }
 .filter-tag.clear { background: #fff; color: #888; border-style: dashed; }
 .filter-ai-label { font-size: 11px; color: #666; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .filter-ai-label input { margin: 0; }
+.card-error { border-left-color: #dc3545; }
+.error-time { font-size: 10px; color: #999; white-space: nowrap; }
+.error-msg { font-size: 12px; color: #dc3545; line-height: 1.5; word-break: break-all; }
+.btn-danger { background: #dc3545; color: #fff; border-color: #dc3545; }
+.btn-danger:hover { background: #c82333; }

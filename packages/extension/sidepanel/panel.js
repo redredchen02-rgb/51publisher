@@ -126,11 +126,28 @@ function renderChapters(data) {
   initDelegation();
 }
 
+function renderErrors(data) {
+  const el = document.getElementById('content');
+  if (!el) return;
+  if (!data.length) { el.innerHTML = '<div class="empty">没有错误记录</div>'; return; }
+  const sorted = [...data].sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+  el.innerHTML = sorted.map(e => `<div class="card card-error">
+    <div class="card-header"><div class="card-title">${esc(e.context || '未知')}</div>
+      <span class="error-time">${esc((e.timestamp || '').replace('T', ' ').slice(0, 19))}</span>
+    </div>
+    <div class="card-meta error-msg">${esc(e.error || '')}</div>
+  </div>`).join('');
+}
+
 function loadData() {
+  const clearBtn = document.getElementById('btn-clear-errors');
+  if (clearBtn) clearBtn.style.display = currentTab === 'errors' ? '' : 'none';
+
   sendMsg({ action: 'getData', store: currentTab }).then(data => {
     if (currentTab === 'comics') { allComicsData = data || []; renderFilterTags(allComicsData); renderComics(filterComics(allComicsData)); }
     else if (currentTab === 'articles') renderArticles(data || []);
     else if (currentTab === 'chapters') renderChapters(data || []);
+    else if (currentTab === 'errors') renderErrors(data || []);
   });
 }
 
@@ -170,6 +187,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const bai = document.getElementById('btn-batch-ai'); if (bai) bai.onclick = () => { setStatus('AI 批量生成中...','running'); sendMsg({action:'batchGenerate',limit:10}); };
   const be = document.getElementById('btn-export');
   if (be) be.onclick = async () => { const comics=await sendMsg({action:'getData',store:'comics'}); const articles=await sendMsg({action:'getData',store:'articles'}); const b=new Blob([JSON.stringify({comics,articles},null,2)],{type:'application/json'}); const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download=`51acgs_${Date.now()}.json`; a.click(); URL.revokeObjectURL(u); };
+  const bce = document.getElementById('btn-clear-errors');
+  if (bce) bce.onclick = async () => { await sendMsg({action:'clearErrors'}); setStatus('错误已清空','done'); loadData(); };
   const ba = document.getElementById('btn-copy-all');
   if (ba) ba.onclick = async () => { const data=await sendMsg({action:'getData',store:currentTab}); if(!data||!data.length){setStatus('没有数据');return;} let t=''; if(currentTab==='comics') t=data.map((c,i)=>{let s=`【${i+1}】${c.title||''}\n`;if(c.author)s+=`作者: ${c.author}\n`;if(c.status)s+=`状态: ${c.status}\n`;if(c.tags)s+=`标签: ${c.tags}\n`;if(c.categories)s+=`分类: ${c.categories}\n`;if(c.ai_title)s+=`AI标题: ${c.ai_title}\n`;if(c.ai_summary)s+=`AI摘要: ${c.ai_summary}\n`;if(c.ai_body)s+=`AI正文:\n${c.ai_body}\n`;return s;}).join('\n---\n\n'); else if(currentTab==='articles') t=data.map((a,i)=>`【${i+1}】${a.title||''}\n类型: ${a.article_type||''}\n标签: ${a.tags||''}\n摘要: ${a.summary||''}`).join('\n---\n\n'); else t=data.map((ch,i)=>`【${i+1}】${ch.chapter_name||''} (${ch.page_count||'?'}页)\n${ch.chapter_url||''}`).join('\n'); await copyToClipboard(t,ba); setStatus(`已复制 ${data.length} 条`,'done'); };
 

@@ -384,4 +384,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === 'generateArticle') { generateArticleForComic(msg.comic).then(r => sendResponse(r)).catch(e => sendResponse({ success: false, error: getErrorMessage(e) })); return true; }
   if (msg.action === 'batchGenerate') { batchGenerate(msg.limit || 10).then(c => sendResponse({ ok: true, count: c })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) })); return true; }
   if (msg.action === 'testLLM') { LLM.testConnection().then(() => sendResponse({ ok: true })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) })); return true; }
+  if (msg.action === 'clearErrors') {
+    DB.getAll('errors').then(errors => {
+      const dbPromise = new Promise((resolve, reject) => {
+        const req = indexedDB.open('acgs_scraper', 1);
+        req.onsuccess = () => {
+          const db = req.result;
+          const tx = db.transaction('errors', 'readwrite');
+          const store = tx.objectStore('errors');
+          store.clear();
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        };
+        req.onerror = () => reject(req.error);
+      });
+      dbPromise.then(() => sendResponse({ ok: true })).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) }));
+    }).catch(e => sendResponse({ ok: false, error: getErrorMessage(e) }));
+    return true;
+  }
 });
