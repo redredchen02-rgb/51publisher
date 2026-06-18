@@ -182,7 +182,15 @@ document.addEventListener('DOMContentLoaded', () => {
     renderComics(filterComicsAdvanced(allComicsData, q, onlyAI));
   });
 
-  const bc = document.getElementById('btn-crawl'); if (bc) bc.onclick = () => { setStatus('全量爬取中...','running'); sendMsg({action:'fullCrawl'}); };
+  const bc = document.getElementById('btn-crawl');
+  if (bc) bc.onclick = () => {
+    const s = document.getElementById('status');
+    const current = s ? s.textContent : '';
+    if (current.includes('爬取中')) { setStatus('已有爬取任务在运行', ''); return; }
+    if (!confirm('确认开始全量爬取？\n将爬取：首页 → 专题 → 详情 → 章节 → 图片URL\n预计耗时较长，中途关闭侧边栏不会中断。')) return;
+    setStatus('全量爬取中...', 'running');
+    sendMsg({ action: 'fullCrawl' });
+  };
   const bs = document.getElementById('btn-settings'); if (bs) bs.onclick = () => window.open(chrome.runtime.getURL('settings/settings.html'),'_blank','width=500,height=400');
   const bai = document.getElementById('btn-batch-ai'); if (bai) bai.onclick = () => { setStatus('AI 批量生成中...','running'); sendMsg({action:'batchGenerate',limit:10}); };
   const be = document.getElementById('btn-export');
