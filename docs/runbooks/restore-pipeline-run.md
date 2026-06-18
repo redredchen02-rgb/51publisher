@@ -16,7 +16,7 @@
 | Node 版本 | **22**（系统默认 `/Users/dex/.local/bin/node`，**不要**用 node@20，better-sqlite3 会 ABI 不匹配） |
 | 后端地址 | `http://127.0.0.1:3001` |
 | **后端配置文件** | **`~/.51publisher/.env`**（⚠️ 优先于 in-repo .env，见第四节） |
-| 临时管理员密码 | `guapi-temp-2026`（登录扩展用；改密见第五节） |
+| 临时管理员密码 | `51publisher-2026`（登录扩展用；改密见第五节） |
 | LLM endpoint / model | `https://la-sealion.inaiai.com/v1` / `gemma4-31b-heretic` |
 | 扩展构建产物 | `packages/extension/.output/chrome-mv3/` |
 | 扩展固定 ID | `iljimdgfajpgnmanklehhmapojbcjecd`（wxt 公钥钉死，CORS 配一次永久有效） |
@@ -43,7 +43,7 @@ curl http://127.0.0.1:3001/api/v1/healthz
 - 改过 content script 后，必须在 `chrome://extensions` 点 **↻ 刷新**，并刷新目标页。
 
 ### 3. 登录 + 配置
-- 打开侧边栏 → 用密码 `guapi-temp-2026` 登录（后端地址默认 `127.0.0.1:3001`，不用配）
+- 打开侧边栏 → 用密码 `51publisher-2026` 登录（后端地址默认 `127.0.0.1:3001`，不用配）
 - 「⚙ 设置」填 LLM endpoint / model / key（能「拉取模型列表」即配置正确）
 
 ---
@@ -71,7 +71,7 @@ LLM_API_KEY=...                              # la-sealion key（真）
 LLM_ENDPOINT=https://la-sealion.inaiai.com/v1
 CORS_ORIGIN=chrome-extension://iljimdgfajpgnmanklehhmapojbcjecd
 JWT_SECRET=...                               # 32+ 随机
-JWT_ADMIN_PASSWORD_HASH=...                  # 登录密码哈希（当前=guapi-temp-2026）
+JWT_ADMIN_PASSWORD_HASH=...                  # 登录密码哈希（当前=51publisher-2026）
 ALLOWED_HOSTS=https://dx-999-adm.ympxbys.xyz,https://51acgs.com   # 抓取目标须在内
 ACGS51_ENABLED=true                          # 启用 51acgs 站点
 ACGS51_START_URL=https://51acgs.com/comic/15149   # 单条详情页（fail-closed 必填）
@@ -109,6 +109,6 @@ node packages/backend/scripts/hash-password.mjs '你的新密码'
 ## 七、本次还原都改了什么
 
 - **代码**：零改动。c812004 原生即含 51acgs adapter、background.ts 干净、开箱即 build。worktree 未 commit。
-- **配置**：编辑 `~/.51publisher/.env`（启用 51acgs + 放行域名 + 重置密码为 guapi-temp-2026），原文件备份 `.bak-restore-20260618`。
+- **配置**：编辑 `~/.51publisher/.env`（启用 51acgs + 放行域名 + 重置密码为 51publisher-2026），原文件备份 `.bak-restore-20260618`。
 - **系统**：launchctl bootout 停掉僵尸守护 `com.51publisher.backend`（占 3001 跑已删除旧代码）。plist 仍在 `~/Library/LaunchAgents/`，要彻底清理可删 plist。
 - **待决**：精简版 `main` 的去向（保留为子工具 / 重设 canonical / 归档）。
