@@ -1,5 +1,5 @@
 ---
-title: "fix: 恢复 抓取→代审池→审核 主流水线（从 guapi-rebrand 还原老版）"
+title: "fix: 恢复 抓取→代审池→审核 主流水线（还原老版完整 pipeline）"
 type: fix
 status: active
 date: 2026-06-18
@@ -13,7 +13,7 @@ date: 2026-06-18
 
 根因不是按钮坏了，而是**今天（2026-06-18）的「独立打包/精简快照」重构把整条审核流水线删掉了**。当前磁盘与 `origin/main` 上是一个 vanilla-JS 纯爬虫（`manifest` 名 `51acgs Scraper` v3.0.0），只有「全量爬取 / AI 生成 / 复制导出」，**没有代审池、没有审核界面**。
 
-用户上周的完整 pipeline 是另一套系统——**51guapi 吃瓜小幫手**：WXT/React 扩展 + Fastify/better-sqlite3 本地后端。它现在**只存活在 git feature 分支上**，最完整顶点是 `origin/feat/guapi-rebrand`（v0.2.2，含全部其他分支）。
+用户上周的完整 pipeline 是另一套系统——**老版完整 pipeline**：WXT/React 扩展 + Fastify/better-sqlite3 本地后端。它现在**只存活在 git feature 分支上**，最完整顶点是 老版 feature 分支（v0.2.2，含全部其他分支）。
 
 本计划采用 **Path A：把老版整体还原到隔离 worktree、跑起来、逐段验证三段流水线、修掉真正坏的环节**；今天的精简快照原封保留。这是恢复成本最低、可逆性最高的路径。
 
@@ -21,7 +21,7 @@ date: 2026-06-18
 
 - **用户体验**：打开扩展，找不到/点不动「代审池」「审核」相关按钮，主工作流瘫痪。
 - **真实状态**：当前 working dir + `origin/main` = 精简爬虫；审核 pipeline 不在这份代码里。
-- **资产位置**：完整 pipeline 在 `origin/feat/guapi-rebrand`（git 远端 feature 分支）。
+- **资产位置**：完整 pipeline 在 老版 feature 分支（git 远端 feature 分支）。
 - **用户决策**（本次对话）：现状判断＝「不确定，换过好几个版本」；修复方向＝「你先帮我判断再给建议」。判断结论已采纳为 Path A（见 Key Technical Decisions）。
 
 ## Requirements Trace
@@ -42,7 +42,7 @@ date: 2026-06-18
 
 ## Context & Research
 
-### Relevant Code and Patterns（均在 `origin/feat/guapi-rebrand`）
+### Relevant Code and Patterns（均在 老版 feature 分支）
 
 三段流水线的实际落点：
 
@@ -67,7 +67,7 @@ date: 2026-06-18
 
 ### External References
 
-- 老版 `README.md`（`51guapi 吃瓜小幫手`）「快速開始」四步 + `docs/install-and-usage.md`「九、常见问题」是本计划验证/诊断步骤的一手依据。
+- 老版 `README.md`（`老版完整 pipeline`）「快速開始」四步 + `docs/install-and-usage.md`「九、常见问题」是本计划验证/诊断步骤的一手依据。
 - WXT（扩展构建）、Fastify v5 + @fastify/cors + better-sqlite3（后端）——版本锁定在各 `package.json`，按 lockfile 安装即可，无需外部调研。
 
 ## Key Technical Decisions
@@ -75,7 +75,7 @@ date: 2026-06-18
 | 决策 | 理由 |
 | --- | --- |
 | **采用 Path A（整体还原），否决 Path B（精简版上重搭）** | 完整 pipeline 现成且测过（300+ 测试、首飞已验收）。还原≈小时级；Path B 要把整套 React 审核 UI 用 vanilla JS 重写≈周级且高风险。符合「简单胜于聪明」。 |
-| **还原源 = `origin/feat/guapi-rebrand`（主），`origin/feat/grounding-phase2-full-field-protection`（v0.2.2，回退）** | guapi-rebrand 是所有 feature 分支超集顶点（比 grounding-phase2 多 45 提交，含全部）、最新（06-17）。但它是 WIP 改名分支，若 build/preflight 不绿，回退到干净的 v0.2.2 版本号点。 |
+| **还原源 = 老版 feature 分支（主），`origin/feat/grounding-phase2-full-field-protection`（v0.2.2，回退）** | 老版 feature 分支 是所有 feature 分支超集顶点（比 grounding-phase2 多 45 提交，含全部）、最新（06-17）。但它是 WIP 改名分支，若 build/preflight 不绿，回退到干净的 v0.2.2 版本号点。 |
 | **用 `git worktree` 隔离签出，不切当前 `main`** | 当前 main = 精简快照，今天的成果。worktree 让老版与精简版**并存**，零破坏、全可逆，符合「不可逆操作先确认」。 |
 | **先「特征化重现」每段的坏点，再修**（characterization-first） | 用户说「都坏了」，但精简快照本身没这些按钮——「坏」很可能是「环境没配/后端没起/凭证过期/选择器漂移」而非代码 bug。先重现定位，避免盲目改代码。 |
 | **远端 `origin/main` 暂不动** | 它已被精简版覆盖。是否把还原版重新设为 canonical main 是产品/仓库策略决策，不在本次修复范围（见 Open Questions）。 |
@@ -85,13 +85,13 @@ date: 2026-06-18
 ### Resolved During Planning
 
 - **「按钮坏了」到底是坏还是没了？** → 当前磁盘/`origin/main` 是纯爬虫，**根本没有**代审池/审核按钮；用户「换过好几个版本」故自己也不确定。结论：按「功能被精简掉、需从老版还原」处理（Path A）。
-- **哪个 ref 是「上周能跑的完整版」？** → `guapi-rebrand`（超集顶点）为主、`grounding-phase2`/v0.2.2 为回退。`origin/main` 已不再代表老版。
+- **哪个 ref 是「上周能跑的完整版」？** → `老版 feature 分支`（超集顶点）为主、`grounding-phase2`/v0.2.2 为回退。`origin/main` 已不再代表老版。
 - **还原需要后端吗？** → 需要。代审池/审核依赖 Fastify + better-sqlite3 持久化与 grounding 硬闸，非纯前端可替代。
 
 ### Deferred to Implementation
 
 - **每段「真正坏在哪」**：是执行期发现项（凭证 403 / 选择器漂移 / CORS fail-closed / json_schema 降级 / content-script 未重载）。Unit 4–6 用「常见问题」表逐一排查；具体 bug 待重现后定位。
-- **guapi-rebrand 是否 build/test 全绿**：执行期 Unit 1 第一道闸验证；不绿则回退 v0.2.2。
+- **老版 feature 分支 是否 build/test 全绿**：执行期 Unit 1 第一道闸验证；不绿则回退 v0.2.2。
 - **LLM/JWT/CORS 等密钥的实际取值**：用户本地持有（la-sealion key、JWT 生成），计划只给生成步骤，不含明文。
 
 ## High-Level Technical Design
@@ -104,7 +104,7 @@ flowchart TB
     S0["精简爬虫 v3.0.0<br/>(纯爬虫, 无审核)"]
   end
   subgraph GIT["git 远端 feature 分支"]
-    G1["origin/feat/guapi-rebrand<br/>(v0.2.2 超集顶点, 主选)"]
+    G1["老版 feature 分支<br/>(v0.2.2 超集顶点, 主选)"]
     G2["origin/feat/grounding-phase2<br/>(v0.2.2 干净点, 回退)"]
   end
   subgraph WT["新建隔离 worktree（还原运行处）"]
@@ -147,9 +147,9 @@ flowchart TB
 - 不修改任何当前仓库受版本控制的文件
 
 **Approach:**
-- `git fetch` 后从 `origin/feat/guapi-rebrand` 建 worktree（detached 或新分支 `restore/pipeline`）。
+- `git fetch` 后从 老版 feature 分支 建 worktree（detached 或新分支 `restore/pipeline`）。
 - 第一道闸：`pnpm install`（注意 better-sqlite3 原生编译、`onlyBuiltDependencies`）→ `pnpm -r compile` / `pnpm -r test` / `pnpm preflight`。
-- 若 guapi-rebrand 不绿 → 回退 `origin/feat/grounding-phase2-full-field-protection`（v0.2.2）重建 worktree。
+- 若 老版 feature 分支 不绿 → 回退 `origin/feat/grounding-phase2-full-field-protection`（v0.2.2）重建 worktree。
 - 启用 hook：`git config core.hooksPath scripts/git-hooks`。
 
 **Execution note:** 这是「先确认地基能立」的特征化步骤；build/test 不绿就回退，别在坏地基上往下走。
@@ -158,7 +158,7 @@ flowchart TB
 
 **Test scenarios:**
 - Happy path：worktree 内 `pnpm install` 成功、`pnpm -r test` 全绿、`pnpm preflight` 通过 → 选定该 ref。
-- Edge case：guapi-rebrand 安装/编译失败 → 自动回退 v0.2.2 并复跑，记录回退原因。
+- Edge case：老版 feature 分支 安装/编译失败 → 自动回退 v0.2.2 并复跑，记录回退原因。
 - 验证不破坏：回到主仓库 `git status` 干净、`main` 仍指向 176b3aa、`dist/extension-3.0.0.zip` 仍在。
 
 **Verification:** 选定一个 build+test 全绿的 ref；当前 `main` 与精简快照零改动。
@@ -188,7 +188,7 @@ flowchart TB
 - Happy path：`curl /api/v1/healthz` → `{"status":"ok"}`；`GET /api/v1/scraper/adapters` 返回适配器列表。
 - Error path：`.env` 缺 `JWT_ADMIN_PASSWORD_HASH` 或 `CORS_ORIGIN=*` → 服务 fail-closed 拒启，错误信息明确（确认安全约束 R4 仍在）。
 - Edge case：better-sqlite3 原生模块未编译 → 启动报错；记录修复（rebuild / 切 Node 20）。
-- 回归：`pnpm --filter @51guapi/backend test` 全绿（含 pending-store / pending-routes 测试）。
+- 回归：`pnpm --filter @老版/backend test` 全绿（含 pending-store / pending-routes 测试）。
 
 **Verification:** 后端常驻，healthz ok，三段相关路由均非 404/500。
 
@@ -215,7 +215,7 @@ flowchart TB
 - Happy path：侧边栏渲染、`WorkflowNav` 卡片可见（度量 + 代审池/审核/今日批次入口）、登录成功、模型列表拉到。
 - Error path：「拉取模型列表」网络错 → 查 endpoint 拼写 / `host_permissions` 缺该域名（需加后重新 build）。
 - Integration：登录态下扩展调后端命中 CORS（无 `CORS policy` 报错）；ID 与 `CORS_ORIGIN` 一致。
-- 回归：`pnpm --filter @51guapi/extension test` 全绿。
+- 回归：`pnpm --filter @老版/extension test` 全绿。
 
 **Verification:** 侧边栏可登录、可进设置、可拉模型；三段入口在 UI 上都点得到（点进去是否有数据由 U4–U6 验证）。
 
@@ -331,7 +331,7 @@ flowchart TB
 
 | 风险 | 缓解 |
 | --- | --- |
-| `guapi-rebrand` 是 WIP 改名分支，可能 build/test 不绿 | Unit 1 第一道闸先验证；不绿即回退干净的 `grounding-phase2`/v0.2.2 |
+| `老版 feature 分支` 是 WIP 改名分支，可能 build/test 不绿 | Unit 1 第一道闸先验证；不绿即回退干净的 `grounding-phase2`/v0.2.2 |
 | LLM 凭证过期（旧 key 403） | 用 memory 记录的 la-sealion 新 endpoint/model；U6 把 403 列为首查项 |
 | 51acgs.com 改版导致选择器漂移、抓取产出 0 | U4 characterization-first 重现 + fixture 回归；轻则字段映射、重则改 adapter |
 | 后端 fail-closed 拒启（CORS/JWT 占位） | U2 按 `.env.example` 生成真实 JWT_SECRET / 密码 hash / 固定 CORS_ORIGIN |
@@ -347,7 +347,7 @@ flowchart TB
 
 ## Sources & References
 
-- 还原源：`origin/feat/guapi-rebrand`（主）、`origin/feat/grounding-phase2-full-field-protection`（v0.2.2 回退）
+- 还原源：老版 feature 分支（主）、`origin/feat/grounding-phase2-full-field-protection`（v0.2.2 回退）
 - 关键代码：`packages/backend/src/routes/{scraper,pending,batch,draft,healthz}-routes.ts`、`src/scraper/{adapters,pending-store,pending-queue,pending-db}`、`packages/extension/entrypoints/sidepanel/{App,WorkflowNav,PendingTopicsView,BatchReviewPanel}.tsx` + `batch-review/*`
 - 文档：老版 `README.md`、`docs/install-and-usage.md`（「九、常见问题」）、`docs/field-mapping-guide.md`
 - 项目 memory：`llm-credentials-updated`、`repo-ops-gotchas`、`grounding-gate-publish-basis`、`feedback-grounding-gate-rewrite-bypass`、`release-readiness-2026-06-11`、`standalone-packaging-2026-06-18`

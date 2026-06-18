@@ -2,7 +2,7 @@
 
 > 还原版（51publisher 完整 pipeline）跑在隔离 worktree：
 > **`/Users/dex/YDEX/INPORTANT WORK/发帖/51publisher-restore`**（分支 `restore/51publisher` @ 提交 `c812004`）。
-> 这是「品牌改名(→51guapi)前最后一个 @51publisher 提交」——名字对、51acgs 抓取原生自带、开箱即 build。
+> 这是「品牌改名(→老版)前最后一个 @51publisher 提交」——名字对、51acgs 抓取原生自带、开箱即 build。
 > 主仓库（精简爬虫 v3.0.0）原封不动，互不影响。背景见 `docs/plans/2026-06-18-002-fix-restore-scrape-review-pipeline-plan.md`。
 
 ---
