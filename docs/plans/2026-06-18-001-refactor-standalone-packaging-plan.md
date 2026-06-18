@@ -122,7 +122,7 @@ date: 2026-06-18
 - 两仓 `git bundle` 归档的落地位置与命名(执行时定;不入根仓跟踪)。
 - 扩展打包脚本的精确排除清单(`tests/`、`.git`、`.eslintrc` 是否随包)——执行时按「CWS 加载所需最小集」定。
 - backend 打包到底用 `tar` 源码包还是 `python -m build` sdist——执行时按是否需 `pip install` 决定;先从 `tar` 起步。
-- 三处版本是否统一、由谁统一(扩展/backend/根)——本轮不动,留作后续(可能需 `ce:brainstorm` 版本策略)。
+- ~~三处版本是否统一、由谁统一~~ → **已决(2026-06-18):采用独立版本制,不锁步**。扩展=manifest.json、后端=CHANGELOG.md、项目=根 package.json,各为唯一事实源;打包脚本各读各的,不强行统一(避开 repo-ops-gotchas 的版本锁步坑)。已写入根 README「版本策略」节。
 - crx 私钥签名 / CWS 自动上架。
 
 ## High-Level Technical Design

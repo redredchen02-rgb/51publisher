@@ -96,6 +96,18 @@ npm run test:backend     # 运行后端测试
 - `extension-{version}.zip` — 可直接上传 Chrome Web Store 或解压加载
 - `backend-{version}.tar.gz` — 后端源码包
 
+## 版本策略
+
+三者**独立版本，不锁步**（异构产物、各自发布节奏）：
+
+| 版本 | 来源（唯一事实源） | 含义 |
+|------|------|------|
+| 扩展 | `packages/extension/manifest.json` | Chrome 扩展版本（CWS 上传用，随上架递增） |
+| 后端 | `packages/backend/CHANGELOG.md` | Python 爬虫版本 |
+| 项目 | 根 `package.json` | 整个仓库里程碑版本，独立于上面两者 |
+
+打包脚本各读各自版本号命名产物（`extension-<manifest>.zip` / `backend-<changelog>.tar.gz`），无需手动对齐。**不要尝试把三者统一成同一个号**——它们的发布约束不同。
+
 ## 项目结构
 
 ```
