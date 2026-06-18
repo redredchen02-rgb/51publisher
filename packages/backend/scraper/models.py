@@ -1,6 +1,6 @@
 import sqlite3
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .config import DB_PATH, DATA_DIR
 
@@ -131,7 +131,7 @@ def init_db():
 
 
 def upsert_comic(conn: sqlite3.Connection, data: dict) -> bool:
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     defaults = {
         "author": None, "publish_date": None, "update_date": None,
         "status": None, "rating": None, "bookmark_count": None,
@@ -171,7 +171,7 @@ def upsert_comic(conn: sqlite3.Connection, data: dict) -> bool:
 
 
 def upsert_article(conn: sqlite3.Connection, data: dict) -> bool:
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     try:
         conn.execute("""
             INSERT INTO articles (source_id, title, cover_url, detail_url, summary,
@@ -191,7 +191,7 @@ def upsert_article(conn: sqlite3.Connection, data: dict) -> bool:
 
 
 def upsert_topic_detail(conn: sqlite3.Connection, data: dict) -> bool:
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     try:
         conn.execute("""
             INSERT INTO topic_details (topic_id, content_html, content_text, comic_refs, scraped_at)
@@ -206,10 +206,18 @@ def upsert_topic_detail(conn: sqlite3.Connection, data: dict) -> bool:
         return False
 
 
+_COMIC_DETAIL_COLS = {
+    "title", "cover_url", "detail_url", "description", "categories", "tags",
+    "chapter_count", "source", "author", "publish_date", "update_date",
+    "status", "rating", "bookmark_count", "view_count", "like_count",
+}
+
 def update_comic_detail(conn: sqlite3.Connection, source_id: str, data: dict):
     sets = []
     vals = []
     for k, v in data.items():
+        if k not in _COMIC_DETAIL_COLS:
+            continue
         if v is not None and v != "":
             sets.append(f"{k}=?")
             vals.append(v)
@@ -273,7 +281,7 @@ def get_stats(conn: sqlite3.Connection) -> dict:
 
 
 def upsert_chapter(conn: sqlite3.Connection, data: dict) -> bool:
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     try:
         conn.execute("""
             INSERT INTO chapters (comic_source_id, chapter_id, chapter_name, chapter_url, page_count, scraped_at)
@@ -289,7 +297,7 @@ def upsert_chapter(conn: sqlite3.Connection, data: dict) -> bool:
 
 
 def upsert_page(conn: sqlite3.Connection, data: dict) -> bool:
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     try:
         conn.execute("""
             INSERT INTO pages (chapter_id, page_number, image_url, local_path, file_size, scraped_at)
@@ -304,7 +312,7 @@ def upsert_page(conn: sqlite3.Connection, data: dict) -> bool:
         return False
 
 
-def query_comics_with_chapters(conn: sqlite3.Connection, limit: int = 50) -> list:
+def query_comics_without_chapters(conn: sqlite3.Connection, limit: int = 50) -> list:
     rows = conn.execute("""
         SELECT c.*, COUNT(ch.id) as existing_chapters
         FROM comics c

@@ -17,6 +17,15 @@ const PROMPT_TEMPLATE = `你是一位成人 ACG 漫画推荐编辑。基于以�
 }`;
 
 const GENERATE_CACHE = {};
+const CACHE_MAX = 200;
+
+function cachePut(key, value) {
+  const keys = Object.keys(GENERATE_CACHE);
+  if (keys.length >= CACHE_MAX) {
+    delete GENERATE_CACHE[keys[0]];
+  }
+  GENERATE_CACHE[key] = value;
+}
 
 async function getSettings() {
   return new Promise(resolve => {
@@ -74,7 +83,7 @@ async function generateArticle(comic) {
       let content = data.choices[0].message.content;
       content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       const result = JSON.parse(content);
-      GENERATE_CACHE[comic.source_id] = result;
+      cachePut(comic.source_id, result);
       return result;
     } catch (e) {
       lastError = e;

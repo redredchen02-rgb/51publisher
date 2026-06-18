@@ -19,9 +19,12 @@ def export_csv(data: list[dict], filepath: str):
         print("  [Export] No data to export")
         return
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    fieldnames = list(data[0].keys())
+    all_keys = set()
+    for row in data:
+        all_keys.update(row.keys())
+    fieldnames = sorted(all_keys)
     with open(filepath, "w", encoding="utf-8-sig", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(data)
     print(f"  [Export] CSV -> {filepath} ({len(data)} records)")

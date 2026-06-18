@@ -4,6 +4,7 @@
 import argparse
 import asyncio
 import os
+from urllib.parse import urlparse
 
 import httpx
 
@@ -12,7 +13,7 @@ from .models import (
     init_db, get_db, upsert_comic, upsert_article, upsert_topic_detail,
     update_comic_detail, query_comics, query_comics_needing_detail,
     query_articles, get_stats, upsert_chapter, upsert_page,
-    query_comics_with_chapters, query_chapters_for_download,
+    query_comics_without_chapters, query_chapters_for_download,
 )
 from .client import fetch_page, fetch_page_async, close_client
 from .crawlers.home import parse_home_page
@@ -191,6 +192,9 @@ def cmd_scrape_all(conn, scrape_details=True, incremental=False, pages=1):
     if scrape_details:
         cmd_scrape_comic_details(conn, limit=500, incremental=incremental)
 
+    cmd_scrape_chapters(conn, limit=300)
+    cmd_scrape_pages(conn, limit=300)
+
     stats = get_stats(conn)
 
     print()
@@ -199,6 +203,8 @@ def cmd_scrape_all(conn, scrape_details=True, incremental=False, pages=1):
     print(f"  Comics:     {stats['comics']} ({stats['comics_detailed']} detailed)")
     print(f"  Articles:   {stats['articles']}")
     print(f"  Details:    {stats['topic_details']}")
+    print(f"  Chapters:   {stats['chapters']}")
+    print(f"  Pages:      {stats['pages']}")
     print("=" * 50)
 
 
@@ -279,7 +285,7 @@ def cmd_stats(conn):
 
 async def cmd_scrape_chapters_async(conn, limit=50):
     print("[6/7] Scraping chapter lists (async)...")
-    comics = query_comics_with_chapters(conn, limit=limit)
+    comics = query_comics_without_chapters(conn, limit=limit)
     if not comics:
         print("  No comics need chapter lists")
         return 0
@@ -392,10 +398,11 @@ async def cmd_download_images_async(conn, limit=100):
             page_num = page["page_number"]
             url = page["image_url"]
 
+            path = urlparse(url).path.lower()
             ext = ".jpeg"
-            if ".png" in url:
+            if path.endswith(".png"):
                 ext = ".png"
-            elif ".webp" in url:
+            elif path.endswith(".webp"):
                 ext = ".webp"
 
             dir_path = os.path.join(download_dir, source_id, chapter_id)
@@ -464,9 +471,11 @@ def main():
         return
 
     init_db()
-    conn = get_db()
+    conn = None
 
     try:
+        conn = get_db()
+
         if args.command == "scrape":
             if args.all:
                 cmd_scrape_all(conn, scrape_details=True,
@@ -497,7 +506,8 @@ def main():
             print("Database initialized.")
     finally:
         close_client()
-        conn.close()
+        if conn:
+            conn.close()
 
 
 if __name__ == "__main__":

@@ -87,7 +87,7 @@ async function idbAppend(storeName, items) {
   if (!newItems.length) return 0;
   const store = await idbTx(storeName, 'readwrite');
   for (const item of newItems) {
-    idbRequest(store, 'put', item);
+    await idbRequest(store, 'put', item);
   }
   return newItems.length;
 }
