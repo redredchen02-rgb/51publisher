@@ -4,7 +4,8 @@
 import argparse
 import asyncio
 import os
-from urllib.parse import urlparse
+from datetime import datetime
+from urllib.parse import urlparse, quote
 
 import httpx
 
@@ -145,7 +146,7 @@ def cmd_scrape_search(conn, keyword, pages=1):
     total = 0
 
     for page in range(1, pages + 1):
-        url = f"{BASE_URL}/search/result?keyword={keyword}"
+        url = f"{BASE_URL}/search/result?keyword={quote(keyword)}"
         if page > 1:
             url += f"&page={page}"
         html = fetch_page(url)
@@ -219,7 +220,7 @@ def cmd_export(conn, fmt, output_dir, combined=False):
     if skipped:
         print(f"  Skipped {skipped} records with empty title")
 
-    ts = __import__("datetime").datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     if combined:
         data = {
@@ -284,7 +285,7 @@ def cmd_stats(conn):
 
 
 async def cmd_scrape_chapters_async(conn, limit=50):
-    print("[6/7] Scraping chapter lists (async)...")
+    print("[4/5] Scraping chapter lists (async)...")
     comics = query_comics_without_chapters(conn, limit=limit)
     if not comics:
         print("  No comics need chapter lists")
@@ -318,7 +319,7 @@ def cmd_scrape_chapters(conn, limit=50):
 
 
 async def cmd_scrape_pages_async(conn, limit=100):
-    print("[7/7] Scraping chapter pages (async)...")
+    print("[5/5] Scraping chapter pages (async)...")
     chapters = conn.execute("""
         SELECT ch.*, c.title as comic_title
         FROM chapters ch

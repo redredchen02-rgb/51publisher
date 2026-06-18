@@ -5,10 +5,14 @@ chrome.storage.local.get(['apiUrl', 'apiKey', 'model'], (r) => {
 });
 
 document.getElementById('btn-save').addEventListener('click', () => {
+  const apiUrl = document.getElementById('apiUrl').value.trim();
+  const apiKey = document.getElementById('apiKey').value.trim();
+  if (!apiUrl) { showStatus('请填写 API URL', 'err'); return; }
+  if (!apiKey) { showStatus('请填写 API Key', 'err'); return; }
   chrome.storage.local.set({
-    apiUrl: document.getElementById('apiUrl').value,
-    apiKey: document.getElementById('apiKey').value,
-    model: document.getElementById('model').value,
+    apiUrl,
+    apiKey,
+    model: document.getElementById('model').value.trim(),
   }, () => {
     showStatus('已保存', 'ok');
   });

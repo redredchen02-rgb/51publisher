@@ -80,6 +80,9 @@ async function generateArticle(comic) {
       });
       if (!resp.ok) { const e = await resp.text(); throw new Error(`API 错误 ${resp.status}: ${e.slice(0, 100)}`); }
       const data = await resp.json();
+      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        throw new Error('API 返回格式异常');
+      }
       let content = data.choices[0].message.content;
       content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       const result = JSON.parse(content);

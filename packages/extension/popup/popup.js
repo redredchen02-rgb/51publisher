@@ -3,6 +3,7 @@ document.getElementById('btn-panel').addEventListener('click', () => {
 });
 
 document.getElementById('btn-crawl').addEventListener('click', () => {
+  if (!confirm('确认开始全量爬取？')) return;
   document.getElementById('status').textContent = '爬取中...';
   chrome.runtime.sendMessage({ action: 'fullCrawl' });
 });
