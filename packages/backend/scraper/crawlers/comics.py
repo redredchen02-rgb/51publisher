@@ -22,8 +22,9 @@ def parse_comic_detail(html: str) -> dict:
             elif isinstance(author, str):
                 result["author"] = author
 
-        if "datePublished" in ld_data:
-            result["publish_date"] = ld_data["datePublished"][:10]
+        date_published = ld_data.get("datePublished")
+        if isinstance(date_published, str):
+            result["publish_date"] = date_published[:10]
 
         if "genre" in ld_data:
             genres = ld_data["genre"]
@@ -39,17 +40,26 @@ def parse_comic_detail(html: str) -> dict:
             elif isinstance(kw, str):
                 result["tags"] = kw
 
-        if "aggregateRating" in ld_data:
-            rating = ld_data["aggregateRating"]
+        rating = ld_data.get("aggregateRating")
+        if isinstance(rating, dict):
             try:
                 result["rating"] = float(rating.get("ratingValue", 0))
             except (ValueError, TypeError):
                 pass
 
-        for stat in ld_data.get("interactionStatistic", []):
+        stats = ld_data.get("interactionStatistic", [])
+        if isinstance(stats, dict):
+            stats = [stats]
+        elif not isinstance(stats, list):
+            stats = []
+        for stat in stats:
+            if not isinstance(stat, dict):
+                continue
             itype = stat.get("interactionType", {})
             if isinstance(itype, dict):
                 itype = itype.get("@type", "")
+            if not isinstance(itype, str):
+                itype = ""
             count = stat.get("userInteractionCount", 0)
             if "Bookmark" in itype:
                 result["bookmark_count"] = count
