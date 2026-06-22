@@ -24,7 +24,8 @@ from .models import (
     init_db, get_db, upsert_comic, upsert_article, upsert_topic_detail,
     update_comic_detail, query_comics, query_comics_needing_detail,
     query_articles, get_stats, upsert_chapter, upsert_page,
-    query_comics_without_chapters,
+    query_comics_without_chapters, query_chapters_needing_pages,
+    set_chapter_page_count, query_pages_to_download, set_page_local_path,
 )
 
 logging.basicConfig(
@@ -53,33 +54,19 @@ def cmd_scrape_home(conn):
 
 
 async def cmd_scrape_topic_details_async(conn, items, sem):
-    if not items:
-        return 0
+    async def process_topic(client, item, sem):
+        detail_url = item.get("detail_url", "")
+        if not detail_url:
+            return False
+        detail_html = await fetch_page_async(client, detail_url, sem)
+        if not detail_html:
+            return False
+        detail = parse_topic_detail(detail_html)
+        detail["topic_id"] = item["source_id"]
+        upsert_topic_detail(conn, detail)
+        return True
 
-    count = 0
-    total = len(items)
-
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        async def fetch_one(item):
-            nonlocal count
-            detail_url = item.get("detail_url", "")
-            if not detail_url:
-                return
-            detail_html = await fetch_page_async(client, detail_url, sem)
-            if not detail_html:
-                return
-            detail = parse_topic_detail(detail_html)
-            detail["topic_id"] = item["source_id"]
-            upsert_topic_detail(conn, detail)
-            count += 1
-            if count % 10 == 0:
-                logger.info(f"[Topic Details] {count}/{total}...")
-
-        await asyncio.gather(*[fetch_one(item) for item in items])
-
-    conn.commit()
-    logger.info(f"Scraped {count} topic details")
-    return count
+    return await _batch_scrape(conn, items, process_topic, "Topic details", sem)
 
 
 def cmd_scrape_topic_details(conn, items):
@@ -399,14 +386,7 @@ def cmd_scrape_chapters(conn, limit=50):
 
 async def cmd_scrape_pages_async(conn, limit=100):
     logger.info("[5/5] Scraping chapter pages (async)...")
-    chapters = conn.execute("""
-        SELECT ch.*, c.title as comic_title
-        FROM chapters ch
-        JOIN comics c ON c.source_id = ch.comic_source_id
-        WHERE ch.chapter_id NOT IN (SELECT DISTINCT chapter_id FROM pages)
-        ORDER BY ch.scraped_at DESC LIMIT ?
-    """, (limit,)).fetchall()
-    chapters = [dict(r) for r in chapters]
+    chapters = query_chapters_needing_pages(conn, limit)
 
     if not chapters:
         logger.info("No chapters need page scraping")
@@ -425,7 +405,7 @@ async def cmd_scrape_pages_async(conn, limit=100):
                 "local_path": None,
                 "file_size": None,
             })
-        conn.execute("UPDATE chapters SET page_count=? WHERE chapter_id=?", (len(urls), ch["chapter_id"]))
+        set_chapter_page_count(conn, ch["chapter_id"], len(urls))
         title = ch.get("comic_title", "")[:25]
         logger.info(f"{title} {ch['chapter_name']}... ({len(urls)} pages)")
         return True
@@ -439,15 +419,7 @@ def cmd_scrape_pages(conn, limit=100):
 
 async def cmd_download_images_async(conn, limit=100):
     logger.info("[Download] Downloading images...")
-    pages = conn.execute("""
-        SELECT p.*, ch.chapter_name, c.title as comic_title, c.source_id
-        FROM pages p
-        JOIN chapters ch ON ch.chapter_id = p.chapter_id
-        JOIN comics c ON c.source_id = ch.comic_source_id
-        WHERE p.local_path IS NULL
-        ORDER BY p.scraped_at DESC LIMIT ?
-    """, (limit,)).fetchall()
-    pages = [dict(r) for r in pages]
+    pages = query_pages_to_download(conn, limit)
 
     if not pages:
         logger.info("No images to download")
@@ -486,10 +458,7 @@ async def cmd_download_images_async(conn, limit=100):
                     if resp.status_code == 200:
                         with open(filepath, "wb") as f:
                             f.write(resp.content)
-                        conn.execute(
-                            "UPDATE pages SET local_path=?, file_size=? WHERE chapter_id=? AND page_number=?",
-                            (filepath, len(resp.content), chapter_id, page_num)
-                        )
+                        set_page_local_path(conn, chapter_id, page_num, filepath, len(resp.content))
                         count += 1
                         if count % 10 == 0:
                             logger.info(f"[{count}/{total}] downloaded...")

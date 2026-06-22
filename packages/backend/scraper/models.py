@@ -323,12 +323,35 @@ def query_comics_without_chapters(conn: sqlite3.Connection, limit: int = 50) -> 
     return [dict(r) for r in rows]
 
 
-def query_chapters_for_download(conn: sqlite3.Connection, limit: int = 100) -> list:
+def query_chapters_needing_pages(conn: sqlite3.Connection, limit: int = 100) -> list:
     rows = conn.execute("""
         SELECT ch.*, c.title as comic_title
         FROM chapters ch
         JOIN comics c ON c.source_id = ch.comic_source_id
-        WHERE ch.chapter_id NOT IN (SELECT DISTINCT chapter_id FROM pages WHERE local_path IS NOT NULL)
+        WHERE ch.chapter_id NOT IN (SELECT DISTINCT chapter_id FROM pages)
         ORDER BY ch.scraped_at DESC LIMIT ?
     """, (limit,)).fetchall()
     return [dict(r) for r in rows]
+
+
+def set_chapter_page_count(conn: sqlite3.Connection, chapter_id: str, page_count: int):
+    conn.execute("UPDATE chapters SET page_count=? WHERE chapter_id=?", (page_count, chapter_id))
+
+
+def query_pages_to_download(conn: sqlite3.Connection, limit: int = 100) -> list:
+    rows = conn.execute("""
+        SELECT p.*, ch.chapter_name, c.title as comic_title, c.source_id
+        FROM pages p
+        JOIN chapters ch ON ch.chapter_id = p.chapter_id
+        JOIN comics c ON c.source_id = ch.comic_source_id
+        WHERE p.local_path IS NULL
+        ORDER BY p.scraped_at DESC LIMIT ?
+    """, (limit,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def set_page_local_path(conn: sqlite3.Connection, chapter_id: str, page_number: int, local_path: str, file_size: int):
+    conn.execute(
+        "UPDATE pages SET local_path=?, file_size=? WHERE chapter_id=? AND page_number=?",
+        (local_path, file_size, chapter_id, page_number)
+    )
