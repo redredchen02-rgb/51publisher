@@ -3,11 +3,12 @@ import logging
 import time
 import httpx
 
-from .config import HEADERS, MAX_RETRIES, RETRY_BACKOFF
+from .config import HEADERS, MAX_RETRIES, RETRY_BACKOFF, REQUEST_DELAY
 
 logger = logging.getLogger("scraper")
 
 _client: httpx.Client | None = None
+_last_request_ts = 0.0
 
 
 def _get_client() -> httpx.Client:
@@ -17,10 +18,24 @@ def _get_client() -> httpx.Client:
     return _client
 
 
+def _throttle() -> None:
+    """Space consecutive sync requests at least REQUEST_DELAY seconds apart.
+
+    Only sleeps when the gap since the previous request is too small, so it
+    never stacks on top of the retry backoff (which already waits longer).
+    """
+    global _last_request_ts
+    wait = REQUEST_DELAY - (time.monotonic() - _last_request_ts)
+    if wait > 0:
+        time.sleep(wait)
+    _last_request_ts = time.monotonic()
+
+
 def fetch_page(url: str) -> str | None:
     client = _get_client()
     for attempt in range(MAX_RETRIES):
         try:
+            _throttle()
             resp = client.get(url)
             if resp.status_code == 200:
                 return resp.text
