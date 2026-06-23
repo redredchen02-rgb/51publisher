@@ -97,10 +97,48 @@ function fmtFields(c) {
     `封面: ${c.cover_url||''}`, `链接: ${c.detail_url||''}`].join('\n');
 }
 
-function renderComics(data) {
+// Shared empty-state guard for the four render* functions: resolves #content,
+// renders the empty placeholder when there is no data, and returns null in
+// both the missing-element and empty cases so callers just `if (!el) return`.
+function contentEl(data, emptyMsg = '暂无数据') {
   const el = document.getElementById('content');
+  if (!el) return null;
+  if (!data.length) { el.innerHTML = `<div class="empty">${emptyMsg}</div>`; return null; }
+  return el;
+}
+
+// Plain-text builders for the "复制全部" button, one per tab.
+function comicsToText(data) {
+  return data.map((c, i) => {
+    let s = `【${i + 1}】${c.title || ''}\n`;
+    if (c.author) s += `作者: ${c.author}\n`;
+    if (c.status) s += `状态: ${c.status}\n`;
+    if (c.tags) s += `标签: ${c.tags}\n`;
+    if (c.categories) s += `分类: ${c.categories}\n`;
+    if (c.ai_title) s += `AI标题: ${c.ai_title}\n`;
+    if (c.ai_summary) s += `AI摘要: ${c.ai_summary}\n`;
+    if (c.ai_body) s += `AI正文:\n${c.ai_body}\n`;
+    return s;
+  }).join('\n---\n\n');
+}
+
+function articlesToText(data) {
+  return data.map((a, i) => `【${i + 1}】${a.title || ''}\n类型: ${a.article_type || ''}\n标签: ${a.tags || ''}\n摘要: ${a.summary || ''}`).join('\n---\n\n');
+}
+
+function chaptersToText(data) {
+  return data.map((ch, i) => `【${i + 1}】${ch.chapter_name || ''} (${ch.page_count || '?'}页)\n${ch.chapter_url || ''}`).join('\n');
+}
+
+function buildCopyAllText(tab, data) {
+  if (tab === 'comics') return comicsToText(data);
+  if (tab === 'articles') return articlesToText(data);
+  return chaptersToText(data);
+}
+
+function renderComics(data) {
+  const el = contentEl(data);
   if (!el) return;
-  if (!data.length) { el.innerHTML = '<div class="empty">暂无数据</div>'; return; }
   DataStore.setComics(data);
   el.innerHTML = data.map(c => {
     const ai = c.ai_title, id = c.source_id;
@@ -122,9 +160,8 @@ function renderComics(data) {
 }
 
 function renderArticles(data) {
-  const el = document.getElementById('content');
+  const el = contentEl(data);
   if (!el) return;
-  if (!data.length) { el.innerHTML = '<div class="empty">暂无数据</div>'; return; }
   DataStore.setArticles(data);
   el.innerHTML = data.map(a => `<div class="card">
     <div class="card-header"><div class="card-title">${esc(a.title)}</div>
@@ -137,9 +174,8 @@ function renderArticles(data) {
 }
 
 function renderChapters(data) {
-  const el = document.getElementById('content');
+  const el = contentEl(data);
   if (!el) return;
-  if (!data.length) { el.innerHTML = '<div class="empty">暂无数据</div>'; return; }
   DataStore.setChapters(data);
   el.innerHTML = data.map(ch => `<div class="card">
     <div class="card-header"><div class="card-title">${esc(ch.chapter_name)} (${ch.page_count||'?'}页)</div>
@@ -151,9 +187,8 @@ function renderChapters(data) {
 }
 
 function renderErrors(data) {
-  const el = document.getElementById('content');
+  const el = contentEl(data, '没有错误记录');
   if (!el) return;
-  if (!data.length) { el.innerHTML = '<div class="empty">没有错误记录</div>'; return; }
   const sorted = [...data].sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
   el.innerHTML = sorted.map(e => `<div class="card card-error">
     <div class="card-header"><div class="card-title">${esc(e.context || '未知')}</div>
@@ -222,7 +257,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const bce = document.getElementById('btn-clear-errors');
   if (bce) bce.onclick = async () => { await sendMsg({action:'clearErrors'}); setStatus('错误已清空','done'); loadData(); };
   const ba = document.getElementById('btn-copy-all');
-  if (ba) ba.onclick = async () => { const data=await sendMsg({action:'getData',store:currentTab}); if(!data||!data.length){setStatus('没有数据');return;} let t=''; if(currentTab==='comics') t=data.map((c,i)=>{let s=`【${i+1}】${c.title||''}\n`;if(c.author)s+=`作者: ${c.author}\n`;if(c.status)s+=`状态: ${c.status}\n`;if(c.tags)s+=`标签: ${c.tags}\n`;if(c.categories)s+=`分类: ${c.categories}\n`;if(c.ai_title)s+=`AI标题: ${c.ai_title}\n`;if(c.ai_summary)s+=`AI摘要: ${c.ai_summary}\n`;if(c.ai_body)s+=`AI正文:\n${c.ai_body}\n`;return s;}).join('\n---\n\n'); else if(currentTab==='articles') t=data.map((a,i)=>`【${i+1}】${a.title||''}\n类型: ${a.article_type||''}\n标签: ${a.tags||''}\n摘要: ${a.summary||''}`).join('\n---\n\n'); else t=data.map((ch,i)=>`【${i+1}】${ch.chapter_name||''} (${ch.page_count||'?'}页)\n${ch.chapter_url||''}`).join('\n'); await copyToClipboard(t,ba); setStatus(`已复制 ${data.length} 条`,'done'); };
+  if (ba) ba.onclick = async () => {
+    const data = await sendMsg({ action: 'getData', store: currentTab });
+    if (!data || !data.length) { setStatus('没有数据'); return; }
+    await copyToClipboard(buildCopyAllText(currentTab, data), ba);
+    setStatus(`已复制 ${data.length} 条`, 'done');
+  };
 
   document.querySelectorAll('[data-action]').forEach(btn => {
     btn.addEventListener('click', () => { setStatus(`${btn.textContent}...`,'running'); sendMsg({action:btn.dataset.action},(r)=>{ setStatus(r?.ok?`完成: ${r.count} 条`:'失败',r?.ok?'done':''); refreshStats(); loadData(); }); });
