@@ -5,11 +5,15 @@ import { assembleDraft, toDraft } from "@51publisher/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
 	buildRequest,
+	buildReviewPrompt,
+	buildRewritePrompt,
 	chatCompletionsUrl,
+	extractUsage,
 	generateDraft,
 	listModels,
 	modelsUrl,
 	reviewDraftLlm,
+	rewriteDraftLlm,
 	slotsFromParsed,
 } from "../services/llm.js";
 
@@ -628,5 +632,189 @@ describe("callLlmForJson(review/rewrite)429/5xx 退避 + 不-throw 契约", () =
 		).resolves.toBeUndefined();
 		expect(result?.ok).toBe(false);
 		expect(sleep).toHaveBeenCalledTimes(2);
+	});
+});
+
+const DRAFT_BASE = {
+	id: "d1",
+	title: "测试标题",
+	subtitle: "副标题",
+	category: "2",
+	coverImageUrl: "",
+	body: "<p>正文内容</p>",
+	tags: ["标签A", "标签B"],
+	description: "",
+	postStatus: "0" as const,
+	publishedAt: "2026-06-04",
+	mediaId: "1",
+	status: "draft" as const,
+	createdAt: "2026-06-04T00:00:00.000Z",
+};
+
+describe("extractUsage", () => {
+	it("null/非对象 → undefined", () => {
+		expect(extractUsage(null)).toBeUndefined();
+		expect(extractUsage("string")).toBeUndefined();
+		expect(extractUsage(42)).toBeUndefined();
+	});
+	it("缺 usage 字段 → undefined", () => {
+		expect(extractUsage({})).toBeUndefined();
+		expect(extractUsage({ other: 1 })).toBeUndefined();
+	});
+	it("usage 非对象 → undefined", () => {
+		expect(extractUsage({ usage: null })).toBeUndefined();
+		expect(extractUsage({ usage: "string" })).toBeUndefined();
+	});
+	it("OpenAI 格式(prompt_tokens/completion_tokens)", () => {
+		expect(
+			extractUsage({ usage: { prompt_tokens: 10, completion_tokens: 20 } }),
+		).toEqual({ prompt: 10, completion: 20 });
+	});
+	it("代理格式(inputTokens/outputTokens)", () => {
+		expect(
+			extractUsage({ usage: { inputTokens: 5, outputTokens: 15 } }),
+		).toEqual({ prompt: 5, completion: 15 });
+	});
+	it("prompt 缺失 → undefined", () => {
+		expect(extractUsage({ usage: { completion_tokens: 20 } })).toBeUndefined();
+	});
+	it("completion 缺失 → undefined", () => {
+		expect(extractUsage({ usage: { prompt_tokens: 10 } })).toBeUndefined();
+	});
+	it("混合格式:prompt_tokens + outputTokens", () => {
+		expect(
+			extractUsage({ usage: { prompt_tokens: 8, outputTokens: 12 } }),
+		).toEqual({ prompt: 8, completion: 12 });
+	});
+});
+
+describe("buildReviewPrompt", () => {
+	it("无 criteriaPrompt → 使用默认标准", () => {
+		const prompt = buildReviewPrompt(DRAFT_BASE);
+		expect(prompt).toContain("body_richness");
+		expect(prompt).toContain("测试标题");
+		expect(prompt).toContain("标签A");
+		expect(prompt).not.toContain("<p>");
+	});
+	it("自定义 criteriaPrompt → 替换默认标准", () => {
+		const prompt = buildReviewPrompt(DRAFT_BASE, "自定义评审标准");
+		expect(prompt).toContain("自定义评审标准");
+		expect(prompt).not.toContain("body_richness");
+	});
+	it("空 criteriaPrompt → 回落默认", () => {
+		const prompt = buildReviewPrompt(DRAFT_BASE, "  ");
+		expect(prompt).toContain("body_richness");
+	});
+	it("body HTML 标签被剥除", () => {
+		const draft = { ...DRAFT_BASE, body: "<p><strong>粗体</strong></p>" };
+		const prompt = buildReviewPrompt(draft);
+		expect(prompt).toContain("粗体");
+		expect(prompt).not.toContain("<p>");
+	});
+	it("空 tags → 显示（无）", () => {
+		const draft = { ...DRAFT_BASE, tags: [] };
+		const prompt = buildReviewPrompt(draft);
+		expect(prompt).toContain("（无）");
+	});
+});
+
+describe("buildRewritePrompt", () => {
+	it("已知维度 → 显示中文标签", () => {
+		const prompt = buildRewritePrompt(DRAFT_BASE, ["body_richness"]);
+		expect(prompt).toContain("正文（需更丰富充实");
+		expect(prompt).toContain("测试标题");
+	});
+	it("未知维度 → 直接使用维度名", () => {
+		const prompt = buildRewritePrompt(DRAFT_BASE, ["unknown_dim"]);
+		expect(prompt).toContain("unknown_dim");
+	});
+	it("多维度 → 全部列出", () => {
+		const prompt = buildRewritePrompt(DRAFT_BASE, [
+			"body_richness",
+			"title_quality",
+		]);
+		expect(prompt).toContain("正文（需更丰富充实");
+		expect(prompt).toContain("标题（需更吸引人");
+	});
+	it("body 原样保留(rewrite prompt 保留 HTML)", () => {
+		const draft = { ...DRAFT_BASE, body: "<p>正文</p>" };
+		const prompt = buildRewritePrompt(draft, ["body_richness"]);
+		expect(prompt).toContain("正文");
+	});
+	it("空 tags → 显示（无）", () => {
+		const draft = { ...DRAFT_BASE, tags: [] };
+		const prompt = buildRewritePrompt(draft, ["body_richness"]);
+		expect(prompt).toContain("（无）");
+	});
+});
+
+describe("rewriteDraftLlm", () => {
+	const noSleep = async () => {};
+	function seqFetch(responses: Array<{ status: number; payload?: unknown }>) {
+		let i = 0;
+		return vi.fn(async () => {
+			const r = responses[Math.min(i++, responses.length - 1)];
+			return {
+				ok: r.status >= 200 && r.status < 300,
+				status: r.status,
+				statusText: "OK",
+				json: async () => r.payload ?? {},
+			} as Response;
+		});
+	}
+	const oaiReply = (content: string) => ({
+		choices: [{ message: { content } }],
+	});
+
+	it("happy path: 返回重写后的 draft 字段", async () => {
+		const rewritten = JSON.stringify({
+			title: "新标题",
+			body: "<p>新正文</p>",
+			tags: ["新标签"],
+		});
+		const fetchFn = seqFetch([{ status: 200, payload: oaiReply(rewritten) }]);
+		const res = await rewriteDraftLlm(DRAFT_BASE, ["body_richness"], {
+			settings,
+			apiKey: "k",
+			fetchFn,
+			sleep: vi.fn(noSleep),
+			maxRetries: 1,
+			...base,
+		});
+		expect(res.ok).toBe(true);
+		if (res.ok) {
+			expect(res.draft.title).toBe("新标题");
+			expect(res.draft.body).toBe("<p>新正文</p>");
+			expect(res.draft.tags).toEqual(["新标签"]);
+		}
+	});
+	it("LLM 返回部分字段 → 仅更新有效字段,其余保持原值", async () => {
+		const rewritten = JSON.stringify({ title: "仅改标题" });
+		const fetchFn = seqFetch([{ status: 200, payload: oaiReply(rewritten) }]);
+		const res = await rewriteDraftLlm(DRAFT_BASE, ["title_quality"], {
+			settings,
+			apiKey: "k",
+			fetchFn,
+			sleep: vi.fn(noSleep),
+			maxRetries: 1,
+			...base,
+		});
+		expect(res.ok).toBe(true);
+		if (res.ok) {
+			expect(res.draft.title).toBe("仅改标题");
+			expect(res.draft.body).toBe(DRAFT_BASE.body);
+		}
+	});
+	it("LLM 失败 → ok:false", async () => {
+		const fetchFn = seqFetch([{ status: 500 }, { status: 500 }]);
+		const res = await rewriteDraftLlm(DRAFT_BASE, ["body_richness"], {
+			settings,
+			apiKey: "k",
+			fetchFn,
+			sleep: vi.fn(noSleep),
+			maxRetries: 1,
+			...base,
+		});
+		expect(res.ok).toBe(false);
 	});
 });

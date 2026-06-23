@@ -54,6 +54,17 @@ describe("config-client — fetchRemoteMappings", () => {
 		expect(result.mappings).toEqual(DEFAULT_FIELD_MAPPING);
 	});
 
+	it("AbortError (超时) → 回落默认映射，不抛", async () => {
+		const fn = (async () => {
+			const e = new Error("aborted");
+			e.name = "AbortError";
+			throw e;
+		}) as unknown as typeof fetch;
+		const result = await fetchRemoteMappings(fn);
+		expect(result.remote).toBe(false);
+		expect(result.mappings).toEqual(DEFAULT_FIELD_MAPPING);
+	});
+
 	it("Edge: ok:true 但 mappings 缺失 → 回落默认映射", async () => {
 		const { fn } = mockFetch({ ok: true });
 		const result = await fetchRemoteMappings(fn);
@@ -94,6 +105,20 @@ describe("config-client — syncBatchItemStatus", () => {
 		expect(result.ok).toBe(false);
 		expect(result.error).toContain("500");
 	});
+
+	it("catch: 非 Error 抛出值 → String() 转换", async () => {
+		const fn = vi.fn(async () => {
+			throw "string-error";
+		});
+		const result = await syncBatchItemStatus(
+			"b1",
+			"i1",
+			{},
+			fn as unknown as typeof fetch,
+		);
+		expect(result.ok).toBe(false);
+		expect(result.error).toBe("string-error");
+	});
 });
 
 describe("config-client — fetchBatchState", () => {
@@ -115,6 +140,22 @@ describe("config-client — fetchBatchState", () => {
 		const result = await fetchBatchState("b1", fn);
 		expect(result.ok).toBe(false);
 		expect(await getToken()).toBeNull();
+	});
+
+	it("网络异常 → ok:false 含错误信息", async () => {
+		const fn = vi.fn(async () => {
+			throw new Error("network down");
+		});
+		const result = await fetchBatchState("b1", fn as unknown as typeof fetch);
+		expect(result.ok).toBe(false);
+		expect(result.error).toContain("network down");
+	});
+
+	it("Error 500 → ok:false 含 HTTP 状态", async () => {
+		const { fn } = mockFetch({}, 500);
+		const result = await fetchBatchState("b1", fn);
+		expect(result.ok).toBe(false);
+		expect(result.error).toContain("500");
 	});
 });
 
@@ -143,6 +184,47 @@ describe("config-client — createRemoteBatch", () => {
 		);
 		expect(result.ok).toBe(false);
 		expect(await getToken()).toBeNull();
+	});
+
+	it("Error 500 → ok:false 含 HTTP 状态", async () => {
+		const { fn } = mockFetch({ message: "server error" }, 500);
+		const result = await createRemoteBatch(
+			{ id: "b1", tabId: 1, authorizedHost: "h", topics: [] },
+			fn,
+		);
+		expect(result.ok).toBe(false);
+		expect(result.error).toContain("500");
+	});
+
+	it("网络异常 → ok:false 含错误信息", async () => {
+		const fn = vi.fn(async () => {
+			throw new Error("timeout");
+		});
+		const result = await createRemoteBatch(
+			{ id: "b1", tabId: 1, authorizedHost: "h", topics: [] },
+			fn as unknown as typeof fetch,
+		);
+		expect(result.ok).toBe(false);
+		expect(result.error).toContain("timeout");
+	});
+
+	it("Error 500: res.text() throws → 兜底空字符串，error 仍含 HTTP 状态", async () => {
+		const fn = vi.fn(
+			async () =>
+				({
+					ok: false,
+					status: 500,
+					text: async () => {
+						throw new Error("body unreadable");
+					},
+				}) as unknown as Response,
+		);
+		const result = await createRemoteBatch(
+			{ id: "b1", tabId: 1, authorizedHost: "h", topics: [] },
+			fn as unknown as typeof fetch,
+		);
+		expect(result.ok).toBe(false);
+		expect(result.error).toContain("500");
 	});
 
 	it("Integration: 注入的 fetchFn 确实被调用", async () => {

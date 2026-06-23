@@ -20,27 +20,22 @@
 - **Fix backend test dependencies in CI** | **Priority:** P0 | **Resolved (not reproducing):** 2026-06-15
   原报告:packages/backend/dist/ 下 8 个测试文件因缺失依赖（fastify、better-sqlite3、@51publisher/shared）而持续失败。
   核实:`packages/backend/vitest.config.ts` 已 `exclude: ["dist/**"]`,vitest 只跑 `src/` 源码,不收集 dist 下编译产物。
-  `pnpm --filter publisher-backend test` 实跑 = 275 passed / 26 files,无依赖失败。`pnpm -r test` 亦绿。
+  `pnpm --filter "@51publisher/backend" test` 实跑 = 275 passed / 26 files,无依赖失败。`pnpm -r test` 亦绿。
   dist 下的 `*.test.js` 仅是旧 build 产物,不进测试。该 P0 在当前 GitHub Actions CI(`pnpm -r test`)下不复现。
   发现于: feat/phase-2-measurement (2026-06-11);关闭于: feat/harden-safety-net (2026-06-15)
 
 ## Extension / UI
 
-- **TodayBatchView + BatchReviewPanel render 时多次 filter 无 useMemo** | **Priority:** P3
-  TodayBatchView.tsx:41 有 8 次 Array.filter/every；BatchReviewPanel.tsx:74 有 3 次 filter + aggregateDegradeStats，均无 useMemo。
-  数量小（通常 ≤20 条），当前不影响性能，但随批次增大会退化。
-  修法：将所有 derived arrays 包进单个 `useMemo(() => { … }, [items])` 一次遍历。
-  发现于: refactor/maintainability-test-refactor, performance specialist review (2026-06-16)
-
 ## Architecture / Known Gaps
 
-- **off-mode trajectory status 命名误导 (non-blocking)** | **Priority:** P3
-  `handleApproveBatch` 在 `result.error === 'blocked'`（off 模式）时写入 `status: 'fill-completed'`，
-  但该状态在语义上意味着"网关拦截(off模式)"而非"填充成功"。若批次在审批前被 kill，不写轨迹。
-  建议：引入 `status: 'gateway-blocked'` 或 `'fill-only'` 明确区分；off 模式下 kill 亦应记录轨迹。
-  发现于: feat/phase-2-measurement, adversarial review (2026-06-11)
+_当前无开放性架构问题。_
 
 ## Completed
+
+- **TodayBatchView + BatchReviewPanel render 时多次 filter 无 useMemo** | **Priority:** P3 | **Fixed:** 2026-06-17
+  BatchReviewPanel.tsx 中 4 次独立 batch.items 遍历合并为单个 `useMemo([batch.items])`，消除重复计算。
+  TodayBatchView 已有 useMemo（第 58 行），无需修改。
+  发现于: performance specialist review (2026-06-16); 关闭于: main (2026-06-17)
 
 - **slotDiff semantic issue** | **Priority:** P2 | **Fixed:** 2026-06-12
   在 `batch-orchestrator.ts` 中集成 `computeSlotDiff`，比较 AI 原稿(publishedDraft)与最终发布草稿(draft)。
@@ -61,6 +56,12 @@
   引入 `fewShotQueue` Promise 队列串行化 `addFewShotPair` 和 `removeLastFewShotPair`。
 
 - **off-mode 下缺少 appendTrajectory 调用** | **Priority:** P2 | **Verified:** 2026-06-12
+
+- **off-mode trajectory status 命名误导** | **Priority:** P3 | **已過期（代碼被重構移除）:** 2026-06-17
+  原報告：`handleApproveBatch` 在 off-mode 寫入誤導的 `fill-completed` 狀態。
+  核實：`fill-completed` 字串及 `handleApproveBatch` 函數在當前 main 已不存在。
+  batch 審批/軌跡系統已被重構，該問題已隨之消除。
+  发现于: feat/phase-2-measurement, adversarial review (2026-06-11); 关闭于: refactor/remove-gossip-pipeline (2026-06-17)
   代码验证：off-mode 下 `result.dryRun === false`，`appendTrajectory` 已被正确调用。
 
 - **backend auth-routes 测试超时** | **Priority:** P0 | **Fixed:** 2026-06-12

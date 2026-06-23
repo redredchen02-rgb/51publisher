@@ -36,4 +36,22 @@ describe("checkSelectorDrift", () => {
 		expect(r.ok).toBe(false);
 		expect(r.missing.length).toBeGreaterThanOrEqual(8);
 	});
+
+	it("mapping 含 null 值 → 跳过，不报缺失", () => {
+		document.body.innerHTML = "";
+		// null 值代表该字段未配置，应被跳过（line 20: if (!def) continue）
+		const r = checkSelectorDrift(document, { title: null } as never);
+		expect(r.ok).toBe(true);
+		expect(r.missing).toEqual([]);
+	});
+
+	it("def.label 为 undefined → 回退到 selector 作为缺失标识", () => {
+		document.body.innerHTML = "";
+		// label 未设置时用 selector 文字（line 22: def.label ?? def.selector）
+		const r = checkSelectorDrift(document, {
+			title: { selector: "#my-title" },
+		} as never);
+		expect(r.ok).toBe(false);
+		expect(r.missing).toContain("#my-title");
+	});
 });

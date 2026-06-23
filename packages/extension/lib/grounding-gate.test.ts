@@ -138,3 +138,142 @@ describe("evaluateGrounding", () => {
 		expect(v.ok).toBe(true);
 	});
 });
+
+describe("evaluateGrounding — Phase 2 新增校验", () => {
+	const base = draftFrom(FULL);
+
+	// ──── description / subtitle 裸 URL ────
+
+	it("description 含无来源裸 URL → 拦", () => {
+		const draft: ContentDraft = {
+			...base,
+			description: "查看资源:https://evil.com/fake",
+		};
+		const v = evaluateGrounding(draft, FULL);
+		expect(v.ok).toBe(false);
+		expect(v.reasons.join()).toContain("简介含无来源裸 URL");
+	});
+
+	it("description 含 factUrls 内裸 URL → 放行", () => {
+		const draft: ContentDraft = {
+			...base,
+			description: `汉化资源:${FULL.漢化}`,
+		};
+		const v = evaluateGrounding(draft, FULL);
+		expect(v.ok).toBe(true);
+	});
+
+	it("description 含 factUrls 内裸 URL 后跟英文句号 → 放行(尾部标点不影响来源匹配)", () => {
+		// 英文句号后紧跟空格是常见格式;此处验证尾部标点被正确剥离
+		const draft: ContentDraft = {
+			...base,
+			description: `汉化资源: ${FULL.漢化}.`,
+		};
+		const v = evaluateGrounding(draft, FULL);
+		expect(v.ok).toBe(true);
+	});
+
+	it("description 含 factUrls 内裸 URL 后跟右括号 → 放行", () => {
+		const draft: ContentDraft = {
+			...base,
+			description: `汉化(${FULL.漢化})`,
+		};
+		const v = evaluateGrounding(draft, FULL);
+		expect(v.ok).toBe(true);
+	});
+
+	it("description 无裸 URL → 放行", () => {
+		const draft: ContentDraft = {
+			...base,
+			description: "这是一段纯文字描述,没有链接。",
+		};
+		const v = evaluateGrounding(draft, FULL);
+		expect(v.ok).toBe(true);
+	});
+
+	it("subtitle 含无来源裸 URL → 拦", () => {
+		const draft: ContentDraft = {
+			...base,
+			subtitle: `看点 https://evil.com/sub`,
+		};
+		const v = evaluateGrounding(draft, FULL);
+		expect(v.ok).toBe(false);
+		expect(v.reasons.join()).toContain("副标题含无来源裸 URL");
+	});
+
+	// ──── category 校验 ────
+
+	it("category='2' → 放行", () => {
+		const draft: ContentDraft = { ...base, category: "2" };
+		const v = evaluateGrounding(draft, FULL);
+		expect(v.ok).toBe(true);
+	});
+
+	it("category='4' → 放行", () => {
+		const draft: ContentDraft = { ...base, category: "4" };
+		const v = evaluateGrounding(draft, FULL);
+		expect(v.ok).toBe(true);
+	});
+
+	it("category='99' → 拦", () => {
+		const draft: ContentDraft = { ...base, category: "99" };
+		const v = evaluateGrounding(draft, FULL);
+		expect(v.ok).toBe(false);
+		expect(v.reasons.join()).toContain("分类值");
+	});
+
+	it("category='' 空字符串 → 不拦(空值不强制)", () => {
+		const draft: ContentDraft = { ...base, category: "" };
+		const v = evaluateGrounding(draft, FULL);
+		// 空 category 不触发校验(无值视为「未填写」而非「非法值」)
+		expect(v.reasons.join()).not.toContain("分类值");
+	});
+
+	// ──── tags allow-list ────
+
+	it("tags 全在 recommendedTags → 放行", () => {
+		const draft: ContentDraft = { ...base, tags: ["漫画", "热血"] };
+		const v = evaluateGrounding(draft, FULL, undefined, [
+			"漫画",
+			"热血",
+			"冒险",
+		]);
+		expect(v.ok).toBe(true);
+	});
+
+	it("tags 含不在允许集的项 → 拦", () => {
+		const draft: ContentDraft = { ...base, tags: ["漫画", "非法标签"] };
+		const v = evaluateGrounding(draft, FULL, undefined, ["漫画", "热血"]);
+		expect(v.ok).toBe(false);
+		expect(v.reasons.join()).toContain("非法标签");
+	});
+
+	it("recommendedTags 未配置(undefined) → tags 任意值不触发拦截", () => {
+		const draft: ContentDraft = {
+			...base,
+			tags: ["任意标签1", "任意标签2"],
+		};
+		const v = evaluateGrounding(draft, FULL, undefined, undefined);
+		expect(v.reasons.join()).not.toContain("标签");
+	});
+
+	it("recommendedTags=[] 空数组 → tags 不拦(降级)", () => {
+		const draft: ContentDraft = { ...base, tags: ["任意标签"] };
+		const v = evaluateGrounding(draft, FULL, undefined, []);
+		expect(v.reasons.join()).not.toContain("标签");
+	});
+
+	it("tags=[] 空数组 + recommendedTags 配置 → 不拦(无成员)", () => {
+		const draft: ContentDraft = { ...base, tags: [] };
+		const v = evaluateGrounding(draft, FULL, undefined, ["漫画"]);
+		expect(v.ok).toBe(true);
+	});
+
+	// ──── 现有 5 个 check 回归 ────
+
+	it("新增校验不影响旧 check:标题【待补】仍拦", () => {
+		const v = evaluateGrounding(draftFrom({}), {});
+		expect(v.ok).toBe(false);
+		expect(v.reasons.join()).toContain("标题");
+	});
+});

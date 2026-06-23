@@ -10,7 +10,7 @@ import {
 
 // Strict per-route limit for auth endpoints (overrides the global limit).
 const AUTH_RATE_LIMIT = {
-	max: 10,
+	max: 5,
 	timeWindow: "1 minute",
 	onExceeded: (request: { ip: string }) =>
 		auditLogin("rate_limited", request.ip),

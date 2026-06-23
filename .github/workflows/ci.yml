@@ -18,7 +18,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "pnpm"
 
       - name: Install dependencies
@@ -46,12 +46,17 @@ jobs:
       - name: Test
         run: pnpm -r test
 
+      # 覆盖率阈值门控:Stmts/Lines/Branches/Functions 均须 ≥80%,低于则 CI 失败。
+      # vitest.config.ts 的 thresholds 配置使 coverage 命令在不达标时非零退出。
+      - name: Coverage thresholds
+        run: pnpm -r coverage
+
       # e2e 真闸 + 跳过可见:把 vitest 的 passed/skipped 汇总写进 CI step summary,
       # 杜绝「无 API_KEY 全 skip 却显示绿」的假绿。e2e 失败仍中断(真闸)。
       - name: E2E (skips visible)
         run: |
           set -o pipefail
-          pnpm --filter publisher-fill-assistant test:e2e 2>&1 | tee e2e.log
+          pnpm --filter "@51publisher/extension" test:e2e 2>&1 | tee e2e.log
           echo "### E2E test summary" >> "$GITHUB_STEP_SUMMARY"
           grep -E "Tests +[0-9]" e2e.log | tail -1 >> "$GITHUB_STEP_SUMMARY" \
             || echo "(no vitest summary line found — investigate)" >> "$GITHUB_STEP_SUMMARY"
@@ -60,8 +65,8 @@ jobs:
       # 复用 scripts/check-all.sh 的产物校验尾段思路(不整段调它以免重复 lint/test)。
       - name: Build and verify artifacts
         run: |
-          pnpm --filter publisher-backend build
-          pnpm --filter publisher-fill-assistant build
+          pnpm --filter "@51publisher/backend" build
+          pnpm --filter "@51publisher/extension" build
           # 断言关键产物文件存在(非仅目录),避免空/坏 build 通过 test -d。
           test -f packages/extension/.output/chrome-mv3/manifest.json \
             || { echo "✗ 扩展产物缺 chrome-mv3/manifest.json(build 可能空/坏)"; exit 1; }

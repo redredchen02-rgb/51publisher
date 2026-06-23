@@ -16,7 +16,7 @@ echo "=> Detected local environment"
 if [ ! -d "packages/backend/dist" ]; then
   echo "=> Building..."
   pnpm --filter @51publisher/shared build
-  pnpm --filter publisher-backend build
+  pnpm --filter "@51publisher/backend" build
 fi
 
 # Verify health

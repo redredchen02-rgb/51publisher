@@ -130,6 +130,17 @@ describe("buildApp", () => {
 		expect(res.body).toContain("publisher_drafts_total");
 	});
 
+	it("GET /api/v1/metrics 计数器在操作后递增（持久化验证）", async () => {
+		const { recordDraft } = await import("./services/metrics.js");
+		recordDraft(true);
+		recordDraft(true);
+		recordDraft(false);
+		const res = await app.inject({ method: "GET", url: "/api/v1/metrics" });
+		expect(res.statusCode).toBe(200);
+		expect(res.body).toContain('publisher_drafts_total{status="success"} 2');
+		expect(res.body).toContain('publisher_drafts_total{status="failed"} 1');
+	});
+
 	it("受保护路由无 token → 401", async () => {
 		const res = await app.inject({ method: "GET", url: "/api/v1/prompts" });
 		expect(res.statusCode).toBe(401);

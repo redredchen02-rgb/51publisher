@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useTodayBatchDomain } from "./hooks/useTodayBatchDomain";
 import {
 	BatchResultSections,
@@ -39,60 +40,110 @@ export function TodayBatchView({ onBack }: { onBack: () => void }) {
 		handleToggleRead,
 	} = useTodayBatchDomain();
 
-	const reviewableItems = items.filter(
-		(it) => it.status === "filled" || it.status === "awaiting-approval",
-	);
-	const gateFailedItems = items.filter((it) => it.status === "gate-failed");
-	const confirmedItems = items.filter(
-		(it) => it.status === "publish-confirmed",
-	);
-	const terminalOtherItems = items.filter(
-		(it) => it.status === "error" || it.status === "aborted",
-	);
-	const needsVerificationItems = items.filter(
-		(it) => it.status === "needs-human-verification",
-	);
+	const {
+		reviewableItems,
+		gateFailedItems,
+		confirmedItems,
+		terminalOtherItems,
+		needsVerificationItems,
+		generatingCount,
+		totalCount,
+		producedCount,
+		blockedCount,
+		completedCount,
+		progressValue,
+		readReviewCount,
+		isAllTerminal,
+		currentStep,
+	} = useMemo(() => {
+		const reviewableItems: typeof items = [];
+		const gateFailedItems: typeof items = [];
+		const confirmedItems: typeof items = [];
+		const terminalOtherItems: typeof items = [];
+		const needsVerificationItems: typeof items = [];
 
-	const generatingCount = items.filter(
-		(it) => it.status === "generating" || it.status === "queued",
-	).length;
-	const totalCount = items.length;
-	const producedCount = items.filter(
-		(it) =>
-			it.status === "filled" ||
-			it.status === "awaiting-approval" ||
-			it.status === "publish-dispatched" ||
-			it.status === "publish-confirmed",
-	).length;
-	const blockedCount =
-		gateFailedItems.length +
-		terminalOtherItems.length +
-		needsVerificationItems.length;
-	const completedCount = confirmedItems.length;
-	const progressValue =
-		totalCount === 0 ? 0 : Math.round((producedCount / totalCount) * 100);
-	const readReviewCount = reviewableItems.filter((it) =>
-		readItems.has(it.id),
-	).length;
-	const isAllTerminal =
-		totalCount > 0 &&
-		items.every((it) =>
-			[
-				"publish-confirmed",
-				"gate-failed",
-				"error",
-				"aborted",
-				"needs-human-verification",
-			].includes(it.status),
-		);
-	const currentStep =
-		totalCount === 0
-			? "选题"
-			: generatingCount > 0
-				? "生成"
-				: reviewableItems.length > 0
-					? "审读"
-					: "发布";
+		let generatingCount = 0;
+		let producedCount = 0;
+
+		for (const it of items) {
+			switch (it.status) {
+				case "filled":
+				case "awaiting-approval":
+					reviewableItems.push(it);
+					producedCount++;
+					break;
+				case "gate-failed":
+					gateFailedItems.push(it);
+					break;
+				case "publish-confirmed":
+					confirmedItems.push(it);
+					producedCount++;
+					break;
+				case "error":
+				case "aborted":
+					terminalOtherItems.push(it);
+					break;
+				case "needs-human-verification":
+					needsVerificationItems.push(it);
+					break;
+				case "generating":
+				case "queued":
+					generatingCount++;
+					break;
+				case "publish-dispatched":
+					producedCount++;
+					break;
+			}
+		}
+
+		const totalCount = items.length;
+		const blockedCount =
+			gateFailedItems.length +
+			terminalOtherItems.length +
+			needsVerificationItems.length;
+		const completedCount = confirmedItems.length;
+		const progressValue =
+			totalCount === 0 ? 0 : Math.round((producedCount / totalCount) * 100);
+		const readReviewCount = reviewableItems.filter((it) =>
+			readItems.has(it.id),
+		).length;
+		const isAllTerminal =
+			totalCount > 0 &&
+			items.every((it) =>
+				[
+					"publish-confirmed",
+					"gate-failed",
+					"error",
+					"aborted",
+					"needs-human-verification",
+				].includes(it.status),
+			);
+		const currentStep =
+			totalCount === 0
+				? "选题"
+				: generatingCount > 0
+					? "生成"
+					: reviewableItems.length > 0
+						? "审读"
+						: "发布";
+
+		return {
+			reviewableItems,
+			gateFailedItems,
+			confirmedItems,
+			terminalOtherItems,
+			needsVerificationItems,
+			generatingCount,
+			totalCount,
+			producedCount,
+			blockedCount,
+			completedCount,
+			progressValue,
+			readReviewCount,
+			isAllTerminal,
+			currentStep,
+		};
+	}, [items, readItems]);
 
 	return (
 		<main

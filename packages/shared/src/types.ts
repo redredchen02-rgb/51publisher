@@ -175,6 +175,9 @@ export type RuntimeMessage =
 	// 特权通道:仅 side panel 可发;mutate facts/draft/snapshot 并驱动提升,绝不自我授权发布。
 	// facts 为操作者补的事实覆盖(Partial<FactsBlock>);background 与 item.facts 合并后重跑 assembleDraft。
 	| { type: "REFILL_ITEM_FACTS"; itemId: string; facts: Partial<FactsBlock> }
+	// side panel → background:操作者修改完整事实后重新 LLM 生成草稿(Phase 2 FactsEdit)。
+	// 特权通道:仅 side panel 可发;原子写 facts+draft+snapshot,generateDraft 失败则 facts 不写入。
+	| { type: "EDIT_FACTS_AND_REGEN"; itemId: string; newFacts: FactsBlock }
 	// side panel → background:首飞排演(只读,dry-run + grounding,不武装不派发)。
 	// 在向导②强制排演阶段调用;返回 FirstFlightRehearseResult。绝不翻 authorized。
 	| { type: "FIRST_FLIGHT_REHEARSE"; tabId: number; itemId: string }

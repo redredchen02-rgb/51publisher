@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Batch, BatchItem } from "./batch.js";
-import { TERMINAL, isTerminal, recoverBatch } from "./batch.js";
+import { isTerminal, recoverBatch, TERMINAL } from "./batch.js";
 
 function makeItem(status: BatchItem["status"]): BatchItem {
 	return { id: "i1", topic: "test", status };
@@ -35,15 +35,21 @@ describe("TERMINAL", () => {
 });
 
 describe("isTerminal", () => {
-	it.each(["publish-confirmed", "aborted", "error", "needs-human-verification"] as const)(
-		"%s → true",
-		(s) => expect(isTerminal(s)).toBe(true),
-	);
+	it.each([
+		"publish-confirmed",
+		"aborted",
+		"error",
+		"needs-human-verification",
+	] as const)("%s → true", (s) => expect(isTerminal(s)).toBe(true));
 
-	it.each(["queued", "generating", "filled", "gate-failed", "awaiting-approval", "publish-dispatched"] as const)(
-		"%s → false",
-		(s) => expect(isTerminal(s)).toBe(false),
-	);
+	it.each([
+		"queued",
+		"generating",
+		"filled",
+		"gate-failed",
+		"awaiting-approval",
+		"publish-dispatched",
+	] as const)("%s → false", (s) => expect(isTerminal(s)).toBe(false));
 });
 
 describe("recoverBatch", () => {

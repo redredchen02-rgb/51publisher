@@ -1,5 +1,47 @@
-import { describe, expect, it } from "vitest";
-import { pickAdminTabId } from "./messaging";
+import type { ContentDraft } from "@51publisher/shared";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	checkSelectors,
+	discardBatchItem,
+	pickAdminTabId,
+	requestFill,
+} from "./messaging";
+
+// Mock browser tabs API and recipe host
+const mockSendMessage = vi.fn();
+const mockTabsQuery = vi.fn();
+
+vi.mock("#imports", () => ({
+	browser: {
+		tabs: {
+			sendMessage: (...args: unknown[]) => mockSendMessage(...args),
+			query: (...args: unknown[]) => mockTabsQuery(...args),
+		},
+		runtime: {
+			sendMessage: vi.fn(),
+		},
+	},
+}));
+
+vi.mock("./recipe", () => ({
+	DEFAULT_RECIPE: { host: "dx-999-adm.ympxbys.xyz" },
+}));
+
+const DRAFT: ContentDraft = {
+	id: "d1",
+	title: "t",
+	subtitle: "",
+	category: "2",
+	coverImageUrl: "",
+	body: "<p>x</p>",
+	tags: [],
+	description: "",
+	postStatus: "0",
+	publishedAt: "",
+	mediaId: "1",
+	status: "draft",
+	createdAt: "2026-06-01T00:00:00.000Z",
+};
 
 const HOST = "dx-999-adm.ympxbys.xyz";
 const adminUrl = `https://${HOST}/admin/index/index`;

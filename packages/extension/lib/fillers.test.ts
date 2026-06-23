@@ -336,4 +336,51 @@ describe("U8: fillCheckboxMulti degrade detail messages", () => {
 		expect(res?.status).toBe("filled");
 		expect(res?.note).toBeUndefined();
 	});
+
+	it("invalid selector → skip with 选择器语法错误", () => {
+		const badDef: FieldDefinition = {
+			selector: "input[invalid=",
+			fieldType: "checkbox-multi",
+			label: "tags",
+		};
+		const res = fillField("tags", badDef, draft, document);
+		expect(res?.status).toBe("skipped");
+		expect(res?.note).toContain("选择器语法错误");
+	});
+
+	it("valid selector but no elements → skip with 未找到", () => {
+		document.body.innerHTML = "";
+		const res = fillField(
+			"tags",
+			tagsDefn,
+			{ ...draft, tags: ["奇幻"] },
+			document,
+		);
+		expect(res?.status).toBe("skipped");
+		expect(res?.note).toContain("未找到");
+	});
+});
+
+describe("fillField: edge cases", () => {
+	it("unknown fieldType → skip with 未知字段类型", () => {
+		const unknownDef: FieldDefinition = {
+			selector: "input[name='x']",
+			fieldType: "unknown-type" as FieldDefinition["fieldType"],
+			label: "x",
+		};
+		const res = fillField("title", unknownDef, draft, document);
+		expect(res?.status).toBe("skipped");
+		expect(res?.note).toContain("未知字段类型");
+	});
+
+	it("body field with non-quill fieldType → valueFor returns body string", () => {
+		const textDef: FieldDefinition = {
+			selector: "input[name='body']",
+			fieldType: "text",
+			label: "body",
+		};
+		document.body.innerHTML = '<input name="body" />';
+		const res = fillField("body", textDef, draft, document);
+		expect(res?.status).toBe("filled");
+	});
 });

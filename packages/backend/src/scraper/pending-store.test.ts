@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { getDb, initPendingDb } from "./pending-db.js";
 import {
 	deletePendingTopic,
+	invalidatePublishedTitlesCache,
 	listPendingTopics,
 	loadPendingTopic,
 	type PendingTopic,
+	pendingTopicExistsBySourceUrl,
 	savePendingTopic,
 	updatePendingTopicStatus,
 } from "./pending-store.js";
@@ -276,5 +278,35 @@ describe("pending-store (SQLite)", () => {
 
 		const acgList = await listPendingTopics(50, undefined, undefined, "acg");
 		expect(acgList.every((t) => t.domain === "acg")).toBe(true);
+	});
+});
+
+describe("pending-store — 边缘分支", () => {
+	beforeEach(() => resetDb());
+
+	it("pendingTopicExistsBySourceUrl: 存在返回 true，不存在返回 false", async () => {
+		const url = "https://edge.example.com/topic-1";
+		expect(await pendingTopicExistsBySourceUrl(url)).toBe(false);
+		await savePendingTopic(makeTopic({ sourceUrl: url }));
+		expect(await pendingTopicExistsBySourceUrl(url)).toBe(true);
+	});
+
+	it("invalidatePublishedTitlesCache: 清空后重建缓存不崩溃", async () => {
+		invalidatePublishedTitlesCache();
+		// published_posts 表不存在时 getPublishedTitles 应静默返回空 Set
+		// 通过内部调用 savePendingTopic 时不报错来验证
+		await expect(
+			savePendingTopic(makeTopic({ sourceUrl: "https://edge.example.com/2" })),
+		).resolves.not.toThrow();
+	});
+
+	it("savePendingTopic: 不同 id + 相同 source_url → 返回 {inserted:false}(UNIQUE 约束)", async () => {
+		const url = "https://edge.example.com/dup";
+		await savePendingTopic(makeTopic({ id: "dup-id-1", sourceUrl: url }));
+		// 不同 id 但相同 source_url → 触发 SQLITE_CONSTRAINT_UNIQUE
+		const result = await savePendingTopic(
+			makeTopic({ id: "dup-id-2", sourceUrl: url }),
+		);
+		expect(result).toEqual({ inserted: false });
 	});
 });

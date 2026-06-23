@@ -26,6 +26,7 @@ const SW_TIMEOUT: Partial<Record<RuntimeMessage["type"], number>> = {
 	RELEASE_QUARANTINE_BATCH: 10_000,
 	RETRY_BATCH_ITEM: 10_000,
 	REFILL_ITEM_FACTS: 10_000, // 纯重组装 + 重跑闸门,无 LLM
+	EDIT_FACTS_AND_REGEN: 60_000, // 含 LLM 重生成,参照 GENERATE_DRAFT 放宽
 	DISCARD_BATCH_ITEM: 10_000,
 	FIRST_FLIGHT_REHEARSE: 60_000, // dry-run 填充 + grounding(无 LLM,但要等 content fill)
 	FIRST_FLIGHT_RUN: 120_000, // 排演 + 武装 + 派发一条 + revert
@@ -179,6 +180,22 @@ export async function retryBatchItemMsg(
 	itemId: string,
 ): Promise<BatchResponse> {
 	return sendMsg<BatchResponse>({ type: "RETRY_BATCH_ITEM", itemId });
+}
+
+/**
+ * 操作者在 FactsEdit 修改完整事实后提交:background 用新事实调 LLM 重生成草稿。
+ * 原子性:generateDraft 成功后才写 facts+draft+snapshot;失败时 facts 不变(item → error)。
+ * 仅 gate-failed / awaiting-approval 条目可用(其余 no-op 返回原 batch)。
+ */
+export async function editFactsAndRegen(
+	itemId: string,
+	newFacts: FactsBlock,
+): Promise<BatchResponse> {
+	return sendMsg<BatchResponse>({
+		type: "EDIT_FACTS_AND_REGEN",
+		itemId,
+		newFacts,
+	});
 }
 
 /**

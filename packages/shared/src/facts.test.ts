@@ -118,11 +118,9 @@ describe("applyPromptTemplate", () => {
 	});
 
 	it("replaces {{facts}} when facts provided", () => {
-		const result = applyPromptTemplate(
-			"{{facts}}\n請根據以上寫作",
-			"topic",
-			{ 作品名: "魔法少女" },
-		);
+		const result = applyPromptTemplate("{{facts}}\n請根據以上寫作", "topic", {
+			作品名: "魔法少女",
+		});
 		expect(result).toContain("作品名:魔法少女");
 		expect(result).not.toContain("{{facts}}");
 	});

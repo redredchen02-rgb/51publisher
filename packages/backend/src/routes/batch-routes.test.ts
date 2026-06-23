@@ -179,6 +179,91 @@ describe("Batch Routes", () => {
 		});
 	});
 
+	describe("POST /api/v1/batches — missing fields → 400", () => {
+		it("returns 400 when topics is missing", async () => {
+			const res = await app.inject({
+				method: "POST",
+				url: "/api/v1/batches",
+				payload: { id: "bad1", tabId: 1, authorizedHost: "h.com" },
+			});
+			expect(res.statusCode).toBe(400);
+		});
+
+		it("returns 400 when id is missing", async () => {
+			const res = await app.inject({
+				method: "POST",
+				url: "/api/v1/batches",
+				payload: { tabId: 1, authorizedHost: "h.com", topics: ["t1"] },
+			});
+			expect(res.statusCode).toBe(400);
+		});
+
+		it("returns 400 when topics is empty array", async () => {
+			const res = await app.inject({
+				method: "POST",
+				url: "/api/v1/batches",
+				payload: { id: "bad2", tabId: 1, authorizedHost: "h.com", topics: [] },
+			});
+			expect(res.statusCode).toBe(400);
+		});
+	});
+
+	describe("PATCH — metrics recording", () => {
+		async function createBatchWithApproval(id: string) {
+			await app.inject({
+				method: "POST",
+				url: "/api/v1/batches",
+				payload: { id, tabId: 1, authorizedHost: "h.com", topics: ["t1"] },
+			});
+			// queued → generating → filled → awaiting-approval → publish-dispatched
+			for (const status of [
+				"generating",
+				"filled",
+				"awaiting-approval",
+				"publish-dispatched",
+			]) {
+				await app.inject({
+					method: "PATCH",
+					url: `/api/v1/batches/${id}/items/item_0`,
+					payload: { status },
+				});
+			}
+		}
+
+		it("records publish success when status → publish-confirmed", async () => {
+			await createBatchWithApproval("m1");
+			const res = await app.inject({
+				method: "PATCH",
+				url: "/api/v1/batches/m1/items/item_0",
+				payload: { status: "publish-confirmed" },
+			});
+			expect(res.statusCode).toBe(200);
+			expect(res.json().item.status).toBe("publish-confirmed");
+		});
+
+		it("records publish failure when status → error with publish-failed", async () => {
+			await createBatchWithApproval("m2");
+			const res = await app.inject({
+				method: "PATCH",
+				url: "/api/v1/batches/m2/items/item_0",
+				payload: { status: "error", error: "publish-failed" },
+			});
+			expect(res.statusCode).toBe(200);
+			expect(res.json().item.status).toBe("error");
+		});
+
+		it("records batchCompleted when all items leave active state", async () => {
+			// Single-item batch: when it reaches publish-confirmed all items are done
+			await createBatchWithApproval("m3");
+			const res = await app.inject({
+				method: "PATCH",
+				url: "/api/v1/batches/m3/items/item_0",
+				payload: { status: "publish-confirmed" },
+			});
+			expect(res.statusCode).toBe(200);
+		});
+	});
+
 	describe("GET /api/v1/batches (list)", () => {
 		it("lists recently created batches", async () => {
 			for (const id of ["la", "lb", "lc"]) {

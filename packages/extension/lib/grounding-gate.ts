@@ -7,24 +7,43 @@ import type { ContentDraft, FactsBlock } from "@51publisher/shared";
 import { containsPlaceholder, factUrls } from "@51publisher/shared";
 import { hasUnsourcedLink, verifyLinks } from "./link-source";
 
+const VALID_CATEGORIES = new Set(["2", "4"]);
+
 export interface GroundingVerdict {
 	ok: boolean;
 	reasons: string[];
 }
 
+/** 从纯文本中提取裸 URL(非 HTML <a href>),用于 description/subtitle 的来源校验。
+ *  末尾标点符号(句号/逗号/括号等)从匹配结果中剥离,防止 "URL。" 与 facts 中干净 URL 不等而误判。 */
+function extractRawUrls(text: string): string[] {
+	const matches = text.match(/https?:\/\/[^\s<>"]+/g);
+	if (!matches) return [];
+	// 剥离常见尾部标点（含中文句号/顿号/书名号）
+	return matches.map((u) => u.replace(/[.,;:!?)\]'>。、」』）]+$/, ""));
+}
+
 /**
  * 评估一条草稿是否可 authorized 真发。
- * 规则:① 标题/正文残留【待补】(未完成,缺事实)→ 拦;② 正文含无来源连结(疑似编造)→ 拦;③ 质量分过低 → 提示。
+ * 规则:
+ *   ① 标题/正文/副标题/简介残留【待补】→ 拦
+ *   ② 正文含无来源连结(HTML <a href>)→ 拦
+ *   ③ 简介/副标题含无来源裸 URL → 拦(Phase 2 新增)
+ *   ④ category 不在合法值集合 → 拦(Phase 2 新增)
+ *   ⑤ tags 含不在 recommendedTags 的项 → 拦(如已配置)(Phase 2 新增)
+ *   ⑥ 质量分过低 → 提示
  */
 export function evaluateGrounding(
 	draft: ContentDraft,
 	facts?: FactsBlock,
 	qualityScore?: number,
+	recommendedTags?: string[],
 ): GroundingVerdict {
 	const reasons: string[] = [];
+	const sourcedUrlsList = factUrls(facts ?? {});
+	const sourcedUrls = new Set(sourcedUrlsList);
 
-	// 四个组装字段全部检测 —— subtitle/description 也会经 sanitizeToPlainText 裸 URL 改写携带【待补】,
-	// 旧逻辑只查 title+body 会漏过它们。用前缀 helper(标注/裸/未闭合变体均拦)。
+	// ① 四个组装字段全部检测 placeholder
 	if (containsPlaceholder(draft.title)) {
 		reasons.push("标题仍含【待补】(缺作品名),请补全或编辑后再发。");
 	}
@@ -38,14 +57,42 @@ export function evaluateGrounding(
 		reasons.push("简介仍含【待补】(有事实未补),请补全或删去该占位后再发。");
 	}
 
-	// 无来源连结:组装后应恒不触发;此为 defense-in-depth。
-	// 仅扫正文 —— extractLinks 只识别 HTML <a href>,正文为 HTML;副标题/描述为纯文本,
-	// 其中的裸 URL 检测需另加 raw-URL 正则,留 Phase 2(见 plan R3/R7)。
-	if (hasUnsourcedLink(verifyLinks(draft.body, factUrls(facts ?? {})))) {
+	// ② 正文 HTML <a href> 无来源连结(defense-in-depth)
+	if (hasUnsourcedLink(verifyLinks(draft.body, sourcedUrlsList))) {
 		reasons.push("正文含无来源连结(疑似编造 URL),请核实。");
 	}
 
-	// 质量分检查（非阻塞，仅提示）
+	// ③ 简介/副标题裸 URL 来源校验(Phase 2)
+	for (const rawUrl of extractRawUrls(draft.description)) {
+		if (!sourcedUrls.has(rawUrl)) {
+			reasons.push(`简介含无来源裸 URL(疑似编造):${rawUrl}`);
+			break; // 只报第一条,避免刷屏
+		}
+	}
+	for (const rawUrl of extractRawUrls(draft.subtitle)) {
+		if (!sourcedUrls.has(rawUrl)) {
+			reasons.push(`副标题含无来源裸 URL(疑似编造):${rawUrl}`);
+			break;
+		}
+	}
+
+	// ④ category 合法值校验(Phase 2)
+	if (draft.category && !VALID_CATEGORIES.has(draft.category)) {
+		reasons.push(
+			`分类值「${draft.category}」不在合法选项(2=漫畫/4=動漫),请修正后再发。`,
+		);
+	}
+
+	// ⑤ tags allow-list 校验(Phase 2 —— 仅在 recommendedTags 已配置时执行)
+	if (recommendedTags && recommendedTags.length > 0) {
+		const allowed = new Set(recommendedTags);
+		const bad = draft.tags.filter((t) => t && !allowed.has(t));
+		if (bad.length > 0) {
+			reasons.push(`标签含未在允许集内的项:「${bad.join("、")}」,请修正。`);
+		}
+	}
+
+	// ⑥ 质量分检查（非阻塞，仅提示）
 	if (qualityScore !== undefined && qualityScore < 0.6) {
 		reasons.push(
 			`内容质量分 ${(qualityScore * 100).toFixed(0)}% 低于阈值,建议优化后再发。`,

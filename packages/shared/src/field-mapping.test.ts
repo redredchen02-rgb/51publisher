@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
 	DEFAULT_FIELD_MAPPING,
-	VALID_FIELD_TYPES,
 	isValidFieldMapping,
+	VALID_FIELD_TYPES,
 } from "./field-mapping.js";
 
 describe("isValidFieldMapping", () => {
@@ -32,7 +32,9 @@ describe("isValidFieldMapping", () => {
 	});
 
 	it("returns false when fieldType is unknown", () => {
-		const bad = { title: { selector: 'input[name="title"]', fieldType: "unknown-type" } };
+		const bad = {
+			title: { selector: 'input[name="title"]', fieldType: "unknown-type" },
+		};
 		expect(isValidFieldMapping(bad)).toBe(false);
 	});
 
@@ -52,7 +54,14 @@ describe("isValidFieldMapping", () => {
 describe("DEFAULT_FIELD_MAPPING", () => {
 	it("has expected core fields", () => {
 		const keys = Object.keys(DEFAULT_FIELD_MAPPING);
-		for (const k of ["title", "subtitle", "body", "tags", "description", "category"]) {
+		for (const k of [
+			"title",
+			"subtitle",
+			"body",
+			"tags",
+			"description",
+			"category",
+		]) {
 			expect(keys, `missing field: ${k}`).toContain(k);
 		}
 	});

@@ -1,4 +1,4 @@
-import type { ContentDraft } from "@51publisher/shared";
+import type { ContentDraft, FactsBlock } from "@51publisher/shared";
 
 function Field({
 	label,
@@ -18,63 +18,100 @@ function Field({
 export function DraftPreview({
 	draft,
 	onChange,
+	readonlyFields,
+	facts,
 }: {
 	draft: ContentDraft;
 	onChange: (d: ContentDraft) => void;
+	/** Grounded fields that must not be hand-edited; operator must edit facts and regenerate. */
+	readonlyFields?: ReadonlySet<keyof ContentDraft>;
+	/** FactsBlock for the item; drives description dual-state (grounded vs prose). */
+	facts?: FactsBlock;
 }) {
 	const set = (patch: Partial<ContentDraft>) =>
 		onChange({ ...draft, ...patch });
+
+	const ro = (field: keyof ContentDraft) => readonlyFields?.has(field) ?? false;
+
+	// description is grounded (readOnly) when facts.简介 is present; prose-editable otherwise.
+	const descReadOnly = ro("description") || !!facts?.简介?.trim();
+
 	return (
 		<div>
 			<Field label="标题">
 				<input
-					className="field-input"
+					className={`field-input${ro("title") ? " field-input--readonly" : ""}`}
 					value={draft.title}
-					onChange={(e) => set({ title: e.target.value })}
+					readOnly={ro("title")}
+					onChange={
+						ro("title") ? undefined : (e) => set({ title: e.target.value })
+					}
 				/>
 			</Field>
 			<Field label="副标题">
 				<input
-					className="field-input"
+					className={`field-input${ro("subtitle") ? " field-input--readonly" : ""}`}
 					value={draft.subtitle}
-					onChange={(e) => set({ subtitle: e.target.value })}
+					readOnly={ro("subtitle")}
+					onChange={
+						ro("subtitle")
+							? undefined
+							: (e) => set({ subtitle: e.target.value })
+					}
 				/>
 			</Field>
 			<Field label="分类(type 值,如 2=漫畫文章 / 4=動漫文章)">
 				<input
-					className="field-input"
+					className={`field-input${ro("category") ? " field-input--readonly" : ""}`}
 					value={draft.category}
-					onChange={(e) => set({ category: e.target.value })}
+					readOnly={ro("category")}
+					onChange={
+						ro("category")
+							? undefined
+							: (e) => set({ category: e.target.value })
+					}
 				/>
 			</Field>
 			<Field label="标签(逗号分隔)">
 				<input
-					className="field-input"
+					className={`field-input${ro("tags") ? " field-input--readonly" : ""}`}
 					value={draft.tags.join(", ")}
-					onChange={(e) =>
-						set({
-							tags: e.target.value
-								.split(",")
-								.map((t) => t.trim())
-								.filter(Boolean),
-						})
+					readOnly={ro("tags")}
+					onChange={
+						ro("tags")
+							? undefined
+							: (e) =>
+									set({
+										tags: e.target.value
+											.split(",")
+											.map((t) => t.trim())
+											.filter(Boolean),
+									})
 					}
 				/>
 			</Field>
 			<Field label="描述">
 				<textarea
-					className="field-input"
+					className={`field-input${descReadOnly ? " field-input--readonly" : ""}`}
 					style={{ minHeight: 44 }}
 					value={draft.description}
-					onChange={(e) => set({ description: e.target.value })}
+					readOnly={descReadOnly}
+					onChange={
+						descReadOnly
+							? undefined
+							: (e) => set({ description: e.target.value })
+					}
 				/>
 			</Field>
 			<Field label="正文(HTML,填充前自动消毒)">
 				<textarea
-					className="field-input"
+					className={`field-input${ro("body") ? " field-input--readonly" : ""}`}
 					style={{ minHeight: 120, fontFamily: "monospace" }}
 					value={draft.body}
-					onChange={(e) => set({ body: e.target.value })}
+					readOnly={ro("body")}
+					onChange={
+						ro("body") ? undefined : (e) => set({ body: e.target.value })
+					}
 				/>
 			</Field>
 			<details style={{ marginBottom: "var(--space-md)" }}>

@@ -19,7 +19,12 @@ vi.mock("../../lib/trajectory", async (importActual) => {
 		),
 	};
 });
+vi.mock("../../lib/publish-feedback", () => ({
+	getFeedback: vi.fn(async () => []),
+	saveFeedback: vi.fn(async () => {}),
+}));
 
+import { getFeedback, saveFeedback } from "../../lib/publish-feedback";
 import { getTrajectory } from "../../lib/storage";
 
 function makeRecord(
@@ -44,6 +49,8 @@ describe("HistoryPanel", () => {
 	afterEach(() => {
 		cleanup();
 		vi.mocked(getTrajectory).mockReset();
+		vi.mocked(getFeedback).mockReset();
+		vi.mocked(saveFeedback).mockReset();
 	});
 
 	it("empty trajectory → 暂无发布记录 empty state", async () => {
@@ -101,5 +108,107 @@ describe("HistoryPanel", () => {
 		vi.mocked(getTrajectory).mockResolvedValue([makeRecord("r1", "t")]);
 		render(<HistoryPanel />);
 		await screen.findByText(/链完整/);
+	});
+
+	it("publish-confirmed record → 三个评分按钮可见", async () => {
+		vi.mocked(getTrajectory).mockResolvedValue([
+			makeRecord("r1", "topic-a", { status: "publish-confirmed" }),
+		]);
+		vi.mocked(getFeedback).mockResolvedValue([]);
+		render(<HistoryPanel />);
+		await screen.findByText(/topic-a/);
+		expect(screen.getByRole("button", { name: "good" })).toBeTruthy();
+		expect(screen.getByRole("button", { name: "ok" })).toBeTruthy();
+		expect(screen.getByRole("button", { name: "bad" })).toBeTruthy();
+	});
+
+	it("needs-human-verification record → 无评分按钮", async () => {
+		vi.mocked(getTrajectory).mockResolvedValue([
+			makeRecord("r1", "topic-b", { status: "needs-human-verification" }),
+		]);
+		vi.mocked(getFeedback).mockResolvedValue([]);
+		render(<HistoryPanel />);
+		await screen.findByText(/topic-b/);
+		expect(screen.queryByRole("button", { name: "good" })).toBeNull();
+	});
+
+	it("error/aborted records → 无评分按钮", async () => {
+		vi.mocked(getTrajectory).mockResolvedValue([
+			makeRecord("r1", "t1", { status: "error" }),
+			makeRecord("r2", "t2", { status: "aborted" }),
+		]);
+		vi.mocked(getFeedback).mockResolvedValue([]);
+		render(<HistoryPanel />);
+		await screen.findByText(/t1/);
+		expect(screen.queryByRole("button", { name: "good" })).toBeNull();
+	});
+
+	it("已有评分记录时 mount 后对应按钮为选中色", async () => {
+		vi.mocked(getTrajectory).mockResolvedValue([
+			makeRecord("r1", "topic-c", { status: "publish-confirmed" }),
+		]);
+		vi.mocked(getFeedback).mockResolvedValue([
+			{
+				itemId: "r1",
+				topic: "topic-c",
+				rating: "good",
+				ts: "2026-06-16T00:00:00Z",
+			},
+		]);
+		render(<HistoryPanel />);
+		await screen.findByText(/topic-c/);
+		const goodBtn = screen.getByRole("button", {
+			name: "good",
+		}) as HTMLButtonElement;
+		expect(goodBtn.style.fontWeight).toBe("700");
+	});
+
+	it("点击评分 → 调用 saveFeedback 并传入正确参数", async () => {
+		vi.mocked(getTrajectory).mockResolvedValue([
+			makeRecord("r1", "topic-d", { status: "publish-confirmed" }),
+		]);
+		vi.mocked(getFeedback).mockResolvedValue([]);
+		vi.mocked(saveFeedback).mockResolvedValue();
+		render(<HistoryPanel />);
+		await screen.findByText(/topic-d/);
+		fireEvent.click(screen.getByRole("button", { name: "good" }));
+		expect(vi.mocked(saveFeedback)).toHaveBeenCalledWith(
+			expect.objectContaining({
+				itemId: "r1",
+				topic: "topic-d",
+				rating: "good",
+			}),
+		);
+	});
+
+	it("saveFeedback 失败 → UI 回滚到未评分状态", async () => {
+		vi.mocked(getTrajectory).mockResolvedValue([
+			makeRecord("r1", "topic-e", { status: "publish-confirmed" }),
+		]);
+		vi.mocked(getFeedback).mockResolvedValue([]);
+		vi.mocked(saveFeedback).mockRejectedValue(new Error("storage error"));
+		render(<HistoryPanel />);
+		await screen.findByText(/topic-e/);
+		const goodBtn = screen.getByRole("button", { name: "good" });
+		fireEvent.click(goodBtn);
+		// 等待 promise reject 处理
+		await new Promise((r) => setTimeout(r, 0));
+		expect((goodBtn as HTMLButtonElement).style.fontWeight).toBe("400");
+	});
+
+	it("同一条目二次点击不同 rating → feedbackMap 更新为新值", async () => {
+		vi.mocked(getTrajectory).mockResolvedValue([
+			makeRecord("r1", "topic-f", { status: "publish-confirmed" }),
+		]);
+		vi.mocked(getFeedback).mockResolvedValue([]);
+		vi.mocked(saveFeedback).mockResolvedValue();
+		render(<HistoryPanel />);
+		await screen.findByText(/topic-f/);
+		fireEvent.click(screen.getByRole("button", { name: "good" }));
+		fireEvent.click(screen.getByRole("button", { name: "bad" }));
+		const calls = vi.mocked(saveFeedback).mock.calls;
+		const lastCall = calls[calls.length - 1];
+		expect(lastCall).toBeDefined();
+		expect(lastCall?.[0]).toMatchObject({ rating: "bad" });
 	});
 });

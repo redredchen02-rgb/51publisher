@@ -28,7 +28,7 @@ pnpm lint                         # biome check --write;CI 用 pnpm lint:ci
 bash scripts/check-all.sh         # 测试 + 双端构建 + 产物校验
 ```
 
-扩展专属(在 `packages/extension/` 下或加 `--filter publisher-fill-assistant`):
+扩展专属(在 `packages/extension/` 下或加 `--filter @51publisher/extension`):
 
 ```bash
 pnpm test:e2e                     # e2e:本地 fixture + 真 Quill 2.0.2(独立 vitest.e2e.config.ts)

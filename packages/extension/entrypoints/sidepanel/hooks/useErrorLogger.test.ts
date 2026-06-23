@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useErrorLogger } from "./useErrorLogger";
+
+vi.mock("../../../lib/chrome-storage-utils", async (importOriginal) => {
+	const actual =
+		await importOriginal<typeof import("../../../lib/chrome-storage-utils")>();
+	return { ...actual };
+});
 
 describe("useErrorLogger", () => {
 	afterEach(() => {
@@ -70,6 +76,26 @@ describe("useErrorLogger", () => {
 			await result.current.clearLogs();
 		});
 
+		expect(result.current.logs).toEqual([]);
+	});
+
+	it("retrieveLogs: storage null 时静默跳过(不抛出)", async () => {
+		const mod = await import("../../../lib/chrome-storage-utils");
+		vi.spyOn(mod, "getStorage").mockReturnValueOnce(null);
+		const { result } = renderHook(() => useErrorLogger());
+		await act(async () => {
+			await result.current.retrieveLogs();
+		});
+		expect(result.current.logs).toEqual([]);
+	});
+
+	it("clearLogs: storage null 时静默跳过(不抛出)", async () => {
+		const mod = await import("../../../lib/chrome-storage-utils");
+		vi.spyOn(mod, "getStorage").mockReturnValueOnce(null);
+		const { result } = renderHook(() => useErrorLogger());
+		await act(async () => {
+			await result.current.clearLogs();
+		});
 		expect(result.current.logs).toEqual([]);
 	});
 });
