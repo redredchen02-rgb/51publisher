@@ -27,7 +27,12 @@ function cachePut(key, value) {
 }
 
 function cacheGet(key) {
-  return generateCache.get(key);
+  if (!generateCache.has(key)) return undefined;
+  // Refresh recency so eviction in cachePut is true-LRU, not FIFO.
+  const value = generateCache.get(key);
+  generateCache.delete(key);
+  generateCache.set(key, value);
+  return value;
 }
 
 async function getSettings() {
@@ -49,14 +54,19 @@ async function testConnection() {
 }
 
 function fillTemplate(comic) {
-  return PROMPT_TEMPLATE
-    .replace('{title}', comic.title || '')
-    .replace('{author}', comic.author || '未知')
-    .replace('{tags}', comic.tags || '')
-    .replace('{categories}', comic.categories || '')
-    .replace('{status}', comic.status || '')
-    .replace('{bookmark_count}', comic.bookmark_count || 0)
-    .replace('{view_count}', comic.view_count || 0);
+  const fields = {
+    title: comic.title || '',
+    author: comic.author || '未知',
+    tags: comic.tags || '',
+    categories: comic.categories || '',
+    status: comic.status || '',
+    bookmark_count: comic.bookmark_count || 0,
+    view_count: comic.view_count || 0,
+  };
+  // Single pass with a function replacement: avoids $-pattern injection from
+  // field values, never re-substitutes a token that appears inside a value,
+  // and leaves unknown {tokens} (e.g. the JSON example block) intact.
+  return PROMPT_TEMPLATE.replace(/\{(\w+)\}/g, (m, k) => (k in fields ? String(fields[k]) : m));
 }
 
 async function generateArticle(comic) {

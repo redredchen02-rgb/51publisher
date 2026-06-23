@@ -1,6 +1,5 @@
 const DB_NAME = 'acgs_scraper';
 const DB_VERSION = 2;
-const STORES = ['comics', 'articles', 'chapters', 'pages', 'errors', 'crawl_state'];
 
 let _dbCache = null;
 
