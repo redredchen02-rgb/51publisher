@@ -2,7 +2,8 @@
   "env": {
     "browser": true,
     "es2021": true,
-    "webextensions": true
+    "webextensions": true,
+    "worker": true
   },
   "parserOptions": {
     "ecmaVersion": "latest",
@@ -26,6 +27,8 @@
   "globals": {
     "chrome": "readonly",
     "DB": "readonly",
-    "LLM": "readonly"
+    "LLM": "readonly",
+    "Http": "readonly",
+    "Parsers": "readonly"
   }
 }
