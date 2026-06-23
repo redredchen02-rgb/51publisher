@@ -4,7 +4,7 @@ chrome.storage.local.get(['apiUrl', 'apiKey', 'model'], (r) => {
   if (r.model) document.getElementById('model').value = r.model;
 });
 
-document.getElementById('btn-save').addEventListener('click', () => {
+document.getElementById('btn-save')?.addEventListener('click', () => {
   const apiUrl = document.getElementById('apiUrl').value.trim();
   const apiKey = document.getElementById('apiKey').value.trim();
   if (!apiUrl) { showStatus('请填写 API URL', 'err'); return; }
@@ -18,18 +18,20 @@ document.getElementById('btn-save').addEventListener('click', () => {
   });
 });
 
-document.getElementById('btn-test').addEventListener('click', async () => {
+document.getElementById('btn-test')?.addEventListener('click', async () => {
   showStatus('测试中...', '');
   try {
-    const apiUrl = document.getElementById('apiUrl').value;
-    const apiKey = document.getElementById('apiKey').value;
-    const model = document.getElementById('model').value || 'gpt-4o-mini';
+    const apiUrl = document.getElementById('apiUrl').value.trim();
+    const apiKey = document.getElementById('apiKey').value.trim();
+    const model = document.getElementById('model').value.trim() || 'gpt-4o-mini';
+    if (!apiUrl || !apiKey) { showStatus('请先填写 API URL 和 Key', 'err'); return; }
     const resp = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ model, messages: [{ role: 'user', content: '说 OK' }], max_tokens: 10 })
     });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    // Mirror lib/llm.js testConnection error shape so both report the same detail.
+    if (!resp.ok) { const e = await resp.text(); throw new Error(`API 错误 ${resp.status}: ${e.slice(0, 100)}`); }
     showStatus('连接成功!', 'ok');
   } catch (e) {
     showStatus('失败: ' + e.message, 'err');
@@ -38,6 +40,7 @@ document.getElementById('btn-test').addEventListener('click', async () => {
 
 function showStatus(msg, cls) {
   const el = document.getElementById('status');
+  if (!el) return;
   el.textContent = msg;
   el.className = cls || 'ok';
 }
