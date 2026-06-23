@@ -118,3 +118,32 @@ class TestParseComicDetail:
         result = parse_comic_detail("<html><body></body></html>")
         assert result["author"] is None
         assert result["chapter_count"] is None
+
+    # --- malformed JSON-LD must degrade, not crash (untrusted external input) ---
+
+    def _html_with_ld(self, ld):
+        return f"<html><body><script type='application/ld+json'>{json.dumps(ld)}</script></body></html>"
+
+    def test_non_string_date_published_is_ignored(self):
+        # datePublished as a number must not crash the [:10] slice.
+        result = parse_comic_detail(self._html_with_ld({"@type": "Book", "datePublished": 2024}))
+        assert result["publish_date"] is None
+
+    def test_aggregate_rating_not_a_dict_is_ignored(self):
+        # ratingValue arriving as a bare string/number must not raise AttributeError.
+        result = parse_comic_detail(self._html_with_ld({"@type": "Book", "aggregateRating": "4.5"}))
+        assert result["rating"] is None
+
+    def test_interaction_statistic_as_single_object(self):
+        # schema.org allows a single object (not just an array).
+        ld = {"@type": "Book", "interactionStatistic": {
+            "interactionType": {"@type": "BookmarkAction"}, "userInteractionCount": 42}}
+        result = parse_comic_detail(self._html_with_ld(ld))
+        assert result["bookmark_count"] == 42
+
+    def test_interaction_statistic_wrong_type_is_ignored(self):
+        # A stray string where a list is expected must not crash iteration.
+        result = parse_comic_detail(self._html_with_ld(
+            {"@type": "Book", "interactionStatistic": "oops"}))
+        assert result["bookmark_count"] is None
+        assert result["like_count"] is None
