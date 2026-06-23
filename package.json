@@ -8,6 +8,8 @@
     "build:backend": "bash scripts/build-backend.sh",
     "build": "npm run build:extension && npm run build:backend",
     "clean": "rm -rf dist",
-    "test:backend": "cd packages/backend && python3 -m pytest -q"
+    "test:backend": "cd packages/backend && python3 -m pytest -q",
+    "test:extension": "cd packages/extension && npm test",
+    "lint:extension": "cd packages/extension && npm run lint"
   }
 }
