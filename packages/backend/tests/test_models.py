@@ -131,3 +131,106 @@ def test_set_page_local_path(tmp_path, monkeypatch):
     ).fetchone()
     assert row["local_path"] == "/tmp/p.jpg"
     assert row["file_size"] == 123
+
+
+# --- upsert_article / upsert_topic_detail -------------------------------------
+
+def _article(**over):
+    base = dict(source_id="a1", title="Article", cover_url="", detail_url="https://x/a1",
+                summary="summary", article_type="hub", tags="t1")
+    base.update(over)
+    return base
+
+
+def test_upsert_article_roundtrips(tmp_path, monkeypatch):
+    conn = _db(tmp_path, monkeypatch)
+    assert models.upsert_article(conn, _article()) is True
+    # Second upsert merges fields.
+    assert models.upsert_article(conn, _article(title="Updated")) is True
+    rows = conn.execute("SELECT * FROM articles").fetchall()
+    assert len(rows) == 1
+    assert rows[0]["title"] == "Updated"
+
+
+def test_upsert_topic_detail_roundtrips(tmp_path, monkeypatch):
+    conn = _db(tmp_path, monkeypatch)
+    assert models.upsert_topic_detail(conn, {
+        "topic_id": "hub_123", "content_html": "<p>hi</p>",
+        "content_text": "hi", "comic_refs": "1001,1002",
+    }) is True
+    row = conn.execute("SELECT * FROM topic_details WHERE topic_id='hub_123'").fetchone()
+    assert row["content_text"] == "hi"
+    assert row["comic_refs"] == "1001,1002"
+
+
+# --- query_comics with source filter ------------------------------------------
+
+def test_query_comics_with_source_filter(tmp_path, monkeypatch):
+    conn = _db(tmp_path, monkeypatch)
+    models.upsert_comic(conn, _comic(source_id="1", source="home"))
+    models.upsert_comic(conn, _comic(source_id="2", source="topic"))
+    home = models.query_comics(conn, source="home")
+    assert len(home) == 1
+    assert home[0]["source"] == "home"
+
+
+# --- query_comics_needing_detail / query_articles / query_comics_without_chapters
+
+def test_query_comics_needing_detail_excludes_already_detailed(tmp_path, monkeypatch):
+    conn = _db(tmp_path, monkeypatch)
+    models.upsert_comic(conn, _comic(source_id="1"))              # author=None → needs detail
+    models.upsert_comic(conn, _comic(source_id="2", author="Oda"))
+    needing = models.query_comics_needing_detail(conn)
+    ids = {c["source_id"] for c in needing}
+    assert "1" in ids
+    assert "2" not in ids
+
+
+def test_query_articles_with_and_without_type_filter(tmp_path, monkeypatch):
+    conn = _db(tmp_path, monkeypatch)
+    models.upsert_article(conn, _article(source_id="a1", article_type="hub"))
+    models.upsert_article(conn, _article(source_id="a2", article_type="blog"))
+    assert len(models.query_articles(conn)) == 2
+    hub = models.query_articles(conn, article_type="hub")
+    assert len(hub) == 1 and hub[0]["article_type"] == "hub"
+
+
+def test_query_comics_without_chapters(tmp_path, monkeypatch):
+    conn = _db(tmp_path, monkeypatch)
+    models.upsert_comic(conn, _comic(source_id="1"))   # no chapters
+    models.upsert_comic(conn, _comic(source_id="2"))
+    models.upsert_chapter(conn, {
+        "comic_source_id": "2", "chapter_id": "c1",
+        "chapter_name": "第1话", "chapter_url": "https://x/c/1", "page_count": None,
+    })
+    without = models.query_comics_without_chapters(conn)
+    ids = {c["source_id"] for c in without}
+    assert "1" in ids
+    assert "2" not in ids
+
+
+# --- upsert_chapter / upsert_page roundtrip -----------------------------------
+
+def test_upsert_chapter_roundtrips(tmp_path, monkeypatch):
+    conn = _db(tmp_path, monkeypatch)
+    models.upsert_comic(conn, _comic(source_id="1"))
+    assert models.upsert_chapter(conn, {
+        "comic_source_id": "1", "chapter_id": "ch1",
+        "chapter_name": "Chapter 1", "chapter_url": "https://x/ch/1", "page_count": 20,
+    }) is True
+    row = conn.execute("SELECT chapter_name, page_count FROM chapters WHERE chapter_id='ch1'").fetchone()
+    assert row["chapter_name"] == "Chapter 1"
+    assert row["page_count"] == 20
+
+
+def test_upsert_page_roundtrips(tmp_path, monkeypatch):
+    conn = _db(tmp_path, monkeypatch)
+    _seed_chapter(conn, comic_id="1", chapter_id="c1")
+    assert models.upsert_page(conn, {
+        "chapter_id": "c1", "page_number": 5, "image_url": "http://pic.x/5.jpg",
+        "local_path": None, "file_size": None,
+    }) is True
+    row = conn.execute(
+        "SELECT image_url FROM pages WHERE chapter_id='c1' AND page_number=5"
+    ).fetchone()
+    assert row["image_url"] == "http://pic.x/5.jpg"
