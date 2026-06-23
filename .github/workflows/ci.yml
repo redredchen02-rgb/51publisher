@@ -52,10 +52,52 @@ jobs:
           cd packages/backend
           ruff check scraper/ --select E,F,W --ignore E501
 
+  lint-extension:
+    name: Extension Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: packages/extension/package-lock.json
+
+      - name: Install dependencies
+        run: cd packages/extension && npm ci
+
+      - name: Run eslint
+        run: cd packages/extension && npm run lint
+
+  test-extension:
+    name: Extension Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: packages/extension/package-lock.json
+
+      - name: Install dependencies
+        run: cd packages/extension && npm ci
+
+      - name: Run tests
+        run: cd packages/extension && npm test
+
   build:
     name: Build Artifacts
     runs-on: ubuntu-latest
-    needs: [test-backend]
+    needs: [test-backend, test-extension]
     
     steps:
       - name: Checkout code
